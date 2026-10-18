@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/info_commands.rs
+expression: esc(&got)
+---
+\x1b[0;37;40m\x1b[79D\x1b[KYou are carrying 2 runic coins, 1 gold crown, 18 silver nobles, 3 copper\r\nfarthings, padded vest (Torso), torch (Readied/5), dagger (Weapon Hand), padded\r\npants, padded helm, padded gloves, padded boots, 2 torch\r\n\x1b[79D\x1b[K\x1b[0;37;40mYou have the following keys:  2 iron keys, brass key.\r\n\x1b[0;32mWealth: \x1b[36m2000283 copper farthings\r\n\x1b[0;32mEncumbrance: \x1b[36m507/2400 - \x1b[32mLight [21%]\x1b[0m\r\n

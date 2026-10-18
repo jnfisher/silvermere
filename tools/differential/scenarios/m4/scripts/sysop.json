@@ -1,0 +1,234 @@
+{
+ "scenario": "m4/sysop",
+ "port": 2323,
+ "description": "T-055: the deterministic SYSOP sub-commands (goto x6, god status/info/options, list spells, arena status, configure show, the help lists) and the sysop menu, as the BBS sysop account. Not recorded yet: the orchestrator runs it against MBBSEmu. T-057: an equal start after the entry (class, level, hp, mana); GOD INFO waits for its last part, the original's pauses answered.",
+ "character": {
+  "user": "sysop",
+  "password": "sysop",
+  "name": "Sysadm"
+ },
+ "mask": [
+  {
+   "regex": "(?<=Current pollrate:)[^\\r\\n]*|(?<=Current initrate:)[^\\r\\n]*|(?<=Logfile:)[^\\r\\n]*",
+   "why": "the values of the record cache rates and the log file name: none in silvermere; the labels stay compared"
+  },
+  {
+   "regex": "You must purchase the .* before you may move through this exit\\.",
+   "why": "the add-on gate of GOTO, dropped (licensing)"
+  },
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "direction names' random capital"
+  }
+ ],
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "sysop",
+   "until": "Password:"
+  },
+  {
+   "send": "sysop",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "note": "MajorMUD from the BBS menu"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm as the sysop's character Sysadm"
+  },
+  {
+   "send": "sysop goto support",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "T-096: first of all into the Sysop Support Chamber (1:164: mongroup 0, no room spell), so the sheet's steps and the help list are played where no wanderer comes",
+   "timeout": 10
+  },
+  {
+   "send": "sysop tweak clear",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "an equal start: nothing carried (TWEAK CLEAR)",
+   "timeout": 10
+  },
+  {
+   "send": "sysop tweak class 13",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "an equal start: a druid (MA in the prompt)",
+   "timeout": 10
+  },
+  {
+   "send": "sysop tweak level 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "level 1, which any experience allows",
+   "timeout": 10
+  },
+  {
+   "send": "sysop tweak hp 100",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "hit points, current and maximum",
+   "timeout": 10
+  },
+  {
+   "send": "sysop tweak mana 50",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "mana, current and maximum",
+   "timeout": 10
+  },
+  {
+   "send": "sysop",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the help list"
+  },
+  {
+   "send": "sysop goto nowhere",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Current GOTO locations (T-096: played in the start room, not in Lost City)"
+  },
+  {
+   "send": "sysop goto newhaven",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "1:2150, no message"
+  },
+  {
+   "send": "sysop goto silvermere",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "reincroom"
+  },
+  {
+   "send": "sysop goto support",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "1:164, sysop only"
+  },
+  {
+   "send": "sysop god sysadm unlawful",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "T-104: evil (40+) for Rhudaur, whose dark monks attack non-evil arrivals (GOD UNLAWFUL)"
+  },
+  {
+   "send": "sysop goto rhudaur",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "2:2519 (the original may answer the add-on purchase line: masked)"
+  },
+  {
+   "send": "sysop goto support",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "T-104: out of Rhudaur into the quiet Sysop Support Chamber (1:164), so no town sees the sysop evil"
+  },
+  {
+   "send": "sysop god sysadm neutral",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "T-104: neutral again, in the quiet room, before any GOTO or walk can reach Khazarad, Silvermere or Newhaven (guardsmen attack evil)"
+  },
+  {
+   "send": "sysop goto khazarad",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "6:1249"
+  },
+  {
+   "send": "sysop goto lostcity",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "16:426"
+  },
+  {
+   "send": "sysop goto support",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "T-096: back to town's quiet room, the Sysop Support Chamber (1:164): no monster group, no room spell"
+  },
+  {
+   "send": "sysop god",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "GOD syntax and options"
+  },
+  {
+   "send": "sysop god sysadm dance",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Valid options"
+  },
+  {
+   "send": "sysop god sysadm status",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "show_status of the sysop's own character"
+  },
+  {
+   "send": "sysop god sysadm info",
+   "until": "User abilities:(?s:.*)\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 30,
+   "note": "status, userid, inventory; then the spells, profile and abilities a part a poll",
+   "pager": true
+  },
+  {
+   "send": "sysop list",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Valid lists"
+  },
+  {
+   "send": "sysop arena status",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "arena mode"
+  },
+  {
+   "send": "sysop configure show",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "configuration; the credit lines are masked"
+  },
+  {
+   "send": "sysop tweak",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Valid edits (developer gate)"
+  },
+  {
+   "send": "sysop frobnicate",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Command not recognized."
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 90,
+   "note": "leave the realm"
+  },
+  {
+   "send": "sysop",
+   "until": "MAJORMUD Sysop",
+   "timeout": 10,
+   "note": "the hidden word: the sysop menu"
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 10
+  }
+ ],
+ "echo_anchored": true,
+ "answer_pager": "Hit any key to continue\\.\\.\\.",
+ "settle": 0.5
+}

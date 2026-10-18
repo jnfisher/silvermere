@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/character_creation.rs
+expression: escape(&out)
+---
+\x1b[1;37mYou must choose a class. [ ? for help ]

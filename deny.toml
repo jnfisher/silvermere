@@ -1,0 +1,50 @@
+# cargo-deny configuration: `cargo deny check` runs in CI on every PR.
+
+[graph]
+all-features = true
+exclude-dev = false
+
+[advisories]
+version = 2
+# Vulnerabilities, unmaintained and unsound crates are errors. Ignore a specific
+# advisory here only with a comment naming why and the card that removes it.
+yanked = "deny"
+ignore = []
+
+[licenses]
+version = 2
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "MPL-2.0",
+]
+confidence-threshold = 0.8
+# Check dev-dependencies too: today every third-party crate is a dev-dependency.
+include-dev = true
+# The allow-list is the project's policy, not the current graph; unused entries are fine.
+unused-allowed-license = "allow"
+# A transitive crate outside the allow-list gets a targeted exception with a comment;
+# do not widen the allow-list.
+exceptions = [
+    # Mozilla's CA root certificates as data, pulled in by sqlx's rustls TLS
+    # (no OpenSSL, so the musl static build works).
+    { allow = ["CDLA-Permissive-2.0"], crate = "webpki-roots" },
+]
+
+[licenses.private]
+# Workspace crates are `publish = false` and carry no licence field.
+ignore = true
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

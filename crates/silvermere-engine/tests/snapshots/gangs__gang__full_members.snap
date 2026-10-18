@@ -1,0 +1,9 @@
+---
+source: crates/silvermere-engine/tests/gangs.rs
+expression: "format!(\"{head}{rest}\")"
+---
+Wolves members (4)
+Bob Smith                     - Online [Leader]
+Eve Stored                    
+Ann Abcdefghijklmnopqrstuvwxy - Online [Lieutenant]
+Dan Stored                    [Lieutenant]

@@ -1,0 +1,10 @@
+{
+ "scenario": "disconnect-punish",
+ "script": "../../../tests/captures/disconnect-punish/script.json",
+ "setup": [
+  {
+   "side": "both",
+   "scenario": "creation-fsd"
+  }
+ ]
+}

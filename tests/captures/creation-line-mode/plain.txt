@@ -1,0 +1,207 @@
+╔══════════════════════════════════════════════════════════╗
+║█████████████████▄███████▄███████▄████████████████████████║
+║██████████████▀▀██████▀▀██████▀▀▀▀███▀▀▀▀█████████████████║
+║██████████████████▀███████▀███████████████████████████████║
+║███▀███▀██████▀▀██████▀▀███▀▀▀▀██████▀▀▀████▀███▀█████████║
+║████▀▀▀███████████▀███████▀██████████████████▀▀▀████▀████▀║
+║▀▀▀█████▀▀▀▀▀▀▀▀▀▀█▀▀▀▀▀▀▀█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█████▀▀▀█▀▀▀▀▀║
+║██████████████╘═╡ The MajorBBS Emulator ╞═╛███████████████║
+║████████████████│ By: MBBSEmu Community │█████████████████║
+║                │https://www.mbbsemu.com│                 ║
+╚══════════════════════════════════════════════════════════╝
+ 
+Enter Username or enter "NEW" to create a new Account
+>>> 'Corvin'
+Username: Corvin
+>>> 'corvin1'
+Password: *******
+
+Fantasy awaits you in MajorMUD v1.11p-WG!
+
+
+Please select one of the following:
+
+   M ... MajorMUD
+
+Main Menu
+>>> 'M'
+Make your selection (X to exit): M
+
+ M A J O R  M U D v1.11p-WG (Dec 30 2005 14:20:05)
+{Realm Of Legends}
+*ANSI RECOMMENDED*
+
+[E] . Enter the Realm
+[H] . Help
+[A] . About the Game
+[C] . Game Counts
+[T] . Topten Adventurers
+[G] . Topten Gangs
+[W] . Who's in the Realm
+[R] . Release Notes
+[I] . Information
+[X] . Exit Game
+
+>>> 'E'
+[MAJORMUD]: E
+Please choose a race from the following list:
+[1]  Human
+[2]  Dwarf
+[3]  Gnome
+[4]  Halfling
+[5]  Elf
+[6]  Half-Elf
+[7]  Dark-Elf
+[8]  Half-Orc
+[9]  Goblin
+[10] Half-Ogre
+[11] Kang
+[12] Nekojin
+[13] Gaunt One
+
+>>> '5'
+Please choose your race [ ? for help ] : 5
+Please choose a class from the following list:
+[1]  Warrior
+[2]  Witchunter
+[3]  Paladin
+[4]  Cleric
+[5]  Priest
+[6]  Missionary
+[7]  Ninja
+[8]  Thief
+[9]  Bard
+[10] Gypsy
+[11] Warlock
+[12] Mage
+[13] Druid
+[14] Ranger
+[15] Mystic
+
+>>> '12'
+Please choose your class [ ? for help ] : 12
+
+You must now choose if you want to be a truly 'lawful' citizen of the realm.
+If you answer YES to this question then you will never be allowed to instigate
+any action which would give you evil points, and any player that attacks or
+robs from you will receive three times the regular evil points in return. You
+can still attack those with a bad reputation. This option is designed
+solely for those who want to stay away from the player combat aspects of the
+game, and choosing it for any other reason (Item storage, etc...) is strictly
+prohibited.
+
+Remember, this is a very important choice. Once you have chosen Lawfulness,
+you may not remove this title, unless you start a new character.
+
+>>> 'N'
+Do you want to be Lawful?  [Yes/No] N
+
+     M A J O R   M U D
+
+     Character Generator
+
++-    Point Cost Chart    -+
+|                          |
+| 1st 10 points: 1 CP each |
+| 2nd 10 points: 2 CP each |
+| 3rd 10 points: 3 CP each |
+|     ... and so on ...    |
+|                          |
+| +10 to base stat:  10 CP |
+| +20 to base stat:  30 CP |
+| +30 to base stat:  60 CP |
+| +40 to base stat: 100 CP |
+| +50 to base stat: 150 CP |
++-    ... and so on ...   -+
+
+Strength  35 - 0
+Intellect 50 - 0
+Willpower 40 - 0
+Agility   50 - 0
+Health    30 - 0
+Charm     50 - 0
+
+You have 100 CP to distribute.
+>>> '\r'
+>>> 'Ashdown'
+>>> '\r'
+                  Corvin                                    Elf                  Mage    35    90    35    50    120    50    40    100    40    50    120    50    30    80    30    50    120    50               none               black               black    SAVE                                                                               Corvin                                                                               Corvin                  Ashdown
+You have 100 CP to distribute.
+>>> '\r'
+                                                                               Ashdown    35
+You have 100 CP to distribute.
+>>> '6'
+>>> '0'
+>>> '\r'
+                                                                 35    50    60
+You have 90 CP to distribute.
+>>> '5'
+>>> '0'
+>>> '\r'
+                                                                 60    40    50
+You have 80 CP to distribute.
+>>> '\r'
+                                                                 50    50
+You have 80 CP to distribute.
+>>> '\r'
+                                                                 50    30
+You have 80 CP to distribute.
+>>> '\r'
+                                                                 30    50
+You have 80 CP to distribute.
+>>> '\r'
+>>> '\r'
+>>> '\r'
+>>> '\r'
+                                                                 50               none                                                                            none               black                                                                            black               black                                                                            black    SAVE                                                                 SAVE
+To prevent accidental suicide or reroll, these commands
+have been password protected.  You have not yet entered
+your suicide password, so please do so soon using the
+SET SUICIDE command.
+Please wait - Validating your name.
+ Validating your name, please wait.
+
+Name: Corvin Ashdown                   Lives/CP:      9/80   
+Race: Elf         Exp: 0               Perception:     56
+Class: Mage       Level: 1             Stealth:        34
+Hits:    20/20    Armour Class:   0/0  Thievery:        0
+Mana: *  22/22    Spellcasting: 55     Traps:           0
+                                       Picklocks:       0
+Strength:  35     Agility: 50          Tracking:        0
+Intellect: 60     Health:  30          Martial Arts:   16
+Willpower: 50     Charm:   50          MagicRes:       52
+
+>>> ''
+[HP=20/MA=22]:
+
+Newhaven, Village Entrance
+You notice large sign, newbie manual here.
+Obvious exits: north, south, west, southeast
+
+>>> 'x'
+[HP=20/MA=22]:x
+You will exit after a period of silent meditation.
+................
+Your character has been saved. If you have any comments or suggestions, please
+leave them in E-mail to Sysop. Thanks.
+
+>>> 'X'
+[MAJORMUD]: X
+
+Please select one of the following:
+
+   M ... MajorMUD
+
+Main Menu
+>>> 'X'
+Make your selection (X to exit): X
+You are about to terminate this connection!
+
+>>> 'Y'
+Are you sure (Y/N, or R to re-logon)? Y
+
+
+Ok, thanks for calling!
+
+Have a nice day...
+

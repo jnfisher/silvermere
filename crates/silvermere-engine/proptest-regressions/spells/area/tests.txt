@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 1ad860333042f3610f5cc2c258f0a2c8a74248729acf9bc87a4e0923082ebd75 # shrinks to kind = DivArea, who = [Who { level: 1, evil: 0, mr: 0, hidden: false, leader: Some(1) }], mons = [], seed = 0

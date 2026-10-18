@@ -1,0 +1,32 @@
+# Generated from WCCMMUD.MSG by tools/msgconv/msgconv.py --catalogue; do not edit by hand.
+# Format: crates/silvermere-text/src/catalogue.rs. Line ends are `\r`; `{{` and `}}` are
+# literal braces; ESC is \u001B.
+
+
+[messages.usrlogin]
+text = "\r\u001B[1mFantasy awaits you in \u001B[33mMajorMUD v{version}!\r\r"
+pattern = "login_greeting"
+example = { version = "1.11p-WG" }
+note = "The logon greeting. The one argument is the bare version (`1.11p-WG`)."
+
+[messages.usrlogof]
+text = "\u001B[0m\r"
+note = "Disabled in the original (the file's own comment: it 'has been disabled and will be removed in a future version'); kept for completeness, unused."
+
+[messages.usrfoled]
+text = "\u001B[0m\u001B[2J\r\u001B[1;33mMajorMUD - ROL\r\r\u001B[0m\u001B[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\r\r"
+pattern = "enter_banner"
+note = "Clear screen, the `MajorMUD - ROL` banner and the 77-character `=-` rule."
+
+[messages.usrexit]
+text = "\u001B[0m\rYour character has been saved. If you have any comments or suggestions, please\rleave them in E-mail to Sysop. Thanks.\r"
+note = "Shown when the player leaves the game."
+
+[messages.leavemnu]
+text = " \r"
+note = "Sub-board hook: the original sends these characters to disconnect from a sub-board. A single space and a line end; unused in silvermere."
+
+[messages.inachup]
+text = "\u001B[0m\rYou have been inactive for too long.   Bye!\r\r"
+pattern = "inactive_hangup"
+note = "Three spaces before `Bye!` are in the original."

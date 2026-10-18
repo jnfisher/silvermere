@@ -1,0 +1,6 @@
+---
+source: crates/silvermere-engine/tests/progression.rs
+expression: esc(&bytes)
+---
+\x1b[79D\x1b[KYou have progressed too far without training to acquire anymore experience!\r\n
+\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m]:

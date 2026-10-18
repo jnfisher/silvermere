@@ -1,0 +1,43 @@
+{
+ "scenario": "m2/death-rebirth",
+ "script": "m2/scripts/death-rebirth.json",
+ "statistical": true,
+ "setup": [
+  {
+   "side": "orig",
+   "script": "m2/setup/orig-account-corvin.json"
+  },
+  {
+   "side": "orig",
+   "scenario": "creation-line-mode"
+  },
+  {
+   "side": "new",
+   "script": "m2/setup/new-corvin.json"
+  }
+ ],
+ "ignore_steps": [
+  0,
+  1,
+  2
+ ],
+ "m2": {
+  "sequence": [
+   "drops_unconscious",
+   "mortally_wounded",
+   "you_killed",
+   "saved",
+   "lives_left",
+   "body_appears"
+  ],
+  "min_swings": 0,
+  "records": "Corvin",
+  "about": "down, the mortally-wounded refusal, killed, saved, lives left, in that order on both; deathhp -200 on both: John's server and silvermere's default game.death_hp",
+  "repeat": {
+   "first": 9,
+   "last": 13,
+   "times": 25
+  }
+ },
+ "world_patterns": true
+}

@@ -1,0 +1,109 @@
+{
+ "scenario": "m4/sysop",
+ "script": "m4/scripts/sysop.json",
+ "deterministic": [
+  "sysop",
+  "sysop goto nowhere",
+  "sysop god",
+  "sysop god sysadm dance",
+  "sysop list",
+  "sysop arena status",
+  "sysop tweak",
+  "sysop frobnicate"
+ ],
+ "setup": [],
+ "ignore_host_banner": true,
+ "world_patterns": true,
+ "note": "T-057: the m4_sysop scenario in the m4 group, its script with an equal start after the entry. T-084: up to three reruns after interference (the six GOTO towns draw wanderers, and an ambient Temple line can come to one side at the exit). T-096: GOTO NOWHERE is played in the start room and the trip back ends in the Sysop Support Chamber, not the Temple, so only each GOTO's own step is open to wanderers and the Temple's ambient lines",
+ "max_reruns": 3,
+ "ignore_steps": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10
+ ],
+ "bytes_from_echo": true,
+ "divergences": [
+  {
+   "card": "T-055",
+   "side": "orig",
+   "why": "INITIALIZE is dropped with the sub-command: no caches",
+   "unknown_lines": [
+    "^\\s*INITIALIZE-- Re-initialize MajorMUD buffers\\s*$"
+   ],
+   "byte_patterns": [
+    "[^\\r\\n]*INITIALIZE-- Re-initialize MajorMUD buffers[^\\r\\n]*\\r?\\n?"
+   ]
+  },
+  {
+   "card": "T-055",
+   "side": "new",
+   "why": "LIST's developer line needs developer mode, which the original has only on the developers' registration numbers; silvermere's DEBUG grant stands for it (docs/differences.md)",
+   "unknown_lines": [
+    "^\\s*ITEMS, KNOWN_MONSTERS, ACTIVE_MONSTERS, SPELLS, TEXT, RESTOCK\\s*$"
+   ],
+   "byte_patterns": [
+    "[^\\r\\n]*ITEMS, KNOWN_MONSTERS, ACTIVE_MONSTERS, SPELLS, TEXT, RESTOCK[^\\r\\n]*\\r?\\n?"
+   ]
+  },
+  {
+   "card": "T-055",
+   "side": "orig",
+   "why": "CONFIGURE SHOW's three credit lines are not shown in silvermere: no BBS credits (docs/differences.md)",
+   "unknown_lines": [
+    "^\\s*Normal Credit Consumption:\\s+\\d+\\s*$",
+    "^\\s*Exempt Credit Conusmption:\\s+\\d+\\s*$",
+    "^\\s*Free time for exempt users:\\s+\\d+\\s*$"
+   ],
+   "byte_patterns": [
+    "[^\\r\\n]*(?:Normal Credit Consumption|Exempt Credit Conusmption|Free time for exempt users):\\s+\\d+[^\\r\\n]*\\r?\\n?"
+   ]
+  },
+  {
+   "card": "T-055",
+   "side": "new",
+   "why": "CONFIGURE SHOW's developer pair needs developer mode, which the original has only on the developers' registration numbers; silvermere's DEBUG grant stands for it (docs/differences.md)",
+   "unknown_lines": [
+    "^\\s*Monster Generation Rate:\\s+\\d+ seconds\\s*$",
+    "^\\s*Minutes before regenerating:\\s+\\d+ minutes\\s*$"
+   ],
+   "byte_patterns": [
+    "[^\\r\\n]*Monster Generation Rate:\\s+\\d+ seconds[^\\r\\n]*\\r?\\n?",
+    "[^\\r\\n]*Minutes before regenerating:\\s+\\d+ minutes[^\\r\\n]*\\r?\\n?"
+   ]
+  },
+  {
+   "card": "T-055",
+   "side": "orig",
+   "why": "the MajorMUD Sysop menu's U (the importer CLI), B and E (the kernel's editors) and A (licensing) lines are not shown in silvermere (docs/differences.md, the sysop menu rows)",
+   "unknown_lines": [
+    "^\\s*(?:U - Apply an update|B - Edit the sysop bulletin file|E - Edit the wccmmud\\.ini file \\(only if it is small\\)|A - Addon module activation codes)\\s*$"
+   ],
+   "byte_patterns": [
+    "[^\\r\\n]*(?:U - Apply an update|B - Edit the sysop bulletin file|E - Edit the wccmmud\\.ini file \\(only if it is small\\)|A - Addon module activation codes)[^\\r\\n]*\\r?\\n?"
+   ]
+  }
+ ],
+ "value_masks": [
+  {
+   "event": "settings_line",
+   "where": {
+    "key": "Life for this CHAR"
+   },
+   "fields": [
+    "val"
+   ]
+  }
+ ],
+ "unknown_value_masks": [
+  "^(Current pollrate:\\s+)\\S+\\s*$",
+  "^(Current initrate:\\s+)\\S+\\s*$",
+  "^(Logfile:\\s+)\\S+\\s*$"
+ ]
+}

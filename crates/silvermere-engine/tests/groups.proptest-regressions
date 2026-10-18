@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 56dcae5d7fb55d26aa0ecc276eb92e3565b337fd4b4d7bc564e72bd9ee067521 # shrinks to acts = [Invite(5, 6), Follow(6, 5), Disband(6)]

@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/exit_types.rs
+expression: r.snapshot()
+---
+need_spell: \x1b[1;31;40mYou need to cast a spell to go that way!\r\n

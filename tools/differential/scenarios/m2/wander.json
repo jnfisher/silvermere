@@ -1,0 +1,31 @@
+{
+ "scenario": "m2/wander",
+ "script": "m2/scripts/wander.json",
+ "statistical": true,
+ "world_patterns": true,
+ "ignore_host_banner": true,
+ "mask_prompt": true,
+ "setup": [],
+ "subst": {
+  "@ROOMA@": "2467",
+  "@ROOMB@": "2468"
+ },
+ "m2": {
+  "sequence": [],
+  "min_swings": 0,
+  "regen": false,
+  "rates": true,
+  "gate_wanders": true,
+  "watch": true,
+  "monster": "lashworm",
+  "about": "lashworms walking from room A into the watched room B per minute of watching, over 25 minutes a side, the conditional Poisson test at p > 0.01, gated (T-086's wander pass over the monster cache). A side with no walk-in at all refuses.",
+  "repeat": {
+   "first": 20,
+   "last": 28,
+   "times": 2000
+  },
+  "stop": {
+   "minutes": 25
+  }
+ }
+}

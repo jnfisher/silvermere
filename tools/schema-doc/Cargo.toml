@@ -1,0 +1,19 @@
+# Renders docs/schema.md from the two migration files and checks the committed copy in
+# CI. A standalone crate (its own [workspace]) so the server workspace's member list,
+# which only scaffolding cards edit, stays as it is. No dependencies.
+#
+#   cargo run --manifest-path tools/schema-doc/Cargo.toml            # regenerate
+#   cargo run --manifest-path tools/schema-doc/Cargo.toml -- --check # CI: fail if stale
+[package]
+name = "schema-doc"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Generates docs/schema.md from migrations/{sqlite,postgres}/*.sql."
+
+[workspace]
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[dependencies]

@@ -1,0 +1,7 @@
+---
+source: crates/silvermere-engine/tests/gangs.rs
+expression: "h.line(ann, \"gb\")"
+---
+Wolves members (4)
+This gang has been disbanded.
+Zed                                    [Leader]

@@ -1,0 +1,10 @@
+{
+  "Modules": [
+    {
+      "Identifier": "WCCMMUD",
+      "Path": "@PATH@",
+      "MenuOptionKey": "M",
+      "Enabled": 1
+    }
+  ]
+}

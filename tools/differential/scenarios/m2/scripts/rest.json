@@ -1,0 +1,510 @@
+{
+ "scenario": "m2/rest",
+ "port": 2323,
+ "naws": null,
+ "description": "Regen per tick (T-037; max((level+20)*health/750, 1) every 30 s, and three times that every 21st fast tick while resting): one arena fight to lose hit points (cut short at single-digit hit points), up the stairs to the Narrow Road (monster group 0: nothing spawns or follows), `rest`, three minutes of prompts. stats.py compares the set of hit point gains between prompts.",
+ "character": {
+  "user": "Brannoc",
+  "password": "brannoc1",
+  "name": "Brannoc Hale",
+  "race": "Human",
+  "class": "Warrior",
+  "level": 1
+ },
+ "mask": [
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "direction names carry a random capital letter and a backspace"
+  },
+  {
+   "regex": "(?<=\\[HP=)-?\\d+|(?<=/MA=)-?\\d+|(?<=/KAI=)-?\\d+",
+   "why": "the prompt's numbers only, never its labels (as m4)"
+  },
+  {
+   "regex": "(?<=for )\\d+(?= damage)|(?<=You gain )\\d+(?= experience)|\\d+(?= (?:copper farthings?|silver nobles?|gold crowns?|platinum pieces?|runic coins?)\\b)",
+   "why": "RNG: the damage, the experience share and the coin amounts, digits only (the words and the currency name stay compared)"
+  },
+  {
+   "regex": "(?:large|small|big|thin|fat|nasty|angry|fierce|short|tall|happy|slimy) ",
+   "why": "random monster adjective"
+  },
+  {
+   "regex": "giant rat|lashworm|filthbug|carrion beast|acid slime|kobold thief",
+   "why": "which monster spawned"
+  },
+  {
+   "regex": "(?<=Exp: \\x1b\\[36m)\\d+ *|(?<=Exp: )\\d+ *",
+   "why": "the experience after random fights (st, exp): the number and its column padding, not the label"
+  },
+  {
+   "regex": "(?<=Hits: \\x1b\\[36m) *-?\\d+(?=/)|(?<=Hits: ) *-?\\d+(?=/)",
+   "why": "current hit points after random fights (st): the number and its padding, not the label or the maximum"
+  },
+  {
+   "regex": "(?<=next level: \\x1b\\[36m)\\d+(?= \\()|(?<=next level: )\\d+(?= \\()|(?<=\\) \\[)\\d+(?=%\\])",
+   "why": "experience still needed and its percentage (exp): digits only"
+  }
+ ],
+ "notes": [],
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "Brannoc",
+   "until": "Password:"
+  },
+  {
+   "send": "brannoc1",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "note": "MajorMUD from the BBS menu"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm"
+  },
+  {
+   "send": "n",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Newhaven, Weapons Shop: the starter kit costs nothing (WCCITEMS cost 0), the same on both servers"
+  },
+  {
+   "send": "buy quarterstaff",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "wield quarterstaff",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "s",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "back to the Village Entrance"
+  },
+  {
+   "send": "s",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Newhaven, Armour Shop"
+  },
+  {
+   "send": "buy padded vest",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "wear padded vest",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "buy padded pants",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "wear padded pants",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "buy padded helm",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "wear padded helm",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "buy padded gloves",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "wear padded gloves",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "buy padded boots",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "wear padded boots",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "n",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "back to the Village Entrance, where the walk to the arena starts"
+  },
+  {
+   "send": "w",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "w",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "d",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "into the arena"
+  },
+  {
+   "op": "sleep",
+   "seconds": 240,
+   "until": "into the room|at you|you for \\d+|Also here:",
+   "note": "a monster; the fight block (to the end of this cycle) is played until Brannoc is down to 18 hit points or less (17 or more to heal: enough gains for the regen sample, `min_regen` 5) (`hurt`), at most five times: a fight that leaves him at full hit points gives the rest nothing to heal (run 38988606081: 35/35 on both sides, no regen sample)",
+   "if_unset": "hurt"
+  },
+  {
+   "send": "",
+   "until": "Obvious exits:[^\\n]*\\n[^\\n]*\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "set": {
+    "mon#CYCLE#": "Also here:[^.\\n]*? ([a-z]+)[.,]"
+   },
+   "if_unset": "hurt",
+   "note": "waits for the room's exits line, not the first prompt: a monster's line and its prompt can come before the room text, and `Also here` must be in this step (live runs 38953732059, 38988606081)"
+  },
+  {
+   "send": "a {mon#CYCLE#}",
+   "until": "\\*Combat Engaged\\*|You don't see|You do not see|guilt|mortally wounded",
+   "timeout": 10,
+   "set": {
+    "over#CYCLE#": "(\\*Combat Off\\*|You don't see|You do not see)",
+    "hurt": "\\[HP=((?:1[0-8]|\\d))\\b"
+   },
+   "if_unset": "hurt"
+  },
+  {
+   "op": "sleep",
+   "seconds": 5,
+   "round": true,
+   "note": "one energy round, or less when the fight ends in it; `over` then skips the rest of the waits",
+   "until": "\\*Combat Off\\*",
+   "may_time_out": true,
+   "set": {
+    "over#CYCLE#": "(\\*Combat Off\\*|You don't see|You do not see)",
+    "hurt": "\\[HP=((?:1[0-8]|\\d))\\b"
+   },
+   "if_unset": [
+    "over#CYCLE#",
+    "hurt"
+   ]
+  },
+  {
+   "op": "sleep",
+   "seconds": 5,
+   "round": true,
+   "note": "one energy round, or less when the fight ends in it; `over` then skips the rest of the waits",
+   "until": "\\*Combat Off\\*",
+   "may_time_out": true,
+   "set": {
+    "over#CYCLE#": "(\\*Combat Off\\*|You don't see|You do not see)",
+    "hurt": "\\[HP=((?:1[0-8]|\\d))\\b"
+   },
+   "if_unset": [
+    "over#CYCLE#",
+    "hurt"
+   ]
+  },
+  {
+   "op": "sleep",
+   "seconds": 5,
+   "round": true,
+   "note": "one energy round, or less when the fight ends in it; `over` then skips the rest of the waits",
+   "until": "\\*Combat Off\\*",
+   "may_time_out": true,
+   "set": {
+    "over#CYCLE#": "(\\*Combat Off\\*|You don't see|You do not see)",
+    "hurt": "\\[HP=((?:1[0-8]|\\d))\\b"
+   },
+   "if_unset": [
+    "over#CYCLE#",
+    "hurt"
+   ]
+  },
+  {
+   "op": "sleep",
+   "seconds": 5,
+   "round": true,
+   "note": "one energy round, or less when the fight ends in it; `over` then skips the rest of the waits",
+   "until": "\\*Combat Off\\*",
+   "may_time_out": true,
+   "set": {
+    "over#CYCLE#": "(\\*Combat Off\\*|You don't see|You do not see)",
+    "hurt": "\\[HP=((?:1[0-8]|\\d))\\b"
+   },
+   "if_unset": [
+    "over#CYCLE#",
+    "hurt"
+   ]
+  },
+  {
+   "op": "sleep",
+   "seconds": 5,
+   "round": true,
+   "note": "one energy round, or less when the fight ends in it; `over` then skips the rest of the waits",
+   "until": "\\*Combat Off\\*",
+   "may_time_out": true,
+   "set": {
+    "over#CYCLE#": "(\\*Combat Off\\*|You don't see|You do not see)",
+    "hurt": "\\[HP=((?:1[0-8]|\\d))\\b"
+   },
+   "if_unset": [
+    "over#CYCLE#",
+    "hurt"
+   ]
+  },
+  {
+   "op": "sleep",
+   "seconds": 5,
+   "round": true,
+   "note": "one energy round, or less when the fight ends in it; `over` then skips the rest of the waits",
+   "until": "\\*Combat Off\\*",
+   "may_time_out": true,
+   "set": {
+    "over#CYCLE#": "(\\*Combat Off\\*|You don't see|You do not see)",
+    "hurt": "\\[HP=((?:1[0-8]|\\d))\\b"
+   },
+   "if_unset": [
+    "over#CYCLE#",
+    "hurt"
+   ]
+  },
+  {
+   "op": "sleep",
+   "seconds": 5,
+   "round": true,
+   "note": "one energy round, or less when the fight ends in it; `over` then skips the rest of the waits",
+   "until": "\\*Combat Off\\*",
+   "may_time_out": true,
+   "set": {
+    "over#CYCLE#": "(\\*Combat Off\\*|You don't see|You do not see)",
+    "hurt": "\\[HP=((?:1[0-8]|\\d))\\b"
+   },
+   "if_unset": [
+    "over#CYCLE#",
+    "hurt"
+   ]
+  },
+  {
+   "op": "sleep",
+   "seconds": 5,
+   "round": true,
+   "note": "one energy round, or less when the fight ends in it; `over` then skips the rest of the waits",
+   "until": "\\*Combat Off\\*",
+   "may_time_out": true,
+   "set": {
+    "over#CYCLE#": "(\\*Combat Off\\*|You don't see|You do not see)",
+    "hurt": "\\[HP=((?:1[0-8]|\\d))\\b"
+   },
+   "if_unset": [
+    "over#CYCLE#",
+    "hurt"
+   ]
+  },
+  {
+   "op": "sleep",
+   "seconds": 300,
+   "until": "\\*Combat Off\\*|\\[HP=-?\\d\\b|\\[HP=-\\d+",
+   "note": "to the end of the fight, or out at single-digit hit points (a second monster can keep it going past two minutes); skipped when the fight already ended in a round window: a second monster attacking the player afterwards brings no *Combat Off* (he is not engaged), which timed this wait out on both sides (live run 38973498053)",
+   "if_unset": [
+    "over#CYCLE#",
+    "hurt"
+   ],
+   "set": {
+    "hurt": "\\[HP=((?:1[0-8]|\\d))\\b"
+   }
+  },
+  {
+   "send": "u",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "note": "Newhaven, Narrow Road"
+  },
+  {
+   "send": "rest",
+   "until": "(?:You are now resting|You are too sick to rest|You may not do that while you are mortally wounded)[^\\n]*\\n(?:[^\\n]*\\n)*?[^\\n]*\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "set": {
+    "rested": "(You are now resting)"
+   },
+   "note": "a poisoned player is too sick to rest: then wait and try again. Waits for the outcome line, not the first prompt: still engaged with the monster left in the arena, `rest` breaks off the auto-combat first (`*Combat Off*` and its prompt), so the first prompt came before `You are now resting.`, `rested` stayed unset and the original rested twice (live run 39030247260). At 0 hit points or below after the fight, the dispatcher refuses it (`You may not do that while you are mortally wounded!`): `rested` stays unset and the retries apply"
+  },
+  {
+   "op": "sleep",
+   "seconds": 30,
+   "if_unset": "rested",
+   "note": "poisoned: wait for it to wear off"
+  },
+  {
+   "send": "rest",
+   "until": "(?:You are now resting|You are too sick to rest|You may not do that while you are mortally wounded)[^\\n]*\\n(?:[^\\n]*\\n)*?[^\\n]*\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "if_unset": "rested",
+   "set": {
+    "rested": "(You are now resting)"
+   }
+  },
+  {
+   "op": "sleep",
+   "seconds": 30,
+   "if_unset": "rested",
+   "note": "poisoned: wait for it to wear off"
+  },
+  {
+   "send": "rest",
+   "until": "(?:You are now resting|You are too sick to rest|You may not do that while you are mortally wounded)[^\\n]*\\n(?:[^\\n]*\\n)*?[^\\n]*\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "if_unset": "rested",
+   "set": {
+    "rested": "(You are now resting)"
+   }
+  },
+  {
+   "op": "sleep",
+   "seconds": 30,
+   "if_unset": "rested",
+   "note": "poisoned: wait for it to wear off"
+  },
+  {
+   "send": "rest",
+   "until": "(?:You are now resting|You are too sick to rest|You may not do that while you are mortally wounded)[^\\n]*\\n(?:[^\\n]*\\n)*?[^\\n]*\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "if_unset": "rested",
+   "set": {
+    "rested": "(You are now resting)"
+   }
+  },
+  {
+   "op": "sleep",
+   "seconds": 30,
+   "if_unset": "rested",
+   "note": "poisoned: wait for it to wear off"
+  },
+  {
+   "send": "rest",
+   "until": "(?:You are now resting|You are too sick to rest|You may not do that while you are mortally wounded)[^\\n]*\\n(?:[^\\n]*\\n)*?[^\\n]*\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "if_unset": "rested",
+   "set": {
+    "rested": "(You are now resting)"
+   }
+  },
+  {
+   "op": "sleep",
+   "seconds": 30,
+   "if_unset": "rested",
+   "note": "poisoned: wait for it to wear off"
+  },
+  {
+   "send": "rest",
+   "until": "(?:You are now resting|You are too sick to rest|You may not do that while you are mortally wounded)[^\\n]*\\n(?:[^\\n]*\\n)*?[^\\n]*\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "if_unset": "rested",
+   "set": {
+    "rested": "(You are now resting)"
+   }
+  },
+  {
+   "op": "sleep",
+   "seconds": 30,
+   "if_unset": "rested",
+   "note": "poisoned: wait for it to wear off"
+  },
+  {
+   "send": "rest",
+   "until": "(?:You are now resting|You are too sick to rest|You may not do that while you are mortally wounded)[^\\n]*\\n(?:[^\\n]*\\n)*?[^\\n]*\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "if_unset": "rested",
+   "set": {
+    "rested": "(You are now resting)"
+   }
+  },
+  {
+   "op": "sleep",
+   "seconds": 30,
+   "if_unset": "rested",
+   "note": "poisoned: wait for it to wear off"
+  },
+  {
+   "send": "rest",
+   "until": "(?:You are now resting|You are too sick to rest|You may not do that while you are mortally wounded)[^\\n]*\\n(?:[^\\n]*\\n)*?[^\\n]*\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "if_unset": "rested",
+   "set": {
+    "rested": "(You are now resting)"
+   }
+  },
+  {
+   "op": "sleep",
+   "seconds": 30,
+   "if_unset": "rested",
+   "note": "poisoned: wait for it to wear off"
+  },
+  {
+   "send": "rest",
+   "until": "(?:You are now resting|You are too sick to rest|You may not do that while you are mortally wounded)[^\\n]*\\n(?:[^\\n]*\\n)*?[^\\n]*\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "if_unset": "rested",
+   "set": {
+    "rested": "(You are now resting)"
+   }
+  },
+  {
+   "op": "sleep",
+   "seconds": 180,
+   "note": "the prompts carry the regen"
+  },
+  {
+   "send": "st",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 90,
+   "note": "exit after silent meditation (USREXIT)"
+  },
+  {
+   "send": "X",
+   "until": "Make your selection",
+   "note": "leave MajorMUD"
+  },
+  {
+   "send": "X",
+   "until": "Are you sure",
+   "note": "BBS logoff"
+  },
+  {
+   "send": "Y",
+   "wait": 2,
+   "timeout": 10
+  }
+ ]
+}

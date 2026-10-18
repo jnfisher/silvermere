@@ -1,0 +1,35 @@
+{
+ "_comment": "Events that are random on both servers by nature, not a gap of any card: dropped from the event sequence and from the byte comparison like a known gap (same rule shape, known_gaps.py), counted in the report under `random`, and compared statistically by stats.py. The Rust capture tests drop the same lines (`capture_compare::masked_lines`).",
+ "rules": [
+  {
+   "card": "random: monster noise",
+   "why": "Monsters move at random on both servers (spawns and wanderers), so whether and when a neighbouring room's monster makes noise (`You hear movement to the north.`) differs by chance; the line comes with a prompt of its own. Kept out of the event sequence and the byte comparison, counted per side, and compared as a rate per minute by stats.py (`monster noise per minute`) in the m2 scenarios. The original scrambles one letter of each direction word with a backspace (`wA\\x08est`), which the byte pattern allows.",
+   "side": "both",
+   "events": [
+    "noise"
+   ],
+   "then_drop": [
+    "prompt"
+   ],
+   "byte_patterns": [
+    "\\x1b\\[79D\\x1b\\[K(?:\\x1b\\[[0-9;]*m)*You hear movement (?:to the (?:[a-z]|[^\\r\\n\\x1b]\\x08)+\\.|above you!|below you!)(?:\\x1b\\[[0-9;]*m)*\\r\\n?(?:\\x1b\\[79D\\x1b\\[K)?(?:\\x1b\\[[0-9;]*m)*\\[HP=[^\\]\\r\\n]*\\]:"
+   ]
+  },
+  {
+   "card": "random: monster arrival",
+   "why": "In the m2 (statistical) scenarios, monsters spawn and wander at random on both servers (the spawn pass and the wander pass), so whether one arrives during a given step differs by chance: `A giant rat creeps into the room from nowhere.` (the data-driven arrival) or `X moves into the room from the north.`, each with a prompt of its own. Kept out of the event sequence and the byte comparison; stats.py compares the spawn rate (gated) and the walk-in rate (advisory). The data-driven texts are classified by the game-data patterns (`world_patterns`, world_json.py), so a wrong text stays an unclassified line and fails. Only for scenarios marked statistical: the m1 walks keep comparing arrivals event by event.",
+   "side": "both",
+   "statistical_only": true,
+   "events": [
+    "monster_arrives_generic",
+    "monster_arrives"
+   ],
+   "then_drop": [
+    "prompt"
+   ],
+   "byte_patterns": [
+    "(?:\\x1b\\[79D\\x1b\\[K)?(?:\\x1b\\[[0-9;]*m)*[^\\r\\n\\x1b]*(?:\\x1b\\[[0-9;]*m)*[^\\r\\n\\x1b]*\\w+ into the (?:room )?from (?:nowhere|above|below|the (?:[a-z]|[^\\r\\n\\x1b]\\x08)+)\\.(?:\\x1b\\[[0-9;]*m)*\\r\\n?(?:\\x1b\\[79D\\x1b\\[K)?(?:\\x1b\\[[0-9;]*m)*\\[HP=[^\\]\\r\\n]*\\]:"
+   ]
+  }
+ ]
+}

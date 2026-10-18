@@ -1,0 +1,17 @@
+{
+ "scenario": "m4-quest",
+ "script": "m4-quest.script.json",
+ "deterministic": [
+  "greet boatman",
+  "ask boatman skiff",
+  "ask boatman weather"
+ ],
+ "statistical": false,
+ "setup": [
+  {
+   "side": "both",
+   "scenario": "creation-fsd"
+  }
+ ],
+ "note": "Not recorded yet (no raw.bin): run against both servers with `--scenario m4-quest`; the new side needs T-035 (the pier's specific monster, the boatman, is generated on entry)."
+}

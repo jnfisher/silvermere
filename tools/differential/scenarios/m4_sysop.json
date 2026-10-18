@@ -1,0 +1,6 @@
+{
+ "scenario": "m4_sysop",
+ "script": "m4_sysop.script.json",
+ "deterministic": [],
+ "setup": []
+}

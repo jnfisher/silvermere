@@ -1,0 +1,25 @@
+{
+ "scenario": "m4/hangup",
+ "script": "hangup-next-login.script.json",
+ "deterministic": [
+  "E",
+  "i"
+ ],
+ "setup": [
+  {
+   "side": "orig",
+   "scenario": "entry-new-account"
+  },
+  {
+   "side": "orig",
+   "scenario": "creation-fsd"
+  },
+  {
+   "side": "new",
+   "script": "m1/setup/new-aldric.json"
+  }
+ ],
+ "ignore_host_banner": true,
+ "world_patterns": true,
+ "note": "T-057: the hangup-next-login scenario (same script) in the m4 group."
+}

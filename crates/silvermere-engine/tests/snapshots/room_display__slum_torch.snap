@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/room_display.rs
+expression: esc(&got)
+---
+\x1b[79D\x1b[K\x1b[1;36mSlum Street\r\n\x1b[0;32mObvious exits: s \x08outh\r\n\x1b[0;37mThe room is dimly lit\r\n

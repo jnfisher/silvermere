@@ -1,0 +1,39 @@
+{
+ "scenario": "m2/swings-kobold",
+ "script": "m2/scripts/swings.json",
+ "statistical": true,
+ "world_patterns": true,
+ "ignore_host_banner": true,
+ "mask_prompt": true,
+ "setup": [],
+ "subst": {
+  "@MONNUM@": "7",
+  "@MON@": "kobold",
+  "@MONRX@": "kobold thief",
+  "@ROOM@": "2489"
+ },
+ "m2": {
+  "sequence": [],
+  "min_swings": 2000,
+  "about": "Kang Witchunter (level 1, quarterstaff) against the kobold thief sheet (WCCKNMSR 7): the player's and the monster's swings, N >= 2,000 a side each; one monster a cycle (the target), the room cleared first; the run stops when both samples are in",
+  "repeat": {
+   "first": 42,
+   "last": 48,
+   "times": 3000
+  },
+  "stop": {
+   "minutes": 30,
+   "at_least": 2000,
+   "count": "You (?:critically |surprise )*[a-z]+(?: at)? (?:[\\w'-]+ )*?kobold thief(?: for \\d+ damage!|!| who dodges your attack!)|Your [a-z]+(?: at)? (?:[\\w'-]+ )*?kobold thief hits, but glances",
+   "also": [
+    {
+     "count": "\\bThe (?:[\\w'-]+ )*?kobold thief [^\\n]*\\byou\\b",
+     "at_least": 2000
+    }
+   ]
+  },
+  "monster": "kobold thief",
+  "regen": false,
+  "rates": false
+ }
+}

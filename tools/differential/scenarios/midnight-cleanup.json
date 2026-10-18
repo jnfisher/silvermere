@@ -1,0 +1,12 @@
+{
+ "scenario": "midnight-cleanup",
+ "script": "midnight-cleanup.script.json",
+ "deterministic": [],
+ "statistical": true,
+ "setup": [
+  {
+   "side": "both",
+   "scenario": "creation-fsd"
+  }
+ ]
+}

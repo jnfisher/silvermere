@@ -1,0 +1,15 @@
+{
+ "scenario": "evil-guardsman",
+ "script": "evil-guardsman.script.json",
+ "deterministic": [
+  "set warning on",
+  "a guardsman"
+ ],
+ "statistical": true,
+ "setup": [
+  {
+   "side": "both",
+   "scenario": "creation-fsd"
+  }
+ ]
+}

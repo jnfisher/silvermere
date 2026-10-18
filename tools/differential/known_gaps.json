@@ -1,0 +1,42 @@
+{
+ "_comment": "Differences that are not defects of the card under test but features a later card brings. Each rule names the owning card; the events are dropped from the side named (`both` for either) before the event diff and counted in the report (known_gaps). `then_drop` also drops the named event directly after a dropped one. `byte_patterns` are removed from the decoded step text before the byte-equal check, so the classification covers both layers. The monster-noise rule T-029 kept for T-040 is now a permanent random event (random_events.json).",
+ "rules": [
+  {
+   "card": "T-082",
+   "why": "The original asks the host for page mode (btuxnf: \"Hit any key to continue...\" every 19 lines, the next key resumes the output; GOD INFO, the help screens and other long listings), which silvermere does not have yet; T-082 (and John's page-mode decision) owns it. MBBSEmu at the pinned tag ignores btuxnf (MBBSEmu v1.0-alpha-090826, HostProcess/ExportedModules/Galgsbl.cs:350-354), so the live original does not page and this rule has not fired on a live run; it is kept for a host that pages. replay answers each pause with a key (`answer_pager`), and the pause line is dropped from the original's events and bytes here.",
+   "side": "orig",
+   "unknown_lines": [
+    "Hit any key to continue\\.\\.\\."
+   ],
+   "byte_patterns": [
+    "(?:\\x1b\\[[0-9;]*m)*Hit any key to continue\\.\\.\\.(?:\\x1b\\[0?m)?(?:\\x1b\\[[0-9]*[DK]|[\\x08 ]|\\r(?!\\n))*"
+   ]
+  },
+  {
+   "card": "MBBSEmu",
+   "why": "MBBSEmu's printf ignores the `0` flag (ExportedModuleBase.FormatPrintf, v1.0-alpha-090826: `LeftPadZero` is set and never read; zero padding only comes from a precision), so the game's `%02d` for the cents of a bank balance prints ` 0` there (`[0. 0 gold crowns]`) where a real printf gives `00`. silvermere prints the zero-padded form. The cents are normalised to a zero-padded number on both sides; the rest of the line is still compared.",
+   "side": "both",
+   "field_subs": {
+    "bank_balance": {
+     "dep": [
+      [
+       "\\.\\s(\\d) ",
+       ".0\\1 "
+      ]
+     ]
+    }
+   },
+   "byte_patterns": [
+    "[\\d,]+\\.[ \\d]\\d (?=(?:\\x1b\\[[0-9;]*m)*gold crown)"
+   ]
+  },
+  {
+   "card": "registry:room-title",
+   "why": "The pattern registry has no pattern for a room title, so `Newhaven, Armour Shop` (the room a follower arrives in) is `unknown` on both sides. Not a text difference: the byte check covers the line. Counted here instead of left in the unknown column; a registry card adds the pattern.",
+   "side": "both",
+   "unknown_lines": [
+    "^Newhaven, [A-Za-z' ]+ Shop$"
+   ]
+  }
+ ]
+}

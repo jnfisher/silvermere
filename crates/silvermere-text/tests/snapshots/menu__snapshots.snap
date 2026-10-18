@@ -1,0 +1,12 @@
+---
+source: crates/silvermere-text/tests/menu.rs
+expression: out
+---
+menu_plain:
+\x1b[0m\x1b[2J\r\n \x1b[1mM A J O R  M U D \x1b[33mv1.11p-WG (Dec 30 2005 14:20:05)\r\n\x1b[0m{Realm Of Legends}\r\n\x1b[1;35m*ANSI RECOMMENDED*\r\n\r\n\x1b[30m[\x1b[37mE\x1b[30m] . \x1b[0mEnter the Realm\r\n\x1b[1;30m[\x1b[37mH\x1b[30m] . \x1b[0mHelp\r\n\x1b[1;30m[\x1b[37mA\x1b[30m] . \x1b[0mAbout the Game\r\n\x1b[1;30m[\x1b[37mC\x1b[30m] . \x1b[0mGame Counts\r\n\x1b[1;30m[\x1b[37mT\x1b[30m] . \x1b[0mTopten Adventurers\r\n\x1b[1;30m[\x1b[37mG\x1b[30m] . \x1b[0mTopten Gangs\r\n\x1b[1;30m[\x1b[37mW\x1b[30m] . \x1b[0mWho\'s in the Realm\r\n\x1b[1;30m[\x1b[37mR\x1b[30m] . \x1b[0mRelease Notes\r\n\x1b[1;30m[\x1b[37mI\x1b[30m] . \x1b[0mInformation\r\n\x1b[1;30m[\x1b[37mX\x1b[30m] . \x1b[0mExit Game\r\n\r\n\x1b[1;30m[\x1b[0mMAJORMUD\x1b[1;30m]\x1b[0m: |
+menu_everything:
+\x1b[0m\x1b[2J\r\n \x1b[1mM A J O R  M U D \x1b[33mv1.11p-WG (Dec 30 2005 14:20:05)\r\n\x1b[0m{Realm Of Legends}\r\n\x1b[1;35m*ANSI RECOMMENDED*\r\n\r\n\x1b[30m[\x1b[37mE\x1b[30m] . \x1b[0mEnter the Realm\r\n\x1b[1;30m[\x1b[37mH\x1b[30m] . \x1b[0mHelp\r\n\x1b[1;30m[\x1b[37mA\x1b[30m] . \x1b[0mAbout the Game\r\n\x1b[1;30m[\x1b[37mC\x1b[30m] . \x1b[0mGame Counts\r\n\x1b[1;30m[\x1b[37mT\x1b[30m] . \x1b[0mTopten Adventurers\r\n\x1b[1;30m[\x1b[37mG\x1b[30m] . \x1b[0mTopten Gangs\r\n\x1b[1;30m[\x1b[37mW\x1b[30m] . \x1b[0mWho\'s in the Realm\r\n\x1b[1;30m[\x1b[37mR\x1b[30m] . \x1b[0mRelease Notes\r\n\x1b[1;30m[\x1b[37mI\x1b[30m] . \x1b[0mInformation\r\n\x1b[1;30m[\x1b[37mX\x1b[30m] . \x1b[0mExit Game\r\n\r\n\x1b[1;30m[\x1b[37mCHANGERACE\x1b[30m] . \x1b[0mRace/Class Change [Last chance]\r\n\r\n\x1b[1;30m[\x1b[37mSYSOP\x1b[30m] . \x1b[0mFor Sysop Menu\r\n\r\n*** MajorMUD Tournament Play enabled! ***\r\n\x1b[1;30m[\x1b[0mMAJORMUD\x1b[1;30m]\x1b[0m: |
+entry_banner:
+\x1b[0m\x1b[2J\r\n\x1b[1;33mMajorMUD - ROL\r\n\r\n\x1b[0m\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\r\n\r\n|
+login_greeting:
+\r\n\x1b[1mFantasy awaits you in \x1b[33mMajorMUD v1.11p-WG!\r\n\r\n|

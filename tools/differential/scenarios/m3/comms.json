@@ -1,0 +1,32 @@
+{
+ "scenario": "m3/comms",
+ "script": "m3/scripts/comms.json",
+ "deterministic": [],
+ "setup": [
+  {
+   "side": "orig",
+   "scenario": "entry-new-account"
+  },
+  {
+   "side": "orig",
+   "scenario": "creation-fsd"
+  },
+  {
+   "side": "new",
+   "script": "m1/setup/new-aldric.json"
+  },
+  {
+   "side": "orig",
+   "script": "m3/setup/orig-brynja-account.json"
+  },
+  {
+   "side": "orig",
+   "script": "m3/setup/orig-brynja-creation.json"
+  },
+  {
+   "side": "new",
+   "script": "m3/setup/new-brynja.json"
+  }
+ ],
+ "ignore_host_banner": true
+}

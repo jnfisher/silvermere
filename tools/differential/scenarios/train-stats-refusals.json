@@ -1,0 +1,10 @@
+{
+ "scenario": "train-stats-refusals",
+ "script": "train-stats-refusals.script.json",
+ "setup": [
+  {
+   "side": "both",
+   "scenario": "creation-fsd"
+  }
+ ]
+}

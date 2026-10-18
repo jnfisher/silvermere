@@ -1,0 +1,93 @@
+{
+ "scenario": "train-stats-refusals",
+ "port": 2323,
+ "naws": null,
+ "description": "TRAIN STATS refusals by position (T-047): a street room (not a shop) and the Newhaven Weapons Shop (a shop that is not a trainer) both answer `You may not train your stats here!`. Script only: not recorded yet (needs MBBSEmu). The trainer itself is left out on purpose: at a trainer TRAIN STATS opens the stat editor, and no scripted or bot character runs it (CLAUDE.md); the Rust tests cover the editor (crates/silvermere-engine/tests/train_stats.rs). The tournament and altered-stats refusals need a sysop option or a spell and are covered there too.",
+ "character": {
+  "user": "Aldric",
+  "password": "aldric1",
+  "name": "Aldric Stonebrook",
+  "race": "Human",
+  "class": "Warrior",
+  "level": 1,
+  "start": "Newhaven, Narrow Road"
+ },
+ "behaviours": [],
+ "mask": [],
+ "notes": [
+  "Not recorded: no raw.bin or plain.txt yet; run capture.py against the staged original to record.",
+  "The route Narrow Road -> e, e (Village Entrance) -> n (Weapons Shop) is the one room-walk and shop use; check the room names in the recording."
+ ],
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "Aldric",
+   "until": "Password:"
+  },
+  {
+   "send": "aldric1",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm"
+  },
+  {
+   "send": "train stats",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "not a shop room"
+  },
+  {
+   "send": "e",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "e",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the Village Entrance"
+  },
+  {
+   "send": "n",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Newhaven, Weapons Shop"
+  },
+  {
+   "send": "train stats",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "a shop that is not a Training shop"
+  },
+  {
+   "send": "train stats now",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "margc 3: not the command"
+  },
+  {
+   "send": "s",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 20,
+   "note": "leave"
+  }
+ ]
+}

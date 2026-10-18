@@ -1,0 +1,55 @@
+{
+ "scenario": "m4/aoe",
+ "script": "m4/scripts/aoe.json",
+ "deterministic": [],
+ "statistical": false,
+ "setup": [],
+ "ignore_host_banner": true,
+ "world_patterns": true,
+ "ignore_steps": [
+  1,
+  2,
+  3,
+  4
+ ],
+ "mask_prompt": true,
+ "bytes_from_echo": true,
+ "random_steps": [
+  15,
+  16,
+  17,
+  18,
+  19,
+  20
+ ],
+ "required_events": {
+  "15": [
+   "monster_arrives"
+  ],
+  "16": [
+   "monster_arrives"
+  ],
+  "17": [
+   "monster_arrives"
+  ],
+  "18": [
+   "spell_cast_room",
+   "combat_off"
+  ]
+ },
+ "event_masks": {
+  "monster_arrives": [
+   "adj",
+   "mon",
+   "frm"
+  ]
+ },
+ "merge_steps": [
+  [
+   18,
+   20
+  ]
+ ],
+ "note": "T-084: three giant rats die to one fireball (see the script), so the fight is over before the exit; steps 18-20 are one block",
+ "max_reruns": 2
+}

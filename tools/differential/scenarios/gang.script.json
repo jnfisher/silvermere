@@ -1,0 +1,164 @@
+{
+ "scenario": "gang",
+ "port": 2323,
+ "description": "Gang commands of a character in no gang, outside a gang shop (T-044): the CREATE experience refusal, CREATE ROOM, BROADGANG, LEAVE/JOIN/DISBAND GANG, PROMOTE/DEMOTE, STOCK/UNSTOCK/MARKUP outside a gang shop, TOP GANGS. Written for the differential harness, not yet run against the original.",
+ "character": {
+  "user": "Aldric",
+  "password": "aldric1",
+  "name": "Aldric Stonebrook",
+  "race": "Human",
+  "class": "Warrior",
+  "level": 1
+ },
+ "mask": [
+  {
+   "regex": "\\(Dec 30 2005 14:20:05\\)",
+   "why": "build stamp of the DLL (mud_title)"
+  },
+  {
+   "regex": " \\[\\d+ game minutes left\\]| \\[Last chance\\]",
+   "why": "menu time-left suffix"
+  },
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "every direction name carries a random capital letter and a backspace, rewritten each slow cycle: `nJ\\borth`"
+  },
+  {
+   "regex": "\\[HP=-?\\d+(?:/(?:MA|KAI)=-?\\d+)?",
+   "why": "HP/mana in the prompt depend on earlier fights and regen"
+  },
+  {
+   "regex": "^\\S.*?\\s+\\d+\\s+(?:Free|\\d+ \\w+)$",
+   "why": "shop quantities change with other players' purchases"
+  }
+ ],
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "Aldric",
+   "until": "Password:"
+  },
+  {
+   "send": "aldric1",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "note": "MajorMUD from the BBS menu"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm"
+  },
+  {
+   "send": "create gang Wolves",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the minimum-experience refusal (GANG_MINEXP; a new character has no experience)"
+  },
+  {
+   "send": "create room north",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "CREATE ROOM's refusal"
+  },
+  {
+   "send": "gb",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "not in a gang"
+  },
+  {
+   "send": "gb hello",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "not in a gang"
+  },
+  {
+   "send": "leave gang",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "LEAVE GANG's refusal: not in a gang"
+  },
+  {
+   "send": "join gang wolves",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "no such gang"
+  },
+  {
+   "send": "disband gang",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "DISBAND GANG's refusal: not in a gang"
+  },
+  {
+   "send": "disband",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the syntax line: DISBAND {Party/Gang}"
+  },
+  {
+   "send": "disband club",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the syntax line: neither party nor gang"
+  },
+  {
+   "send": "promote",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the syntax line: PROMOTE {user name}"
+  },
+  {
+   "send": "demote",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "DEMOTE's syntax line"
+  },
+  {
+   "send": "promote bob",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "not in a gang: nothing"
+  },
+  {
+   "send": "stock dagger",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "not in a shop"
+  },
+  {
+   "send": "unstock dagger",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "UNSTOCK outside a gang's shop"
+  },
+  {
+   "send": "markup 10",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "MARKUP outside a gang's shop"
+  },
+  {
+   "send": "stock",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "STOCK with no item, outside a gang's shop"
+  },
+  {
+   "send": "top gangs",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the gang list (the stock gangs, or none)"
+  }
+ ]
+}

@@ -1,0 +1,23 @@
+{
+ "scenario": "m4/cleanup",
+ "script": "midnight-cleanup.script.json",
+ "deterministic": [],
+ "statistical": true,
+ "setup": [
+  {
+   "side": "orig",
+   "scenario": "entry-new-account"
+  },
+  {
+   "side": "orig",
+   "scenario": "creation-fsd"
+  },
+  {
+   "side": "new",
+   "script": "m1/setup/new-aldric.json"
+  }
+ ],
+ "ignore_host_banner": true,
+ "world_patterns": true,
+ "note": "T-057: the midnight-cleanup scenario (same script) in the m4 group. Statistical (the job's timing): it runs only with --include-statistical, compared as events; m4_stats.py has no check of its own for it."
+}

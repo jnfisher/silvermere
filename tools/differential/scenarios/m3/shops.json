@@ -1,0 +1,20 @@
+{
+ "scenario": "m3/shops",
+ "script": "m3/scripts/shops.json",
+ "deterministic": "all",
+ "setup": [
+  {
+   "side": "orig",
+   "scenario": "entry-new-account"
+  },
+  {
+   "side": "orig",
+   "scenario": "creation-fsd"
+  },
+  {
+   "side": "new",
+   "script": "m1/setup/new-aldric.json"
+  }
+ ],
+ "ignore_host_banner": true
+}

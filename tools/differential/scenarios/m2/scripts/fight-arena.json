@@ -1,0 +1,300 @@
+{
+ "scenario": "m2/fight-arena",
+ "port": 2323,
+ "description": "The fight-arena capture's script for a fresh Aldric: the free starter kit first (the captured Aldric already held a quarterstaff: `You whap ...`), then the capture's steps unchanged. Newhaven Arena (1:2150): wait for a monster, `a <monster>` (*Combat Engaged*), the same attack re-sent while engaged, the fight to `*Combat Off*`, `get copper`, `rest` until healed (or interrupted), `exp`, back up the stairs, `buy healing` at the Newhaven healer (free at full HP), and log off.",
+ "character": {
+  "user": "Aldric",
+  "password": "aldric1",
+  "name": "Aldric Stonebrook",
+  "race": "Human",
+  "class": "Warrior",
+  "level": 1
+ },
+ "behaviours": [
+  "monster names in `Also here:` carry their alignment colour",
+  "recovery is rest and healers: `buy healing` (2 copper per missing HP) at full HP it costs nothing: `You hand over nothing and all your wounds are healed.`",
+  "the attack re-sent while engaged (what it does to the combat state)",
+  "re-sent attack",
+  "the bell after `drops to the ground!` (if a player falls)",
+  "hit and miss verbs"
+ ],
+ "mask": [
+  {
+   "regex": "\\(Dec 30 2005 14:20:05\\)",
+   "why": "build stamp of the DLL (mud_title)"
+  },
+  {
+   "regex": " \\[\\d+ game minutes left\\]| \\[Last chance\\]",
+   "why": "menu time-left suffix"
+  },
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "every direction name carries a random capital letter and a backspace, rewritten each slow cycle: `nJ\\borth`"
+  },
+  {
+   "regex": "(?<=\\[HP=)-?\\d+|(?<=/MA=)-?\\d+|(?<=/KAI=)-?\\d+",
+   "why": "the prompt's numbers only, never its labels (as m4)"
+  },
+  {
+   "regex": "(?<=for )\\d+(?= damage)|(?<=You gain )\\d+(?= experience)|\\d+(?= (?:copper farthings?|silver nobles?|gold crowns?|platinum pieces?|runic coins?)\\b)",
+   "why": "RNG: the damage, the experience share and the coin amounts, digits only (the words and the currency name stay compared)"
+  },
+  {
+   "regex": "(?:large|small|big|thin|fat|nasty|angry|fierce|short|tall|happy|slimy) ",
+   "why": "random monster adjective"
+  },
+  {
+   "regex": "giant rat|lashworm|filthbug|carrion beast|acid slime|kobold thief",
+   "why": "which monster spawned"
+  },
+  {
+   "regex": "(?<=Exp: \\x1b\\[36m)\\d+ *|(?<=Exp: )\\d+ *",
+   "why": "the experience after random fights (st, exp): the number and its column padding, not the label"
+  },
+  {
+   "regex": "(?<=Hits: \\x1b\\[36m) *-?\\d+(?=/)|(?<=Hits: ) *-?\\d+(?=/)",
+   "why": "current hit points after random fights (st): the number and its padding, not the label or the maximum"
+  },
+  {
+   "regex": "(?<=next level: \\x1b\\[36m)\\d+(?= \\()|(?<=next level: )\\d+(?= \\()|(?<=\\) \\[)\\d+(?=%\\])",
+   "why": "experience still needed and its percentage (exp): digits only"
+  }
+ ],
+ "notes": [
+  "Monster chosen at run time: the last word of `Also here:` (script `set`)."
+ ],
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "Aldric",
+   "until": "Password:"
+  },
+  {
+   "send": "aldric1",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "note": "MajorMUD from the BBS menu"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm"
+  },
+  {
+   "send": "n",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Newhaven, Weapons Shop: the starter kit costs nothing (WCCITEMS cost 0), the same on both servers"
+  },
+  {
+   "send": "buy quarterstaff",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "wield quarterstaff",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "s",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "back to the Village Entrance"
+  },
+  {
+   "send": "s",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Newhaven, Armour Shop"
+  },
+  {
+   "send": "buy padded vest",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "wear padded vest",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "buy padded pants",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "wear padded pants",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "buy padded helm",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "wear padded helm",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "buy padded gloves",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "wear padded gloves",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "buy padded boots",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "wear padded boots",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "n",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "back to the Village Entrance, where the walk to the arena starts"
+  },
+  {
+   "send": "w",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "w",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "d",
+   "until": "Obvious exits:[^\\n]*\\n[^\\n]*\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "set": {
+    "mon": "Also here:[^.\\n]*? ([a-z]+)[.,]"
+   },
+   "note": "into the arena; waits for the room's exits line, not the first prompt: a monster's line and its prompt can come before the room text (live run 38953732059, the original), and `Also here` must be in this step"
+  },
+  {
+   "op": "sleep",
+   "seconds": 240,
+   "until": "into the room|Also here:",
+   "if_unset": "mon",
+   "note": "wait for a spawn"
+  },
+  {
+   "send": "",
+   "until": "Obvious exits:[^\\n]*\\n[^\\n]*\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "if_unset": "mon",
+   "set": {
+    "mon": "Also here:[^.\\n]*? ([a-z]+)[.,]"
+   },
+   "note": "waits for the room's exits line, not the first prompt: a monster's line and its prompt can come before the room text (live run 38953732059, the original), and `Also here` must be in this step"
+  },
+  {
+   "send": "a {mon}",
+   "until": "\\*Combat Engaged\\*|mortally wounded",
+   "timeout": 10,
+   "note": "attack"
+  },
+  {
+   "send": "a {mon}",
+   "until": "\\*Combat Off\\*|\\*Combat Engaged\\*|mortally wounded",
+   "timeout": 10,
+   "note": "the same attack again while engaged"
+  },
+  {
+   "op": "sleep",
+   "seconds": 120,
+   "until": "\\*Combat Off\\*",
+   "note": "the fight"
+  },
+  {
+   "send": "get copper",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "st",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "set": {
+    "maxhp": "Hits:\\s+-?\\d+/(\\d+)"
+   }
+  },
+  {
+   "send": "rest",
+   "until": "\\[HP={maxhp}\\b|\\*Combat Engaged\\*|moves to attack you|at you|you for \\d+|into the room",
+   "timeout": 300,
+   "note": "until healed, attacked or a monster arrives (an attack ends resting)"
+  },
+  {
+   "send": "exp",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "u",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20
+  },
+  {
+   "send": "w",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Newhaven, Healer"
+  },
+  {
+   "send": "buy healing",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "e",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 90,
+   "note": "exit after silent meditation (USREXIT)"
+  },
+  {
+   "send": "X",
+   "until": "Make your selection",
+   "note": "leave MajorMUD"
+  },
+  {
+   "send": "X",
+   "until": "Are you sure",
+   "note": "BBS logoff"
+  },
+  {
+   "send": "Y",
+   "wait": 2,
+   "timeout": 10
+  }
+ ],
+ "naws": null,
+ "captured": "2026-10-14 14:29",
+ "dll_sha256": "e308533696e1e64cf52715921d94d4245f4708f56ea048e4f7c6ec9b564b725f"
+}

@@ -1,0 +1,223 @@
+{
+ "scenario": "m3/bank",
+ "port": 2323,
+ "description": "Bank (T-048): crosses to Silvermere by the skiff (the room-walk route) and walks to the Bank of Godfrey (1:297), then LIST, DEPOSIT 5, BANKBOOK, WITHDRAW 3, BALANCE, over-large DEPOSIT and WITHDRAW, BORROW and REPAY (spoken words in this build). The scenario uses Isolde, who ends the run in Silvermere (the Homely Hearth, the bank's hang-up room). A new character has no coins and none can be earned in Newhaven (free items sell for 0), so the deposits move nothing: the funded sequence (deposit 523, withdraw 500) is pinned by bin/silvermere/tests/m3_bank.rs only until a funded character can be made on the original. The bank has no T-005 capture: the first run against the original records one. Not yet run against the original.",
+ "character": {
+  "user": "Isolde",
+  "password": "isolde1",
+  "name": "Isolde Stonebrook",
+  "race": "Human",
+  "class": "Warrior",
+  "level": 1
+ },
+ "characters": [
+  {
+   "user": "Isolde",
+   "password": "isolde1",
+   "name": "Isolde Stonebrook",
+   "race": "Human",
+   "class": "Warrior",
+   "level": 1
+  }
+ ],
+ "mask": [
+  {
+   "regex": "\\(Dec 30 2005 14:20:05\\)",
+   "why": "build stamp of the DLL (mud_title)"
+  },
+  {
+   "regex": " \\[\\d+ game minutes left\\]| \\[Last chance\\]",
+   "why": "menu time-left suffix"
+  },
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "every direction name carries a random capital letter and a backspace, rewritten each slow cycle: `nJ\\borth`",
+   "replace": ""
+  },
+  {
+   "regex": "\\[HP=-?\\d+(?:/(?:MA|KAI)=-?\\d+)?",
+   "why": "HP/mana in the prompt depend on earlier fights and regen"
+  },
+  {
+   "regex": "^\\S.*?\\s+\\d+\\s+(?:Free|\\d+ \\w+)$",
+   "why": "shop quantities change with other players' purchases"
+  }
+ ],
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "Isolde",
+   "until": "Password:"
+  },
+  {
+   "send": "isolde1",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true
+  },
+  {
+   "send": "se",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "s",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "borrow skiff",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "s",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "s",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "s",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "e",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "e",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "e",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "e",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "e",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "e",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "s",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "s",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "s",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "s",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "s",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "s",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "s",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "s",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "s",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "s",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "s",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "w",
+   "until": "(?s)(?:Obvious exits:|very dark).*?\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "list",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "deposit 5",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "bankbook",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "withdraw 3",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "balance",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "deposit 99",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "withdraw 99",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "borrow",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "repay",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "i",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 40
+  },
+  {
+   "send": "X",
+   "until": "Make your selection"
+  },
+  {
+   "send": "X",
+   "until": "Are you sure"
+  },
+  {
+   "send": "Y"
+  }
+ ]
+}

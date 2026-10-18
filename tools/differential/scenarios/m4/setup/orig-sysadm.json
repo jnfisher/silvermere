@@ -1,0 +1,419 @@
+{
+ "scenario": "m4/setup/orig-sysadm",
+ "port": 2323,
+ "description": "T-057, original only: the character of the BBS sysop account (sysop/sysop, made by MBBSEmu's -DBRESET sysop), a Human Warrior named Sysadm Operator, with creation-fsd's keystrokes (Strength and Health 50), then a clean logoff. Played once per instance: `differential.py replay --script m4/setup/orig-sysadm.json --to 127.0.0.1:2323`.",
+ "character": {
+  "user": "sysop",
+  "password": "sysop",
+  "name": "Sysadm Operator",
+  "race": "Human",
+  "class": "Warrior",
+  "level": 1
+ },
+ "behaviours": [
+  "FSD driven by `ESC[row;colf` positions, one key at a time",
+  "an arrow-key pair inside the editor (moves between fields here, it does not exit)",
+  "name validation runs in the background (Timer.Hertz 1000: about a second)",
+  "FSD editor; line-mode fallback is the creation-line-mode capture",
+  "`Please wait - Validating your name.` and the spinner",
+  "the lawful question"
+ ],
+ "mask": [
+  {
+   "regex": "\\(Dec 30 2005 14:20:05\\)",
+   "why": "build stamp of the DLL (mud_title)"
+  },
+  {
+   "regex": " \\[\\d+ game minutes left\\]| \\[Last chance\\]",
+   "why": "menu time-left suffix"
+  },
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "every direction name carries a random capital letter and a backspace, rewritten each slow cycle: `nJ\\borth`"
+  },
+  {
+   "regex": "Build #\\S+|\\d{1,2}/\\d{1,2}/\\d{2,4}|\\d{1,2}:\\d{2}(?::\\d{2})?",
+   "why": "MBBSEmu banner build and clock"
+  },
+  {
+   "regex": "[-\\\\|/]\\x08",
+   "why": "name-validation spinner (one frame per poll; the count depends on timing)"
+  }
+ ],
+ "notes": [
+  "Answers: race 1 (Human), class 1 (Warrior), lawful N, given name default (Aldric), family name Stonebrook, Str 50, Hea 50; 80 CP left unspent for John."
+ ],
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20,
+   "result": {
+    "offset": 0,
+    "waited": 0.0,
+    "matched": true
+   }
+  },
+  {
+   "send": "sysop",
+   "until": "Password:",
+   "result": {
+    "offset": 2085,
+    "waited": 0.0,
+    "matched": true
+   }
+  },
+  {
+   "send": "sysop",
+   "until": "Make your selection",
+   "result": {
+    "offset": 2116,
+    "waited": 0.0,
+    "matched": true
+   }
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "note": "MajorMUD from the BBS menu",
+   "result": {
+    "offset": 2332,
+    "waited": 0.0,
+    "matched": true
+   }
+  },
+  {
+   "send": "E",
+   "until": "choose your race",
+   "timeout": 10,
+   "note": "no character yet: creation starts",
+   "result": {
+    "offset": 2935,
+    "waited": 0.0,
+    "matched": true
+   }
+  },
+  {
+   "send": "1",
+   "until": "choose your class",
+   "timeout": 10,
+   "note": "Human",
+   "result": {
+    "offset": 3594,
+    "waited": 0.01,
+    "matched": true
+   }
+  },
+  {
+   "send": "1",
+   "until": "Lawful\\?",
+   "timeout": 10,
+   "note": "Warrior",
+   "result": {
+    "offset": 4333,
+    "waited": 0.0,
+    "matched": true
+   }
+  },
+  {
+   "send": "N",
+   "until_cursor": "4;20",
+   "timeout": 15,
+   "required": true,
+   "note": "not lawful; the editor opens on the given name",
+   "result": {
+    "offset": 5092,
+    "waited": 0.32,
+    "matched": true
+   }
+  },
+  {
+   "send": "\b\b\b\b\bSysadm",
+   "note": "the given name Sysadm"
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "5;20",
+   "note": "leave the given name",
+   "result": {
+    "offset": 8768,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "Operator",
+   "raw": true,
+   "timeout": 10,
+   "wait": 0.5,
+   "note": "family name",
+   "result": {
+    "offset": 8947,
+    "waited": 0.5,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "9;34",
+   "result": {
+    "offset": 8957,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "5",
+   "raw": true,
+   "timeout": 10,
+   "wait": 0.5,
+   "result": {
+    "offset": 9144,
+    "waited": 0.5,
+    "matched": true
+   }
+  },
+  {
+   "send": "0",
+   "raw": true,
+   "timeout": 10,
+   "wait": 0.5,
+   "result": {
+    "offset": 9178,
+    "waited": 0.5,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "10;34",
+   "note": "Strength 50: CP left redrawn at 20;33",
+   "result": {
+    "offset": 9179,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\e[A",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "9;34",
+   "note": "up arrow: back to Strength",
+   "result": {
+    "offset": 9344,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\e[B",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "10;34",
+   "note": "down arrow: Intellect again",
+   "result": {
+    "offset": 9508,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "11;34",
+   "result": {
+    "offset": 9673,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "12;34",
+   "result": {
+    "offset": 9840,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "13;34",
+   "result": {
+    "offset": 10007,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "5",
+   "raw": true,
+   "timeout": 10,
+   "wait": 0.5,
+   "result": {
+    "offset": 10174,
+    "waited": 0.53,
+    "matched": true
+   }
+  },
+  {
+   "send": "0",
+   "raw": true,
+   "timeout": 10,
+   "wait": 0.5,
+   "result": {
+    "offset": 10211,
+    "waited": 0.5,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "14;34",
+   "note": "Health 50",
+   "result": {
+    "offset": 10212,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "16;22",
+   "result": {
+    "offset": 10379,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": " ",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "16;22",
+   "note": "Space cycles hair length",
+   "result": {
+    "offset": 10559,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "17;22",
+   "result": {
+    "offset": 10611,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "18;22",
+   "result": {
+    "offset": 10793,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "20;14",
+   "result": {
+    "offset": 10975,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 120,
+   "required": true,
+   "note": "SAVE: suicide notice, name validation, st screen",
+   "result": {
+    "offset": 11145,
+    "waited": 4.54,
+    "matched": true
+   }
+  },
+  {
+   "send": "",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Enter: the first room",
+   "result": {
+    "offset": 14593,
+    "waited": 0.0,
+    "matched": true
+   }
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 90,
+   "note": "exit after silent meditation (USREXIT)",
+   "result": {
+    "offset": 14780,
+    "waited": 5.86,
+    "matched": true
+   }
+  },
+  {
+   "send": "X",
+   "until": "Make your selection",
+   "note": "leave MajorMUD",
+   "result": {
+    "offset": 15023,
+    "waited": 0.0,
+    "matched": true
+   }
+  },
+  {
+   "send": "X",
+   "until": "Are you sure",
+   "note": "BBS logoff",
+   "result": {
+    "offset": 15177,
+    "waited": 0.0,
+    "matched": true
+   }
+  },
+  {
+   "send": "Y",
+   "wait": 2,
+   "timeout": 10,
+   "result": {
+    "offset": 15291,
+    "waited": 0.0,
+    "matched": true
+   }
+  }
+ ],
+ "naws": null,
+ "captured": "2026-10-14 14:28",
+ "dll_sha256": "e308533696e1e64cf52715921d94d4245f4708f56ea048e4f7c6ec9b564b725f"
+}

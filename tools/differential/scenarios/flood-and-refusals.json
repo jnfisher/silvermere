@@ -1,0 +1,10 @@
+{
+ "scenario": "flood-and-refusals",
+ "script": "../../../tests/captures/flood-and-refusals/script.json",
+ "setup": [
+  {
+   "side": "both",
+   "scenario": "creation-fsd"
+  }
+ ]
+}

@@ -1,0 +1,100 @@
+# silvermere.example.toml: every key with its default and allowed range.
+# Precedence: flags > SILVERMERE_* env (SECTION__KEY, e.g. SILVERMERE_GAME__DEATH_HP) > this file > defaults.
+# Copy to ./silvermere.toml or <data-dir>/silvermere.toml. `silvermere serve --print-config` shows the effective values.
+
+# data_dir = "./data"   # directory (the default); leave it commented so this file can sit in any data directory
+
+[server]
+telnet_bind = "0.0.0.0:2323"   # host:port
+admin_bind = "127.0.0.1:8080"   # host:port
+max_sessions = 256   # 1..=100000
+
+[admin]
+# tokens = []   # none by default; one [[admin.tokens]] table per token, see below. Also SILVERMERE_ADMIN_TOKENS (a JSON array)
+# A non-loopback server.admin_bind refuses to start without at least one token.
+# [[admin.tokens]]
+# name = "ops"   # shown in the audit rows
+# token = "<a long random secret>"
+# scopes = ["read"]   # read, broadcast, sysop
+
+[database]
+url = ""   # sqlite://... or postgres://...; empty (the default) = sqlite://<data_dir>/silvermere.db
+
+[net]
+login_timeout_secs = 300   # 0 = off; idle seconds allowed in the login dialogue before the connection is closed
+
+[compat]
+bbs_menu = true   # bool
+charset = "cp437"   # "cp437" or "utf8"
+version_string = "1.11p-WG (Dec 30 2005 14:20:05)"   # shown in menus
+bulletin = ""   # sysop bulletin text
+
+[game]
+inactive_secs = 3600   # 60..=32000; INACTIVE
+death_hp = -200   # -20000..=0; DEATHHP (John: -200, the module default is -10)
+# rng_seed = 1   # u64; seed of the game RNG, absent = from the OS (serve --seed N)
+blank_lastname_allowed = false
+characters_per_account = 1   # 1..=255
+open_signup = true
+addons = ["all"]   # add-on packs
+sec_create = 5
+sec_oth = 160   # 1..=20000; SECOTH
+sec_slow = 30
+sec_med = 3
+sec_fast = 1
+sec_energy = 5
+start_room = 2140
+reinc_room = 2189
+evil_reinc_room = 142
+jail_room = 376
+xtra_lvl = 2   # 0..=16; XTRALVL
+regen_mins = 5
+gang_exp = 0   # 0..=32767; GANGEXP
+talk_char = "."
+yell_char = '"'
+smash_rounds = 15
+smash_penalty = 35
+def_chat_rate = 1
+max_top = 10   # 10..=3000; MAXTOP
+inv_glo = [";x", ";-", ";re"]   # at most 10 entries; INVGLO1-10
+pun_hup = "none"   # "high" | "medium" | "low" | "none"; PUNHUP
+evil_keep = 0   # 0..=100; EVILKEEP
+lvl_diff = 9   # -1..=100; LVLDIFF
+min_hup_hp = 0   # 0..=100; MINHUPHP
+max_hup_hp = 0   # 0..=100; MAXHUPHP
+max_hup_items = 0   # 0..=100; MAXHUPIT
+keep_exp = false
+light_evy = true
+gender_gold = 0   # -1..=32000; GENDERGO
+enable_lawful = true
+ep_cycle = 60   # 15..=360; EPCYCLE
+ep_amount = 1   # 1..=100; EPAMOUNT
+max_ep_day = 12   # 4..=100; MAXEPDAY
+usr_cur_name = "runic coins"   # 1..=28 characters; USRCURNM
+plat_per_runic = 100
+gold_per_plat = 100
+silv_per_gold = 10
+copper_per_silv = 10
+track_limited = false
+exp_in_top_gang = false
+log_sysop_commands = true
+race_change_duration = 300   # 1..=720 minutes; RACE_CHANGE_DURATION
+enable_class_change = false
+tournament_play = false
+maximum_bank_balance = 0   # copper, 0 = no limit; MAXIMUM_BANK_BALANCE
+kid_gloves = false
+sys_log_deaths = false
+profanity_check = false
+exp_in_topten = true
+codec_of_twinks = 0   # 78 unlocks the sysop developer tools
+
+[game.cleanup]
+at = "03:00"   # local time of the daily cleanup; players stay connected
+tz = "America/Detroit"   # IANA zone `at` is read in (silvermere addition)
+
+[game.buffers]
+monsbuf = 300   # MONSBUF: the active-monster cache holds monsbuf + 1 slots
+
+[logging]
+format = "pretty"   # "pretty" or "json"
+level = "info"   # tracing filter

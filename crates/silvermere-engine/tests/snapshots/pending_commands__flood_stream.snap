@@ -1,0 +1,12 @@
+---
+source: crates/silvermere-engine/tests/pending_commands.rs
+expression: "h.text_since(0, id)"
+---
+Why don't you slow down for a few seconds?
+Why don't you slow down for a few seconds?
+Why don't you slow down for a few seconds?
+Why don't you slow down for a few seconds?
+Why don't you slow down for a few seconds?
+You are typing too quickly - command ignored
+Why don't you slow down for a few seconds?
+You are typing too quickly - command ignored

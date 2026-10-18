@@ -1,0 +1,6 @@
+---
+source: crates/silvermere-engine/tests/settings.rs
+expression: out
+---
+Valid SET options: SUICIDE, MAXPAGES, MAXAUCTION, MAXGOSSIP, FOLLOW, INTERRUPT, RECEIVE, WARNING, TELEPATH, ENTRANCES, TALK, PALETTE, PAGE, KEEP
+[HP=48]:

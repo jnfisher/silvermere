@@ -1,0 +1,271 @@
+{
+ "scenario": "m2/spawn-arena",
+ "port": 2323,
+ "description": "T-040 statistical (John, 2026-10-16: spawn and wander counts over a fixed number of server ticks): a sysop's character, made strong with the developer commands, watches the Newhaven Arena (1:2150) for 300 passes of the spawn timer (25 minutes) and fights whatever is there, so the room stays short of its maximum. stats.py compares the monsters created there (`... into the room from nowhere`, the spawn pass: 89/99 of the eligible passes) and those walking in from a neighbouring room (the wander pass, over the monster cache since T-086), each as a Poisson rate, gated at p > 0.01. `differential.py run --as USER:PASSWORD`.",
+ "character": {
+  "user": "@USER@",
+  "password": "@PASSWORD@",
+  "name": "@USER@ Operator"
+ },
+ "mask": [
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "direction names carry a random capital letter and a backspace"
+  },
+  {
+   "regex": "(?<=\\[HP=)-?\\d+|(?<=/MA=)-?\\d+|(?<=/KAI=)-?\\d+",
+   "why": "the prompt's numbers only, never its labels (as m4)"
+  },
+  {
+   "regex": "(?<=Exp: \\x1b\\[36m)\\d+ *|(?<=Exp: )\\d+ *",
+   "why": "the experience after random fights (st, exp): the number and its column padding, not the label"
+  },
+  {
+   "regex": "(?<=Hits: \\x1b\\[36m) *-?\\d+/\\d+ *|(?<=Hits: ) *-?\\d+/\\d+ *",
+   "why": "hit points and the maximum the tweak sets (st): the numbers and their padding, not the label"
+  }
+ ],
+ "echo_anchored": true,
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "@USER@",
+   "until": "Password:|already logged in",
+   "set": {
+    "busy": "(already logged in)"
+   },
+   "note": "MBBSEmu admits one connection per user; the previous sheet's session can still be held for a moment after its logoff (\"... is already logged in -- only 1 connection allowed per user\", live run 38953732059)"
+  },
+  {
+   "op": "sleep",
+   "seconds": 60,
+   "if_set": "busy",
+   "note": "wait for the original to let the previous session go"
+  },
+  {
+   "send": "@USER@",
+   "until": "Password:",
+   "timeout": 20,
+   "if_set": "busy",
+   "note": "the name again at the Username prompt MBBSEmu shows after the refusal"
+  },
+  {
+   "send": "@PASSWORD@",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "note": "MajorMUD from the BBS menu"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm"
+  },
+  {
+   "send": "st",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "set": {
+    "maxhp": "Hits:\\s+-?\\d+/(\\d+)"
+   },
+   "note": "the character's maximum hit points, restored at the end"
+  },
+  {
+   "send": "sysop tweak clear",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "a known start: TWEAK CLEAR empties the pack, the worn items and the keys and zeroes the money"
+  },
+  {
+   "send": "sysop tweak level 15",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "the watcher is no sheet: strong enough to end each arena fight in a round or two, so the room stays eligible for the spawn pass (it generates only while the room is short of its maximum)"
+  },
+  {
+   "send": "sysop tweak strength 100",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak agility 100",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak hp 30000",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop summon quarterstaff",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "wield quarterstaff",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop express_train 2150 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "to 1:2150, the Newhaven Arena (Arena, group 6)"
+  },
+  {
+   "send": "sysop tweak hp 30000",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "stop_check": true,
+   "note": "the cycle: the room, a fight with the first monster there, else a five-second wait. The watch ends after its fixed time (`m2.stop`: 300 passes of the 5-second spawn timer, seccreate)"
+  },
+  {
+   "send": "",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "set": {
+    "mon#CYCLE#": "Also here:[^.\\n]*? ([a-z]+)[.,]"
+   },
+   "note": "the room: the first monster's last word"
+  },
+  {
+   "send": "a {mon#CYCLE#}",
+   "until": "\\*Combat Engaged\\*|You don't see|You do not see",
+   "timeout": 10,
+   "may_time_out": true,
+   "if_set": "mon#CYCLE#"
+  },
+  {
+   "op": "sleep",
+   "seconds": 60,
+   "until": "\\*Combat Off\\*",
+   "may_time_out": true,
+   "if_set": "mon#CYCLE#",
+   "note": "to the end of the fight"
+  },
+  {
+   "op": "sleep",
+   "seconds": 5,
+   "if_unset": "mon#CYCLE#",
+   "note": "nothing here: one pass"
+  },
+  {
+   "send": "sysop express_train 2140 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "after_stop": true,
+   "note": "out of the fight room (its monsters), to 1:2140 as m4's casts"
+  },
+  {
+   "send": "sysop tweak race 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "back to the character as created (Human Warrior, Strength and Health 50, the rest 40), so the next entry's checks find it as made"
+  },
+  {
+   "send": "sysop tweak class 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak level 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "level 1, which the experience allows: a level above it is taken down at the next entry and the stats reset into the editor"
+  },
+  {
+   "send": "sysop tweak strength 50",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak intellect 40",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak wisdom 40",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak agility 40",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak health 50",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak charm 40",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak hp {maxhp}",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 90,
+   "note": "exit after silent meditation (USREXIT)"
+  },
+  {
+   "send": "X",
+   "until": "Make your selection",
+   "note": "leave MajorMUD"
+  },
+  {
+   "send": "X",
+   "until": "Are you sure",
+   "note": "BBS logoff"
+  },
+  {
+   "send": "Y",
+   "wait": 2,
+   "timeout": 10
+  }
+ ],
+ "on_abort": [
+  {
+   "send": "sysop express_train 2140 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "out of the fight room (its monsters), to 1:2140 as m4's casts"
+  },
+  {
+   "send": "sysop tweak race 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "back to the character as created (Human Warrior, Strength and Health 50, the rest 40), so the next entry's checks find it as made"
+  },
+  {
+   "send": "sysop tweak class 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak level 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "level 1, which the experience allows: a level above it is taken down at the next entry and the stats reset into the editor"
+  },
+  {
+   "send": "sysop tweak strength 50",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak intellect 40",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak wisdom 40",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak agility 40",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak health 50",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak charm 40",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak hp {maxhp}",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  }
+ ],
+ "on_abort_note": "played before the logoff when the script stops early (a required step timed out): the character goes back to as created, so the next run's entry is not stopped by the stat reset"
+}

@@ -1,0 +1,9 @@
+---
+source: crates/silvermere-engine/tests/sysop.rs
+expression: "h.line(s, \"sysop tweak\")"
+---
+Valid edits: HP, Intellect, Wisdom, Strength, Health, Agility, Charm,
+             Experience, Light, Level, Mana, Gold, UserDefined, Evil
+             Class, Race, Lives, Copper, revision
+OR sysop edit clear
+[HP=40]:

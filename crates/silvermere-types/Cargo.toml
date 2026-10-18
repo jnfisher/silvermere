@@ -1,0 +1,23 @@
+[package]
+name = "silvermere-types"
+description = "Record types, enums, ids, fixed-width string helpers (no I/O)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+bitflags.workspace = true
+jiff.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+# tests/facts.rs reads tests/fixtures/rules_facts.json.
+serde.workspace = true
+serde_json.workspace = true

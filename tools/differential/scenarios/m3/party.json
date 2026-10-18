@@ -1,0 +1,38 @@
+{
+ "scenario": "m3/party",
+ "script": "m3/scripts/party.json",
+ "deterministic": [
+  "invite brynja",
+  "follow aldric",
+  "party",
+  "backrank",
+  "uninvite brynja"
+ ],
+ "setup": [
+  {
+   "side": "orig",
+   "scenario": "entry-new-account"
+  },
+  {
+   "side": "orig",
+   "scenario": "creation-fsd"
+  },
+  {
+   "side": "new",
+   "script": "m1/setup/new-aldric.json"
+  },
+  {
+   "side": "orig",
+   "script": "m3/setup/orig-brynja-account.json"
+  },
+  {
+   "side": "orig",
+   "script": "m3/setup/orig-brynja-creation.json"
+  },
+  {
+   "side": "new",
+   "script": "m3/setup/new-brynja.json"
+  }
+ ],
+ "ignore_host_banner": true
+}

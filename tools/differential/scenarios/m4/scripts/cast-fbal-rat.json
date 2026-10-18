@@ -1,0 +1,159 @@
+{
+ "scenario": "m4/cast-fbal-rat",
+ "port": 2323,
+ "description": "T-057 statistical: fireball from the fixed level-15 mage at the rat until 5,000 casts: damage histogram and fail rate, and no resisted line (m4_stats.py). Needs the developer code on both sides: on the original CODEC_OF_TWINKS=78 in wccmmud.ini (STAGE_CODEC_OF_TWINKS or docker -e CODEC_OF_TWINKS) and the BBS key WCCSYSOP on the sysop account (mbbsemu_key.py; TWEAK, SUMMON, EXPRESS_TRAIN, MONSTER), on silvermere the DEBUG grant (`silvermere account grant sysop DEBUG`); and the BBS sysop account sysop/sysop with its character Sysadm on both (docs/testing.md, M4).",
+ "character": {
+  "user": "sysop",
+  "password": "sysop",
+  "name": "Sysadm"
+ },
+ "mask": [
+  {
+   "regex": "(?<=Current pollrate:)[^\\r\\n]*|(?<=Current initrate:)[^\\r\\n]*|(?<=Logfile:)[^\\r\\n]*",
+   "why": "the values of the record cache rates and the log file name: none in silvermere; the labels stay compared"
+  },
+  {
+   "regex": "You must purchase the .* before you may move through this exit\\.",
+   "why": "the add-on gate of GOTO, dropped (licensing)"
+  },
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "direction names' random capital"
+  },
+  {
+   "regex": "(?<=\\[HP=)-?\\d+|(?<=/MA=)-?\\d+|(?<=/KAI=)-?\\d+",
+   "why": "the prompt's hit point and mana numbers (not its labels)"
+  },
+  {
+   "regex": "Also here: .*",
+   "why": "monsters that happen to be around"
+  }
+ ],
+ "echo_anchored": true,
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "sysop",
+   "until": "Password:"
+  },
+  {
+   "send": "sysop",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "note": "MajorMUD from the BBS menu"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm as Sysadm"
+  },
+  {
+   "send": "sysop tweak clear",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "a known start: TWEAK CLEAR empties the pack, the worn items and the keys and zeroes the money, so an earlier scenario's abort on one side cannot carry over"
+  },
+  {
+   "send": "sysop tweak class 12",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "the fixed sheet: class (TWEAK)"
+  },
+  {
+   "send": "sysop tweak experience 10000000",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "experience for any level below 16: a level above the experience is taken down at the next entry with its character points, and a negative CP total resets the stats into the editor, even after a run cut short"
+  },
+  {
+   "send": "sysop tweak level 15",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "and level"
+  },
+  {
+   "send": "sysop tweak hp 30000",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "hit points to outlast the scenario"
+  },
+  {
+   "send": "sysop tweak lives 9",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "and the lives a death would take"
+  },
+  {
+   "send": "sysop express_train 2489 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "to 1:2489 (EXPRESS_TRAIN)"
+  },
+  {
+   "send": "sysop summon fireball",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "use scroll of fireball",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "SUMMON finds the scroll first: learned, or already known"
+  },
+  {
+   "send": "sysop tweak level 15",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "the cycle: the fixed sheet again (level, mana), a monster, the cast, the fight"
+  },
+  {
+   "send": "sysop tweak mana 200",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak hp 30000",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop monster 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "cast fbal",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "",
+   "until": "(?:explodes, causing \\d+ damage!|You attempt to cast fireball, but fail\\.)(?s:.*)\\[HP=",
+   "note": "one fireball: its explosion line or its failure (an area cast per cycle)",
+   "timeout": 300
+  },
+  {
+   "send": "sysop express_train 2140 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "to 1:2140 (EXPRESS_TRAIN)"
+  },
+  {
+   "send": "sysop tweak level 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "the level the experience allows, for the next entry"
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 90,
+   "note": "the silent meditation takes a few ticks"
+  },
+  {
+   "send": "X",
+   "until": "Make your selection"
+  },
+  {
+   "send": "X",
+   "until": "Are you sure"
+  },
+  {
+   "send": "Y",
+   "until": ""
+  }
+ ]
+}

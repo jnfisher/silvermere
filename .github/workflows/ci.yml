@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  ci:
+    name: ci (lint, test sqlite, test postgres subset)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: silvermere
+          POSTGRES_PASSWORD: silvermere
+          POSTGRES_DB: silvermere
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U silvermere"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+      # The stock distribution the tests read (T-120): downloaded once, cached under its pinned
+      # sha256, checked on every use.
+      - name: Stock data cache key (the pinned sha256)
+        id: stock
+        run: |
+          echo "sha=$(sed -n 's/^pub const SHA256: &str = "\(.*\)";/\1/p' crates/silvermere-import/src/stock.rs)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/silvermere/stock/WCCMMUD_1.11p_DOS_MBBSEmu_v2.zip
+          key: stock-${{ steps.stock.outputs.sha }}
+      - name: Stock data (download when not cached, check)
+        run: tools/differential/fetch-stock.sh
+      - run: cargo fmt --all --check
+      - name: clippy
+        if: ${{ !cancelled() }}
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      # Includes the importer's suites and the end-to-end tests that import the stock world from
+      # the cached distribution.
+      - name: test (sqlite)
+        if: ${{ !cancelled() }}
+        run: cargo test --workspace --locked --no-fail-fast
+        env:
+          SILVERMERE_DATABASE_URL: "sqlite://"
+      - name: test (postgres subset)
+        if: ${{ !cancelled() }}
+        run: cargo test --locked --no-fail-fast -p silvermere-db
+        env:
+          SILVERMERE_DATABASE_URL: "postgres://silvermere:silvermere@127.0.0.1:5432/silvermere"
+      - run: cargo deny check
+        if: ${{ !cancelled() }}
+      - name: docs/schema.md matches the migrations
+        if: ${{ !cancelled() }}
+        run: cargo run --manifest-path tools/schema-doc/Cargo.toml --locked -- --check

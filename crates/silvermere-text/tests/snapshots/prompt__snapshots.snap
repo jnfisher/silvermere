@@ -1,0 +1,10 @@
+---
+source: crates/silvermere-text/tests/prompt.rs
+expression: out
+---
+no_mana: \x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m]:|
+mana_resting: \x1b[79D\x1b[K\x1b[0;37m[HP=\x1b[1;31m7\x1b[0;37m/MA=19\x1b[0;37m]: (Resting) |
+kai_low_palette2: \x1b[79D\x1b[K\x1b[0;36m[HP=\x1b[1;31m10\x1b[0;36m/KAI=\x1b[1;36m5\x1b[0;36m]:|
+off: \x1b[79D\x1b[K\x1b[0;37m>|
+sysop_debug: \x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m]:{Energy=1234 Snk JstEnt Hdn }:|
+custom: \x1b[79D\x1b[K\x1b[0;37m\x1b[0;37m[48\x1b[0;37m/48]\x1b[32m\r\n\x1b[1m>|

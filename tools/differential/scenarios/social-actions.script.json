@@ -1,0 +1,143 @@
+{
+ "scenario": "social-actions",
+ "port": 2323,
+ "naws": null,
+ "description": "Social actions (T-046): a verb alone, a verb aimed at oneself, unknown targets, case, no abbreviation, ACTION and HELP ACTIONS, ACTION OFF and ON. Script only: not recorded yet (needs MBBSEmu). Monster, carried-item and floor-item targets depend on the room and are covered by the Rust tests; add them once a room with a monster and an item is chosen.",
+ "character": {
+  "user": "Aldric",
+  "password": "aldric1",
+  "name": "Aldric Stonebrook",
+  "race": "Human",
+  "class": "Warrior",
+  "level": 1,
+  "start": "Newhaven, Narrow Road"
+ },
+ "behaviours": [],
+ "mask": [],
+ "notes": [
+  "Not recorded: no raw.bin or plain.txt yet; run capture.py against the staged original to record."
+ ],
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "Aldric",
+   "until": "Password:"
+  },
+  {
+   "send": "aldric1",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm"
+  },
+  {
+   "send": "e",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "e",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the Village Entrance"
+  },
+  {
+   "send": "smile",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "verb alone: texts 0 and 1"
+  },
+  {
+   "send": "bow",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "verb alone"
+  },
+  {
+   "send": "hug",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "hug has no solo text (mask 30): speech, or \"Your command had no effect.\""
+  },
+  {
+   "send": "smile aldric",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the actor names himself: texts 2, 3 and 4 (the target line is sent to the actor too)"
+  },
+  {
+   "send": "wave nobodyhere",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "no such target: not an action"
+  },
+  {
+   "send": "SMILE",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "case does not matter"
+  },
+  {
+   "send": "smil",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "no abbreviations: not an action"
+  },
+  {
+   "send": "action",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the verb list, wrapped at 79 columns"
+  },
+  {
+   "send": "action list",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "help actions",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the same list"
+  },
+  {
+   "send": "action off",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "smile",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "actions off: not an action"
+  },
+  {
+   "send": "action on",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "smile",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 20,
+   "note": "leave"
+  }
+ ]
+}

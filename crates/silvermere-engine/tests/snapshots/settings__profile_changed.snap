@@ -1,0 +1,26 @@
+---
+source: crates/silvermere-engine/tests/settings.rs
+expression: changed
+---
+Life for this CHAR  129 minutes
+Display Mode:       Brief
+Statusline:         [%h]
+Broadcast Channel:  3
+Talking speed:      Fast
+Follow Mode:        Blind
+Attack Interrupts:  On
+Receive Items:      Disabled
+Warn on Evil:       Yes
+Allow Telepaths:    No
+Block Entrance Msg: Yes
+Allow Gossip:       No (4 every 3 seconds)
+Allow Auction:      No (5 every 3 seconds)
+View gang members:  Online
+Keep some exp:      Yes(Disabled on this system)
+Messages:           Medium
+Paging:             Off (6 every 3 seconds)
+Talking Responses:  Brief
+Style:              Technical
+Colour Palette:     2
+SYSOP ACCESS ENABLED
+[48]

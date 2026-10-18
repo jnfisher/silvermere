@@ -1,0 +1,11 @@
+{
+ "scenario": "gang",
+ "script": "gang.script.json",
+ "deterministic": "all",
+ "setup": [
+  {
+   "side": "both",
+   "scenario": "creation-fsd"
+  }
+ ]
+}

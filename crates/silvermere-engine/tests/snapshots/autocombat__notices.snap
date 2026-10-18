@@ -1,0 +1,11 @@
+---
+source: crates/silvermere-engine/tests/autocombat.rs
+expression: "shown.join(\"\\n\")"
+---
+engaged: "\u{1b}[79D\u{1b}[K\u{1b}[0;33m*Combat Engaged*\r\n\u{1b}[79D\u{1b}[K\u{1b}[0;37m[HP=48\u{1b}[0;37m]:"
+off: "\u{1b}[0;37;40m\u{1b}[79D\u{1b}[K\u{1b}[0;33m*Combat Off*\r\n\u{1b}[79D\u{1b}[K\u{1b}[0;37m[HP=48\u{1b}[0;37m]:\u{1b}[79D\u{1b}[K\u{1b}[0;37m[HP=48\u{1b}[0;37m]:"
+breaks off: "\u{1b}[79D\u{1b}[K\u{1b}[0;33mKasimir breaks off combat.\r\n\u{1b}[79D\u{1b}[K\u{1b}[0;37m[HP=48\u{1b}[0;37m]:"
+target gone: "\u{1b}[0;37;40mYou don't see your target here!\r\n\u{1b}[79D\u{1b}[K\u{1b}[0;37m[HP=48\u{1b}[0;37m]:"
+no backstab: "You cannot backstab with this weapon.\r\n\u{1b}[79D\u{1b}[K\u{1b}[0;33m*Combat Engaged*\r\n"
+not here: "\u{1b}[1;31;40mYou do not see Bob here!\r\n"
+kill: "\u{1b}[79D\u{1b}[K\u{1b}[1;31mYou smack giant rat for 3 damage!\r\n\u{1b}[79D\u{1b}[K\u{1b}[0;37m[HP=48\u{1b}[0;37m]:\u{1b}[79D\u{1b}[K\u{1b}[79D\u{1b}[KThe giant rat falls to the ground with a tortured squeak.\r\n\u{1b}[79D\u{1b}[K\u{1b}[0;37m[HP=48\u{1b}[0;37m]:\u{1b}[79D\u{1b}[KYou gain 15 experience.\r\n\u{1b}[79D\u{1b}[K\u{1b}[0;37m[HP=48\u{1b}[0;37m]:\u{1b}[79D\u{1b}[K\u{1b}[0;33m*Combat Off*\r\n\u{1b}[79D\u{1b}[K\u{1b}[0;37m[HP=48\u{1b}[0;37m]:"

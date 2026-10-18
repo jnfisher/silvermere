@@ -1,0 +1,9 @@
+---
+source: crates/silvermere-testkit/tests/stock_scripts.rs
+expression: refusals
+---
+ask troll hello: "\u{1b}[79D\u{1b}[Ktroll has nothing to tell you!\r\n<P>"
+greet wild: "\u{1b}[79D\u{1b}[Kwild dog doesn't understand you.\r\n<P>"
+ask wild dog hello: "\u{1b}[79D\u{1b}[Kwild dog has nothing to tell you!\r\n<P>"
+ask pirate hello: "\u{1b}[79D\u{1b}[Kpirate ghost has nothing to tell you!\r\n<P>"
+greet pirate: "\u{1b}[79D\u{1b}[Kpirate ghost has nothing to tell you!\r\n<P>"

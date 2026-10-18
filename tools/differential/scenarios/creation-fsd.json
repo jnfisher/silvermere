@@ -1,0 +1,5 @@
+{
+ "scenario": "creation-fsd",
+ "script": "../../../tests/captures/creation-fsd/script.json",
+ "deterministic": []
+}

@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/info_commands.rs
+expression: esc(&got)
+---
+\x1b[79D\x1b[K\x1b[1;37mYou have the following spells:\r\n\x1b[0;35mLevel Mana Short Spell Name\r\n\x1b[36m  1   1    ligh  light                         \r\n  1   2    mmis  magic missile                 \r\n  3   4          shield                        \r\n  5   10   fbal  fireball                      \r\n\r\n

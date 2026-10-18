@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/info_commands.rs
+expression: esc(&got)
+---
+\x1b[0;32mExp: \x1b[36m0 \x1b[32mLevel: \x1b[36m1\x1b[32m Exp needed for next level: \x1b[36m1000 (1000) [0%]\r\n

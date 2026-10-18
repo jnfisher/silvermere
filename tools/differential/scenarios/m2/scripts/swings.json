@@ -1,0 +1,481 @@
+{
+ "scenario": "m2/swings",
+ "port": 2323,
+ "description": "T-040 statistical (John, 2026-10-16: sample counts, not wall-clock soaks): the fixed Kang Witchunter sheet (level 1, quarterstaff), set with the developer commands on a sysop's character, fights one monster sheet (`@MON@`, WCCKNMSR @MONNUM@) summoned with SYSOP MONSTER, in cycles, until this side's parallel sessions have 2,000 of the player's swings or 30 minutes have passed (`m2.stop`). stats.py compares the player's swings (hit rate, outcome mix, damage histogram, blows per round) and the monster's swings at the player (hit rate, outcome mix, damage), by their game-data texts. Played as `differential.py run --as USER:PASSWORD` by several sessions at once (m2_live.sh). Needs the developer code on both sides, as m4 (docs/testing.md).",
+ "character": {
+  "user": "@USER@",
+  "password": "@PASSWORD@",
+  "name": "@USER@ Operator"
+ },
+ "mask": [
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "direction names carry a random capital letter and a backspace"
+  },
+  {
+   "regex": "(?<=\\[HP=)-?\\d+|(?<=/MA=)-?\\d+|(?<=/KAI=)-?\\d+",
+   "why": "the prompt's numbers only, never its labels (as m4)"
+  },
+  {
+   "regex": "(?<=Exp: \\x1b\\[36m)\\d+ *|(?<=Exp: )\\d+ *",
+   "why": "the experience after random fights (st, exp): the number and its column padding, not the label"
+  },
+  {
+   "regex": "(?<=Hits: \\x1b\\[36m) *-?\\d+/\\d+ *|(?<=Hits: ) *-?\\d+/\\d+ *",
+   "why": "hit points and the maximum the tweak sets (st): the numbers and their padding, not the label"
+  }
+ ],
+ "echo_anchored": true,
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "@USER@",
+   "until": "Password:|already logged in",
+   "set": {
+    "busy": "(already logged in)"
+   },
+   "note": "MBBSEmu admits one connection per user; the previous sheet's session can still be held for a moment after its logoff (\"... is already logged in -- only 1 connection allowed per user\", live run 38953732059)"
+  },
+  {
+   "op": "sleep",
+   "seconds": 60,
+   "if_set": "busy",
+   "note": "wait for the original to let the previous session go"
+  },
+  {
+   "send": "@USER@",
+   "until": "Password:",
+   "timeout": 20,
+   "if_set": "busy",
+   "note": "the name again at the Username prompt MBBSEmu shows after the refusal"
+  },
+  {
+   "send": "@PASSWORD@",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "note": "MajorMUD from the BBS menu"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm"
+  },
+  {
+   "send": "st",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "set": {
+    "maxhp": "Hits:\\s+-?\\d+/(\\d+)"
+   },
+   "note": "the character's maximum hit points, restored at the end"
+  },
+  {
+   "send": "sysop tweak clear",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "a known start: TWEAK CLEAR empties the pack, the worn items and the keys and zeroes the money"
+  },
+  {
+   "send": "sysop tweak race 11",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "the fixed sheet (crates/silvermere-rules/tests/fixtures/sheets/kang-witchunter.json): Kang (WCCRACE 11; TWEAK)"
+  },
+  {
+   "send": "sysop tweak class 2",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "Witchunter (WCCCLASS 2)"
+  },
+  {
+   "send": "sysop tweak level 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak strength 79",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "the six stats of the sheet, each set as current and maximum"
+  },
+  {
+   "send": "sysop tweak intellect 30",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak wisdom 45",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak agility 42",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak health 74",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak charm 30",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak hp 30000",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "hit points to outlast the run: the monsters' swings never end it"
+  },
+  {
+   "send": "sysop summon quarterstaff",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "the sheet's weapon (WCCITEMS 100)"
+  },
+  {
+   "send": "wield quarterstaff",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop express_train @ROOM@ 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "to a room of its own (EXPRESS_TRAIN), map 1 rooms of monster group 0 near the Cleared Fields (1:2489 unless m2_live.sh gives each session another): sessions sharing a room would all attack its first monster"
+  },
+  {
+   "send": "st",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "the sheet on the st screen (compared over the run)"
+  },
+  {
+   "send": "sysop buffers",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "the record caches' statistics at the start (SYSOP BUFFERS): the original's `Active Monsters: Size Used Hits Miss` line goes into the report (#72, item 6: a full cache makes monsters skip rounds)"
+  },
+  {
+   "send": "",
+   "until": "Obvious exits:[^\\n]*\\n[^\\n]*\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "set": {
+    "clr0": "Also here:[^.\\n]*? ([a-z]+)[.,]"
+   },
+   "note": "the room cleared before the first cycle: whatever an earlier run left here (a sheet's monster, a wanderer) is fought, so only the cycle's own monster is in the room (#72 review, item 6)"
+  },
+  {
+   "send": "a {clr0}",
+   "until": "\\*Combat Engaged\\*|You don't see|You do not see",
+   "timeout": 10,
+   "may_time_out": true,
+   "if_set": "clr0"
+  },
+  {
+   "op": "sleep",
+   "seconds": 60,
+   "until": "\\*Combat Off\\*",
+   "may_time_out": true,
+   "if_set": "clr0"
+  },
+  {
+   "send": "",
+   "until": "Obvious exits:[^\\n]*\\n[^\\n]*\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "set": {
+    "clr1": "Also here:[^.\\n]*? ([a-z]+)[.,]"
+   },
+   "note": "the room again"
+  },
+  {
+   "send": "a {clr1}",
+   "until": "\\*Combat Engaged\\*|You don't see|You do not see",
+   "timeout": 10,
+   "may_time_out": true,
+   "if_set": "clr1"
+  },
+  {
+   "op": "sleep",
+   "seconds": 60,
+   "until": "\\*Combat Off\\*",
+   "may_time_out": true,
+   "if_set": "clr1"
+  },
+  {
+   "send": "",
+   "until": "Obvious exits:[^\\n]*\\n[^\\n]*\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "set": {
+    "clr2": "Also here:[^.\\n]*? ([a-z]+)[.,]"
+   },
+   "note": "the room again"
+  },
+  {
+   "send": "a {clr2}",
+   "until": "\\*Combat Engaged\\*|You don't see|You do not see",
+   "timeout": 10,
+   "may_time_out": true,
+   "if_set": "clr2"
+  },
+  {
+   "op": "sleep",
+   "seconds": 60,
+   "until": "\\*Combat Off\\*",
+   "may_time_out": true,
+   "if_set": "clr2"
+  },
+  {
+   "send": "",
+   "until": "Obvious exits:[^\\n]*\\n[^\\n]*\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "set": {
+    "clr3": "Also here:[^.\\n]*? ([a-z]+)[.,]"
+   },
+   "note": "the room again"
+  },
+  {
+   "send": "a {clr3}",
+   "until": "\\*Combat Engaged\\*|You don't see|You do not see",
+   "timeout": 10,
+   "may_time_out": true,
+   "if_set": "clr3"
+  },
+  {
+   "op": "sleep",
+   "seconds": 60,
+   "until": "\\*Combat Off\\*",
+   "may_time_out": true,
+   "if_set": "clr3"
+  },
+  {
+   "send": "",
+   "until": "Obvious exits:[^\\n]*\\n[^\\n]*\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "set": {
+    "clr4": "Also here:[^.\\n]*? ([a-z]+)[.,]"
+   },
+   "note": "the room again"
+  },
+  {
+   "send": "a {clr4}",
+   "until": "\\*Combat Engaged\\*|You don't see|You do not see",
+   "timeout": 10,
+   "may_time_out": true,
+   "if_set": "clr4"
+  },
+  {
+   "op": "sleep",
+   "seconds": 60,
+   "until": "\\*Combat Off\\*",
+   "may_time_out": true,
+   "if_set": "clr4"
+  },
+  {
+   "send": "",
+   "until": "Obvious exits:[^\\n]*\\n[^\\n]*\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "set": {
+    "clr5": "Also here:[^.\\n]*? ([a-z]+)[.,]"
+   },
+   "note": "the room again"
+  },
+  {
+   "send": "a {clr5}",
+   "until": "\\*Combat Engaged\\*|You don't see|You do not see",
+   "timeout": 10,
+   "may_time_out": true,
+   "if_set": "clr5"
+  },
+  {
+   "op": "sleep",
+   "seconds": 60,
+   "until": "\\*Combat Off\\*",
+   "may_time_out": true,
+   "if_set": "clr5"
+  },
+  {
+   "send": "sysop tweak hp 30000",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "stop_check": true,
+   "note": "the cycle: the hit points again, a monster of the sheet, the fight with three one-round windows, to *Combat Off*. Before each cycle the run stops once this side's sessions have the sample or the time is up (`m2.stop`)"
+  },
+  {
+   "send": "sysop monster @MONNUM@",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "SYSOP MONSTER forces the generation"
+  },
+  {
+   "send": "a @MON@",
+   "until": "\\*Combat Engaged\\*|You don't see|You do not see",
+   "timeout": 10,
+   "may_time_out": true,
+   "set": {
+    "over#CYCLE#": "(\\*Combat Off\\*|You don't see|You do not see)"
+   },
+   "note": "the attack; `over` once the fight is over (or there was nothing to attack), so the waits after it are skipped"
+  },
+  {
+   "op": "sleep",
+   "seconds": 5,
+   "round": true,
+   "until": "\\*Combat Off\\*",
+   "may_time_out": true,
+   "set": {
+    "over#CYCLE#": "(\\*Combat Off\\*|You don't see|You do not see)"
+   },
+   "if_unset": "over#CYCLE#",
+   "note": "one energy round (secenergy 5 s): the player's swings in it are that round's blows; shorter when the fight ends in it"
+  },
+  {
+   "op": "sleep",
+   "seconds": 5,
+   "round": true,
+   "until": "\\*Combat Off\\*",
+   "may_time_out": true,
+   "set": {
+    "over#CYCLE#": "(\\*Combat Off\\*|You don't see|You do not see)"
+   },
+   "if_unset": "over#CYCLE#",
+   "note": "one energy round (secenergy 5 s): the player's swings in it are that round's blows; shorter when the fight ends in it"
+  },
+  {
+   "op": "sleep",
+   "seconds": 5,
+   "round": true,
+   "until": "\\*Combat Off\\*",
+   "may_time_out": true,
+   "set": {
+    "over#CYCLE#": "(\\*Combat Off\\*|You don't see|You do not see)"
+   },
+   "if_unset": "over#CYCLE#",
+   "note": "one energy round (secenergy 5 s): the player's swings in it are that round's blows; shorter when the fight ends in it"
+  },
+  {
+   "op": "sleep",
+   "seconds": 60,
+   "until": "\\*Combat Off\\*",
+   "may_time_out": true,
+   "if_unset": "over#CYCLE#",
+   "note": "to the end of the fight"
+  },
+  {
+   "send": "sysop express_train 2140 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "after_stop": true,
+   "note": "out of the fight room (its monsters), to 1:2140 as m4's casts"
+  },
+  {
+   "send": "sysop buffers",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "and at the end"
+  },
+  {
+   "send": "sysop tweak race 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "back to the character as created (Human Warrior, Strength and Health 50, the rest 40), so the next entry's checks find it as made"
+  },
+  {
+   "send": "sysop tweak class 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak level 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "level 1, which the experience allows: a level above it is taken down at the next entry and the stats reset into the editor"
+  },
+  {
+   "send": "sysop tweak strength 50",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak intellect 40",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak wisdom 40",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak agility 40",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak health 50",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak charm 40",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak hp {maxhp}",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 90,
+   "note": "exit after silent meditation (USREXIT)"
+  },
+  {
+   "send": "X",
+   "until": "Make your selection",
+   "note": "leave MajorMUD"
+  },
+  {
+   "send": "X",
+   "until": "Are you sure",
+   "note": "BBS logoff"
+  },
+  {
+   "send": "Y",
+   "wait": 2,
+   "timeout": 10
+  }
+ ],
+ "on_abort": [
+  {
+   "send": "sysop express_train 2140 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "out of the fight room (its monsters), to 1:2140 as m4's casts"
+  },
+  {
+   "send": "sysop tweak race 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "back to the character as created (Human Warrior, Strength and Health 50, the rest 40), so the next entry's checks find it as made"
+  },
+  {
+   "send": "sysop tweak class 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak level 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "level 1, which the experience allows: a level above it is taken down at the next entry and the stats reset into the editor"
+  },
+  {
+   "send": "sysop tweak strength 50",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak intellect 40",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak wisdom 40",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak agility 40",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak health 50",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak charm 40",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sysop tweak hp {maxhp}",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  }
+ ],
+ "on_abort_note": "played before the logoff when the script stops early (a required step timed out): the character goes back to as created, so the next run's entry is not stopped by the stat reset"
+}

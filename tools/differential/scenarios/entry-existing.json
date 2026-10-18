@@ -1,0 +1,11 @@
+{
+ "scenario": "entry-existing",
+ "script": "../../../tests/captures/entry-existing/script.json",
+ "deterministic": "all",
+ "setup": [
+  {
+   "side": "both",
+   "scenario": "creation-fsd"
+  }
+ ]
+}

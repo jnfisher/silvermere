@@ -1,0 +1,31 @@
+---
+source: crates/silvermere-engine/tests/monster_casting.rs
+expression: out
+---
+== orc shaman: landed
+you:   Orc shaman casts harm on you for 18 damage!
+other: Orc shaman casts harm on Aldric for 18 damage!
+== orc shaman: failed
+you:   The orc shaman attempted to cast harm at you, but failed.
+other: The orc shaman attempted to cast harm at Aldric, but failed.
+== orc shaman: resisted
+you:   You resisted orc shaman's cast of harm.
+other: Aldric resisted orc shaman's cast of harm.
+== black orc shaman: landed
+you:   Black orc shaman casts blind on you!
+other: Black orc shaman casts blind on Aldric!
+== black orc shaman: failed
+you:   The black orc shaman attempted to cast blind at you, but failed.
+other: The black orc shaman attempted to cast blind at Aldric, but failed.
+== black orc shaman: resisted
+you:   You resisted black orc shaman's cast of blind.
+other: Aldric resisted black orc shaman's cast of blind.
+== dark priest: landed
+you:   Dark priest throws a spiritual hammer at you for 9 damage!
+other: Dark priest throws a spiritual hammer at Aldric for 9 damage!
+== dark priest: failed
+you:   The dark priest attempted to cast spiritual hammer at you, but failed.
+other: The dark priest attempted to cast spiritual hammer at Aldric, but failed.
+== dark priest: resisted
+you:   You resisted dark priest's cast of spiritual hammer.
+other: Aldric resisted dark priest's cast of spiritual hammer.

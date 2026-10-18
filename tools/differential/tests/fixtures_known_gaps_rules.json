@@ -1,0 +1,59 @@
+{
+ "rules": [
+  {
+   "card": "T-035",
+   "why": "monsters and NPCs (WCCKNMSR) are not spawned yet: their presence and activity lines exist only on the original",
+   "side": "orig",
+   "events": [
+    "room_also_here",
+    "monster_arrives_generic",
+    "monster_leaves_generic",
+    "monster_follows_any",
+    "monster_says",
+    "mon_deflect_builtin",
+    "mon_dodge_builtin",
+    "mon_miss_builtin",
+    "mon_hits_you_generic",
+    "attacks_you",
+    "you_dodged",
+    "look_monster"
+   ],
+   "unknown_lines": [
+    "just (left|arrived)",
+    "(creeps|wanders|scurries|crawls|slithers|walks|sneaks) into the room",
+    "lunges at you",
+    "^Also here:"
+   ],
+   "byte_patterns": [
+    "(?:\\x1b\\[79D\\x1b\\[K)?(?:\\x1b\\[[0-9;]*m)*Also here:.*?\\.(?:\\x1b\\[[0-9;]*m)*\\r\\n(?:\\x1b\\[0m)?",
+    "(?:\\x1b\\[79D\\x1b\\[K)?[^\\r\\n]*(?:just (?:left|arrived)|(?:creeps|wanders|scurries|crawls|slithers|walks|sneaks) into the room|lunges at you)[^\\r\\n]*\\r\\n(?:\\x1b\\[0m)?"
+   ]
+  },
+  {
+   "card": "T-043",
+   "why": "PARTY (the group list) is not implemented: `par` answers its syntax line",
+   "command": "par",
+   "orig": [
+    "party_none",
+    "unknown"
+   ],
+   "new": [
+    "syntax"
+   ]
+  },
+  {
+   "card": "T-040",
+   "why": "silvermere spawns monsters now (T-035); their noise in the next room (`You hear movement to the north.`) is sent with a prompt of its own, which the original has at other moments (the timing of monsters is random on both sides). T-040 compares monsters statistically and removes this rule; the Rust capture tests drop the same lines (`capture_compare::masked_lines`). The original scrambles one letter of each direction word with a backspace (`wA\\x08est`), which the byte pattern allows.",
+   "side": "both",
+   "events": [
+    "noise"
+   ],
+   "then_drop": [
+    "prompt"
+   ],
+   "byte_patterns": [
+    "\\x1b\\[79D\\x1b\\[K(?:\\x1b\\[[0-9;]*m)*You hear movement (?:to the (?:[a-z]|[^\\r\\n\\x1b]\\x08)+\\.|above you!|below you!)(?:\\x1b\\[[0-9;]*m)*\\r\\n?(?:\\x1b\\[79D\\x1b\\[K)?(?:\\x1b\\[[0-9;]*m)*\\[HP=[^\\]\\r\\n]*\\]:"
+   ]
+  }
+ ]
+}

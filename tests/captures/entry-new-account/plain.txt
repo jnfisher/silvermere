@@ -1,0 +1,98 @@
+╔══════════════════════════════════════════════════════════╗
+║█████████████████▄███████▄███████▄████████████████████████║
+║██████████████▀▀██████▀▀██████▀▀▀▀███▀▀▀▀█████████████████║
+║██████████████████▀███████▀███████████████████████████████║
+║███▀███▀██████▀▀██████▀▀███▀▀▀▀██████▀▀▀████▀███▀█████████║
+║████▀▀▀███████████▀███████▀██████████████████▀▀▀████▀████▀║
+║▀▀▀█████▀▀▀▀▀▀▀▀▀▀█▀▀▀▀▀▀▀█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█████▀▀▀█▀▀▀▀▀║
+║██████████████╘═╡ The MajorBBS Emulator ╞═╛███████████████║
+║████████████████│ By: MBBSEmu Community │█████████████████║
+║                │https://www.mbbsemu.com│                 ║
+╚══════════════════════════════════════════════════════════╝
+ 
+Enter Username or enter "NEW" to create a new Account
+>>> 'NEW'
+Username: NEW
+╔═══════════════════════════════════════════╗
+║     Welcome to The MajorBBS Emulator      ║
+║                                           ║
+║    Bringing The MajorBBS & Worldgroup     ║
+║              BACK TO LIFE                 ║
+╠═══════════════════════════════════════════╣
+║  Creating an account in MBBSEmu is easy!  ║
+║  You will only need to provide a unique   ║
+║  Username, secure Password, Gender and    ║
+║  a valid e-Mail address.                  ║
+╚═══════════════════════════════════════════╝
+
+Please enter a unique Username (Max. 29 Characters):
+>>> 'Aldric'
+Aldric
+
+NOTE: Passwords are stored in a local database hashed with SHA-512+unique salt.
+The MajorBBS and Worldgroup have a maximum password size of only 9 characters,
+so please select a strong, unique password that you have never used before
+and will only use on this system.
+
+Please enter a strong Password:
+>>> 'aldric1'
+*******
+
+Please re-enter your password to confirm:
+>>> 'aldric1'
+*******
+
+Please enter a valid e-Mail Address:
+>>> 'aldric@example.com'
+aldric@example.com
+
+Please enter your gender 'M' or 'F' (can be changed later):
+>>> 'M'
+M
+
+Fantasy awaits you in MajorMUD v1.11p-WG!
+
+
+Please select one of the following:
+
+   M ... MajorMUD
+
+Main Menu
+>>> 'M'
+Make your selection (X to exit): M
+
+ M A J O R  M U D v1.11p-WG (Dec 30 2005 14:20:05)
+{Realm Of Legends}
+*ANSI RECOMMENDED*
+
+[E] . Enter the Realm
+[H] . Help
+[A] . About the Game
+[C] . Game Counts
+[T] . Topten Adventurers
+[G] . Topten Gangs
+[W] . Who's in the Realm
+[R] . Release Notes
+[I] . Information
+[X] . Exit Game
+
+>>> 'X'
+[MAJORMUD]: X
+
+Please select one of the following:
+
+   M ... MajorMUD
+
+Main Menu
+>>> 'X'
+Make your selection (X to exit): X
+You are about to terminate this connection!
+
+>>> 'Y'
+Are you sure (Y/N, or R to re-logon)? Y
+
+
+Ok, thanks for calling!
+
+Have a nice day...
+

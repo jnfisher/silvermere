@@ -1,0 +1,8 @@
+---
+source: crates/silvermere-engine/tests/exit_types.rs
+expression: r.snapshot()
+---
+door_closed: \x1b[1;31;40mThe door is Closed!\r\n
+door_closed: \x1b[1;31;40mThe door is closed!\r\n
+door_closed: \x1b[1;31;40mThe gate is Closed!\r\n
+door_closed: \x1b[1;31;40mThe gate is closed!\r\n

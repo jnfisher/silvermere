@@ -1,0 +1,188 @@
+{
+ "scenario": "m4/aoe",
+ "port": 2323,
+ "description": "T-057 spell_aoe: a level-15 mage casts fireball with three giant rats in the room; never resisted; events compared with the amounts masked. T-084: giant rats (monster 1, 12 hit points), not goblins (90): a fireball does at least 33 damage (WCCSPELS fireball minval 33) and hits every monster in the room, so the one cast that lands kills all three together and the fight is over before the exit. With goblins the first kill ended the caster's autocombat (distribute_experience; *Combat Off*) while survivors went on hitting him, and an attack during the exit's meditation cancels the exit (stop_users_exit). Needs the developer code on both sides: on the original CODEC_OF_TWINKS=78 in wccmmud.ini (STAGE_CODEC_OF_TWINKS or docker -e CODEC_OF_TWINKS) and the BBS key WCCSYSOP on the sysop account (mbbsemu_key.py; TWEAK, SUMMON, EXPRESS_TRAIN, MONSTER), on silvermere the DEBUG grant (`silvermere account grant sysop DEBUG`); and the BBS sysop account sysop/sysop with its character Sysadm on both (docs/testing.md, M4). Steps 18-20 are one block (merge_steps): the cast, the wait for the three kills, a bare Enter once the output is quiet.",
+ "character": {
+  "user": "sysop",
+  "password": "sysop",
+  "name": "Sysadm"
+ },
+ "mask": [
+  {
+   "regex": "(?<=Current pollrate:)[^\\r\\n]*|(?<=Current initrate:)[^\\r\\n]*|(?<=Logfile:)[^\\r\\n]*",
+   "why": "the values of the record cache rates and the log file name: none in silvermere; the labels stay compared"
+  },
+  {
+   "regex": "You must purchase the .* before you may move through this exit\\.",
+   "why": "the add-on gate of GOTO, dropped (licensing)"
+  },
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "direction names' random capital"
+  },
+  {
+   "regex": "(?<=\\[HP=)-?\\d+|(?<=/MA=)-?\\d+|(?<=/KAI=)-?\\d+",
+   "why": "the prompt's hit point and mana numbers (not its labels)"
+  },
+  {
+   "regex": "Also here: .*",
+   "why": "monsters that happen to be around"
+  }
+ ],
+ "echo_anchored": true,
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "sysop",
+   "until": "Password:"
+  },
+  {
+   "send": "sysop",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "note": "MajorMUD from the BBS menu"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm as Sysadm"
+  },
+  {
+   "send": "sysop tweak clear",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "a known start: TWEAK CLEAR empties the pack, the worn items and the keys and zeroes the money, so an earlier scenario's abort on one side cannot carry over"
+  },
+  {
+   "send": "sysop tweak class 12",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "the fixed sheet: class (TWEAK)"
+  },
+  {
+   "send": "sysop tweak experience 10000000",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "experience for any level below 16: a level above the experience is taken down at the next entry with its character points, and a negative CP total resets the stats into the editor, even after a run cut short"
+  },
+  {
+   "send": "sysop tweak level 15",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "and level"
+  },
+  {
+   "send": "sysop tweak hp 30000",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "hit points to outlast the scenario"
+  },
+  {
+   "send": "sysop tweak lives 9",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "and the lives a death would take"
+  },
+  {
+   "send": "sysop express_train 2489 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "Cleared Fields (1:2489): a normal room, no lair"
+  },
+  {
+   "send": "sysop summon fireball",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "SUMMON finds the scroll of fireball first"
+  },
+  {
+   "send": "use scroll of fireball",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "learned, or already known"
+  },
+  {
+   "send": "sysop tweak mana 2000",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "fireball costs 34: enough for the whole fight (short of mana the auto-combat goes on silently without a cast and may never end)"
+  },
+  {
+   "send": "sysop monster 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "random": true,
+   "needs": [
+    "monster_arrives"
+   ]
+  },
+  {
+   "send": "sysop monster 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "random": true,
+   "needs": [
+    "monster_arrives"
+   ]
+  },
+  {
+   "send": "sysop monster 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "three giant rats (12 hit points each: one fireball kills all three)",
+   "random": true,
+   "needs": [
+    "monster_arrives"
+   ]
+  },
+  {
+   "send": "cast fbal",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "by hand an area attack spell engages; the cast comes with the round",
+   "random": true
+  },
+  {
+   "op": "sleep",
+   "seconds": 120,
+   "since": "last",
+   "until": "(?:\\*Combat Off\\*(?s:.*?)){3}\\[HP=",
+   "random": true,
+   "note": "all three rats dead: one *Combat Off* per kill, searched from the cast on. silvermere answers the whole fight within the cast's own step, the original a tick later, so the wait cannot be for text after this step starts (run 38918299935: 'explodes' had already come)"
+  },
+  {
+   "send": "",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "a bare Enter once the output has been quiet for 2 s: the three rats died to one fireball, so the room is empty and no attack can reach the exit. Their deaths and the *Combat Off* of each kill come in the same burst as the explosion (step 19) or just after it, so steps 19-20 are one block (merge_steps) and the structure is required of the block",
+   "timeout": 30,
+   "random": true,
+   "needs": [
+    "combat_off"
+   ]
+  },
+  {
+   "send": "sysop express_train 2140 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "to 1:2140 (EXPRESS_TRAIN)"
+  },
+  {
+   "send": "sysop tweak level 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "the level the experience allows, for the next entry"
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 90,
+   "note": "the silent meditation takes a few ticks"
+  },
+  {
+   "send": "X",
+   "until": "Make your selection"
+  },
+  {
+   "send": "X",
+   "until": "Are you sure"
+  },
+  {
+   "send": "Y",
+   "until": ""
+  }
+ ],
+ "settle": 0.5
+}

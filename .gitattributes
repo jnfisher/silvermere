@@ -1,0 +1,10 @@
+# Every file is checked out byte for byte, on Windows too (T-109): git for Windows converts LF
+# to CRLF by default (core.autocrlf), which breaks the byte-exact fixtures, captures and text
+# comparisons the tests make.
+* -text
+# Source files are text with LF endings everywhere, so an editor set to CRLF cannot commit
+# CRLF source.
+*.rs text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.sh text eol=lf

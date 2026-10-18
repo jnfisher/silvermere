@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/room_display.rs
+expression: esc(&got)
+---
+\x1b[79D\x1b[K\x1b[1;36mNewhaven, Village Entrance\r\n\x1b[79D\x1b[K\x1b[0;37;40m    Welcome to Newhaven! You are standing at the crude wooden gates of the\r\nvillage entrance, in the middle of a dusty path. A low wooden palisade\r\nsurrounds the village, to protect against creatures of the night and random\r\nraiders. You can see small buildings to the north and south, and a dusty path\r\nthat leads to the west and southeast. \r\n\x1b[0;36mYou notice large sign, newbie manual here.\r\n\x1b[0;32mObvious exits: n \x08orth, s \x08outh, w \x08est, s \x08outheast\r\n

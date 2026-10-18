@@ -1,0 +1,11 @@
+---
+source: crates/silvermere-engine/src/spells/room/tests.rs
+expression: "out.join(\"\\n\")"
+---
+smite (General): ["The room casts smite upon you!", "You feel powerful!"]
+magma heat (Auto-Combat, ALTMSG): ["You are seared by the flames for 36 damage!"]
+freezing water (General, ALTMSG): ["You are freezing cold!"]
+spikes (Auto-Combat, no WCCMSG): ["The room cast spikes on you for 7 damage."]
+Bea: []
+shatter: ["Your long sword has been shattered!"]
+dazed: ["Slightly dazed the giant rat rises from the floor."]

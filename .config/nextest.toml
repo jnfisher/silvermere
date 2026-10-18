@@ -1,0 +1,23 @@
+# cargo-nextest settings (T-090). Runs every test in its own process, in parallel across the
+# runner's cores. Doctests are not run by nextest: CI runs `cargo test --doc` next to it.
+nextest-version = "0.9.100"
+
+[profile.default]
+# a failure never hides the others, and nothing is retried: a flaky test is a bug to fix
+fail-fast = false
+retries = 0
+slow-timeout = { period = "60s" }
+
+# The per-PR PostgreSQL run: only the tests whose behaviour depends on the database backend
+# (`SILVERMERE_DATABASE_URL`): the db crate, the auth tests that open accounts in it, the binary's
+# store tests, and the importer's backend-equivalence suites. The whole workspace on PostgreSQL
+# runs on a schedule (.github/workflows/postgres-full.yml). The list is in docs/testing.md.
+[profile.pg-pr]
+fail-fast = false
+retries = 0
+default-filter = '''
+package(silvermere-db)
+| (package(silvermere-auth) & (binary(lockout) | binary(cli)))
+| (package(silvermere) & (binary(single_writer) | binary(account_delete) | binary(cli) | binary(name_check_latency) | binary(shutdown_barrier)))
+| (package(silvermere-import) & (binary(invariants) | binary(post_update_equivalence) | binary(import_latency)))
+'''

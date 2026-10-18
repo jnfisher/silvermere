@@ -1,0 +1,11 @@
+{
+ "scenario": "fight-arena",
+ "script": "../../../tests/captures/fight-arena/script.json",
+ "statistical": true,
+ "setup": [
+  {
+   "side": "both",
+   "scenario": "creation-fsd"
+  }
+ ]
+}

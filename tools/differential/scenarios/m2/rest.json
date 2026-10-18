@@ -1,0 +1,39 @@
+{
+ "scenario": "m2/rest",
+ "script": "m2/scripts/rest.json",
+ "statistical": true,
+ "setup": [
+  {
+   "side": "orig",
+   "script": "m2/setup/orig-account-brannoc.json"
+  },
+  {
+   "side": "orig",
+   "script": "m2/setup/orig-character-brannoc.json"
+  },
+  {
+   "side": "new",
+   "script": "m2/setup/new-brannoc.json"
+  }
+ ],
+ "ignore_steps": [
+  0,
+  1,
+  2
+ ],
+ "m2": {
+  "sequence": [
+   "rest_start"
+  ],
+  "min_swings": 0,
+  "records": "Brannoc",
+  "about": "regen per tick identical",
+  "min_regen": 5,
+  "repeat": {
+   "first": 24,
+   "last": 35,
+   "times": 20
+  }
+ },
+ "world_patterns": true
+}

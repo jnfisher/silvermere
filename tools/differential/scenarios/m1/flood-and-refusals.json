@@ -1,0 +1,33 @@
+{
+ "scenario": "m1/flood-and-refusals",
+ "script": "m1/scripts/flood-and-refusals.json",
+ "deterministic": [
+  "train",
+  "exp"
+ ],
+ "setup": [
+  {
+   "side": "orig",
+   "scenario": "entry-new-account"
+  },
+  {
+   "side": "orig",
+   "scenario": "creation-fsd"
+  },
+  {
+   "side": "new",
+   "script": "m1/setup/new-aldric.json"
+  }
+ ],
+ "ignore_steps": [
+  0,
+  1,
+  2
+ ],
+ "merge_steps": [
+  [
+   6,
+   21
+  ]
+ ]
+}

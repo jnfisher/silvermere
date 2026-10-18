@@ -1,0 +1,5 @@
+{
+ "scenario": "entry-new-account",
+ "script": "../../../tests/captures/entry-new-account/script.json",
+ "deterministic": "all"
+}

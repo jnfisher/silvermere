@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/character_creation.rs
+expression: escape(&ok)
+---
+\r\nYou have 58 CP to distribute.\r\nIntellect (30-90) [30]:

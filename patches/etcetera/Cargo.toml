@@ -1,0 +1,12 @@
+# Based on etcetera 0.11.0 (https://github.com/lunacookies/etcetera): the part that sqlx-postgres
+# uses on Windows (the folder of pgpass.conf), without its SHGetKnownFolderPath fallback. That call
+# imports shell32.dll, which loads user32.dll, and a console process that has loaded user32 gets
+# no sign-out or shutdown event from Windows (T-111). The root Cargo.toml's [patch.crates-io] puts
+# this in etcetera's place; ci.yml checks the import table of silvermere.exe. No [lints]: the
+# crate is not a workspace member, and cargo-chef's skeleton has no workspace.lints to inherit.
+[package]
+name = "etcetera"
+version = "0.11.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false

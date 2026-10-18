@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/info_commands.rs
+expression: esc(&got)
+---
+\x1b[79D\x1b[K\x1b[0m\x1b[32mName: \x1b[36mAldric Stonebrook                \x1b[32mLives/CP:  \x1b[36m    9/80   \r\n\x1b[32mRace: \x1b[36mHuman       \x1b[32mExp: \x1b[36m0               \x1b[32mPerception:  \x1b[36m   40\r\n\x1b[32mClass: \x1b[36mMage       \x1b[32mLevel: \x1b[36m1             \x1b[32mStealth:     \x1b[36m    0\r\n\x1b[32mHits: \x1b[36m   35/35    \x1b[32mArmour Class: \x1b[36m 11/0  \x1b[32mThievery:    \x1b[36m    0\r\n\x1b[32mMana: \x1b[1;31m*\x1b[0;36m   9/9     \x1b[32mSpellcasting: \x1b[36m40     \x1b[32mTraps:       \x1b[36m    0\r\n\x1b[32m                                       Picklocks:   \x1b[36m    0\r\n\x1b[32mStrength: \x1b[1;31m*55     \x1b[0;32mAgility:\x1b[36m 40          \x1b[0;32mTracking:    \x1b[36m    0\r\n\x1b[32mIntellect:\x1b[36m 40     \x1b[0;32mHealth: \x1b[36m 50          \x1b[0;32mMartial Arts:\x1b[36m   13\r\n\x1b[32mWillpower:\x1b[36m 40     \x1b[0;32mCharm:  \x1b[36m 40          \x1b[0;32mMagicRes:    \x1b[36m   40\r\n\x1b[0;37;40m

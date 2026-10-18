@@ -1,0 +1,26 @@
+{
+ "scenario": "m2/spawn-arena",
+ "script": "m2/scripts/spawn-arena.json",
+ "statistical": true,
+ "world_patterns": true,
+ "ignore_host_banner": true,
+ "mask_prompt": true,
+ "setup": [],
+ "m2": {
+  "sequence": [],
+  "min_swings": 0,
+  "regen": false,
+  "gate_wanders": false,
+  "monsters": true,
+  "about": "spawns per minute in the Newhaven Arena over 300 spawn passes (25 minutes), the conditional Poisson test at p > 0.01; walk-ins are advisory here: the wander pass moves at most MAXMOVERS (3) monsters a pass, over the 300-slot monster cache in slot order (T-086), so with the stock world's active monsters the arena sees almost none (0 against 0 in two runs); m2/wander is the walk-in comparison",
+  "repeat": {
+   "first": 16,
+   "last": 20,
+   "times": 2000
+  },
+  "stop": {
+   "minutes": 25
+  },
+  "rates": true
+ }
+}

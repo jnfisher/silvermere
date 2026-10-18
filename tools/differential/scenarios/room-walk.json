@@ -1,0 +1,10 @@
+{
+ "scenario": "room-walk",
+ "script": "../../../tests/captures/room-walk/script.json",
+ "setup": [
+  {
+   "side": "both",
+   "scenario": "creation-fsd"
+  }
+ ]
+}

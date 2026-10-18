@@ -1,0 +1,20 @@
+{
+ "scenario": "m4-spells",
+ "script": "m4-spells.script.json",
+ "deterministic": [
+  "cast",
+  "invoke vine",
+  "cast fireball",
+  "cast vine",
+  "cast vine nobody",
+  "purge star"
+ ],
+ "statistical": false,
+ "setup": [
+  {
+   "side": "both",
+   "scenario": "creation-druid"
+  }
+ ],
+ "note": "Not recorded yet (no raw.bin) and not run here (no MBBSEmu in the authoring container). Setup, on both sides: (1) `tests/captures/creation-druid/`, a recorded creation like `creation-fsd` of a Human Druid (Thornwyn Ashleaf) on its own account (user Thornwyn, password thornwyn1); (2) the same level-2 sheet on both sides (exp and level, `spellcast`, max mana) and the spellbook seeded identically with vine strike (25), mend (27), starlight (26), by the same sysop edit or seed on both; (3) full mana at entry and no monsters in Narrow Road for the deterministic steps. Until the creation is recorded the setup step has no script and the run fails, as it should. Engage lines and damage (vine strike at a kobold) belong to T-057's statistical part."
+}

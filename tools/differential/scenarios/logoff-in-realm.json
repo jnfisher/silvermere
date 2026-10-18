@@ -1,0 +1,10 @@
+{
+ "scenario": "logoff-in-realm",
+ "script": "../../../tests/captures/logoff-in-realm/script.json",
+ "setup": [
+  {
+   "side": "both",
+   "scenario": "creation-fsd"
+  }
+ ]
+}

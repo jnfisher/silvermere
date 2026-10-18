@@ -1,0 +1,38 @@
+---
+source: crates/silvermere-engine/tests/train_stats.rs
+expression: out
+---
+> changerace
+\r\n
+Have you read all the help files on the races and classes?\r\n
+(You must answer YES to continue): 
+> yes
+\r\n
+Do you understand that you have only a short time to change the decision you are making?\r\n
+(You must answer YES to continue): 
+> yes
+\r\n
+Do you understand that your sysop can never change your race or class for you?\r\n
+(You must answer YES to continue): 
+> yes
+\x1b[1;37mPlease choose a race from the following list:\r\n
+\x1b[0;37;40m\x1b[1;30m[\x1b[1;37m1\x1b[1;30m]\x1b[0;37m  \r\n
+\x1b[1;30m[\x1b[1;37m5\x1b[1;30m]\x1b[0;37m  Elf\r\n
+\x1b[1;30m[\x1b[1;37m11\x1b[1;30m]\x1b[0;37m Kang\r\n
+\x1b[0m\r\n
+\x1b[32mPlease choose your race [ ? for help ] : 
+> 
+You must choose a race. [ ? for help ]
+> 5
+\x1b[1;37mPlease choose a class from the following list:\r\n
+\x1b[0;37;40m\x1b[1;30m[\x1b[1;37m1\x1b[1;30m]\x1b[0;37m  Warrior\r\n
+\x1b[1;30m[\x1b[1;37m2\x1b[1;30m]\x1b[0;37m  Witchunter\r\n
+\x1b[1;30m[\x1b[1;37m12\x1b[1;30m]\x1b[0;37m Mage\r\n
+\x1b[0m\r\n
+\x1b[32mPlease choose your class [ ? for help ] : 
+> 
+\x1b[1;37mYou must choose a class. [ ? for help ]
+> 12
+\x1b[1;37mYou have now completed your class change.\r\n
+Don't forget that there is a time limit after which you cannot change again.\r\n
+Press <enter> to continue.\r\n

@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "about": "Fields masked before event sequences are compared (docs/testing.md, layer 4). Masking is by pattern field, never by regex over the whole text, so a masked diff still catches wording changes. Shared by silvermere-testkit and the Python harness (T-019).",
+  "events": {
+    "exp_gain": ["exp"],
+    "you_hit": ["dmg"],
+    "other_hits": ["dmg"],
+    "mon_hits_you_generic": ["dmg"],
+    "took_damage": ["dmg"],
+    "coins_drop": ["n"],
+    "picked_up_coins": ["n"],
+    "got_coins": ["n"],
+    "gave_coins": ["n"],
+    "rob": ["n"],
+    "inv_wealth": ["copper"],
+    "mud_title": ["built"],
+    "mud_menu_item": ["left"],
+    "who_count": ["n"],
+    "bbs_logoff_broadcast": ["n"]
+  },
+  "fields": ["dmg"],
+  "statistical_events": {
+    "prompt": ["hp", "ma", "kai", "mana"]
+  },
+  "script_events": {
+    "lives_left": ["lives"],
+    "train_lives": ["lives"]
+  }
+}

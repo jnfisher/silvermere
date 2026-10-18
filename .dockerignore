@@ -1,0 +1,8 @@
+target/
+.git/
+data/
+docs/
+
+# Local compose secrets and the mounted legacy game files
+docker/.env
+docker/legacy/

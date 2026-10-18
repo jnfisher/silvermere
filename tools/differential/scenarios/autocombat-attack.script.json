@@ -1,0 +1,107 @@
+{
+ "scenario": "autocombat-attack",
+ "port": 2323,
+ "naws": null,
+ "description": "Auto-combat with ATTACK (T-034): one round per energy tick, re-typing the attack restarts it, the kill ends it. Script only: not recorded yet (needs MBBSEmu).",
+ "character": {
+  "user": "Aldric",
+  "password": "aldric1",
+  "name": "Aldric Stonebrook",
+  "race": "Human",
+  "class": "Warrior",
+  "level": 1
+ },
+ "behaviours": [],
+ "mask": [
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "direction names carry a random capital letter and a backspace"
+  },
+  {
+   "regex": "\\[HP=-?\\d+(?:/(?:MA|KAI)=-?\\d+)?",
+   "why": "HP/mana in the prompt"
+  },
+  {
+   "regex": "(?:large|small|big|thin|fat|nasty|angry|fierce|short|tall|happy|slimy) ",
+   "why": "random monster adjective"
+  },
+  {
+   "regex": "giant rat|lashworm|filthbug|carrion beast|acid slime|kobold thief",
+   "why": "which monster spawned"
+  }
+ ],
+ "notes": [
+  "Not recorded: needs MBBSEmu (T-034 wrote it, the orchestrator runs it).",
+  "The rounds come every secenergy (5 s); the sleeps span three rounds. Compare the *Combat Engaged* / *Combat Off* sequence and the spacing of the blow lines (5 s +- one tick)."
+ ],
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "Aldric",
+   "until": "Password:"
+  },
+  {
+   "send": "aldric1",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm"
+  },
+  {
+   "send": "w",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "w",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "d",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "into the arena"
+  },
+  {
+   "send": "a rat",
+   "until": "\\*Combat Engaged\\*|You don't see|\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "*Combat Engaged*; no blow until the next energy round"
+  },
+  {
+   "op": "sleep",
+   "seconds": 16,
+   "note": "three energy rounds of auto-combat with the stored move"
+  },
+  {
+   "send": "a rat",
+   "until": "\\*Combat Engaged\\*|You don't see|\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "re-typed mid-fight: *Combat Off* then *Combat Engaged*, the pool emptied"
+  },
+  {
+   "op": "sleep",
+   "seconds": 60,
+   "until": "\\*Combat Off\\*",
+   "note": "until the kill: You gain N experience. then *Combat Off*"
+  },
+  {
+   "send": "x",
+   "until": "leaving|Make your selection|\\[MAJORMUD\\]:",
+   "timeout": 30
+  }
+ ]
+}

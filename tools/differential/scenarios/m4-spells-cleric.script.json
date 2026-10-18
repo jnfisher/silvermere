@@ -1,0 +1,97 @@
+{
+ "scenario": "m4-spells-cleric",
+ "port": 2323,
+ "description": "T-050: cleric casting: minor healing and bless on oneself, the once-a-round rule. Not recorded; needs a level-2 cleric on both sides.",
+ "character": {
+  "user": "Maera",
+  "password": "maera1",
+  "name": "Maera Holt",
+  "race": "Human",
+  "class": "Cleric",
+  "level": 2,
+  "start": "Newhaven, Narrow Road"
+ },
+ "mask": [
+  {
+   "regex": "\\(Dec 30 2005 14:20:05\\)",
+   "why": "build stamp of the DLL (mud_title)"
+  },
+  {
+   "regex": " \\[\\d+ game minutes left\\]| \\[Last chance\\]",
+   "why": "menu time-left suffix"
+  },
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "every direction name carries a random capital letter and a backspace, rewritten each slow cycle: `nJ\\borth`"
+  },
+  {
+   "regex": "\\[HP=-?\\d+(?:/(?:MA|KAI)=-?\\d+)?",
+   "why": "HP/mana in the prompt depend on earlier fights and regen"
+  },
+  {
+   "regex": "Also here: .*|.* (?:creeps|wanders|scurries|crawls|slithers|walks|sneaks) into the room.*",
+   "why": "monsters and players that happen to be around"
+  }
+ ],
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "Maera",
+   "until": "Password:"
+  },
+  {
+   "send": "maera1",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "note": "MajorMUD from the BBS menu"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm"
+  },
+  {
+   "send": "spells",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "cast mihe",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "minor healing on oneself; roll-dependent"
+  },
+  {
+   "send": "cast bless",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "bless on oneself (level 2): WCCMSG 16, slot entry, `You feel lucky!`"
+  },
+  {
+   "send": "cast bless",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the second General cast in the round"
+  },
+  {
+   "send": "st",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the bless in the stat display"
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:|Make your selection",
+   "timeout": 20
+  }
+ ]
+}

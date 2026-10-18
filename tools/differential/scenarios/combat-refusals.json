@@ -1,0 +1,19 @@
+{
+ "scenario": "combat-refusals",
+ "script": "combat-refusals.script.json",
+ "deterministic": [
+  "smash dragon",
+  "kick dragon",
+  "killblow dragon",
+  "a aldric",
+  "rob",
+  "rob dragon"
+ ],
+ "statistical": false,
+ "setup": [
+  {
+   "side": "both",
+   "scenario": "creation-fsd"
+  }
+ ]
+}

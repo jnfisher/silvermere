@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/info_commands.rs
+expression: esc(&got)
+---
+\x1b[79D\x1b[K\x1b[1;36mgiant rat\x1b[0;37m\r\nA huge, filthy rat with yellowed teeth. \r\nIt appears to be moderately wounded.\r\nIt is poisoned!\r\n

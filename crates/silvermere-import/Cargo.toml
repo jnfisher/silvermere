@@ -1,0 +1,28 @@
+[package]
+name = "silvermere-import"
+description = "One-time importer for legacy WCC*.DAT/.VIR/.MSG (the only crate that knows Btrieve layouts)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+silvermere-types.workspace = true
+silvermere-db.workspace = true
+jiff.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+serde_json.workspace = true
+miniz_oxide.workspace = true
+sha2.workspace = true
+ureq.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+sqlx = { workspace = true, features = ["any"] }

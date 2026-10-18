@@ -1,0 +1,163 @@
+╔══════════════════════════════════════════════════════════╗
+║█████████████████▄███████▄███████▄████████████████████████║
+║██████████████▀▀██████▀▀██████▀▀▀▀███▀▀▀▀█████████████████║
+║██████████████████▀███████▀███████████████████████████████║
+║███▀███▀██████▀▀██████▀▀███▀▀▀▀██████▀▀▀████▀███▀█████████║
+║████▀▀▀███████████▀███████▀██████████████████▀▀▀████▀████▀║
+║▀▀▀█████▀▀▀▀▀▀▀▀▀▀█▀▀▀▀▀▀▀█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█████▀▀▀█▀▀▀▀▀║
+║██████████████╘═╡ The MajorBBS Emulator ╞═╛███████████████║
+║████████████████│ By: MBBSEmu Community │█████████████████║
+║                │https://www.mbbsemu.com│                 ║
+╚══════════════════════════════════════════════════════════╝
+ 
+Enter Username or enter "NEW" to create a new Account
+>>> 'Aldric'
+Username: Aldric
+>>> 'aldric1'
+Password: *******
+
+Fantasy awaits you in MajorMUD v1.11p-WG!
+
+
+Please select one of the following:
+
+   M ... MajorMUD
+
+Main Menu
+>>> 'M'
+Make your selection (X to exit): M
+
+ M A J O R  M U D v1.11p-WG (Dec 30 2005 14:20:05)
+{Realm Of Legends}
+*ANSI RECOMMENDED*
+
+[E] . Enter the Realm
+[H] . Help
+[A] . About the Game
+[C] . Game Counts
+[T] . Topten Adventurers
+[G] . Topten Gangs
+[W] . Who's in the Realm
+[R] . Release Notes
+[I] . Information
+[X] . Exit Game
+
+>>> 'E'
+[MAJORMUD]: E
+
+MajorMUD - ROL
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+
+Newhaven, Village Entrance
+
+    Welcome to Newhaven! You are standing at the crude wooden gates of the
+village entrance, in the middle of a dusty path. A low wooden palisade
+surrounds the village, to protect against creatures of the night and random
+raiders. You can see small buildings to the north and south, and a dusty path
+that leads to the west and southeast. 
+You notice large sign, newbie manual here.
+Obvious exits: north, south, west, southeast
+
+>>> 'st'
+[HP=35]:st
+
+Name: Aldric Stonebrook                Lives/CP:      9/80   
+Race: Human       Exp: 0               Perception:     40
+Class: Warrior    Level: 1             Stealth:         0
+Hits:    35/35    Armour Class:  11/0  Thievery:        0
+                                       Traps:           0
+                                       Picklocks:       0
+Strength:  50     Agility: 40          Tracking:        0
+Intellect: 40     Health:  50          Martial Arts:   13
+Willpower: 40     Charm:   40          MagicRes:       40
+
+>>> 'exp'
+[HP=35]:exp
+Exp: 0 Level: 1 Exp needed for next level: 1000 (1000) [0%]
+
+>>> 'i'
+[HP=35]:i
+
+You are carrying padded vest (Torso), padded pants (Legs), padded helm (Head),
+padded gloves (Hands), padded boots (Feet), quarterstaff (Two handed)
+
+You have no keys.
+Wealth: 0 copper farthings
+Encumbrance: 500/2400 - Light [20%]
+
+>>> 'set'
+[HP=35]:set
+Valid SET options: SUICIDE, MAXPAGES, MAXAUCTION, MAXGOSSIP, FOLLOW, INTERRUPT, RECEIVE, WARNING, TELEPATH, ENTRANCES, TALK, PALETTE, PAGE, KEEP
+
+>>> 'spells'
+[HP=35]:spells
+You have no spells.
+
+>>> 'health'
+[HP=35]:health
+
+Health:    35/35    [100%]
+
+>>> 'wealth'
+[HP=35]:wealth
+
+You have No money!
+
+>>> 'keys'
+[HP=35]:keys
+
+You have no keys.
+
+>>> 'who'
+[HP=35]:who
+
+         Current Adventurers
+         ===================
+
+         Aldric Stonebrook  -  Apprentice   
+
+
+>>> 'par'
+[HP=35]:par
+
+You are not in a party at the present time.
+  Aldric Stonebrook              (Warrior)             [H:100%]   - Midrank
+
+>>> 'top'
+[HP=35]:top
+
+Top Heroes of the Realm
+-=-=-=-=-=-=-=-=-=-=-=-
+
+Rank Name                  Class      Gang/Guild          Experience         
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+>>> 'x'
+[HP=35]:x
+You will exit after a period of silent meditation.
+................
+Your character has been saved. If you have any comments or suggestions, please
+leave them in E-mail to Sysop. Thanks.
+
+>>> 'X'
+[MAJORMUD]: X
+
+Please select one of the following:
+
+   M ... MajorMUD
+
+Main Menu
+>>> 'X'
+Make your selection (X to exit): X
+You are about to terminate this connection!
+
+>>> 'Y'
+Are you sure (Y/N, or R to re-logon)? Y
+
+
+Ok, thanks for calling!
+
+Have a nice day...
+

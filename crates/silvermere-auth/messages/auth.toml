@@ -1,0 +1,102 @@
+# The BBS-side texts of the login and signup dialogue (silvermere-auth).
+# Format: silvermere-text's catalogue (src/catalogue.rs, docs/text.md). The colour codes
+# are MBBSEmu's own `|YELLOW|`, `|B|`, `|RESET|` ... pipe codes as it writes them
+# (`\e[33m`, `\e[1m`, `\e[0m` ...), not the game's colour codes, so they are spelled
+# out as escapes. Each text is printed as MBBSEmu's login and signup screens print it,
+# except those whose note calls it silvermere's own.
+# The dialogue (src/login.rs, src/signup.rs) prints these and nothing else; line ends
+# are `\r\n` as MBBSEmu wrote them. The echo of what the user types is the line
+# editor's, not part of these texts.
+
+[messages.banner]
+text = "{banner}\r\n"
+note = "silvermere's own. compat.login_banner, printed once before the first username prompt when non-empty. Replaces MBBSEmu's login.ans welcome screen, which is not reproduced."
+example = { banner = "Welcome to silvermere." }
+
+[messages.welcome_end]
+text = "\r\n "
+note = "What MBBSEmu sent after its login.ans welcome screen, once per connection; kept so the bytes before the first `Enter Username` line match the captures."
+
+[messages.login_intro]
+text = "\r\n\u001B[33mEnter Username or enter \"\u001B[1mNEW\u001B[0m\u001B[33m\" to create a new Account\r\n"
+pattern = "bbs_banner"
+note = "Printed before every username prompt. With welcome_end, byte-identical to captures entry-existing and entry-new-account after the `\\e[255D` that ends login.ans."
+
+[messages.username_prompt]
+text = "\u001B[1m\u001B[37mUsername:\u001B[0m "
+pattern = "bbs_username"
+
+[messages.password_prompt]
+text = "\u001B[1m\u001B[37mPassword:\u001B[0m "
+pattern = "bbs_password"
+
+[messages.username_too_long]
+text = "\r\n\u001B[31m\u001B[1mPlease enter a Username with less than 30 characters.\r\n\u001B[0m"
+
+[messages.invalid_credentials]
+text = "\r\n\u001B[1m\u001B[31mInvalid Credentials\u001B[0m\r\n"
+note = "Unknown username and wrong password alike."
+
+[messages.account_locked]
+text = "\r\n\u001B[1m\u001B[31mToo many failed logins: this account is locked for {minutes} more minute(s).\u001B[0m\r\n"
+args = { minutes = "u32" }
+example = { minutes = "15" }
+note = "silvermere's own (the BBS had no lockout): config lockout.max_failures failures within lockout.window_secs lock the account for lockout.lock_secs."
+
+[messages.duplicate_login]
+text = "\r\n\u001B[1m\u001B[31mThis account is already logged on.\u001B[0m\r\n"
+note = "silvermere's own. compat.duplicate_login. MBBSEmu refused a second session at the username prompt with `{user} is already logged in -- only 1 connection allowed per user.` and re-asked; silvermere checks after the password (so the text says nothing about an account to someone without its password) and closes the connection."
+
+[messages.signup_closed]
+text = "\r\n\u001B[1m\u001B[31mNew accounts are created by the sysop on this system.\u001B[0m\r\n"
+note = "silvermere's own. `NEW` while compat.open_signup = false; the username prompt follows again."
+
+[messages.signup_username_prompt]
+text = "\r\n\u001B[36m\u001B[1mPlease enter a unique Username (Max. 29 Characters):\u001B[0m\u001B[37m\u001B[1m\r\n"
+pattern = "bbs_signup"
+note = "Preceded by `\\e[2J\\e[H` and MBBSEmu's signup.ans box, which are not reproduced."
+
+[messages.signup_username_invalid]
+text = "\r\n\u001B[31m\u001B[1mPlease enter a valid Username.\r\n\u001B[0m"
+note = "MBBSEmu printed it for a blank name only; silvermere also for characters outside printable ASCII 32-126, a leading or trailing space, and the name NEW."
+
+[messages.signup_username_taken]
+text = "\r\n\u001B[31m\u001B[1mThat Username is unavailable, please choose another.\r\n\u001B[0m"
+
+[messages.signup_password_prompt]
+text = "\r\n\u001B[36m\u001B[1mPlease enter a strong Password:\u001B[0m\r\n\u001B[37m\u001B[1m"
+pattern = "bbs_signup"
+note = "MBBSEmu printed a NOTE paragraph before it about SHA-512 storage and the BBS's 9-character password limit; neither is true here (argon2id, no 5-9 limit), so it is not reproduced."
+
+[messages.signup_password_invalid]
+text = "\r\n\u001B[31m\u001B[1mPasswords must be between 1 and {max} characters long.\r\n\u001B[0m"
+args = { max = "u32" }
+example = { max = "128" }
+note = "silvermere's own. Replaces MBBSEmu's `Passwords must be between 5 and 9 characters long.`: the 5-9 limit is not enforced."
+
+[messages.signup_password_weak]
+text = "\r\n\u001B[31m\u001B[1mPlease enter a better password. Seriously.\r\n\u001B[0m"
+note = "For the password `password` in any case, as MBBSEmu."
+
+[messages.signup_confirm_prompt]
+text = "\r\n\u001B[36m\u001B[1mPlease re-enter your password to confirm:\u001B[0m\r\n\u001B[37m\u001B[1m"
+pattern = "bbs_signup"
+
+[messages.signup_password_mismatch]
+text = "\r\n\u001B[31m\u001B[1mThe passwords you entered did not match, please try again.\u001B[0m\r\n"
+
+[messages.signup_email_prompt]
+text = "\r\n\u001B[36m\u001B[1mPlease enter a valid e-Mail Address:\u001B[0m\r\n\u001B[37m\u001B[1m"
+pattern = "bbs_signup"
+note = "A blank answer is accepted (the module never reads the address)."
+
+[messages.signup_email_invalid]
+text = "\r\n\u001B[31m\u001B[1mPlease enter a valid e-Mail address.\r\n\u001B[0m"
+note = "silvermere's check is loose: no spaces, one `@` with text either side."
+
+[messages.signup_gender_prompt]
+text = "\r\n\u001B[36m\u001B[1mPlease enter your gender 'M' or 'F' (can be changed later):\u001B[0m\r\n\u001B[37m\u001B[1m"
+pattern = "bbs_signup"
+
+[messages.signup_gender_invalid]
+text = "\r\n\u001B[31m\u001B[1mPlease enter a valid gender selection ('M' or 'F').\r\n\u001B[0m"

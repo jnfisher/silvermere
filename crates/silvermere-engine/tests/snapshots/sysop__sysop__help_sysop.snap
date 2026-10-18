@@ -1,0 +1,22 @@
+---
+source: crates/silvermere-engine/tests/sysop.rs
+expression: "snap(&h.line(s, \"sysop\"))"
+---
+Available SYSOP sub-commands (all preceded by SYSOP):
+  BUFFERS   -- Statistics on the memory buffers used [Clear/Save]
+  STATUS    -- View the status of another user or room [SYS STAT ROOM n]
+  MAP       -- Display a generated map of this area
+  GOD       -- Modify certain parameters of other players
+  LIST      -- List things such as USERS
+  REPORT    -- Various Game reports
+  LIGHTNING -- Force lightning to strike a user
+  GOTO      -- Teleport yourself to named locations
+  RELOAD    -- Reload settings from wccmmud.ini
+  CONFIGURE -- Configure runtime parameters
+  RESET     -- Reset room or area monster generation
+  DISBAND   -- Disband a gang
+  DISABLE   -- Remove a gang from the topten gangs
+  ENABLE    -- Allow a gang back onto the topten gangs
+  GANGSIZE  -- Adjust gang size
+  ARENA     -- Change the status of the arenas
+[HP=40]:

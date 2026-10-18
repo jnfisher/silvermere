@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/info_commands.rs
+expression: esc(&got)
+---
+\x1b[79D\x1b[K\x1b[35mTitle           \x1b[32mName                   \x1b[36mReputation \x1b[33mGang/Guild          \x1b[37m      \r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\r\n\x1b[0m\x1b[35mApprentice      \x1b[32mAldric Stonebrook    a \x1b[36mNeutral    \x1b[0;33mNone                \x1b[37m      \r\n\r\n

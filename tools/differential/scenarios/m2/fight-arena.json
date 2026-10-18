@@ -1,0 +1,35 @@
+{
+ "scenario": "m2/fight-arena",
+ "script": "m2/scripts/fight-arena.json",
+ "statistical": true,
+ "setup": [
+  {
+   "side": "orig",
+   "scenario": "entry-new-account"
+  },
+  {
+   "side": "orig",
+   "scenario": "creation-fsd"
+  },
+  {
+   "side": "new",
+   "script": "m1/setup/new-aldric.json"
+  }
+ ],
+ "ignore_steps": [
+  0,
+  1,
+  2
+ ],
+ "m2": {
+  "sequence": [
+   "combat_engaged",
+   "combat_off",
+   "exp_gain",
+   "rest_start"
+  ],
+  "min_swings": 0,
+  "about": "the T-005 fight: *Combat Engaged* / re-sent attack *Combat Off* *Combat Engaged* / the kill's experience / *Combat Off* as a sequence; m2_fight.rs fight_rat_matches_capture_after_masking is the in-process twin. healed_paid is left out: the fee is 2 copper per missing hit point, so whether it is paid, free ('nothing') or refused follows the random fight and rest"
+ },
+ "world_patterns": true
+}

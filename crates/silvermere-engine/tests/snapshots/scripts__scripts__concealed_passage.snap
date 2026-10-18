@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/scripts.rs
+expression: "format!(\"{:?}\", t.out_of(watcher))"
+---
+"\u{1b}[1;37mA concealed passage opens to the n \u{8}orth.\r\n<P>"

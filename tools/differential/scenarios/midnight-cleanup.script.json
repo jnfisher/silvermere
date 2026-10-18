@@ -1,0 +1,110 @@
+{
+ "scenario": "midnight-cleanup",
+ "port": 2323,
+ "description": "T-056: the floor sweep of the daily cleanup. Compared by record diff after forcing both servers' cleanup (record_diff); the steps after the cleanup are new-side only because the original's BBS drops every caller for its cleanup. Needs a cleanup trigger on both sides; written, not run.",
+ "character": {
+  "user": "Aldric",
+  "password": "aldric1",
+  "name": "Aldric Stonebrook",
+  "race": "Human",
+  "class": "Warrior",
+  "level": 1
+ },
+ "mask": [
+  {
+   "regex": "\\(Dec 30 2005 14:20:05\\)",
+   "why": "build stamp of the DLL (mud_title)"
+  },
+  {
+   "regex": " \\[\\d+ game minutes left\\]| \\[Last chance\\]",
+   "why": "menu time-left suffix"
+  },
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "every direction name carries a random capital letter and a backspace, rewritten each slow cycle: `nJ\\borth`"
+  },
+  {
+   "regex": "\\[HP=-?\\d+(?:/(?:MA|KAI)=-?\\d+)?",
+   "why": "HP/mana in the prompt depend on earlier fights and regen"
+  }
+ ],
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "Aldric",
+   "until": "Password:"
+  },
+  {
+   "send": "aldric1",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "note": "MajorMUD from the BBS menu"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm"
+  },
+  {
+   "send": "drop all",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "items on the floor of the start room"
+  },
+  {
+   "op": "sleep",
+   "seconds": 120,
+   "note": "OPERATOR: force the cleanup on both servers now (MBBSEmu: its nightly cleanup; silvermere: EngineInput::DailyCleanup, or game.cleanup.at). The original's BBS logs every caller off for its cleanup, so the original side drops this connection here; the new side must stay connected."
+  },
+  {
+   "send": "look",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the floor after the sweep: hidden, not deleted. New side only: the original's caller was dropped by the cleanup.",
+   "side": "new"
+  },
+  {
+   "send": "search",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the swept items are hidden. New side only: the original's caller was dropped by the cleanup.",
+   "side": "new"
+  }
+ ],
+ "record_diff": {
+  "what": "after the cleanup, compare the stored records on both sides: the start room's items/hiditems/coins (WCCMP001 1:2140 vs rooms + room_state), and Aldric's lifemins, sesstime and evil (WCCUSERS vs characters)",
+  "orig": "export with vendor/play/mmud_data.py export after the cleanup",
+  "new": "SELECT from room_state and characters",
+  "applied": "not yet: the harness has no record diff (T-040); compare by hand",
+  "mask": [
+   "characters.room",
+   "characters.map",
+   "characters.status",
+   "characters.hp"
+  ],
+  "why_mask": "on the original side the cleanup's caller drop is a hang-up: room, map and ST_HUNGUP change there and not on the new side; hp is masked as well in case PUNHUP is not pinned"
+ },
+ "options": {
+  "why": "the original's BBS drops every caller for its cleanup, which is a hang-up in the realm; PUNHUP=NONE keeps the record diff free of the random hang-up penalty (HP, items). The room move and ST_HUNGUP still happen on the original side, so the record_diff masks room and status.",
+  "orig": {
+   "WCCMMUD.MSG": {
+    "PUNHUP": "NONE"
+   }
+  },
+  "new": {
+   "env": {
+    "SILVERMERE_GAME__PUN_HUP": "none"
+   }
+  },
+  "applied": "not yet: the harness has no per-scenario options; set them on both servers before running"
+ }
+}

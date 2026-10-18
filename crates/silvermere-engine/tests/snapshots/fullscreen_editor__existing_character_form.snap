@@ -1,0 +1,27 @@
+---
+source: crates/silvermere-engine/tests/fullscreen_editor.rs
+expression: escape(&got)
+---
+\e[0m\e[2J\e[H\e[0m\e[0m    .─────────────────────────────────────.──.\r\n
+   / \e[1;36mM A J O R  M U D \e[0;36mCharacter Creation \e[37m/    \  \e[1;30m┌─    \e[35mPoint Cost Chart    \e[30m─┐\r\n
+  \e[0m│                                     ├──.   │ \e[1;30m│                          │\r\n
+  \e[0m│ \e[31m» \e[36mGiven Name   \e[1;37m?????????????????? \e[0;31m« \e[37m│___\_/  \e[1;30m│ \e[35m1st \e[0;35m10 points: \e[1m1 \e[0;35mCP each \e[1;30m│\r\n
+  \e[0m│ \e[31m» \e[36mFamily Name  \e[1;37m?????????????????? \e[0;31m« \e[37m│        \e[1;30m│ \e[35m2nd \e[0;35m10 points: \e[1m2 \e[0;35mCP each \e[1;30m│\r\n
+  \e[0m│ \e[31m» \e[36mRace         \e[37m?????????????????? \e[31m« \e[37m│        \e[1;30m│ \e[35m3rd \e[0;35m10 points: \e[1m3 \e[0;35mCP each \e[1;30m│\r\n
+  \e[0m│ \e[31m» \e[36mClass        \e[37m?????????????????? \e[31m« \e[37m│        \e[1;30m│     ... and so on ...    │\r\n
+  \e[0m│                                     │        \e[1;30m│                          │\r\n
+  \e[0m│ \e[31m» \e[36mStrength   \e[37m($$$$ to $$$$)  \e[1m$$$$ \e[0;31m« \e[37m│        \e[1;30m│ \e[0;35m+\e[1m10 \e[0;35mto base stat:  \e[1m10 \e[0;35mCP \e[1;30m│\r\n
+  \e[0m│ \e[31m» \e[36mIntellect  \e[37m($$$$ to $$$$)  \e[1m$$$$ \e[0;31m« \e[37m│ \e[1;30m◄──────┤ \e[0;35m+\e[1m20 \e[0;35mto base stat:  \e[1m30 \e[0;35mCP \e[1;30m│\r\n
+  \e[0m│ \e[31m» \e[36mWillpower  \e[37m($$$$ to $$$$)  \e[1m$$$$ \e[0;31m« \e[37m│        \e[1;30m│ \e[0;35m+\e[1m30 \e[0;35mto base stat:  \e[1m60 \e[0;35mCP \e[1;30m│\r\n
+  \e[0m│ \e[31m» \e[36mAgility    \e[37m($$$$ to $$$$)  \e[1m$$$$ \e[0;31m« \e[37m│        \e[1;30m│ \e[0;35m+\e[1m40 \e[0;35mto base stat: \e[1m100 \e[0;35mCP \e[1;30m│\r\n
+  \e[0m│ \e[31m» \e[36mHealth     \e[37m($$$$ to $$$$)  \e[1m$$$$ \e[0;31m« \e[37m│        \e[1;30m│ \e[0;35m+\e[1m50 \e[0;35mto base stat: \e[1m150 \e[0;35mCP \e[1;30m│\r\n
+  \e[0m│ \e[31m» \e[36mCharm      \e[37m($$$$ to $$$$)  \e[1m$$$$ \e[0;31m« \e[37m│        \e[1;30m└─    ... and so on ...   ─┘\r\n
+  \e[0m│                                     │\r\n
+  │ \e[31m»  \e[36mHair Length   \e[1;37m???????????????  \e[0;31m« \e[37m│        \e[1;30m┌ \e[36mUse the Space Bar to\r\n
+  \e[0m│ \e[31m»  \e[36mHair Colour   \e[1;37m???????????????  \e[0;31m« \e[37m│ \e[1;30m◄──────┤ \e[36mtoggle between choices for\r\n
+  \e[0m│ \e[31m»  \e[36mEye Colour    \e[1;37m???????????????  \e[0;31m« \e[37m│        \e[1;30m└ \e[36myour physical description\r\n
+  \e[0m│                                     │\r\n
+  │ \e[1;31m»  \e[0;36mExit: \e[1;37m???? \e[31m«  \e[0;31m» \e[36mCP Left:       \e[31m« \e[37m│ \e[1;30m◄─────── \e[37mSAVE \e[36myour character or \e[37mEXIT\r\n
+ \e[0m⌐┴───────────────────────────────.     │\r\n
+ \_________________________________\___/\r\n
+\e[1;31m!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\e[20;33f\e[0m  15\e[0;1m\e[4;20f\e[1;37m                  \e[4;20fKraag\e[0;1m\e[5;20f\e[1;37m                  \e[5;20fStonefist\e[0;1m\e[6;20f\e[37m                  \e[6;20fHuman\e[0;1m\e[7;20f\e[37m                  \e[7;20fWarrior\e[0;1m\e[9;19f\e[37m    \e[9;19f40\e[0;1m\e[9;27f    \e[9;27f100\e[0;1m\e[9;34f\e[1m    \e[9;34f60\e[0;1m\e[10;19f\e[37m    \e[10;19f40\e[0;1m\e[10;27f    \e[10;27f100\e[0;1m\e[10;34f\e[1m    \e[10;34f40\e[0;1m\e[11;19f\e[37m    \e[11;19f40\e[0;1m\e[11;27f    \e[11;27f100\e[0;1m\e[11;34f\e[1m    \e[11;34f40\e[0;1m\e[12;19f\e[37m    \e[12;19f40\e[0;1m\e[12;27f    \e[12;27f100\e[0;1m\e[12;34f\e[1m    \e[12;34f40\e[0;1m\e[13;19f\e[37m    \e[13;19f40\e[0;1m\e[13;27f    \e[13;27f100\e[0;1m\e[13;34f\e[1m    \e[13;34f40\e[0;1m\e[14;19f\e[37m    \e[14;19f40\e[0;1m\e[14;27f    \e[14;27f100\e[0;1m\e[14;34f\e[1m    \e[14;34f40\e[0;1m\e[16;22f\e[1;37m               \e[16;22fnone\e[0;1m\e[17;22f\e[1;37m               \e[17;22fblack\e[0;1m\e[18;22f\e[1;37m               \e[18;22fblack\e[0;1m\e[20;14f\e[1;37m    \e[20;14fSAVE\e[0;1m\e[23;1f\e[1;31m                                                             \e[5;20f\e[0;1;7m                  \e[5;20fStonefist\e[5;20f

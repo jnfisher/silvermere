@@ -1,0 +1,8 @@
+---
+source: crates/silvermere-engine/tests/sysop.rs
+expression: "h.line(s, \"sysop god\")"
+---
+Syntax: SYSOP GOD <user> <command>
+Valid options: ADD LIFE, CLEAR SUICIDE, ADD EVIL n, SPEAK xxx, CHANGE NAME, DISABLE TOPTEN, ENABLE TOPTEN, INVENTORY, PROFILE, SPELLS, POWERS, GOOD, SAINT, NEUTRAL, LAWFUL, UNLAWFUL, RETRAIN, ABILITIES
+VERIFY ABILITIES, STATUS, INFO, CHANGE SEX, JAIL
+[HP=40]:

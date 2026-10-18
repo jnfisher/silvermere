@@ -1,0 +1,860 @@
+╔══════════════════════════════════════════════════════════╗
+║█████████████████▄███████▄███████▄████████████████████████║
+║██████████████▀▀██████▀▀██████▀▀▀▀███▀▀▀▀█████████████████║
+║██████████████████▀███████▀███████████████████████████████║
+║███▀███▀██████▀▀██████▀▀███▀▀▀▀██████▀▀▀████▀███▀█████████║
+║████▀▀▀███████████▀███████▀██████████████████▀▀▀████▀████▀║
+║▀▀▀█████▀▀▀▀▀▀▀▀▀▀█▀▀▀▀▀▀▀█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█████▀▀▀█▀▀▀▀▀║
+║██████████████╘═╡ The MajorBBS Emulator ╞═╛███████████████║
+║████████████████│ By: MBBSEmu Community │█████████████████║
+║                │https://www.mbbsemu.com│                 ║
+╚══════════════════════════════════════════════════════════╝
+ 
+Enter Username or enter "NEW" to create a new Account
+>>> 'Corvin'
+Username: Corvin
+>>> 'corvin1'
+Password: *******
+
+Fantasy awaits you in MajorMUD v1.11p-WG!
+
+
+Please select one of the following:
+
+   M ... MajorMUD
+
+Main Menu
+>>> 'M'
+Make your selection (X to exit): M
+
+ M A J O R  M U D v1.11p-WG (Dec 30 2005 14:20:05)
+{Realm Of Legends}
+*ANSI RECOMMENDED*
+
+[E] . Enter the Realm
+[H] . Help
+[A] . About the Game
+[C] . Game Counts
+[T] . Topten Adventurers
+[G] . Topten Gangs
+[W] . Who's in the Realm
+[R] . Release Notes
+[I] . Information
+[X] . Exit Game
+
+>>> 'E'
+[MAJORMUD]: E
+
+MajorMUD - ROL
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+
+Newhaven, Narrow Road
+
+    This narrow road is quite plain save for the various lanterns hanging from
+the trees around, and a large stone stairwell leading downwards. You hear the
+clash of steel below you, and cries of pain and triumph accompanying it. Stone
+buildings lie to your north and west. 
+Obvious exits: north, east, west, down
+
+>>> 'd'
+[HP=20/MA=22]:d
+
+Newhaven, Arena
+
+    This huge room is has been carved into the earth with crude work- manship.
+The blood-soaked floor is covered in broken, rusted weaponry and some things
+better left unmentioned. A huge iron gate sits in the west wall, and behind it
+you can hear the growling of some unfathomable beast. A large black door is set
+in the northern wall. 
+Also here: fat giant rat.
+Obvious exits: closed door north, up
+
+>>> 'rest'
+[HP=20/MA=22]:rest
+You are now resting.
+
+[HP=20/MA=22]: (Resting) 
+The fat giant rat lunges at you!
+
+>>> ''
+[HP=20/MA=22]:
+
+Newhaven, Arena
+Also here: fat giant rat.
+Obvious exits: closed door north, up
+
+>>> 'a rat'
+[HP=20/MA=22]:a rat
+
+*Combat Engaged*
+
+[HP=20/MA=22]:
+The fat giant rat lunges at you!
+
+[HP=20/MA=22]:
+You punch fat giant rat for 1 damage!
+
+[HP=20/MA=22]:
+The fat giant rat lunges at you!
+
+[HP=20/MA=22]:
+You punch fat giant rat for 2 damage!
+
+[HP=20/MA=22]:
+Your swing at fat giant rat hits, but glances off its armour.
+
+[HP=20/MA=22]:
+You punch fat giant rat for 2 damage!
+
+[HP=20/MA=22]:
+Your swing at fat giant rat hits, but glances off its armour.
+
+[HP=20/MA=22]:
+The fat giant rat lunges at you!
+
+[HP=20/MA=22]:
+You punch fat giant rat for 2 damage!
+
+[HP=20/MA=22]:
+Your swing at fat giant rat hits, but glances off its armour.
+
+[HP=20/MA=22]:
+The fat giant rat lunges at you!
+
+[HP=20/MA=22]:
+You punch fat giant rat for 2 damage!
+
+[HP=20/MA=22]:
+The fat giant rat lunges at you!
+
+[HP=20/MA=22]:
+You punch fat giant rat for 2 damage!
+
+[HP=20/MA=22]:
+You punch fat giant rat for 2 damage!
+
+[HP=20/MA=22]:
+
+The giant rat falls to the ground with a tortured squeak.
+
+[HP=20/MA=22]:
+You gain 9 experience.
+
+[HP=20/MA=22]:
+*Combat Off*
+
+[HP=20/MA=22]:
+A thin giant rat creeps into the room from nowhere.
+
+>>> ''
+[HP=20/MA=22]:
+
+Newhaven, Arena
+Also here: thin giant rat.
+Obvious exits: closed door north, up
+
+>>> 'a rat'
+[HP=20/MA=22]:a rat
+
+*Combat Engaged*
+
+[HP=20/MA=22]:
+The thin giant rat lunges at you!
+
+[HP=20/MA=22]:
+You punch thin giant rat for 1 damage!
+
+[HP=20/MA=22]:
+Your swing at thin giant rat hits, but glances off its armour.
+
+[HP=20/MA=22]:
+You punch thin giant rat for 2 damage!
+
+[HP=20/MA=22]:
+The thin giant rat lunges at you!
+
+[HP=20/MA=22]:
+The thin giant rat lunges at you!
+
+[HP=20/MA=22]:
+Your swing at thin giant rat hits, but glances off its armour.
+
+[HP=20/MA=22]:
+You punch thin giant rat for 2 damage!
+
+[HP=20/MA=22]:
+The thin giant rat lunges at you!
+
+[HP=20/MA=22]:
+You punch thin giant rat for 2 damage!
+
+[HP=20/MA=22]:
+You punch thin giant rat for 2 damage!
+
+[HP=20/MA=22]:
+The thin giant rat lunges at you!
+
+[HP=20/MA=22]:
+Your swing at thin giant rat hits, but glances off its armour.
+
+[HP=20/MA=22]:
+The thin giant rat lunges at you!
+
+[HP=20/MA=22]:
+You punch thin giant rat for 1 damage!
+
+[HP=20/MA=22]:
+Your swing at thin giant rat hits, but glances off its armour.
+
+[HP=20/MA=22]:
+The thin giant rat lunges at you, but you dodge out of the way!
+
+[HP=20/MA=22]:
+Your swing at thin giant rat hits, but glances off its armour.
+
+[HP=20/MA=22]:
+You punch thin giant rat for 2 damage!
+
+[HP=20/MA=22]:
+The thin giant rat lunges at you!
+
+[HP=20/MA=22]:
+You punch thin giant rat for 2 damage!
+
+[HP=20/MA=22]:
+
+The giant rat falls to the ground with a tortured squeak.
+
+[HP=20/MA=22]:
+You gain 9 experience.
+
+[HP=20/MA=22]:
+*Combat Off*
+
+[HP=20/MA=22]:
+A carrion beast creeps in the room from nowhere.
+
+[HP=20/MA=22]:
+The carrion beast snaps at you with its teeth!
+
+>>> ''
+[HP=20/MA=22]:
+
+Newhaven, Arena
+Also here: carrion beast.
+Obvious exits: closed door north, up
+
+>>> 'a beast'
+[HP=20/MA=22]:a beast
+
+*Combat Engaged*
+
+[HP=20/MA=22]:
+You punch carrion beast for 2 damage!
+
+[HP=20/MA=22]:
+The carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+The carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+Your swing at carrion beast hits, but glances off its armour.
+
+[HP=20/MA=22]:
+You swing at carrion beast!
+
+[HP=20/MA=22]:
+Your swing at carrion beast hits, but glances off its armour.
+
+[HP=20/MA=22]:
+You swing at carrion beast!
+
+[HP=20/MA=22]:
+The carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+The carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+You punch carrion beast for 2 damage!
+
+[HP=20/MA=22]:
+You swing at carrion beast!
+
+[HP=20/MA=22]:
+The carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+You punch carrion beast for 2 damage!
+
+[HP=20/MA=22]:
+You swing at carrion beast!
+
+[HP=20/MA=22]:
+You punch carrion beast for 2 damage!
+
+[HP=20/MA=22]:
+The carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+You punch carrion beast for 1 damage!
+
+[HP=20/MA=22]:
+Your swing at carrion beast hits, but glances off its armour.
+
+[HP=20/MA=22]:
+The carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+You punch carrion beast for 2 damage!
+
+[HP=20/MA=22]:
+You punch carrion beast for 1 damage!
+
+[HP=20/MA=22]:
+The carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+The carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+You punch carrion beast for 1 damage!
+
+[HP=20/MA=22]:
+You punch carrion beast for 2 damage!
+
+[HP=20/MA=22]:
+You punch carrion beast for 2 damage!
+
+[HP=20/MA=22]:
+The carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+The carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+Your swing at carrion beast hits, but glances off its armour.
+
+[HP=20/MA=22]:
+You swing at carrion beast!
+
+[HP=20/MA=22]:
+You punch carrion beast for 2 damage!
+
+[HP=20/MA=22]:
+Your swing at carrion beast hits, but glances off its armour.
+
+[HP=20/MA=22]:
+The carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+You swing at carrion beast!
+
+[HP=20/MA=22]:
+You punch carrion beast for 1 damage!
+
+[HP=20/MA=22]:
+
+The carrion beast falls to the ground with a yelp, and is still.
+
+[HP=20/MA=22]:
+You gain 17 experience.
+
+[HP=20/MA=22]:
+*Combat Off*
+
+[HP=20/MA=22]:
+A large carrion beast creeps in the room from nowhere.
+
+[HP=20/MA=22]:
+The large carrion beast snaps at you with its teeth!
+
+>>> ''
+[HP=20/MA=22]:
+
+Newhaven, Arena
+Also here: large carrion beast.
+Obvious exits: closed door north, up
+
+>>> 'a beast'
+[HP=20/MA=22]:a beast
+
+*Combat Engaged*
+
+[HP=20/MA=22]:
+You swing at large carrion beast!
+
+[HP=20/MA=22]:
+The large carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+The large carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+You swing at large carrion beast!
+
+[HP=20/MA=22]:
+You punch large carrion beast for 1 damage!
+
+[HP=20/MA=22]:
+Your swing at large carrion beast hits, but glances off its armour.
+
+[HP=20/MA=22]:
+You swing at large carrion beast!
+
+[HP=20/MA=22]:
+The large carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+Your swing at large carrion beast hits, but glances off its armour.
+
+[HP=20/MA=22]:
+Your swing at large carrion beast hits, but glances off its armour.
+
+[HP=20/MA=22]:
+The large carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+The large carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+Your swing at large carrion beast hits, but glances off its armour.
+
+[HP=20/MA=22]:
+Your swing at large carrion beast hits, but glances off its armour.
+
+[HP=20/MA=22]:
+You punch large carrion beast for 1 damage!
+
+[HP=20/MA=22]:
+The large carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+The large carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+You punch large carrion beast for 2 damage!
+
+[HP=20/MA=22]:
+You punch large carrion beast for 2 damage!
+
+[HP=20/MA=22]:
+You punch large carrion beast for 2 damage!
+
+[HP=20/MA=22]:
+Your swing at large carrion beast hits, but glances off its armour.
+
+[HP=20/MA=22]:
+The large carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+You punch large carrion beast for 1 damage!
+
+[HP=20/MA=22]:
+You swing at large carrion beast!
+
+[HP=20/MA=22]:
+The large carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+You swing at large carrion beast!
+
+[HP=20/MA=22]:
+The large carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+You punch large carrion beast for 1 damage!
+
+[HP=20/MA=22]:
+You punch large carrion beast for 1 damage!
+
+[HP=20/MA=22]:
+The large carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+The large carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+You punch large carrion beast for 1 damage!
+
+[HP=20/MA=22]:
+You punch large carrion beast for 1 damage!
+
+[HP=20/MA=22]:
+You punch large carrion beast for 1 damage!
+
+[HP=20/MA=22]:
+You punch large carrion beast for 2 damage!
+
+[HP=20/MA=22]:
+The large carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+Your swing at large carrion beast hits, but glances off its armour.
+
+[HP=20/MA=22]:
+The large carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+The large carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+Your swing at large carrion beast hits, but glances off its armour.
+
+[HP=20/MA=22]:
+You punch large carrion beast for 1 damage!
+
+[HP=20/MA=22]:
+The large carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+You punch large carrion beast for 1 damage!
+
+[HP=20/MA=22]:
+You swing at large carrion beast!
+
+[HP=20/MA=22]:
+The large carrion beast snaps at you, but you dodge out of the way!
+
+[HP=20/MA=22]:
+You punch large carrion beast for 2 damage!
+
+[HP=20/MA=22]:
+Your swing at large carrion beast hits, but glances off its armour.
+
+[HP=20/MA=22]:
+The large carrion beast snaps at you with its teeth!
+
+[HP=20/MA=22]:
+You punch large carrion beast for 2 damage!
+
+[HP=20/MA=22]:
+
+The carrion beast falls to the ground with a yelp, and is still.
+
+[HP=20/MA=22]:
+You gain 17 experience.
+
+[HP=20/MA=22]:
+*Combat Off*
+
+[HP=20/MA=22]:
+A acid slime oozes into the room from nowhere.
+
+>>> ''
+[HP=20/MA=22]:
+
+Newhaven, Arena
+Also here: acid slime.
+Obvious exits: closed door north, up
+
+>>> 'a slime'
+[HP=20/MA=22]:a slime
+
+*Combat Engaged*
+
+[HP=20/MA=22]:
+You punch acid slime for 1 damage!
+
+[HP=20/MA=22]:
+The acid slime lashes at you, but you dodge out of the way!
+
+[HP=20/MA=22]:
+You punch acid slime for 1 damage!
+
+[HP=20/MA=22]:
+You punch acid slime for 2 damage!
+
+[HP=20/MA=22]:
+The acid slime whips you with its pseudopod for 2 damage!
+
+[HP=18/MA=22]:
+Acid burns you for 2 damage!
+
+[HP=16/MA=22]:
+You punch acid slime for 1 damage!
+
+[HP=16/MA=22]:
+You punch acid slime for 1 damage!
+
+[HP=16/MA=22]:
+The acid slime lashes at you, but you dodge out of the way!
+
+[HP=16/MA=22]:
+The acid slime lashes at you, but you dodge out of the way!
+
+[HP=16/MA=22]:
+You punch acid slime for 3 damage!
+
+[HP=16/MA=22]:
+You punch acid slime for 1 damage!
+
+[HP=16/MA=22]:
+You punch acid slime for 1 damage!
+
+[HP=16/MA=22]:
+The acid slime whips you with its pseudopod for 2 damage!
+
+[HP=14/MA=22]:
+Acid burns you for 3 damage!
+
+[HP=11/MA=22]:
+The acid slime whips you with its pseudopod for 5 damage!
+
+[HP=6/MA=22]:
+Acid burns you for 2 damage!
+
+[HP=4/MA=22]:
+You punch acid slime for 2 damage!
+
+[HP=4/MA=22]:
+You punch acid slime for 3 damage!
+
+[HP=4/MA=22]:
+The acid slime whips you with its pseudopod for 4 damage!
+
+[HP=0/MA=22]:
+Acid burns you for 3 damage!
+
+[HP=-3/MA=22]:
+Corvin drops to the ground!
+
+[HP=-3/MA=22]:
+*Combat Off*
+
+[HP=-3/MA=22]:
+[HP=-4/MA=22]:
+The acid slime whips you with its pseudopod for 8 damage!
+
+[HP=-12/MA=22]:
+Acid burns you for 1 damage!
+
+>>> 'rest'
+[HP=-13/MA=22]:rest
+You may not do that while you are mortally wounded!
+
+[HP=-13/MA=22]:
+The acid slime whips you with its pseudopod for 5 damage!
+
+[HP=-18/MA=22]:
+Acid burns you for 2 damage!
+
+[HP=-20/MA=22]:
+The acid slime whips you with its pseudopod for 5 damage!
+
+[HP=-25/MA=22]:
+Acid burns you for 1 damage!
+
+[HP=-26/MA=22]:
+The acid slime whips you with its pseudopod for 7 damage!
+
+[HP=-33/MA=22]:
+Acid burns you for 1 damage!
+
+[HP=-34/MA=22]:
+The acid slime whips you with its pseudopod for 2 damage!
+
+[HP=-36/MA=22]:
+Acid burns you for 3 damage!
+
+[HP=-39/MA=22]:
+The acid slime whips you with its pseudopod for 6 damage!
+
+[HP=-45/MA=22]:
+Acid burns you for 2 damage!
+
+[HP=-47/MA=22]:
+[HP=-48/MA=22]:
+The acid slime whips you with its pseudopod for 8 damage!
+
+[HP=-56/MA=22]:
+Acid burns you for 1 damage!
+
+[HP=-57/MA=22]:
+The acid slime whips you with its pseudopod for 5 damage!
+
+[HP=-62/MA=22]:
+Acid burns you for 3 damage!
+
+[HP=-65/MA=22]:
+The acid slime whips you with its pseudopod for 6 damage!
+
+[HP=-71/MA=22]:
+Acid burns you for 1 damage!
+
+[HP=-72/MA=22]:
+The acid slime whips you with its pseudopod for 5 damage!
+
+[HP=-77/MA=22]:
+Acid burns you for 1 damage!
+
+[HP=-78/MA=22]:
+The acid slime whips you with its pseudopod for 6 damage!
+
+[HP=-84/MA=22]:
+Acid burns you for 2 damage!
+
+[HP=-86/MA=22]:
+The acid slime whips you with its pseudopod for 7 damage!
+
+[HP=-93/MA=22]:
+Acid burns you for 2 damage!
+
+[HP=-95/MA=22]:
+[HP=-96/MA=22]:
+The acid slime whips you with its pseudopod for 7 damage!
+
+[HP=-103/MA=22]:
+Acid burns you for 3 damage!
+
+[HP=-106/MA=22]:
+The acid slime whips you with its pseudopod for 2 damage!
+
+[HP=-108/MA=22]:
+Acid burns you for 3 damage!
+
+[HP=-111/MA=22]:
+The acid slime whips you with its pseudopod for 7 damage!
+
+[HP=-118/MA=22]:
+Acid burns you for 3 damage!
+
+[HP=-121/MA=22]:
+The acid slime whips you with its pseudopod for 6 damage!
+
+[HP=-127/MA=22]:
+Acid burns you for 3 damage!
+
+[HP=-130/MA=22]:
+The acid slime whips you with its pseudopod for 5 damage!
+
+[HP=-135/MA=22]:
+Acid burns you for 2 damage!
+
+[HP=-137/MA=22]:
+The acid slime whips you with its pseudopod for 4 damage!
+
+[HP=-141/MA=22]:
+Acid burns you for 3 damage!
+
+[HP=-144/MA=22]:
+[HP=-145/MA=22]:
+The acid slime whips you with its pseudopod for 7 damage!
+
+[HP=-152/MA=22]:
+Acid burns you for 1 damage!
+
+[HP=-153/MA=22]:
+The acid slime whips you with its pseudopod for 3 damage!
+
+[HP=-156/MA=22]:
+Acid burns you for 1 damage!
+
+[HP=-157/MA=22]:
+The acid slime whips you with its pseudopod for 6 damage!
+
+[HP=-163/MA=22]:
+Acid burns you for 1 damage!
+
+[HP=-164/MA=22]:
+The acid slime whips you with its pseudopod for 4 damage!
+
+[HP=-168/MA=22]:
+Acid burns you for 2 damage!
+
+[HP=-170/MA=22]:
+The acid slime whips you with its pseudopod for 2 damage!
+
+[HP=-172/MA=22]:
+Acid burns you for 2 damage!
+
+[HP=-174/MA=22]:
+The acid slime whips you with its pseudopod for 5 damage!
+
+[HP=-179/MA=22]:
+Acid burns you for 3 damage!
+
+[HP=-182/MA=22]:
+[HP=-183/MA=22]:
+The acid slime whips you with its pseudopod for 3 damage!
+
+[HP=-186/MA=22]:
+Acid burns you for 1 damage!
+
+[HP=-187/MA=22]:
+The acid slime whips you with its pseudopod for 5 damage!
+
+[HP=-192/MA=22]:
+Acid burns you for 1 damage!
+
+[HP=-193/MA=22]:
+The acid slime whips you with its pseudopod for 7 damage!
+
+[HP=-200/MA=22]:
+Acid burns you for 3 damage!
+
+[HP=-203/MA=22]:
+You have been killed!
+But, due to a miracle, you have been saved.
+You have 8 lives left.
+
+>>> ''
+[HP=20/MA=22]:
+
+Newhaven, Healer
+You notice small sign here.
+Also here: healer.
+Obvious exits: east
+
+>>> 'i'
+[HP=20/MA=22]:i
+
+You are carrying Nothing!
+
+You have no keys.
+Wealth: 0 copper farthings
+Encumbrance: 0/1680 - None [0%]
+
+>>> 'st'
+[HP=20/MA=22]:st
+
+Name: Corvin Ashdown                   Lives/CP:      8/80   
+Race: Elf         Exp: 52              Perception:     56
+Class: Mage       Level: 1             Stealth:        34
+Hits:    20/20    Armour Class:   0/0  Thievery:        0
+Mana: *  22/22    Spellcasting: 55     Traps:           0
+                                       Picklocks:       0
+Strength:  35     Agility: 50          Tracking:        0
+Intellect: 60     Health:  30          Martial Arts:   16
+Willpower: 50     Charm:   50          MagicRes:       52
+
+>>> 'x'
+[HP=20/MA=22]:x
+You will exit after a period of silent meditation.
+................
+Your character has been saved. If you have any comments or suggestions, please
+leave them in E-mail to Sysop. Thanks.
+
+>>> 'X'
+[MAJORMUD]: X
+
+Please select one of the following:
+
+   M ... MajorMUD
+
+Main Menu
+>>> 'X'
+Make your selection (X to exit): X
+You are about to terminate this connection!
+
+>>> 'Y'
+Are you sure (Y/N, or R to re-logon)? Y
+
+
+Ok, thanks for calling!
+
+Have a nice day...
+

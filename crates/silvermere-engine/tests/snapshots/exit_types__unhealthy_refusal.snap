@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/exit_types.rs
+expression: r.snapshot()
+---
+exit_unhealthy: You are not healthy enough to enter that room.\r\nYou are not permitted in that room!\r\n

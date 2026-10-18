@@ -1,0 +1,143 @@
+{
+ "scenario": "combat-refusals",
+ "port": 2323,
+ "naws": null,
+ "description": "Combat command refusals (T-033, the attack commands and ROB): ability gates, unknown and self targets, ROB syntax and no target, BASH and ATTACK alone. Script only: not recorded yet (needs MBBSEmu). The fights themselves are fight-arena and death-rebirth (statistical).",
+ "character": {
+  "user": "Aldric",
+  "password": "aldric1",
+  "name": "Aldric Stonebrook",
+  "race": "Human",
+  "class": "Warrior",
+  "level": 1
+ },
+ "behaviours": [],
+ "mask": [
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "direction names carry a random capital letter and a backspace"
+  },
+  {
+   "regex": "\\[HP=-?\\d+(?:/(?:MA|KAI)=-?\\d+)?",
+   "why": "HP/mana in the prompt"
+  },
+  {
+   "regex": "(?:large|small|big|thin|fat|nasty|angry|fierce|short|tall|happy|slimy) ",
+   "why": "random monster adjective"
+  },
+  {
+   "regex": "giant rat|lashworm|filthbug|carrion beast|acid slime|kobold thief",
+   "why": "which monster spawned"
+  }
+ ],
+ "notes": [
+  "Not recorded: no raw.bin or plain.txt yet; run capture.py against the staged original to record."
+ ],
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "Aldric",
+   "until": "Password:"
+  },
+  {
+   "send": "aldric1",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm"
+  },
+  {
+   "send": "w",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "w",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "d",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "into the arena"
+  },
+  {
+   "send": "smash dragon",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "no Smash ability"
+  },
+  {
+   "send": "kick dragon",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "no Kick ability: not a game command"
+  },
+  {
+   "send": "killblow dragon",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "KILLBLOW is never a game command"
+  },
+  {
+   "send": "bash dragon",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Bash: the weapon gate, else no such target"
+  },
+  {
+   "send": "a dragon",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "no such target: cmd_any_attack returns 0"
+  },
+  {
+   "send": "a aldric",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "SRCH_NOTSELF: the attacker is never matched"
+  },
+  {
+   "send": "rob",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Syntax: ROB"
+  },
+  {
+   "send": "rob dragon",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "You don't see that anywhere!"
+  },
+  {
+   "send": "bash",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "BASH alone restarts auto-combat: nothing to restart"
+  },
+  {
+   "send": "a",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "ATTACK alone: restart_autocombat"
+  },
+  {
+   "send": "x",
+   "until": "leaving|Make your selection|\\[MAJORMUD\\]:",
+   "timeout": 30
+  }
+ ]
+}

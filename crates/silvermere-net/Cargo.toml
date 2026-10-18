@@ -1,0 +1,20 @@
+[package]
+name = "silvermere-net"
+description = "Transport trait, telnet transport, session line discipline, CP437."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+silvermere-types.workspace = true
+silvermere-engine.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true

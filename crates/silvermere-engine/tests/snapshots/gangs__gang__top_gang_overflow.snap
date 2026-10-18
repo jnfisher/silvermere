@@ -1,0 +1,12 @@
+---
+source: crates/silvermere-engine/tests/gangs.rs
+expression: "cut_prompts(&h.text(0, bob))"
+---
+Top Gangs of the Realm
+-=-==-=-=-=-=-=-=-=-=-
+
+Rank Gangname            Leader      Members Created      Exp
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+  1. Wolves              Bob            1    10/14/26    4294967295
+                                                          (3 times)
+                                                          +77

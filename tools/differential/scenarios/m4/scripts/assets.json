@@ -1,0 +1,139 @@
+{
+ "scenario": "m4/assets",
+ "port": 2323,
+ "description": "T-107: MAP and a gang house FILE DESCRIPTION room, both read from the text files import unpacks into the assets directory. The room is 15:857, which has no placed items: a placed item such as 15:850's white banner is put back by a cold start and swept by each midnight cleanup of a closed house, so it would depend on each server's uptime. Needs the developer code on both sides: on the original CODEC_OF_TWINKS=78 in wccmmud.ini (STAGE_CODEC_OF_TWINKS or docker -e CODEC_OF_TWINKS) and the BBS key WCCSYSOP on the sysop account (mbbsemu_key.py; TWEAK, SUMMON, EXPRESS_TRAIN, MONSTER), on silvermere the DEBUG grant (`silvermere account grant sysop DEBUG`); and the BBS sysop account sysop/sysop with its character Sysadm on both (docs/testing.md, M4).",
+ "character": {
+  "user": "sysop",
+  "password": "sysop",
+  "name": "Sysadm"
+ },
+ "mask": [
+  {
+   "regex": "(?<=Current pollrate:)[^\\r\\n]*|(?<=Current initrate:)[^\\r\\n]*|(?<=Logfile:)[^\\r\\n]*",
+   "why": "the values of the record cache rates and the log file name: none in silvermere; the labels stay compared"
+  },
+  {
+   "regex": "You must purchase the .* before you may move through this exit\\.",
+   "why": "the add-on gate of GOTO, dropped (licensing)"
+  },
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "direction names' random capital"
+  },
+  {
+   "regex": "(?<=\\[HP=)-?\\d+|(?<=/MA=)-?\\d+|(?<=/KAI=)-?\\d+",
+   "why": "the prompt's hit point and mana numbers (not its labels)"
+  },
+  {
+   "regex": "Also here: .*",
+   "why": "monsters that happen to be around"
+  }
+ ],
+ "echo_anchored": true,
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "sysop",
+   "until": "Password:"
+  },
+  {
+   "send": "sysop",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "note": "MajorMUD from the BBS menu"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm as Sysadm"
+  },
+  {
+   "send": "sysop tweak clear",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "a known start: TWEAK CLEAR empties the pack, the worn items and the keys and zeroes the money, so an earlier scenario's abort on one side cannot carry over"
+  },
+  {
+   "send": "sysop tweak class 13",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "the fixed sheet: class (TWEAK)"
+  },
+  {
+   "send": "sysop tweak experience 10000000",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "experience for any level below 16: a level above the experience is taken down at the next entry with its character points, and a negative CP total resets the stats into the editor, even after a run cut short"
+  },
+  {
+   "send": "sysop tweak level 2",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "and level"
+  },
+  {
+   "send": "sysop tweak hp 100",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "hit points to outlast the scenario"
+  },
+  {
+   "send": "sysop tweak lives 9",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "and the lives a death would take"
+  },
+  {
+   "send": "sysop goto support",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "the Sysop Support Chamber (1:164), whose map file is WCCMAP01.ANS"
+  },
+  {
+   "send": "map",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "WCCMAP01.ANS from the assets, then an empty line"
+  },
+  {
+   "send": "sysop express_train 857 15",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "to a gang house room (15:857): its title is WCC85715.HSE's first line"
+  },
+  {
+   "send": "look",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "the room's description: all of WCC85715.HSE"
+  },
+  {
+   "send": "sysop goto support",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "back to the quiet room"
+  },
+  {
+   "send": "sysop tweak level 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "the level the experience allows, for the next entry"
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 90,
+   "note": "the silent meditation takes a few ticks"
+  },
+  {
+   "send": "X",
+   "until": "Make your selection"
+  },
+  {
+   "send": "X",
+   "until": "Are you sure"
+  },
+  {
+   "send": "Y",
+   "until": ""
+  }
+ ],
+ "settle": 0.5
+}

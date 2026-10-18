@@ -1,0 +1,88 @@
+{
+ "scenario": "m3/setup/orig-isolde-account",
+ "port": 2323,
+ "description": "The original's entry-new-account script for Isolde (names substituted).",
+ "character": {
+  "user": "Isolde",
+  "password": "isolde1",
+  "name": "Isolde Stonebrook",
+  "race": "Human",
+  "class": "Warrior",
+  "level": "none yet (account only)"
+ },
+ "behaviours": [],
+ "mask": [
+  {
+   "regex": "\\(Dec 30 2005 14:20:05\\)",
+   "why": "build stamp of the DLL (mud_title)"
+  },
+  {
+   "regex": " \\[\\d+ game minutes left\\]| \\[Last chance\\]",
+   "why": "menu time-left suffix"
+  },
+  {
+   "regex": "Build #\\S+|\\d{1,2}/\\d{1,2}/\\d{2,4}|\\d{1,2}:\\d{2}(?::\\d{2})?",
+   "why": "MBBSEmu banner build and clock"
+  }
+ ],
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "NEW",
+   "until": "Username \\(Max",
+   "timeout": 10
+  },
+  {
+   "send": "Isolde",
+   "until": "Password:",
+   "timeout": 10
+  },
+  {
+   "send": "isolde1",
+   "until": "confirm:",
+   "timeout": 10
+  },
+  {
+   "send": "isolde1",
+   "until": "e-Mail",
+   "timeout": 10
+  },
+  {
+   "send": "isolde@example.com",
+   "until": "gender",
+   "timeout": 10
+  },
+  {
+   "send": "M",
+   "until": "Make your selection",
+   "timeout": 10,
+   "note": "gender"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 10,
+   "note": "MajorMUD menu"
+  },
+  {
+   "send": "X",
+   "until": "Make your selection",
+   "timeout": 10
+  },
+  {
+   "send": "X",
+   "until": "Are you sure",
+   "timeout": 10
+  },
+  {
+   "send": "Y",
+   "wait": 2,
+   "timeout": 10
+  }
+ ],
+ "naws": null
+}

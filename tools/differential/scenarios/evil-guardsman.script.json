@@ -1,0 +1,90 @@
+{
+ "scenario": "evil-guardsman",
+ "port": 2323,
+ "naws": null,
+ "description": "The evil law (T-038): attacking a Good guardsman in the town square with evil warnings on (refused) and off (the dark cloud, 10 evil points, the fight). Script only: not recorded yet (needs MBBSEmu).",
+ "character": {
+  "user": "Aldric",
+  "password": "aldric1",
+  "name": "Aldric Stonebrook",
+  "race": "Human",
+  "class": "Warrior",
+  "level": 1
+ },
+ "behaviours": [],
+ "mask": [
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "direction names carry a random capital letter and a backspace"
+  },
+  {
+   "regex": "\\[HP=-?\\d+(?:/(?:MA|KAI)=-?\\d+)?",
+   "why": "HP/mana in the prompt"
+  }
+ ],
+ "notes": [
+  "Not recorded: no raw.bin or plain.txt yet; run capture.py against the staged original to record.",
+  "A guardsman wanders the town (tests/captures/room-walk/plain.txt:316); the script assumes one is in the start room."
+ ],
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "Aldric",
+   "until": "Password:"
+  },
+  {
+   "send": "aldric1",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm"
+  },
+  {
+   "send": "set warning on",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "PS_EVILWARN on"
+  },
+  {
+   "send": "a guardsman",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "warnings on: 'To do this action, you must turn off your evil warnings.' and no *Combat Engaged*; or no target if no guardsman is in the square"
+  },
+  {
+   "send": "set warning off",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "PS_EVILWARN off"
+  },
+  {
+   "send": "a guardsman",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "warnings off: 'A dark cloud passes over you' (dark grey) then *Combat Engaged*; 10 evil points"
+  },
+  {
+   "send": "flee",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "note": "break off; the guardsman fights back (statistical)"
+  },
+  {
+   "send": "x",
+   "until": "leaving|Make your selection|\\[MAJORMUD\\]:",
+   "timeout": 30
+  }
+ ]
+}

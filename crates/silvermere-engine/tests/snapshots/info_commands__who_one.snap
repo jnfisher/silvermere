@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/info_commands.rs
+expression: esc(&got)
+---
+\x1b[79D\x1b[K\x1b[1;33m         Current Adventurers\r\n\x1b[1;30m         ===================\r\n\r\n\x1b[0m         \x1b[0;32mAldric Stonebrook  -  \x1b[35mApprentice\x1b[32m  \x1b[37m \r\n\r\n

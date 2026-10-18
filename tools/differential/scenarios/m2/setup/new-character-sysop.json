@@ -1,0 +1,144 @@
+{
+ "scenario": "m2/setup/new-character-sysop",
+ "naws": [
+  79,
+  24
+ ],
+ "description": "silvermere only: the character @USER@ Operator (a Human Warrior, Strength and Health 50) of the account @USER@ (created with `silvermere account create USER --sysop` and granted DEBUG by m2_live.sh) through the line-mode editor (m4/setup/new-sysadm.json with the account as parameter), for the m2 statistical runs (T-040). `differential.py replay --as USER:PASSWORD`.",
+ "character": {
+  "user": "@USER@",
+  "password": "@PASSWORD@",
+  "name": "@USER@ Operator",
+  "race": "Human",
+  "class": "Warrior",
+  "level": 1
+ },
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "@USER@",
+   "until": "Password:"
+  },
+  {
+   "send": "@PASSWORD@",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:"
+  },
+  {
+   "send": "E",
+   "until": "choose your race",
+   "timeout": 15
+  },
+  {
+   "send": "1",
+   "until": "choose your class",
+   "timeout": 15
+  },
+  {
+   "send": "1",
+   "until": "Lawful\\?",
+   "timeout": 15
+  },
+  {
+   "send": "N",
+   "until": "Given name",
+   "timeout": 15
+  },
+  {
+   "send": "@USER@",
+   "until": "Family name",
+   "timeout": 15
+  },
+  {
+   "send": "Operator",
+   "until": "Strength",
+   "timeout": 15,
+   "note": "Strength and Health raised to 50 as in creation-fsd"
+  },
+  {
+   "send": "50",
+   "until": "Intellect",
+   "timeout": 15
+  },
+  {
+   "send": "",
+   "until": "Willpower",
+   "timeout": 15
+  },
+  {
+   "send": "",
+   "until": "Agility",
+   "timeout": 15
+  },
+  {
+   "send": "",
+   "until": "Health",
+   "timeout": 15
+  },
+  {
+   "send": "50",
+   "until": "Charm",
+   "timeout": 15
+  },
+  {
+   "send": "",
+   "until": "Hair length",
+   "timeout": 15
+  },
+  {
+   "send": "",
+   "until": "Hair colour",
+   "timeout": 15
+  },
+  {
+   "send": "",
+   "until": "Eye colour",
+   "timeout": 15
+  },
+  {
+   "send": "",
+   "until": "SAVE or QUIT",
+   "timeout": 15
+  },
+  {
+   "send": "",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 120,
+   "required": true,
+   "note": "SAVE"
+  },
+  {
+   "send": "",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 15,
+   "note": "the first room"
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 90
+  },
+  {
+   "send": "X",
+   "until": "Make your selection",
+   "timeout": 15
+  },
+  {
+   "send": "X",
+   "until": "Are you sure",
+   "timeout": 15
+  },
+  {
+   "send": "Y",
+   "timeout": 15,
+   "wait": 1
+  }
+ ]
+}

@@ -1,0 +1,23 @@
+{
+ "scenario": "m4/assets",
+ "script": "m4/scripts/assets.json",
+ "deterministic": [
+  "sysop goto support",
+  "map",
+  "sysop express_train 857 15",
+  "look",
+  "sysop goto support"
+ ],
+ "statistical": false,
+ "setup": [],
+ "ignore_host_banner": true,
+ "world_patterns": true,
+ "ignore_steps": [
+  1,
+  2,
+  3,
+  4
+ ],
+ "mask_prompt": true,
+ "bytes_from_echo": true
+}

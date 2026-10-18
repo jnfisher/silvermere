@@ -1,0 +1,27 @@
+{
+  "_doc": "Parties for progress.py --party NAME --as CHARACTER. See parties.example.json for every field and for running several parties.",
+  "parties": {
+    "duo": {
+      "leader": "Brynja",
+      "members": {
+        "Brynja": {
+          "password": "brynja1",
+          "session": "",
+          "rank": "front"
+        },
+        "Isolde": {
+          "password": "isolde1",
+          "session": "cleric",
+          "rank": "front",
+          "hit_frac": 0.34,
+          "melee": true
+        }
+      },
+      "settings": {
+        "par_every_s": 20,
+        "catch_up_s": 30,
+        "plan": "plans/party-duo.json"
+      }
+    }
+  }
+}

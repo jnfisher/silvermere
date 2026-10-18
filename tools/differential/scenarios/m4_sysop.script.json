@@ -1,0 +1,186 @@
+{
+ "scenario": "m4_sysop",
+ "port": 2323,
+ "description": "T-055: the deterministic SYSOP sub-commands (goto x6, god status/info/options, list spells, arena status, configure show, the help lists) and the sysop menu, as the BBS sysop account. Not recorded yet: the orchestrator runs it against MBBSEmu.",
+ "character": {
+  "user": "sysop",
+  "password": "sysop",
+  "name": "Sysadm"
+ },
+ "mask": [
+  {
+   "regex": "(?<=Current pollrate:)[^\\r\\n]*|(?<=Current initrate:)[^\\r\\n]*|(?<=Logfile:)[^\\r\\n]*",
+   "why": "the values of the record cache rates and the log file name: none in silvermere; the labels stay compared"
+  },
+  {
+   "regex": "You must purchase the .* before you may move through this exit\\.",
+   "why": "the add-on gate of GOTO, dropped (licensing)"
+  },
+  {
+   "regex": "(?<=\\[HP=)-?\\d+|(?<=/MA=)-?\\d+|(?<=/KAI=)-?\\d+",
+   "why": "HP/mana: the prompt's numbers only, its labels byte-compared"
+  },
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "direction names' random capital"
+  }
+ ],
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "sysop",
+   "until": "Password:"
+  },
+  {
+   "send": "sysop",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "note": "MajorMUD from the BBS menu"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm as the sysop's character Sysadm"
+  },
+  {
+   "send": "sysop",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the help list"
+  },
+  {
+   "send": "sysop goto newhaven",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "1:2150, no message"
+  },
+  {
+   "send": "sysop goto silvermere",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "reincroom"
+  },
+  {
+   "send": "sysop goto support",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "1:164, sysop only"
+  },
+  {
+   "send": "sysop goto rhudaur",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "2:2519 (the original may answer the add-on purchase line: masked)"
+  },
+  {
+   "send": "sysop goto khazarad",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "6:1249"
+  },
+  {
+   "send": "sysop goto lostcity",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "16:426"
+  },
+  {
+   "send": "sysop goto nowhere",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Current GOTO locations"
+  },
+  {
+   "send": "sysop goto silvermere",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "back to town"
+  },
+  {
+   "send": "sysop god",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "GOD syntax and options"
+  },
+  {
+   "send": "sysop god sysadm dance",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Valid options"
+  },
+  {
+   "send": "sysop god sysadm status",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "show_status of the sysop's own character"
+  },
+  {
+   "send": "sysop god sysadm info",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "status, BBS Userid, inventory, then one part a poll"
+  },
+  {
+   "send": "sysop list",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Valid lists"
+  },
+  {
+   "send": "sysop list spells",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the list of all spells (developer gate: the original needs CODEC_OF_TWINKS 78 and developer mode, else No list command done.)"
+  },
+  {
+   "send": "sysop arena status",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "arena mode"
+  },
+  {
+   "send": "sysop configure show",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "configuration; the credit lines are masked"
+  },
+  {
+   "send": "sysop tweak",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Valid edits (developer gate)"
+  },
+  {
+   "send": "sysop frobnicate",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Command not recognized."
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 10,
+   "note": "leave the realm"
+  },
+  {
+   "send": "sysop",
+   "until": "MAJORMUD Sysop",
+   "timeout": 10,
+   "note": "the hidden word: the sysop menu"
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 10
+  }
+ ]
+}

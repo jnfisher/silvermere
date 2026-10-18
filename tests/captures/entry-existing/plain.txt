@@ -1,0 +1,96 @@
+╔══════════════════════════════════════════════════════════╗
+║█████████████████▄███████▄███████▄████████████████████████║
+║██████████████▀▀██████▀▀██████▀▀▀▀███▀▀▀▀█████████████████║
+║██████████████████▀███████▀███████████████████████████████║
+║███▀███▀██████▀▀██████▀▀███▀▀▀▀██████▀▀▀████▀███▀█████████║
+║████▀▀▀███████████▀███████▀██████████████████▀▀▀████▀████▀║
+║▀▀▀█████▀▀▀▀▀▀▀▀▀▀█▀▀▀▀▀▀▀█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█████▀▀▀█▀▀▀▀▀║
+║██████████████╘═╡ The MajorBBS Emulator ╞═╛███████████████║
+║████████████████│ By: MBBSEmu Community │█████████████████║
+║                │https://www.mbbsemu.com│                 ║
+╚══════════════════════════════════════════════════════════╝
+ 
+Enter Username or enter "NEW" to create a new Account
+>>> 'Aldric'
+Username: Aldric
+>>> 'aldric1'
+Password: *******
+
+Fantasy awaits you in MajorMUD v1.11p-WG!
+
+
+Please select one of the following:
+
+   M ... MajorMUD
+
+Main Menu
+>>> 'M'
+Make your selection (X to exit): M
+
+ M A J O R  M U D v1.11p-WG (Dec 30 2005 14:20:05)
+{Realm Of Legends}
+*ANSI RECOMMENDED*
+
+[E] . Enter the Realm
+[H] . Help
+[A] . About the Game
+[C] . Game Counts
+[T] . Topten Adventurers
+[G] . Topten Gangs
+[W] . Who's in the Realm
+[R] . Release Notes
+[I] . Information
+[X] . Exit Game
+
+>>> 'E'
+[MAJORMUD]: E
+
+MajorMUD - ROL
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+
+Newhaven, Village Entrance
+
+    Welcome to Newhaven! You are standing at the crude wooden gates of the
+village entrance, in the middle of a dusty path. A low wooden palisade
+surrounds the village, to protect against creatures of the night and random
+raiders. You can see small buildings to the north and south, and a dusty path
+that leads to the west and southeast. 
+You notice large sign, newbie manual here.
+Obvious exits: north, south, west, southeast
+
+>>> ''
+[HP=35]:
+
+Newhaven, Village Entrance
+You notice large sign, newbie manual here.
+Obvious exits: north, south, west, southeast
+
+>>> 'x'
+[HP=35]:x
+You will exit after a period of silent meditation.
+................
+Your character has been saved. If you have any comments or suggestions, please
+leave them in E-mail to Sysop. Thanks.
+
+>>> 'X'
+[MAJORMUD]: X
+
+Please select one of the following:
+
+   M ... MajorMUD
+
+Main Menu
+>>> 'X'
+Make your selection (X to exit): X
+You are about to terminate this connection!
+
+>>> 'Y'
+Are you sure (Y/N, or R to re-logon)? Y
+
+
+Ok, thanks for calling!
+
+Have a nice day...
+

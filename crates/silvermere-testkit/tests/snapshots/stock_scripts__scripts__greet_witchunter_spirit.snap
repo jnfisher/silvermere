@@ -1,0 +1,16 @@
+---
+source: crates/silvermere-testkit/tests/stock_scripts.rs
+expression: "out.replace('\\r', \"\")"
+---
+[79D[K[0;32mThe witchunter spirit greets you with a bow, saying "Welcome young one. Thy 
+travels have brought thee far, to find me in this cursed tomb where I am 
+bound. The dark one was cruel indeed to keep my spirit in this plane after we 
+were vanquished, but even in defeat there can be hope. I have little left to 
+offer, save my experiences fighting the unnamed one. My skill is thine to 
+learn from, and I would gladly train thee to the next level of advancement. 
+One more thing can I offer you: seek the old one in the heart of the 
+darkenwood, he alone lived through the Great Wars, and he alone has mastery 
+enough to provide thee with the necessary learning you shall surely need in 
+the future."
+
+<P>

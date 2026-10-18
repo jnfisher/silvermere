@@ -1,0 +1,221 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build everything but skip every publish step
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  packages: write
+
+# Runners by repository visibility (T-117, docs/ci.md). A private repository builds on its own
+# runners (BASEMENT is true): the musl targets with cargo-zigbuild, Windows with cargo-xwin, and no
+# macOS, which needs a hosted macOS runner. A public repository builds on GitHub-hosted runners,
+# macOS included. Only an event that says the repository is private picks its own runners; an
+# unknown visibility goes to a hosted runner (fail closed: here it waits visibly instead of running
+# on the basement).
+jobs:
+  binaries:
+    name: binary (${{ matrix.name }})
+    runs-on: ${{ (matrix.name == 'universal-apple-darwin' && 'macos-latest' || matrix.name == 'x86_64-pc-windows-msvc' && 'windows-latest' || 'ubuntu-latest') }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        name: ${{ fromJSON('["x86_64-unknown-linux-musl","aarch64-unknown-linux-musl","universal-apple-darwin","x86_64-pc-windows-msvc"]') }}
+    env:
+      BASEMENT: false
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Target
+        run: |
+          case "${{ matrix.name }}" in
+            *-linux-musl) echo "KIND=zig" ; echo "TARGETS=${{ matrix.name }}" ;;
+            *-apple-darwin) echo "KIND=darwin" ; echo "TARGETS=aarch64-apple-darwin x86_64-apple-darwin" ;;
+            *-windows-msvc) echo "KIND=msvc" ; echo "TARGETS=${{ matrix.name }}" ;;
+            *) echo "::error::unknown target ${{ matrix.name }}"; exit 1 ;;
+          esac >> "$GITHUB_ENV"
+      # The basement runner: its persistent target dir and toolchain, then the cross tools, pinned
+      # and cached under ~/.cache/silvermere-tools as ci.yml's windows-cross job installs them.
+      - name: Prepare the runner (target dir, disk, leftovers, toolchain)
+        if: env.BASEMENT == 'true'
+        run: |
+          .github/scripts/runner-prep.sh
+          echo "CARGO_BUILD_JOBS=3" >> "$GITHUB_ENV"  # see ci.yml: two jobs may share the VM
+      - name: Install zig and cargo-zigbuild (basement)
+        if: env.BASEMENT == 'true' && env.KIND == 'zig'
+        run: .github/scripts/zigbuild-prep.sh $TARGETS
+      - name: Install cargo-xwin and the Windows target (basement)
+        if: env.BASEMENT == 'true' && env.KIND == 'msvc'
+        run: |
+          .github/scripts/install-tools.sh
+          export PATH="$(tail -n1 "$GITHUB_PATH"):$PATH"
+          .github/scripts/windows-cross-prep.sh
+      # GitHub-hosted runners: a fresh machine each time
+      - name: Install pinned toolchain (rust-toolchain.toml)
+        if: env.BASEMENT != 'true'
+        run: |
+          rustup toolchain install
+          for t in $TARGETS; do rustup target add "$t"; done
+          rustc --version
+      - uses: Swatinem/rust-cache@v2
+        if: env.BASEMENT != 'true'
+        with:
+          key: ${{ matrix.name }}
+      - name: Install zig and cargo-zigbuild
+        if: env.BASEMENT != 'true' && env.KIND == 'zig'
+        run: |
+          # pinned as zigbuild-prep.sh pins them; the hashes are PyPI's manylinux x86_64 and aarch64 wheels
+          pip install --require-hashes ziglang==0.13.0 \
+            --hash=sha256:3ce0c9f16547e5d61b32e0d226926e9a2552ef4b91fccf7ab5ea1a623a77824b \
+            --hash=sha256:5714a4d46f9246ba6180a0930e23df2bc8bc26e62b5fe0dc798b4afca1903308
+          cargo install cargo-zigbuild --locked --version 0.23.4
+      - name: Version
+        id: v
+        run: |
+          ref="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then v="${ref#v}"; else v="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n1)-dryrun"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: Build
+        run: |
+          set -euo pipefail
+          out="${CARGO_TARGET_DIR:-target}"
+          case "$KIND" in
+            zig) cargo zigbuild --release --locked --target "$TARGETS" -p silvermere --bin silvermere
+                 bin="$out/$TARGETS/release/silvermere" ;;
+            msvc)
+              if [ "$RUNNER_OS" = Windows ]; then
+                cargo build --release --locked --target "$TARGETS" -p silvermere --bin silvermere
+              else
+                # cross-compiled with cargo-xwin; its first build downloads the Windows SDK into
+                # ~/.cache/cargo-xwin, one runner at a time (ci.yml's windows-cross takes the same lock)
+                lock="${XDG_CACHE_HOME:-$HOME/.cache}/silvermere-tools/.xwin.lock"
+                flock -w 1800 "$lock" cargo xwin build --release --locked --target "$TARGETS" -p silvermere --bin silvermere
+              fi
+              bin="$out/$TARGETS/release/silvermere.exe" ;;
+            darwin)
+              for t in $TARGETS; do cargo build --release --locked --target "$t" -p silvermere --bin silvermere; done
+              mkdir -p "$out/universal"
+              lipo -create -output "$out/universal/silvermere" \
+                "$out/aarch64-apple-darwin/release/silvermere" "$out/x86_64-apple-darwin/release/silvermere"
+              bin="$out/universal/silvermere" ;;
+          esac
+          echo "BIN=$bin" >> "$GITHUB_ENV"
+      - name: Imports (no user32, so sign-out and shutdown reach the server)
+        if: env.KIND == 'msvc'
+        run: .github/scripts/windows-imports.sh "$BIN"
+      - name: Package
+        run: |
+          set -euo pipefail
+          dir="silvermere-${{ steps.v.outputs.version }}-${{ matrix.name }}"
+          # the archive's files, checked (ci.yml's Windows job runs the same script)
+          rm -rf dist out
+          .github/scripts/package.sh "$KIND" "$BIN" "dist/$dir"
+          mkdir -p out
+          if [ "$KIND" = msvc ]; then
+            # 7-Zip on a hosted Windows runner; Python's zipfile where there is none
+            if command -v 7z > /dev/null; then
+              (cd dist && 7z a -tzip "../out/$dir.zip" "$dir" > /dev/null)
+            else
+              (cd dist && python3 -m zipfile -c "../out/$dir.zip" "$dir")
+            fi
+          else
+            tar -C dist -czf "out/$dir.tar.gz" "$dir"
+          fi
+          ls -l out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archive-${{ matrix.name }}
+          path: out/*
+          if-no-files-found: error
+
+  # The image's build stages run on the build platform and cross-compile with cargo-zigbuild; the
+  # last stage only copies files, so no emulation is needed for arm64. QEMU stays on hosted runners
+  # only, so the basement host's binfmt settings are never changed.
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BASEMENT: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare the runner (disk, leftovers)
+        if: env.BASEMENT == 'true'
+        run: .github/scripts/runner-prep.sh
+      - name: Rust version from rust-toolchain.toml
+        id: rust
+        run: echo "version=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@v3
+        if: env.BASEMENT != 'true'
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: ${{ github.ref_type == 'tag' && !inputs.dry_run }}
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/jnfisher/silvermere
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' && !contains(github.ref_name, '-') }}
+            type=sha,enable=${{ github.ref_type != 'tag' }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.ref_type == 'tag' && !inputs.dry_run }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            RUST_VERSION=${{ steps.rust.outputs.version }}
+            VERSION=${{ steps.meta.outputs.version }}
+            REVISION=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  release:
+    needs: [binaries, image]
+    runs-on: ubuntu-latest
+    env:
+      BASEMENT: false
+    steps:
+      # a runner that keeps its workspace may hold an earlier run's archives
+      - run: rm -rf archives
+      - uses: actions/download-artifact@v4
+        with:
+          path: archives
+          pattern: archive-*
+          merge-multiple: true
+      - name: SHA256SUMS
+        working-directory: archives
+        run: |
+          if command -v sha256sum > /dev/null; then sha256sum silvermere-* > SHA256SUMS; else shasum -a 256 silvermere-* > SHA256SUMS; fi
+          cat SHA256SUMS
+          # 4 archives (5 targets, 2 darwin merged into one universal); 3 on the basement, no macOS
+          want=4; [ "$BASEMENT" = true ] && want=3
+          test "$(wc -l < SHA256SUMS)" -eq "$want" || echo "::warning::expected $want archives"
+          sha256sum -c SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-files
+          path: archives/*
+      - uses: softprops/action-gh-release@v2
+        if: ${{ github.ref_type == 'tag' && !inputs.dry_run }}
+        with:
+          files: archives/*
+          generate_release_notes: true
+          body: "${{ env.BASEMENT == 'true' && 'No macOS build in this release (macOS builds only on GitHub-hosted runners, which this repository does not use; docs/ci.md).' || '' }}"
+          prerelease: ${{ contains(github.ref_name, '-') }}

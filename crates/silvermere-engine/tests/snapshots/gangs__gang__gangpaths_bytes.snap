@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/gangs.rs
+expression: "format!(\"{:?}\", h.both(ann, \"bg hey\", bob).1)"
+---
+"Ann gangpaths: hey\n[HP=10]:"

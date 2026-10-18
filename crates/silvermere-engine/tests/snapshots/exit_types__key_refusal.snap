@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/exit_types.rs
+expression: r.snapshot()
+---
+door_closed_drag: \x1b[1;31;40mThere is a closed door in that direction!\r\n

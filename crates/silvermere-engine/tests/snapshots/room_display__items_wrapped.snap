@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/room_display.rs
+expression: esc(&got)
+---
+\x1b[79D\x1b[K\x1b[1;36mJunk Heap\r\n\x1b[0;36mYou notice 2 runic coins, 1 silver noble, 9 copper farthings, 3 faded scroll, 2\r\nbattered tin cup, coil of rope, 3 broken lantern, 2 bone whistle, dented helm,\r\n3 copper bracelet, 2 silver ring, wooden shield, 3 leather boots, 2 torn cloak,\r\nrusty dagger here.\r\n\x1b[0;32mObvious exits: NONE!!!\r\n

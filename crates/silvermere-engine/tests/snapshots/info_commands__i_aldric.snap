@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/info_commands.rs
+expression: esc(&got)
+---
+\x1b[0;37;40m\x1b[79D\x1b[KYou are carrying padded vest (Torso), padded pants (Legs), padded helm (Head),\r\npadded gloves (Hands), padded boots (Feet), quarterstaff (Two handed)\r\n\x1b[79D\x1b[K\x1b[0;37;40mYou have no keys.\r\n\x1b[0;32mWealth: \x1b[36m0 copper farthings\r\n\x1b[0;32mEncumbrance: \x1b[36m500/2400 - \x1b[32mLight [20%]\x1b[0m\r\n

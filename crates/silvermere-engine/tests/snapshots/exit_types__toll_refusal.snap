@@ -1,0 +1,6 @@
+---
+source: crates/silvermere-engine/tests/exit_types.rs
+expression: r.snapshot()
+---
+toll_short: You do not have enough to cover the toll of 5 gold crowns.\r\n
+toll_paid: \x1b[0;37;40mYou just paid 5 gold crowns in toll charges.\r\n

@@ -1,0 +1,29 @@
+{
+ "scenario": "m1/room-walk",
+ "script": "../../../tests/captures/room-walk/script.json",
+ "deterministic": "all",
+ "script_options": {
+  "echo_anchored": true,
+  "settle": 1.2
+ },
+ "script_options_note": "T-079: run 7 of loop 38825602066 sent `u` (step 17) while `search` (step 16) still had its one-tick delay: a late prompt satisfied step 16's wait, so the original queued `u` and every later step shifted. echo_anchored waits for each command's own echo, then its prompt; settle waits for 1.2 s of quiet after it, longer than the 1 s fast tick, so a monster's line plus prompt before the delay-end redraw cannot release the next command early.",
+ "setup": [
+  {
+   "side": "orig",
+   "scenario": "entry-new-account"
+  },
+  {
+   "side": "orig",
+   "scenario": "creation-fsd"
+  },
+  {
+   "side": "new",
+   "script": "m1/setup/new-aldric.json"
+  }
+ ],
+ "ignore_steps": [
+  0,
+  1,
+  2
+ ]
+}

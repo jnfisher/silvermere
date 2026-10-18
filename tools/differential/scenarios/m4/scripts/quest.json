@@ -1,0 +1,167 @@
+{
+ "scenario": "m4/quest",
+ "port": 2323,
+ "description": "T-054: the Newhaven skiff (a Text exit, `borrow skiff`), then GREET and ASK of the boatman on the Silvermere pier (ask_monster_a_question). Not recorded: written for the differential harness from the room-walk route and the stock data; the levers and the statue button of the crypt need the tomb door bashed open (random), so the crypt walkthrough is run by hand (T-057). T-084: the walk no longer goes down to the Arena (1:2150) for the closed door, `open`, `exits` and `search` steps (m1/room-walk has them): the Arena is type 2 with mongroup 6, a lone player in it gets a monster on 90% of the generation cycles, and run 38823959731's kobold thief (montype 6) came from there. Every room left on the walk has mongroup 0 (the Pier 2): monsters keep to rooms of their own group and a mongroup-0 room generates only montype-0 monsters (the stock ones are stationary, a dummy or an NPC), apart from Angels and Quest monsters.",
+ "character": {
+  "user": "Aldric",
+  "password": "aldric1",
+  "name": "Aldric Stonebrook",
+  "race": "Human",
+  "class": "Warrior",
+  "level": 1,
+  "start": "Newhaven, Narrow Road"
+ },
+ "mask": [
+  {
+   "regex": "\\(Dec 30 2005 14:20:05\\)",
+   "why": "build stamp of the DLL (mud_title)"
+  },
+  {
+   "regex": " \\[\\d+ game minutes left\\]| \\[Last chance\\]",
+   "why": "menu time-left suffix"
+  },
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "every direction name carries a random capital letter and a backspace, rewritten each slow cycle: `nJ\\borth`"
+  },
+  {
+   "regex": "\\[HP=-?\\d+(?:/(?:MA|KAI)=-?\\d+)?",
+   "why": "HP/mana in the prompt depend on earlier fights and regen"
+  },
+  {
+   "regex": "Also here: .*|.* (?:creeps|wanders|scurries|crawls|slithers|walks|sneaks) into the room.*",
+   "why": "monsters and players that happen to be around"
+  }
+ ],
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "Aldric",
+   "until": "Password:"
+  },
+  {
+   "send": "aldric1",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "note": "MajorMUD from the BBS menu"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm"
+  },
+  {
+   "send": "e",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "e",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the Village Entrance"
+  },
+  {
+   "send": "look",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "n",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "s",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "se",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "s",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "borrow skiff",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 30,
+   "note": "Text exit: the skiff to Silvermere"
+  },
+  {
+   "send": "s",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "s",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "e",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "n",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the Pier (1813): the boatman is its specific monster"
+  },
+  {
+   "send": "greet boatman",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "GREET: the talk block (5) links to 6, shown with the name"
+  },
+  {
+   "send": "ask boatman skiff",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "ASK: `skiff:7` matches; block 7"
+  },
+  {
+   "send": "ask boatman weather",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "ASK: no line matches: `boatman has nothing to tell you!`"
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 90,
+   "note": "exit after silent meditation (USREXIT)"
+  },
+  {
+   "send": "X",
+   "until": "Make your selection",
+   "note": "leave MajorMUD"
+  },
+  {
+   "send": "X",
+   "until": "Are you sure",
+   "note": "BBS logoff"
+  },
+  {
+   "send": "Y",
+   "wait": 2,
+   "timeout": 10
+  }
+ ],
+ "echo_anchored": true,
+ "settle": 0.5
+}

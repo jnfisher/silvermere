@@ -1,0 +1,7 @@
+---
+source: crates/silvermere-engine/tests/sysop.rs
+expression: "h.line(s, \"sysop goto nowhere\")"
+---
+Current GOTO locations: NEWHAVEN, SILVERMERE, SUPPORT, RHUDAUR,
+                        KHAZARAD, LOSTCITY
+[HP=40]:

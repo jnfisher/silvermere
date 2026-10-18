@@ -1,0 +1,13 @@
+---
+source: crates/silvermere-engine/tests/combat_flow.rs
+assertion_line: 339
+expression: "mine.join(\"\\n\")"
+---
+You smack giant rat for 1 damage!
+The giant rat lunges at you!
+You beat giant rat for 10 damage!
+The giant rat lunges at you!
+You smack giant rat for 5 damage!
+The giant rat falls to the ground with a tortured squeak.
+You gain 9 experience.
+*Combat Off*

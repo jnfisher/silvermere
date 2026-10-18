@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/character_creation.rs
+expression: escape(&out)
+---
+You MUST have a last name!\r\nYou will have to start over again.\r\nPress Enter.

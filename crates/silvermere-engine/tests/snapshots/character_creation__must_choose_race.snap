@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/character_creation.rs
+expression: escape(&out)
+---
+You must choose a race. [ ? for help ]

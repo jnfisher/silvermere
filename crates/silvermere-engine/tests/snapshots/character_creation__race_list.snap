@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/character_creation.rs
+expression: escape(&race_list)
+---
+\x1b[1;37mPlease choose a race from the following list:\r\n\x1b[0;37;40m\x1b[1;30m[\x1b[1;37m1\x1b[1;30m]\x1b[0;37m  Human\r\n\x1b[1;30m[\x1b[1;37m2\x1b[1;30m]\x1b[0;37m  Dwarf\r\n\x1b[1;30m[\x1b[1;37m3\x1b[1;30m]\x1b[0;37m  Gnome\r\n\x1b[1;30m[\x1b[1;37m4\x1b[1;30m]\x1b[0;37m  Halfling\r\n\x1b[1;30m[\x1b[1;37m5\x1b[1;30m]\x1b[0;37m  Elf\r\n\x1b[1;30m[\x1b[1;37m6\x1b[1;30m]\x1b[0;37m  Half-Elf\r\n\x1b[1;30m[\x1b[1;37m7\x1b[1;30m]\x1b[0;37m  Dark-Elf\r\n\x1b[1;30m[\x1b[1;37m8\x1b[1;30m]\x1b[0;37m  Half-Orc\r\n\x1b[1;30m[\x1b[1;37m9\x1b[1;30m]\x1b[0;37m  Goblin\r\n\x1b[1;30m[\x1b[1;37m10\x1b[1;30m]\x1b[0;37m Half-Ogre\r\n\x1b[1;30m[\x1b[1;37m11\x1b[1;30m]\x1b[0;37m Kang\r\n\x1b[1;30m[\x1b[1;37m12\x1b[1;30m]\x1b[0;37m Nekojin\r\n\x1b[0m\r\n\x1b[32mPlease choose your race [ ? for help ] :

@@ -1,0 +1,6 @@
+---
+source: crates/silvermere-engine/tests/exit_types.rs
+expression: r.snapshot()
+---
+exit_level_high: \x1b[79D\x1b[KYou have progressed too far to go through this exit!\r\n
+exit_level_low: \x1b[79D\x1b[KYou have not progressed far enough to go through this exit!\r\n

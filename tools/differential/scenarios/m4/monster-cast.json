@@ -1,0 +1,36 @@
+{
+ "scenario": "m4/monster-cast",
+ "script": "m4/scripts/monster-cast.json",
+ "deterministic": [],
+ "statistical": true,
+ "setup": [],
+ "ignore_host_banner": true,
+ "world_patterns": true,
+ "ignore_steps": [
+  1,
+  2,
+  3,
+  4
+ ],
+ "mask_prompt": true,
+ "bytes_from_echo": true,
+ "repeat": {
+  "first": 13,
+  "last": 13,
+  "times": 600
+ },
+ "m4": {
+  "rates": [
+   "cast_on_you",
+   "you_resisted",
+   "cast_at_you_failed"
+  ]
+ },
+ "event_masks": {
+  "monster_arrives": [
+   "adj",
+   "mon",
+   "frm"
+  ]
+ }
+}

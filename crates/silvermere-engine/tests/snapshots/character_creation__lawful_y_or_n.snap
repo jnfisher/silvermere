@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/character_creation.rs
+expression: "escape(&line(&mut engine, &rx, id, \"maybe\"))"
+---
+You must respond with a Y or an N.\r\n\x1b[0m\r\nDo you want to be \x1b[1mLawful\x1b[0m?  [Yes/No]

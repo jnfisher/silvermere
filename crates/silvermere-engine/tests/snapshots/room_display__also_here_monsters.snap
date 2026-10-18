@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/room_display.rs
+expression: esc(&got)
+---
+\x1b[79D\x1b[K\x1b[1;36mBare Cell\r\n\x1b[0;35mAlso here: \x1b[0;36mferryman\x1b[0m\x1b[1;35m, \x1b[0;37mNathaniel\x1b[0m\x1b[1;35m, \x1b[1;35mlarge giant rat\x1b[0m\x1b[0;35m.\r\n\x1b[0m\x1b[0;32mObvious exits: NONE!!!\r\n

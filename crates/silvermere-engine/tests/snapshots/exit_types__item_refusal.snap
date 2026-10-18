@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/exit_types.rs
+expression: r.snapshot()
+---
+need_item: You do not have the appropriate item to go that direction!\r\n

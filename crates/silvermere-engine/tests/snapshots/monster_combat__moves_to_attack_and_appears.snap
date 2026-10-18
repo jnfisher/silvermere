@@ -1,0 +1,6 @@
+---
+source: crates/silvermere-engine/tests/monster_combat.rs
+expression: "format!(\"{moves}\\n{appears}\")"
+---
+Kasimir moves to attack giant rat.
+giant rat appears!

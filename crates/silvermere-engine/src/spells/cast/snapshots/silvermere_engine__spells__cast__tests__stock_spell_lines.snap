@@ -1,0 +1,32 @@
+---
+source: crates/silvermere-engine/src/spells/cast/tests.rs
+expression: out
+---
+== vine strike at a monster
+caster: You cast vine strike at acid slime for 7 damage!|
+target: -
+room: Thornwyn casts vine strike on acid slime for 7 damage!|
+== vine strike at a player
+caster: You cast vine strike at Bob for 5 damage!|
+target: Thornwyn casts vine strike on you for 5 damage!|
+room: Thornwyn casts vine strike on Bob for 5 damage!|
+== minor healing on a player
+caster: You cast minor healing on Bob, healing 6 damage!|
+target: Thornwyn casts minor healing on you!|
+room: Thornwyn casts minor healing on Bob!|
+== minor healing on oneself
+caster: You cast minor healing on Thornwyn, healing 6 damage!|
+target: 
+room: Thornwyn casts minor healing on Thornwyn!|
+== fireball, alternate texts, area
+caster: You throw a fireball!|The fireball explodes, causing 41 damage!|
+target: -
+room: Thornwyn throws a fireball!|An explosion rocks the room for 41 damage!|
+== fireball on a player in the area
+caster: You throw a fireball!|The fireball explodes, causing 41 damage!|
+target: Thornwyn throws a fireball!|You take 41 damage from the explosion!|
+room: Thornwyn throws a fireball!|An explosion rocks the room for 41 damage!|
+== no WCCMSG record: the built-in texts
+caster: You cast glow on Thornwyn.|
+target: -
+room: Thornwyn cast glow on Thornwyn.|

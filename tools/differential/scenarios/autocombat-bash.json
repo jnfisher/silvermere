@@ -1,0 +1,11 @@
+{
+ "scenario": "autocombat-bash",
+ "script": "autocombat-bash.script.json",
+ "statistical": true,
+ "setup": [
+  {
+   "side": "both",
+   "scenario": "creation-fsd"
+  }
+ ]
+}

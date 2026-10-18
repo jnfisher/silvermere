@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/room_display.rs
+expression: esc(&got)
+---
+\x1b[79D\x1b[K\x1b[1;36mNewhaven, Arena\r\n\x1b[79D\x1b[K\x1b[0;37;40m    This huge room is has been carved into the earth with crude work- manship.\r\nThe blood-soaked floor is covered in broken, rusted weaponry and some things\r\nbetter left unmentioned. A huge iron gate sits in the west wall, and behind it\r\nyou can hear the growling of some unfathomable beast. A large black door is set\r\nin the northern wall. \r\n\x1b[0;35mAlso here: \x1b[1;35mlarge giant rat\x1b[0m\x1b[0;35m.\r\n\x1b[0m\x1b[0;32mObvious exits: closed door north, u \x08p\r\n

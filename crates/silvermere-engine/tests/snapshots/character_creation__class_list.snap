@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/character_creation.rs
+expression: escape(&class_list)
+---
+\x1b[1;37mPlease choose a class from the following list:\r\n\x1b[0;37;40m\x1b[1;30m[\x1b[1;37m1\x1b[1;30m]\x1b[0;37m  Warrior\r\n\x1b[1;30m[\x1b[1;37m2\x1b[1;30m]\x1b[0;37m  Witchunter\r\n\x1b[1;30m[\x1b[1;37m10\x1b[1;30m]\x1b[0;37m Mage\r\n\x1b[0m\r\n\x1b[32mPlease choose your class [ ? for help ] :

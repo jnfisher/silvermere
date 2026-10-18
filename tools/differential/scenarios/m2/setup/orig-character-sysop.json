@@ -1,0 +1,254 @@
+{
+ "scenario": "m2/setup/orig-character-sysop",
+ "port": 2323,
+ "description": "The original only: the character @USER@ Operator (a Human Warrior, Strength and Health 50) of the account @USER@ through the full-screen editor (m4/setup/orig-sysadm.json with the account as parameter), for the m2 statistical runs (T-040). `differential.py replay --as USER:PASSWORD`.",
+ "character": {
+  "user": "@USER@",
+  "password": "@PASSWORD@",
+  "name": "@USER@ Operator",
+  "race": "Human",
+  "class": "Warrior",
+  "level": 1
+ },
+ "behaviours": [
+  "FSD driven by `ESC[row;colf` positions, one key at a time",
+  "an arrow-key pair inside the editor (moves between fields here, it does not exit)",
+  "name validation runs in the background (Timer.Hertz 1000: about a second)",
+  "FSD editor; line-mode fallback is the creation-line-mode capture",
+  "`Please wait - Validating your name.` and the spinner",
+  "the lawful question"
+ ],
+ "mask": [
+  {
+   "regex": "\\(Dec 30 2005 14:20:05\\)",
+   "why": "build stamp of the DLL (mud_title)"
+  },
+  {
+   "regex": " \\[\\d+ game minutes left\\]| \\[Last chance\\]",
+   "why": "menu time-left suffix"
+  },
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "every direction name carries a random capital letter and a backspace, rewritten each slow cycle: `nJ\\borth`"
+  },
+  {
+   "regex": "Build #\\S+|\\d{1,2}/\\d{1,2}/\\d{2,4}|\\d{1,2}:\\d{2}(?::\\d{2})?",
+   "why": "MBBSEmu banner build and clock"
+  },
+  {
+   "regex": "[-\\\\|/]\\x08",
+   "why": "name-validation spinner (one frame per poll; the count depends on timing)"
+  }
+ ],
+ "notes": [
+  "Answers: race 1 (Human), class 1 (Warrior), lawful N, given name default (Aldric), family name Stonebrook, Str 50, Hea 50; 80 CP left unspent for John."
+ ],
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "@USER@",
+   "until": "Password:"
+  },
+  {
+   "send": "@PASSWORD@",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "note": "MajorMUD from the BBS menu"
+  },
+  {
+   "send": "E",
+   "until": "choose your race",
+   "timeout": 10,
+   "note": "no character yet: creation starts"
+  },
+  {
+   "send": "1",
+   "until": "choose your class",
+   "timeout": 10,
+   "note": "Human"
+  },
+  {
+   "send": "1",
+   "until": "Lawful\\?",
+   "timeout": 10,
+   "note": "Warrior"
+  },
+  {
+   "send": "N",
+   "until_cursor": "4;20",
+   "timeout": 15,
+   "required": true,
+   "note": "not lawful; the editor opens on the given name"
+  },
+  {
+   "send": "@USERBS@@USER@",
+   "note": "the given name: the account name the editor offers, typed again"
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "5;20",
+   "note": "leave the given name"
+  },
+  {
+   "send": "Operator",
+   "raw": true,
+   "timeout": 10,
+   "wait": 0.5,
+   "note": "family name"
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "9;34"
+  },
+  {
+   "send": "5",
+   "raw": true,
+   "timeout": 10,
+   "wait": 0.5
+  },
+  {
+   "send": "0",
+   "raw": true,
+   "timeout": 10,
+   "wait": 0.5
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "10;34",
+   "note": "Strength 50: CP left redrawn at 20;33"
+  },
+  {
+   "send": "\\e[A",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "9;34",
+   "note": "up arrow: back to Strength"
+  },
+  {
+   "send": "\\e[B",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "10;34",
+   "note": "down arrow: Intellect again"
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "11;34"
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "12;34"
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "13;34"
+  },
+  {
+   "send": "5",
+   "raw": true,
+   "timeout": 10,
+   "wait": 0.5
+  },
+  {
+   "send": "0",
+   "raw": true,
+   "timeout": 10,
+   "wait": 0.5
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "14;34",
+   "note": "Health 50"
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "16;22"
+  },
+  {
+   "send": " ",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "16;22",
+   "note": "Space cycles hair length"
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "17;22"
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "18;22"
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "20;14"
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 120,
+   "required": true,
+   "note": "SAVE: suicide notice, name validation, st screen"
+  },
+  {
+   "send": "",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Enter: the first room"
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 90,
+   "note": "exit after silent meditation (USREXIT)"
+  },
+  {
+   "send": "X",
+   "until": "Make your selection",
+   "note": "leave MajorMUD"
+  },
+  {
+   "send": "X",
+   "until": "Are you sure",
+   "note": "BBS logoff"
+  },
+  {
+   "send": "Y",
+   "wait": 2,
+   "timeout": 10
+  }
+ ],
+ "naws": null,
+ "captured": "2026-10-14 14:28",
+ "dll_sha256": "e308533696e1e64cf52715921d94d4245f4708f56ea048e4f7c6ec9b564b725f"
+}

@@ -1,0 +1,21 @@
+/target
+# a data directory run from the clone (the import writes assets/ and cache/ there; T-120)
+/data/
+*.db
+*.db-wal
+*.db-shm
+.DS_Store
+__pycache__/
+
+# Local compose secrets and the mounted legacy game files
+docker/.env
+docker/legacy/
+tools/soak/vendor/play/logs/
+tools/soak/vendor/play/*.sock
+tools/soak/vendor/play/__pycache__/
+soak-*/
+soak-world/
+soak-compare.log
+
+# runtime locks of the vendored soak bots (progress.py creates progress.lock, and progress-<class>.lock per class session, when it runs)
+tools/soak/vendor/play/progress*.lock

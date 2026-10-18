@@ -1,0 +1,211 @@
+{
+ "scenario": "m3/shops",
+ "port": 2323,
+ "description": "Shops (T-048): buy club x3 (free), appraise, sell x3 (0 copper farthings for this character), a fourth sell, an unknown item, LIST outside a shop, the Spell Shop LIST (1:2144), a purchase it cannot afford, and the Healer's refusals for lack of coins. Written for the differential harness, not yet run against the original.",
+ "character": {
+  "user": "Aldric",
+  "password": "aldric1",
+  "name": "Aldric Stonebrook",
+  "race": "Human",
+  "class": "Warrior",
+  "level": 1
+ },
+ "characters": [
+  {
+   "user": "Aldric",
+   "password": "aldric1",
+   "name": "Aldric Stonebrook",
+   "race": "Human",
+   "class": "Warrior",
+   "level": 1
+  }
+ ],
+ "mask": [
+  {
+   "regex": "\\(Dec 30 2005 14:20:05\\)",
+   "why": "build stamp of the DLL (mud_title)"
+  },
+  {
+   "regex": " \\[\\d+ game minutes left\\]| \\[Last chance\\]",
+   "why": "menu time-left suffix"
+  },
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "every direction name carries a random capital letter and a backspace, rewritten each slow cycle: `nJ\\borth`",
+   "replace": ""
+  },
+  {
+   "regex": "\\[HP=-?\\d+(?:/(?:MA|KAI)=-?\\d+)?",
+   "why": "HP/mana in the prompt depend on earlier fights and regen"
+  },
+  {
+   "regex": "^\\S.*?\\s+\\d+\\s+(?:Free|\\d+ \\w+)$",
+   "why": "shop quantities change with other players' purchases"
+  },
+  {
+   "regex": "(?m)\\d+(?= +(?:Free|\\d+ \\w+)(?: \\(.*\\))?\\r?$)",
+   "why": "shop quantities change with other players' purchases and start-up fills"
+  }
+ ],
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "Aldric",
+   "until": "Password:"
+  },
+  {
+   "send": "aldric1",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true
+  },
+  {
+   "send": "n",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "buy club",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "buy club",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "buy club",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "appraise club",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sell club",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sell club",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sell club",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "sell club",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "buy sowrd",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "i",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "s",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "list",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "w",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "n",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "list",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "buy scroll of nothing",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "i",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "s",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "s",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "buy lantern",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "n",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "w",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "w",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "list",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "buy healing",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "buy curing",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "e",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "e",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "e",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 40
+  },
+  {
+   "send": "X",
+   "until": "Make your selection"
+  },
+  {
+   "send": "X",
+   "until": "Are you sure"
+  },
+  {
+   "send": "Y"
+  }
+ ]
+}

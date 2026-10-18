@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/scripts.rs
+expression: "format!(\"{:?}\", t.out())"
+---
+"You learn the spell vine strike.\r\n"

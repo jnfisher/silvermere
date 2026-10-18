@@ -1,0 +1,25 @@
+---
+source: crates/silvermere-engine/tests/settings.rs
+expression: fresh
+---
+Life for this CHAR  129 minutes
+Display Mode:       Brief
+Statusline:         On
+Broadcast Channel:  0
+Talking speed:      Slow
+Follow Mode:        Normal
+Attack Interrupts:  Off
+Receive Items:      Enabled
+Warn on Evil:       No
+Allow Telepaths:    Yes
+Block Entrance Msg: No
+Allow Gossip:       Yes (0 every 3 seconds)
+Allow Auction:      Yes (0 every 3 seconds)
+Keep some exp:      No(Disabled on this system)
+Messages:           High
+Paging:             Off (0 every 3 seconds)
+Talking Responses:  Verbose
+Style:              Fantasy
+Colour Palette:     0
+You do not have a suicide password set.
+[HP=48]:

@@ -1,0 +1,10 @@
+{
+ "scenario": "social-actions",
+ "script": "social-actions.script.json",
+ "setup": [
+  {
+   "side": "both",
+   "scenario": "creation-fsd"
+  }
+ ]
+}

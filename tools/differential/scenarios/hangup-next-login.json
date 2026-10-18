@@ -1,0 +1,14 @@
+{
+ "scenario": "hangup-next-login",
+ "script": "hangup-next-login.script.json",
+ "deterministic": [
+  "E",
+  "i"
+ ],
+ "setup": [
+  {
+   "side": "both",
+   "scenario": "creation-fsd"
+  }
+ ]
+}

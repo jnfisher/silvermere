@@ -1,0 +1,11 @@
+{
+ "scenario": "death-rebirth",
+ "script": "../../../tests/captures/death-rebirth/script.json",
+ "statistical": true,
+ "setup": [
+  {
+   "side": "both",
+   "scenario": "creation-line-mode"
+  }
+ ]
+}

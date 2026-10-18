@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/room_display.rs
+expression: esc(&got)
+---
+\x1b[79D\x1b[K\x1b[1;36mEntrance White House Room\r\n\x1b[79D\x1b[K\x1b[0;37;40mEntrance White House Room\r\nThis is the description file for the entrance room to the house,\r\nIf you\'d like to change the description for this room or rooms send\r\na text file to your sysop titled WCC85015.HSE. And they can place it\r\nin their bbs directory, any designs or symbols are up to your sysop\r\n\x1b[0;32mObvious exits: NONE!!!\r\n

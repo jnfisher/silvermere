@@ -1,0 +1,6 @@
+# The newest stable at repository creation (2026-10-14). Bump deliberately, together
+# with `rust-version` in Cargo.toml and README "Toolchain"; never nightly.
+[toolchain]
+channel = "1.99.0"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

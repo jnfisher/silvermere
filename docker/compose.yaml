@@ -1,0 +1,84 @@
+# docker compose -f docker/compose.yaml up -d --wait
+# Copy docker/.env.example to docker/.env first (compose reads .env next to this file).
+name: silvermere
+
+services:
+  silvermere:
+    image: ghcr.io/jnfisher/silvermere:${SILVERMERE_VERSION:-latest}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      # host ports from SILVERMERE_TELNET_PORT / SILVERMERE_ADMIN_PORT (CI runners sharing a VM set them)
+      - "${SILVERMERE_TELNET_PORT:-2323}:2323"
+      - "127.0.0.1:${SILVERMERE_ADMIN_PORT:-8080}:8080"   # admin API: keep it on loopback
+    volumes:
+      - silvermere-data:/data
+    restart: unless-stopped
+    stop_grace_period: 60s   # SIGTERM saves every character (T-059); up to about 57 s with a slow database (T-108, T-113)
+    environment:
+      SILVERMERE_SERVER__TELNET_BIND: "0.0.0.0:2323"
+      SILVERMERE_SERVER__ADMIN_BIND: "0.0.0.0:8080"
+      # A non-loopback admin bind refuses to start without a token.
+      SILVERMERE_ADMIN_TOKENS: '[{"name":"ops","token":"${SILVERMERE_ADMIN_TOKEN:?set SILVERMERE_ADMIN_TOKEN in docker/.env}","scopes":["read","broadcast","sysop"]}]'
+      SILVERMERE_LOGGING__FORMAT: json
+      # SILVERMERE_DATABASE_URL: postgres://silvermere:${POSTGRES_PASSWORD}@postgres:5432/silvermere
+    healthcheck:
+      test: ["CMD", "/silvermere", "healthcheck"]
+      interval: 30s
+      timeout: 3s
+      start_period: 20s
+      retries: 3
+    # To use PostgreSQL: uncomment the postgres service and pg-data volume below, the
+    # SILVERMERE_DATABASE_URL line above (here and in `import`) and this block:
+    # depends_on:
+    #   postgres:
+    #     condition: service_healthy
+
+  # One-shot world import: docker compose --profile import run --rm import (downloads the
+  # stock world once into the data volume and checks it); offline, the package zip put in
+  # ./legacy: ... run --rm import import /data/legacy/WCCMMUD_1.11p_DOS_MBBSEmu_v2.zip; your
+  # own files: ... run --rm import import --from /data/legacy [--live]
+  import:
+    profiles: ["import"]
+    image: ghcr.io/jnfisher/silvermere:${SILVERMERE_VERSION:-latest}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command: ["import"]
+    environment:
+      SILVERMERE_LOGGING__FORMAT: json
+      # SILVERMERE_DATABASE_URL: postgres://silvermere:${POSTGRES_PASSWORD}@postgres:5432/silvermere
+    volumes:
+      - silvermere-data:/data
+      - ./legacy:/data/legacy:ro   # your own legacy game files, if you import them
+
+  # postgres:
+  #   image: postgres:16
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: silvermere
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  #     POSTGRES_DB: silvermere
+  #   volumes:
+  #     - pg-data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U silvermere -d silvermere"]
+  #     interval: 10s
+  #     timeout: 3s
+  #     retries: 5
+
+  # Seams for companion tools. These are placeholders, not shipped images.
+  # editor:   # DB-level tool: talks to the database directly
+  #   image: example/silvermere-editor
+  #   environment:
+  #     SILVERMERE_DATABASE_URL: postgres://silvermere:${POSTGRES_PASSWORD}@postgres:5432/silvermere
+  # web:      # API-level tool: talks to the admin API only
+  #   image: example/silvermere-web
+  #   environment:
+  #     SILVERMERE_ADMIN_URL: http://silvermere:8080
+  #     SILVERMERE_ADMIN_TOKEN: ${SILVERMERE_ADMIN_TOKEN}
+
+volumes:
+  silvermere-data:
+  # pg-data:

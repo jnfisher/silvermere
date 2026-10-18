@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/fullscreen_editor.rs
+expression: escape(&got)
+---
+\e[9;34f\e[0;1;7m    \e[9;34f\e[9;34f101\e[0;1m\e[23;1f\e[1;31m                                                             \e[23;1fStrength may not be higher than 100.\e[9;34f\e[0;1;7m    \e[9;34f101\e[9;34f

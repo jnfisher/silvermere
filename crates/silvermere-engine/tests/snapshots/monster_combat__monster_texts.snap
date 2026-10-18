@@ -1,0 +1,29 @@
+---
+source: crates/silvermere-engine/tests/monster_combat.rs
+expression: all
+---
+# giant rat
+you   The giant rat lunges at you!
+other The giant rat lunges at Kasimir!
+you   The giant rat lunges at you, but you dodge out of the way!
+other The giant rat lunges at Kasimir, but he dodges out of the way!
+you   The giant rat bites you for 5 damage!
+other The giant rat bites Kasimir for 5 damage!
+# acid slime
+you   The acid slime whips you with its pseudopod for 6 damage!
+other The acid slime whips Kasimir with its pseudopod for 6 damage!
+you   The acid slime lashes at you, but you dodge out of the way!
+other The acid slime lashes at Kasimir, but he dodges out of the way!
+you   The acid slime lashes at you, but your armour deflects the blow!
+other The acid slime lashes at Kasimir, but his armour deflects the blow!
+you   The acid slime flails at you!
+other The acid slime flails at Kasimir!
+# kobold thief
+you   The kobold thief lunges at you with their shortsword, but you dodge!
+other The kobold thief lunges at Kasimir with their shortsword, but he dodges!
+you   The kobold thief lunges at you, but your armour deflects the blow!
+other The kobold thief lunges at Kasimir, but his armour deflects the blow!
+you   The kobold thief lunges at you with their shortsword!
+other The kobold thief lunges at Kasimir with their shortsword!
+you   The kobold thief stabs you for 4 damage!
+other The kobold thief stabs Kasimir for 4 damage!

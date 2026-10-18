@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/character_creation.rs
+expression: "escape(&writes(&outs, id))"
+---
+\x08You may not use Brynja as your name.\r\nPlease enter a new name:

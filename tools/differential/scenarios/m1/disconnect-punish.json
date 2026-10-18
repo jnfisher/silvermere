@@ -1,0 +1,25 @@
+{
+ "scenario": "m1/disconnect-punish",
+ "script": "../../../tests/captures/disconnect-punish/script.json",
+ "deterministic": "all",
+ "setup": [
+  {
+   "side": "orig",
+   "scenario": "entry-new-account"
+  },
+  {
+   "side": "orig",
+   "scenario": "creation-fsd"
+  },
+  {
+   "side": "new",
+   "script": "m1/setup/new-aldric.json"
+  }
+ ],
+ "ignore_host_banner": true,
+ "ignore_steps": [
+  0,
+  1,
+  2
+ ]
+}

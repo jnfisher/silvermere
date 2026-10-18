@@ -1,0 +1,36 @@
+[package]
+name = "silvermere-text"
+description = "Message catalogue (from WCC*.MSG), prompt/statline rendering, ANSI."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+build = "build.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+silvermere-types.workspace = true
+silvermere-rules.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+tracing.workspace = true
+
+# build.rs parses messages/catalogue.toml with the same code as the library
+# (src/catalogue.rs is included by path), so it needs the same crates.
+[build-dependencies]
+serde.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+rand_chacha.workspace = true
+rand.workspace = true
+serde_json.workspace = true
+# The pattern registry (tests/fixtures/patterns.json) is a table of regexes; the
+# layer-2 snapshot test matches rendered messages against them.
+regex.workspace = true

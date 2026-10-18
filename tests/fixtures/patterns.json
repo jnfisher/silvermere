@@ -1,0 +1,4593 @@
+{
+ "version": 1,
+ "generated_from": "tools/differential/vendor/play/patterns.py",
+ "counts": {
+  "static": 406,
+  "tables": 8,
+  "join": 5,
+  "by_seen": {
+   "C": 401,
+   "F": 4,
+   "I": 1
+  },
+  "by_cat": {
+   "combat": 48,
+   "comms": 16,
+   "death": 10,
+   "door": 27,
+   "equipment": 19,
+   "error": 5,
+   "inventory": 7,
+   "loot": 33,
+   "movement": 36,
+   "party": 13,
+   "rest": 9,
+   "room": 28,
+   "shop": 21,
+   "spell": 36,
+   "status": 16,
+   "system": 71,
+   "training": 11
+  },
+  "verbs_available": false
+ },
+ "static": [
+  {
+   "name": "attack_self",
+   "cat": "combat",
+   "rx": "(?:You cannot attack yourself!|Why would you want to attack yourself\\?)",
+   "example": "You cannot attack yourself!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "attacks_other",
+   "cat": "combat",
+   "rx": "(?P<who>.+) moves to attack (?P<target>.+?)[.!]",
+   "example": "Bob moves to attack giant rat.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "target"
+   ]
+  },
+  {
+   "name": "attacks_room",
+   "cat": "combat",
+   "rx": "(?P<who>.+) moves to attack everyone in the room\\.",
+   "example": "Bob moves to attack everyone in the room.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "attacks_you",
+   "cat": "combat",
+   "rx": "(?P<who>.+) moves to attack you!",
+   "example": "Bob moves to attack you!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "breaks_off",
+   "cat": "combat",
+   "rx": "(?P<who>.+) breaks off combat\\.",
+   "example": "Bob breaks off combat.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "casts_upon",
+   "cat": "combat",
+   "rx": "(?P<who>.+) moves to cast (?P<spell>.+) upon (?P<target>.+)\\.",
+   "example": "Bob moves to cast mend upon Ann.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "spell",
+    "target"
+   ]
+  },
+  {
+   "name": "coins_drop",
+   "cat": "combat",
+   "rx": "(?P<n>\\d+) (?P<coin>platinum|gold|silver|copper|.+?) drop to the ground\\.",
+   "example": "9 copper drop to the ground.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "n",
+    "coin"
+   ]
+  },
+  {
+   "name": "combat_engaged",
+   "cat": "combat",
+   "rx": "\\*Combat Engaged\\*",
+   "example": "*Combat Engaged*",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "combat_off",
+   "cat": "combat",
+   "rx": "\\*Combat Off\\*",
+   "example": "*Combat Off*",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "confused",
+   "cat": "combat",
+   "rx": "You look around stupidly and do nothing!",
+   "example": "You look around stupidly and do nothing!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "confused_other",
+   "cat": "combat",
+   "rx": "(?P<who>.+) looks around stupidly and foams at the mouth!",
+   "example": "Bob looks around stupidly and foams at the mouth!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "evil_gained",
+   "cat": "combat",
+   "rx": "A dark cloud passes over you",
+   "example": "A dark cloud passes over you",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "evil_warning",
+   "cat": "combat",
+   "rx": "To do this action, you must turn off your evil warnings\\.",
+   "example": "To do this action, you must turn off your evil warnings.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "exp_capped",
+   "cat": "combat",
+   "rx": "You have progressed too far without training to acquire anymore experience!",
+   "example": "You have progressed too far without training to acquire anymore experience!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "exp_gain",
+   "cat": "combat",
+   "rx": "You gain (?P<exp>\\d+) experience\\.",
+   "example": "You gain 13 experience.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "exp"
+   ]
+  },
+  {
+   "name": "guilt",
+   "cat": "combat",
+   "rx": "You are overcome with a feeling of guilt and (?:break off your attack|return your hands to your own pockets)\\.?",
+   "example": "You are overcome with a feeling of guilt and break off your attack.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "lawful_block",
+   "cat": "combat",
+   "rx": "You have chosen a way of life which (?:does not allow|prevents) this action\\.",
+   "example": "You have chosen a way of life which prevents this action.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "mon_deflect_builtin",
+   "cat": "combat",
+   "rx": "(?P<mon>.+)'s (?P<verb>.+) hits you, but your armour deflects[.!]",
+   "example": "Orc's slash hits you, but your armour deflects.",
+   "seen": "C",
+   "prio": 80,
+   "groups": [
+    "mon",
+    "verb"
+   ]
+  },
+  {
+   "name": "mon_dodge_builtin",
+   "cat": "combat",
+   "rx": "(?P<mon>.+) (?P<verb>.+) you with (?P<weapon>.+), but you dodge!",
+   "example": "Orc slashes you with sword, but you dodge!",
+   "seen": "C",
+   "prio": 80,
+   "groups": [
+    "mon",
+    "verb",
+    "weapon"
+   ]
+  },
+  {
+   "name": "mon_hits_you_generic",
+   "cat": "combat",
+   "rx": "(?P<mon>[A-Z].+?) (?P<verb>[a-z][a-z -]+?) you(?: with .+?)? for (?P<dmg>\\d+) damage!",
+   "example": "The orc slashes you for 7 damage!",
+   "seen": "C",
+   "prio": 90,
+   "groups": [
+    "mon",
+    "verb",
+    "dmg"
+   ]
+  },
+  {
+   "name": "mon_miss_builtin",
+   "cat": "combat",
+   "rx": "(?P<mon>[A-Z].+) (?P<verb>[a-z].+) (?:at )?you with (?P<weapon>.+)\\.",
+   "example": "Orc swings at you with club.",
+   "seen": "C",
+   "prio": 80,
+   "groups": [
+    "mon",
+    "verb",
+    "weapon"
+   ]
+  },
+  {
+   "name": "need_rest_attack",
+   "cat": "combat",
+   "rx": "You must rest before you may attack again\\.?",
+   "example": "You must rest before you may attack again.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "no_backstab",
+   "cat": "combat",
+   "rx": "You cannot backstab with this weapon\\.",
+   "example": "You cannot backstab with this weapon.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "no_effect_weapon",
+   "cat": "combat",
+   "rx": "Your (?:weapon|(?P<what>.+)) (?:has|have) no effect against this monster!",
+   "example": "Your weapon has no effect against this monster!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "what"
+   ]
+  },
+  {
+   "name": "other_dodged",
+   "cat": "combat",
+   "rx": "(?P<who>[A-Z][A-Za-z]+) (?P<verb>.+) but it dodges\\.",
+   "example": "Bob swings at orc but it dodges.",
+   "seen": "C",
+   "prio": 60,
+   "groups": [
+    "who",
+    "verb"
+   ]
+  },
+  {
+   "name": "other_glance",
+   "cat": "combat",
+   "rx": "(?P<who>.+)'s (?P<verb>.+) hits, but glances off (?:its|his|her) armour\\.",
+   "example": "Bob's swing at orc hits, but glances off its armour.",
+   "seen": "C",
+   "prio": 60,
+   "groups": [
+    "who",
+    "verb"
+   ]
+  },
+  {
+   "name": "other_hits",
+   "cat": "combat",
+   "rx": "(?P<who>[A-Z][A-Za-z]+) (?:(?P<crit>critically) )?(?:(?P<surprise>surprise) )?(?P<verb>{HITV3}) (?P<target>.+) for (?P<dmg>\\d+) damage!",
+   "example": "Thornwyn whaps giant rat for 4 damage!",
+   "seen": "C",
+   "prio": 52,
+   "groups": [
+    "who",
+    "crit",
+    "surprise",
+    "verb",
+    "target",
+    "dmg"
+   ]
+  },
+  {
+   "name": "other_miss",
+   "cat": "combat",
+   "rx": "(?P<who>[A-Z][A-Za-z]+) (?P<verb>{MISSV3}) (?P<target>.+?)!",
+   "example": "Kasimir swings at short kobold thief!",
+   "seen": "C",
+   "prio": 60,
+   "groups": [
+    "who",
+    "verb",
+    "target"
+   ]
+  },
+  {
+   "name": "protects",
+   "cat": "combat",
+   "rx": "(?P<who>.+) moves to protect (?P<target>.+)",
+   "example": "ice golem moves to protect ice sorceress",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "target"
+   ]
+  },
+  {
+   "name": "pvp_attacked",
+   "cat": "combat",
+   "rx": "(?P<who>.+) just (?:attacked (?P<v1>.+)!|dodged an attack from (?P<v2>.+)\\.|missed an attack against (?P<v3>.+)\\.)",
+   "example": "Bob just attacked Ann!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "v1",
+    "v2",
+    "v3"
+   ]
+  },
+  {
+   "name": "pvp_dodges",
+   "cat": "combat",
+   "rx": "(?P<who>.+) dodges your attack!",
+   "example": "Nester dodges your attack!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "pvp_killed",
+   "cat": "combat",
+   "rx": "(?P<who>.+) just killed (?P<victim>.+)\\.",
+   "example": "Bob just killed Ann.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "victim"
+   ]
+  },
+  {
+   "name": "rises",
+   "cat": "combat",
+   "rx": "Slightly dazed (?:you get back onto your feet|(?:the )?(?P<who>.+) rises from the floor)\\.",
+   "example": "Slightly dazed the orc rises from the floor.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "shattered",
+   "cat": "combat",
+   "rx": "(?:You have shattered (?P<who>.+)'s (?P<item>.+)|Your (?P<mine>.+) has been shattered!)",
+   "example": "Your shield has been shattered!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "item",
+    "mine"
+   ]
+  },
+  {
+   "name": "smashed_down",
+   "cat": "combat",
+   "rx": "(?:The )?(?P<target>.+) is smashed to the (?:ground|floor) defenseless!",
+   "example": "The orc is smashed to the floor defenseless!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "target"
+   ]
+  },
+  {
+   "name": "smashed_it",
+   "cat": "combat",
+   "rx": "You smashed (?P<target>.+) to the ground!",
+   "example": "You smashed Bob to the ground!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "target"
+   ]
+  },
+  {
+   "name": "smashed_you",
+   "cat": "combat",
+   "rx": "You are smashed to the ground!",
+   "example": "You are smashed to the ground!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "summoned_appears",
+   "cat": "combat",
+   "rx": "(?P<who>.+) appears!",
+   "example": "skeleton appears!",
+   "seen": "C",
+   "prio": 90,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "target_missing",
+   "cat": "combat",
+   "rx": "You do not see (?P<target>.+) here!|You don't see your target here!",
+   "example": "You do not see rat here!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "target"
+   ]
+  },
+  {
+   "name": "too_afraid",
+   "cat": "combat",
+   "rx": "You are too afraid!",
+   "example": "You are too afraid!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "too_evil",
+   "cat": "combat",
+   "rx": "You have progressed too far to the evil side to do this action\\.",
+   "example": "You have progressed too far to the evil side to do this action.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "took_damage",
+   "cat": "combat",
+   "rx": "You took (?P<dmg>\\d+) damage[.!]",
+   "example": "You took 3 damage.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "dmg"
+   ]
+  },
+  {
+   "name": "unbalanced",
+   "cat": "combat",
+   "rx": "Such an (?:attack|action) would result in a very unbalanced (?:combat round|game)\\.",
+   "example": "Such an attack would result in a very unbalanced combat round.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "wrong_weapon",
+   "cat": "combat",
+   "rx": "You are not using the required (?:weapon|spell) to hit this monster!",
+   "example": "You are not using the required weapon to hit this monster!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "you_dodged",
+   "cat": "combat",
+   "rx": "You (?P<verb>{MISSV}) (?P<target>.+) who dodges your attack!",
+   "example": "You swing at orc who dodges your attack!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "verb",
+    "target"
+   ]
+  },
+  {
+   "name": "you_glance",
+   "cat": "combat",
+   "rx": "Your (?P<verb>{MISSV}) (?P<target>.+) hits, but glances off (?:its|his|her) armour[.!]",
+   "example": "Your swing at Y hits, but glances off its armour.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "verb",
+    "target"
+   ]
+  },
+  {
+   "name": "you_hit",
+   "cat": "combat",
+   "rx": "You (?:(?P<crit>critically) )?(?:(?P<surprise>surprise) )?(?P<verb>{HITV}) (?P<target>.+) for (?P<dmg>\\d+) damage!",
+   "example": "You smack giant rat for 4 damage!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "crit",
+    "surprise",
+    "verb",
+    "target",
+    "dmg"
+   ]
+  },
+  {
+   "name": "you_miss",
+   "cat": "combat",
+   "rx": "You (?P<verb>{MISSV}) (?P<target>.+?)!",
+   "example": "You swipe at thin carrion beast!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "verb",
+    "target"
+   ]
+  },
+  {
+   "name": "broadcast",
+   "cat": "comms",
+   "rx": "Broadcast from (?P<who>.+) \\\"(?P<msg>.*)\\\"",
+   "example": "Broadcast from Bob \"hi\"",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "msg"
+   ]
+  },
+  {
+   "name": "cannot_speak",
+   "cat": "comms",
+   "rx": "You cannot speak!",
+   "example": "You cannot speak!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "channel",
+   "cat": "comms",
+   "rx": "(?:You just joined channel (?P<n>\\d+)\\.|(?P<who>.+) just (?:joined|left) your channel \\((?P<n2>\\d+)\\))",
+   "example": "You just joined channel 1.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "n",
+    "who",
+    "n2"
+   ]
+  },
+  {
+   "name": "gods_tell",
+   "cat": "comms",
+   "rx": "The gods tell you: (?P<msg>.*)",
+   "example": "The gods tell you: behave",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "msg"
+   ]
+  },
+  {
+   "name": "gossip",
+   "cat": "comms",
+   "rx": "(?P<who>.+) (?P<chan>gossips|auctions|gangpaths): (?P<msg>.*)",
+   "example": "Bob gossips: hello",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "chan",
+    "msg"
+   ]
+  },
+  {
+   "name": "maxpages_set",
+   "cat": "comms",
+   "rx": "Maxpages set to (?P<n>\\d+)",
+   "example": "Maxpages set to 30",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "n"
+   ]
+  },
+  {
+   "name": "monster_says",
+   "cat": "comms",
+   "rx": "The (?P<mon>.+?) (?P<verb>says|screams|shouts|yells|whispers|mutters|growls|cries) \\\"(?P<msg>.*)\\\"",
+   "example": "The fanatic screams \"Death to those who oppose the Blood God!\"",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "mon",
+    "verb",
+    "msg"
+   ]
+  },
+  {
+   "name": "profanity",
+   "cat": "comms",
+   "rx": "You are using too much profanity - your message is not sent\\.",
+   "example": "You are using too much profanity - your message is not sent.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "says",
+   "cat": "comms",
+   "rx": "(?P<who>\\S+) says \\\"(?P<msg>.*)\\\"",
+   "example": "Bob says \"hi\"",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "msg"
+   ]
+  },
+  {
+   "name": "says_to_you",
+   "cat": "comms",
+   "rx": "(?P<who>.+) says \\(to (?P<target>you|.+)\\) \\\"(?P<msg>.*)\\\"",
+   "example": "Bob says (to you) \"hi\"",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "target",
+    "msg"
+   ]
+  },
+  {
+   "name": "telepath",
+   "cat": "comms",
+   "rx": "(?P<who>.+) telepaths:\\s+(?P<msg>.*)",
+   "example": "Bob telepaths: @heal",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "msg"
+   ]
+  },
+  {
+   "name": "telepath_status",
+   "cat": "comms",
+   "rx": "--- (?:Telepath Sent to (?P<who>.+)|Telepath Not Sent|Message Directed to (?P<who2>.+)|Message Not Sent) ---",
+   "example": "--- Telepath Sent to Bob ---",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "who2"
+   ]
+  },
+  {
+   "name": "user_unknown",
+   "cat": "comms",
+   "rx": "Cannot find user!",
+   "example": "Cannot find user!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "well_spoken",
+   "cat": "comms",
+   "rx": "Well Spoken\\.\\.\\.",
+   "example": "Well Spoken...",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "yell",
+   "cat": "comms",
+   "rx": "From (?P<who>.+) \\(Yelling\\): \\\"(?P<msg>.*)\\\"|Someone yells from (?:above|below|the (?P<dir>\\w+)) \\\"(?P<msg2>.*)\\\"",
+   "example": "Someone yells from the north \"help\"",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "msg",
+    "dir",
+    "msg2"
+   ]
+  },
+  {
+   "name": "you_say",
+   "cat": "comms",
+   "rx": "You (?P<verb>say|ask|exclaim|\\w+) \\\"(?P<msg>.*)\\\"",
+   "example": "You say \"sysop goto silvermere\"",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "verb",
+    "msg"
+   ]
+  },
+  {
+   "name": "body_appears",
+   "cat": "death",
+   "rx": "(?P<who>.+) appeared on the floor in the middle of the room\\.",
+   "example": "Bob appeared on the floor in the middle of the room.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "drops_unconscious",
+   "cat": "death",
+   "rx": "(?P<who>.+) drops to the ground!",
+   "example": "Thornwyn drops to the ground!",
+   "seen": "C",
+   "prio": 90,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "life_ebbing",
+   "cat": "death",
+   "rx": "You feel your life-force ebbing\\.",
+   "example": "You feel your life-force ebbing.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "lives_left",
+   "cat": "death",
+   "rx": "You (?:have|now have) (?P<lives>\\d+) lives (?:left|remaining)\\.",
+   "example": "You have 8 lives left.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "lives"
+   ]
+  },
+  {
+   "name": "mortally_wounded",
+   "cat": "death",
+   "rx": "You may not do that while you are mortally wounded!",
+   "example": "You may not do that while you are mortally wounded!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "no_lives",
+   "cat": "death",
+   "rx": "You have no lives remaining!",
+   "example": "You have no lives remaining!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "other_dead",
+   "cat": "death",
+   "rx": "(?P<who>.+) is dead\\.",
+   "example": "Bob is dead.",
+   "seen": "C",
+   "prio": 60,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "saved",
+   "cat": "death",
+   "rx": "But, (?:due to a miracle|because you were in a colliseum), you have been saved\\.",
+   "example": "But, due to a miracle, you have been saved.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "suicide",
+   "cat": "death",
+   "rx": "After a LONG thought, you take your own life\\.?|(?P<who>.+) took their own life!",
+   "example": "After a LONG thought, you take your own life.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "you_killed",
+   "cat": "death",
+   "rx": "You have been killed!",
+   "example": "You have been killed!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "bash_fail",
+   "cat": "door",
+   "rx": "Your attempts to bash through fail!",
+   "example": "Your attempts to bash through fail!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "bash_hurt",
+   "cat": "door",
+   "rx": "You take (?P<dmg>\\d+) damage for bashing the door!",
+   "example": "You take 3 damage for bashing the door!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "dmg"
+   ]
+  },
+  {
+   "name": "bash_no_weapon",
+   "cat": "door",
+   "rx": "You need a weapon to bash with!",
+   "example": "You need a weapon to bash with!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "bash_ok",
+   "cat": "door",
+   "rx": "You bashed the (?P<what>.+) open\\.",
+   "example": "You bashed the gate open.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "what"
+   ]
+  },
+  {
+   "name": "bash_through",
+   "cat": "door",
+   "rx": "You bash the door open and walk through",
+   "example": "You bash the door open and walk through",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "cant_bash_smash",
+   "cat": "door",
+   "rx": "You don't know the first thing about (?P<what>bashing|smashing)!",
+   "example": "You don't know the first thing about bashing!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "what"
+   ]
+  },
+  {
+   "name": "door_already_open",
+   "cat": "door",
+   "rx": "The (?P<what>.+) (?:was|is) already open\\.",
+   "example": "The door was already open.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "what"
+   ]
+  },
+  {
+   "name": "door_closed_now",
+   "cat": "door",
+   "rx": "The (?P<what>.+) is now closed\\.",
+   "example": "The gate is now closed.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "what"
+   ]
+  },
+  {
+   "name": "door_locked",
+   "cat": "door",
+   "rx": "The (?P<what>.+) is locked\\.",
+   "example": "The door is locked.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "what"
+   ]
+  },
+  {
+   "name": "door_locked_now",
+   "cat": "door",
+   "rx": "The (?P<what>door|gate) is now locked\\.",
+   "example": "The door is now locked.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "what"
+   ]
+  },
+  {
+   "name": "door_moved_remote",
+   "cat": "door",
+   "rx": "The (?P<what>.+?) (?:to the (?P<dir>\\w+)|above you|below you) just (?P<how>opened|closed|flew open|locked)[.!]",
+   "example": "The door to the north just opened.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "what",
+    "dir",
+    "how"
+   ]
+  },
+  {
+   "name": "door_no_close_combat",
+   "cat": "door",
+   "rx": "You may not (?:close|lock) doors or gates while attacking or being attacked!",
+   "example": "You may not close doors or gates while attacking or being attacked!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "door_not_open",
+   "cat": "door",
+   "rx": "That (?P<what>\\w+) is not open\\. Closing it will do nothing!",
+   "example": "That door is not open. Closing it will do nothing!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "what"
+   ]
+  },
+  {
+   "name": "door_opened",
+   "cat": "door",
+   "rx": "The (?P<what>.+) is now open\\.",
+   "example": "The door is now open.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "what"
+   ]
+  },
+  {
+   "name": "door_others",
+   "cat": "door",
+   "rx": "You see (?P<who>.+) (?P<act>open|close|bash|attempt to bash|pick the lock on) the (?P<what>.+?) (?:to the (?P<dir>\\w+)|above you|below you)\\.",
+   "example": "You see Bob bash the door to the north.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "act",
+    "what",
+    "dir"
+   ]
+  },
+  {
+   "name": "door_slams",
+   "cat": "door",
+   "rx": "The door slams shut behind you!",
+   "example": "The door slams shut behind you!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "exit_moved_remote",
+   "cat": "door",
+   "rx": "The exit to the (?P<dir>\\w+) just (?P<how>opened|closed)!",
+   "example": "The exit to the north just opened!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "dir",
+    "how"
+   ]
+  },
+  {
+   "name": "key_not_locked",
+   "cat": "door",
+   "rx": "The (?P<what>.+) was not locked\\.",
+   "example": "The door was not locked.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "what"
+   ]
+  },
+  {
+   "name": "key_wrong",
+   "cat": "door",
+   "rx": "The (?P<what>.+) doesn't seem to fit that lock\\.",
+   "example": "The brass key doesn't seem to fit that lock.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "what"
+   ]
+  },
+  {
+   "name": "lock_need_close",
+   "cat": "door",
+   "rx": "You must close the (?P<what>door|gate) before you may lock it\\.",
+   "example": "You must close the door before you may lock it.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "what"
+   ]
+  },
+  {
+   "name": "lock_no_benefit",
+   "cat": "door",
+   "rx": "There is no benefit to locking in that direction\\.",
+   "example": "There is no benefit to locking in that direction.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "must_wait",
+   "cat": "door",
+   "rx": "You must wait before you may do that!",
+   "example": "You must wait before you may do that!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "not_a_door",
+   "cat": "door",
+   "rx": "That is not a door or a gate!",
+   "example": "That is not a door or a gate!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "picklock_fail",
+   "cat": "door",
+   "rx": "Your skill fails you this time\\.",
+   "example": "Your skill fails you this time.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "trap_disarm_fail",
+   "cat": "door",
+   "rx": "You failed to disarm any trap to the (?P<dir>\\w+)\\.",
+   "example": "You failed to disarm any trap to the north.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "dir"
+   ]
+  },
+  {
+   "name": "trap_disarmed",
+   "cat": "door",
+   "rx": "You successfully disarmed the trap to the (?P<dir>\\w+)\\.",
+   "example": "You successfully disarmed the trap to the north.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "dir"
+   ]
+  },
+  {
+   "name": "unlocked",
+   "cat": "door",
+   "rx": "You successfully unlocked the (?P<what>.+)\\.",
+   "example": "You successfully unlocked the door.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "what"
+   ]
+  },
+  {
+   "name": "cant_remove",
+   "cat": "equipment",
+   "rx": "You cannot remove (?P<item>.+)!|You are already wearing (?P<item2>.+) and it may not be removed\\.",
+   "example": "You cannot remove cursed ring!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item",
+    "item2"
+   ]
+  },
+  {
+   "name": "light_fail",
+   "cat": "equipment",
+   "rx": "You may not light that item!|You already have something lit!|You cannot light (?P<item>.+)!|You must recharge that before you may light it again\\.",
+   "example": "You already have something lit!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "light_level",
+   "cat": "equipment",
+   "rx": "The current light level is (?P<light>.+)",
+   "example": "The current light level is dimly lit",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "light"
+   ]
+  },
+  {
+   "name": "light_ok",
+   "cat": "equipment",
+   "rx": "You lit the (?P<item>.+)\\.",
+   "example": "You lit the torch.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "light_out",
+   "cat": "equipment",
+   "rx": "(?P<item>.+) is no longer lit!",
+   "example": "torch is no longer lit!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "light_out_other",
+   "cat": "equipment",
+   "rx": "(?P<who>.+)'s (?P<item>.+) just went out\\.",
+   "example": "Bob's torch just went out.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "item"
+   ]
+  },
+  {
+   "name": "not_have_any",
+   "cat": "equipment",
+   "rx": "You do not have (?:any |a )?(?P<item>.+?)(?: left unequipped)?\\.",
+   "example": "You do not have quarterstaff left unequipped.",
+   "seen": "C",
+   "prio": 90,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "not_lit",
+   "cat": "equipment",
+   "rx": "You do not have (?P<item>.+) lit\\.",
+   "example": "You do not have torch lit.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "not_wearing",
+   "cat": "equipment",
+   "rx": "You are not wearing (?P<item>.+)\\.",
+   "example": "You are not wearing chain coif.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "offhand_2h",
+   "cat": "equipment",
+   "rx": "You may not wear an off-hand item while you have a 2-handed weapon readied\\.|You may not ready a 2-handed weapon with your (?P<item>.+) worn!",
+   "example": "You may not ready a 2-handed weapon with your buckler worn!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "other_wears",
+   "cat": "equipment",
+   "rx": "(?P<who>[A-Z]\\w+) (?P<act>wears|wields|removes|lights) (?P<item>.+?)[.!]",
+   "example": "Bob wields quarterstaff!",
+   "seen": "C",
+   "prio": 60,
+   "groups": [
+    "who",
+    "act",
+    "item"
+   ]
+  },
+  {
+   "name": "removed",
+   "cat": "equipment",
+   "rx": "You have removed (?P<item>.+?)(?P<ext> and extinguished it)?\\.",
+   "example": "You have removed torch and extinguished it.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item",
+    "ext"
+   ]
+  },
+  {
+   "name": "unwielded",
+   "cat": "equipment",
+   "rx": "You now have no weapon readied\\.",
+   "example": "You now have no weapon readied.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "weapon_forbidden",
+   "cat": "equipment",
+   "rx": "You may not use that weapon\\.|(?P<item>.+) is not a weapon!",
+   "example": "You may not use that weapon.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "weapon_heavy",
+   "cat": "equipment",
+   "rx": "This weapon feels heavy in your hands\\.",
+   "example": "This weapon feels heavy in your hands.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "weapon_quick",
+   "cat": "equipment",
+   "rx": "You are extremely quick and deadly with this weapon\\.",
+   "example": "You are extremely quick and deadly with this weapon.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "wear_fail",
+   "cat": "equipment",
+   "rx": "You may not wear that item!|You have no more room to wear that item!|(?P<item>.+) may not be worn!",
+   "example": "You may not wear that item!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "wear_ok",
+   "cat": "equipment",
+   "rx": "You are now wearing (?P<item>.+)\\.",
+   "example": "You are now wearing padded vest.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "wield_ok",
+   "cat": "equipment",
+   "rx": "You are now holding (?P<item>.+)\\.",
+   "example": "You are now holding quarterstaff.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "may_not_here",
+   "cat": "error",
+   "rx": "You may not do that here!",
+   "example": "You may not do that here!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "no_autocombat",
+   "cat": "error",
+   "rx": "You may not be in autocombat when you do that\\.|You may not teleport during a PVP retaliation period\\.",
+   "example": "You may not be in autocombat when you do that.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "no_effect",
+   "cat": "error",
+   "rx": "Your command had no effect\\.",
+   "example": "Your command had no effect.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "not_implemented",
+   "cat": "error",
+   "rx": "Following a monster - Not implemented yet\\.",
+   "example": "Following a monster - Not implemented yet.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "why_would_you",
+   "cat": "error",
+   "rx": "Why (?:would|are) you .+[?.]",
+   "example": "Why would you want to follow yourself?",
+   "seen": "C",
+   "prio": 90,
+   "groups": []
+  },
+  {
+   "name": "inv_carrying",
+   "cat": "inventory",
+   "rx": "You are carrying (?P<items>.+)",
+   "example": "You are carrying 18 silver nobles, padded vest (Torso), quarterstaff (Two handed)",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "items"
+   ]
+  },
+  {
+   "name": "inv_encumbrance",
+   "cat": "inventory",
+   "rx": "Encumbrance: (?P<cur>\\d+)/(?P<max>\\d+) - (?P<level>None|Light|Medium|Heavy) \\[(?P<pct>\\d+)%\\]",
+   "example": "Encumbrance: 520/3792 - None [13%]",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "cur",
+    "max",
+    "level",
+    "pct"
+   ]
+  },
+  {
+   "name": "inv_keys",
+   "cat": "inventory",
+   "rx": "You have the following keys:\\s+(?P<keys>.+)\\.",
+   "example": "You have the following keys:  brass key.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "keys"
+   ]
+  },
+  {
+   "name": "inv_no_keys",
+   "cat": "inventory",
+   "rx": "You have no keys\\.",
+   "example": "You have no keys.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "inv_nothing",
+   "cat": "inventory",
+   "rx": "You are carrying Nothing!",
+   "example": "You are carrying Nothing!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "inv_wealth",
+   "cat": "inventory",
+   "rx": "Wealth: (?P<copper>\\d+) copper farthings?",
+   "example": "Wealth: 223 copper farthings",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "copper"
+   ]
+  },
+  {
+   "name": "money_none",
+   "cat": "inventory",
+   "rx": "No money!",
+   "example": "No money!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "dont_have",
+   "cat": "loot",
+   "rx": "You don't have (?P<item>.+)\\.",
+   "example": "You don't have potion.",
+   "seen": "C",
+   "prio": 90,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "drop_forbidden",
+   "cat": "loot",
+   "rx": "You may not (?:drop|give|hide) (?:that item|that item away)!",
+   "example": "You may not drop that item!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "drop_missing",
+   "cat": "loot",
+   "rx": "You don't have (?P<item>.+) to drop!",
+   "example": "You don't have torch to drop!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "dropped",
+   "cat": "loot",
+   "rx": "You dropped (?P<item>.+)\\.",
+   "example": "You dropped quarterstaff.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "eat_drink",
+   "cat": "loot",
+   "rx": "You (?P<act>eat|drink) the (?P<item>.+)\\.",
+   "example": "You drink the potion.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "act",
+    "item"
+   ]
+  },
+  {
+   "name": "gave_coins",
+   "cat": "loot",
+   "rx": "You gave (?P<who>.+) (?P<n>\\d+) (?P<coin>\\w+)",
+   "example": "You gave Bob 10 copper",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "n",
+    "coin"
+   ]
+  },
+  {
+   "name": "gave_item",
+   "cat": "loot",
+   "rx": "You just gave (?P<item>.+) to (?P<who>.+)\\.",
+   "example": "You just gave torch to Bob.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item",
+    "who"
+   ]
+  },
+  {
+   "name": "give_refused",
+   "cat": "loot",
+   "rx": "(?P<who>.+) (?:refuses your offer|cannot accept your offer)\\.",
+   "example": "Bob refuses your offer.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "got_coins",
+   "cat": "loot",
+   "rx": "(?P<who>.+) gave you (?P<n>\\d+) (?P<coin>.+)",
+   "example": "Bob gave you 10 copper",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "n",
+    "coin"
+   ]
+  },
+  {
+   "name": "got_item",
+   "cat": "loot",
+   "rx": "(?P<who>.+) just gave you (?P<item>.+)\\.",
+   "example": "Bob just gave you torch.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "item"
+   ]
+  },
+  {
+   "name": "hid_item",
+   "cat": "loot",
+   "rx": "You hid (?P<item>.+)\\.",
+   "example": "You hid torch.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "hide_attempt",
+   "cat": "loot",
+   "rx": "Attempting to hide\\.\\.\\.(?P<rest>.*)",
+   "example": "Attempting to hide... You don't think you are hidden.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "rest"
+   ]
+  },
+  {
+   "name": "item_removed",
+   "cat": "loot",
+   "rx": "Your (?P<item>.+) has been removed\\.",
+   "example": "Your sword has been removed.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "item_returned",
+   "cat": "loot",
+   "rx": "Your (?P<item>.+) has returned to its rightful place\\.",
+   "example": "Your ruby has returned to its rightful place.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "no_uses",
+   "cat": "loot",
+   "rx": "There are no more uses in (?P<item>.+)\\.",
+   "example": "There are no more uses in wand.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "not_carrying",
+   "cat": "loot",
+   "rx": "You are not carrying (?P<item>.+)\\.",
+   "example": "You are not carrying wand.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "not_enough_coins",
+   "cat": "loot",
+   "rx": "You do not have (?:that much|that many) (?P<coin>.+)!",
+   "example": "You do not have that much copper!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "coin"
+   ]
+  },
+  {
+   "name": "not_here",
+   "cat": "loot",
+   "rx": "You don't see (?:any )?(?P<what>.+?)(?: here\\.)?",
+   "example": "You don't see rto here.",
+   "seen": "C",
+   "prio": 90,
+   "groups": [
+    "what"
+   ]
+  },
+  {
+   "name": "other_dropped",
+   "cat": "loot",
+   "rx": "(?P<who>.+) dropped (?:some )?(?P<item>.+)\\.",
+   "example": "Bob dropped torch.",
+   "seen": "C",
+   "prio": 60,
+   "groups": [
+    "who",
+    "item"
+   ]
+  },
+  {
+   "name": "other_eat_drink",
+   "cat": "loot",
+   "rx": "(?P<who>.+) (?P<act>eats|drinks) (?P<item>.+)\\.",
+   "example": "Bob drinks potion.",
+   "seen": "C",
+   "prio": 60,
+   "groups": [
+    "who",
+    "act",
+    "item"
+   ]
+  },
+  {
+   "name": "other_picks_coins",
+   "cat": "loot",
+   "rx": "(?P<who>.+) picks up some (?P<coin>.+)\\.",
+   "example": "Bob picks up some gold crowns.",
+   "seen": "C",
+   "prio": 60,
+   "groups": [
+    "who",
+    "coin"
+   ]
+  },
+  {
+   "name": "other_picks_item",
+   "cat": "loot",
+   "rx": "(?P<who>.+) picks up (?P<item>.+)\\.",
+   "example": "Bob picks up torch.",
+   "seen": "C",
+   "prio": 60,
+   "groups": [
+    "who",
+    "item"
+   ]
+  },
+  {
+   "name": "picked_up_coins",
+   "cat": "loot",
+   "rx": "You picked up (?P<n>\\d+) (?P<coin>runic coins?|platinum pieces?|gold crowns?|silver nobles?|copper farthings?)",
+   "example": "You picked up 9 copper farthings",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "n",
+    "coin"
+   ]
+  },
+  {
+   "name": "receive_hp",
+   "cat": "loot",
+   "rx": "You receive (?P<n>\\d+) (?P<what>hit points|mana)\\.",
+   "example": "You receive 10 hit points.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "n",
+    "what"
+   ]
+  },
+  {
+   "name": "rob",
+   "cat": "loot",
+   "rx": "(?:You stole (?P<n>\\d+) (?P<coin>\\S+) from (?P<v1>.+)\\.|You successfully stole (?P<item>.+) from (?P<v2>.+)\\.|Your skills fail as you try to rob (?P<v3>.+)\\.|You bump (?P<v4>.+) as you try to rob .+\\.|(?P<who>.+) bumps you as .+ tries to rob you!)",
+   "example": "Your skills fail as you try to rob orc.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "n",
+    "coin",
+    "v1",
+    "item",
+    "v2",
+    "v3",
+    "v4",
+    "who"
+   ]
+  },
+  {
+   "name": "room_full",
+   "cat": "loot",
+   "rx": "There is no room to (?:drop|hide) (?P<item>.+) here\\.",
+   "example": "There is no room to drop torch here.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "share_none",
+   "cat": "loot",
+   "rx": "You do not have enough to share!|There is nobody to share with\\.",
+   "example": "There is nobody to share with.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "strange_force",
+   "cat": "loot",
+   "rx": "A strange force stops you from getting this item\\.",
+   "example": "A strange force stops you from getting this item.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "too_much",
+   "cat": "loot",
+   "rx": "You cannot carry that much!",
+   "example": "You cannot carry that much!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "took_item",
+   "cat": "loot",
+   "rx": "You took (?P<item>.+)\\.",
+   "example": "You took torch.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "track",
+   "cat": "loot",
+   "rx": "(?:(?P<who>.+) went (?P<dir>\\w+) from here\\.|Your tracking skills fail you this time\\.)",
+   "example": "Your tracking skills fail you this time.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "dir"
+   ]
+  },
+  {
+   "name": "use_forbidden",
+   "cat": "loot",
+   "rx": "You may not use that item!|You must have that item readied to use it!|You must be wearing that item to use it!",
+   "example": "You may not use that item!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "uses_gone",
+   "cat": "loot",
+   "rx": "It's uses gone, (?P<item>.+) disappears from your inventory!",
+   "example": "It's uses gone, potion disappears from your inventory!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "cant_move",
+   "cat": "movement",
+   "rx": "You can't seem to move anywhere(?: to hide)?!",
+   "example": "You can't seem to move anywhere!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "door_closed",
+   "cat": "movement",
+   "rx": "The (?P<what>door|gate) is (?:C|c)losed!",
+   "example": "The gate is closed!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "what"
+   ]
+  },
+  {
+   "name": "door_closed_drag",
+   "cat": "movement",
+   "rx": "There is a closed door in that direction!",
+   "example": "There is a closed door in that direction!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "dragging",
+   "cat": "movement",
+   "rx": "(?:You are (?:now )?dragging (?P<who>.+)\\.|(?P<who2>.+) is dragging you around\\.|You are no longer dragging (?P<who3>.+?)\\.?)",
+   "example": "You are now dragging Bob.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "who2",
+    "who3"
+   ]
+  },
+  {
+   "name": "exit_alignment",
+   "cat": "movement",
+   "rx": "You are too (?P<align>good|evil) to go through this exit!",
+   "example": "You are too evil to go through this exit!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "align"
+   ]
+  },
+  {
+   "name": "exit_combat",
+   "cat": "movement",
+   "rx": "You may not enter that room (?:while in combat|during a retaliation time-period)\\.",
+   "example": "You may not enter that room while in combat.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "exit_forbidden",
+   "cat": "movement",
+   "rx": "You may not go through this exit(?: during tournament play)?!",
+   "example": "You may not go through this exit!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "exit_level_high",
+   "cat": "movement",
+   "rx": "You have progressed too far to go through this exit!|You have progressed too far for this room\\.",
+   "example": "You have progressed too far for this room.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "exit_level_low",
+   "cat": "movement",
+   "rx": "You have not progressed far enough to go through this exit!",
+   "example": "You have not progressed far enough to go through this exit!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "exit_purchase",
+   "cat": "movement",
+   "rx": "(?:Your sysop must purchase|You must purchase) the .+ before you may move through this exit\\.",
+   "example": "Your sysop must purchase the ... before you may move through this exit.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "exit_timed",
+   "cat": "movement",
+   "rx": "You may not pass through that exit at this point in time\\.",
+   "example": "You may not pass through that exit at this point in time.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "exit_unhealthy",
+   "cat": "movement",
+   "rx": "You are not healthy enough to enter that room\\.",
+   "example": "You are not healthy enough to enter that room.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "follow_leader",
+   "cat": "movement",
+   "rx": "-- Following your Party leader (?P<dir>.+) --",
+   "example": "-- Following your Party leader north --",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "dir"
+   ]
+  },
+  {
+   "name": "made_sound",
+   "cat": "movement",
+   "rx": "You make a sound as you enter the room!",
+   "example": "You make a sound as you enter the room!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "monster_arrives_generic",
+   "cat": "movement",
+   "rx": "(?P<mon>.+) (?:moves into the room|just arrived|moves into the) from (?:nowhere|above|below|the (?P<dir>\\w+))\\.",
+   "example": "goblin moves into the room from the east.",
+   "seen": "C",
+   "prio": 90,
+   "groups": [
+    "mon",
+    "dir"
+   ]
+  },
+  {
+   "name": "monster_follows_any",
+   "cat": "movement",
+   "rx": "(?:The |A |An )?(?P<mon>.+?) (?:[a-z]+ )?in after you!",
+   "example": "The dark monk creeps in after you!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "mon"
+   ]
+  },
+  {
+   "name": "monster_leaves_generic",
+   "cat": "movement",
+   "rx": "(?P<mon>.+?) just left (?:upwards|downwards|to the (?P<dir>\\w+))\\.",
+   "example": "happy guardsman just left to the east.",
+   "seen": "C",
+   "prio": 90,
+   "groups": [
+    "mon",
+    "dir"
+   ]
+  },
+  {
+   "name": "need_item",
+   "cat": "movement",
+   "rx": "You do not have the appropriate item to go that direction!",
+   "example": "You do not have the appropriate item to go that direction!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "need_spell",
+   "cat": "movement",
+   "rx": "You need to cast a spell to go that way!",
+   "example": "You need to cast a spell to go that way!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "no_exit",
+   "cat": "movement",
+   "rx": "There is no exit in that direction!",
+   "example": "There is no exit in that direction!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "not_permitted",
+   "cat": "movement",
+   "rx": "You are not permitted in that room!",
+   "example": "You are not permitted in that room!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "player_arrives",
+   "cat": "movement",
+   "rx": "(?P<who>[A-Z][A-Za-z]+) walks into the room from (?:above|below|the (?P<dir>\\w+))(?P<x>.*)\\.",
+   "example": "Bob walks into the room from the south.",
+   "seen": "C",
+   "prio": 60,
+   "groups": [
+    "who",
+    "dir",
+    "x"
+   ]
+  },
+  {
+   "name": "player_leaves",
+   "cat": "movement",
+   "rx": "(?P<who>[A-Z][A-Za-z]+) just left (?:upwards|downwards|to the (?P<dir>\\w+))(?P<x>.*)\\.",
+   "example": "Bob just left to the north.",
+   "seen": "C",
+   "prio": 60,
+   "groups": [
+    "who",
+    "dir",
+    "x"
+   ]
+  },
+  {
+   "name": "ran_into_wall",
+   "cat": "movement",
+   "rx": "(?P<who>.+) ran into the wall to the (?P<dir>\\w+)\\.",
+   "example": "Bob ran into the wall to the north.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "dir"
+   ]
+  },
+  {
+   "name": "sneak_attempt",
+   "cat": "movement",
+   "rx": "Attempting to sneak\\.\\.\\.(?P<rest>.*)",
+   "example": "Attempting to sneak...",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "rest"
+   ]
+  },
+  {
+   "name": "sneak_fail",
+   "cat": "movement",
+   "rx": "You don't think you're sneaking\\.",
+   "example": "You don't think you're sneaking.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "sneak_not_now",
+   "cat": "movement",
+   "rx": "You may not sneak right now!",
+   "example": "You may not sneak right now!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "sneak_off",
+   "cat": "movement",
+   "rx": "You are no longer sneaking\\.",
+   "example": "You are no longer sneaking.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "sneak_seen_in",
+   "cat": "movement",
+   "rx": "You notice (?P<who>.+) sneak in from (?:above|below|the (?P<dir>\\w+))(?P<x>.*)\\.",
+   "example": "You notice Bob sneak in from the west.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "dir",
+    "x"
+   ]
+  },
+  {
+   "name": "sneak_seen_out",
+   "cat": "movement",
+   "rx": "You notice (?P<who>.+) sneaking out (?:upwards|downwards|to the (?P<dir>\\w+))(?P<x>.*)\\.",
+   "example": "You notice Bob sneaking out to the north.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "dir",
+    "x"
+   ]
+  },
+  {
+   "name": "sneaking",
+   "cat": "movement",
+   "rx": "Sneaking\\.\\.\\.",
+   "example": "Sneaking...",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "stunned",
+   "cat": "movement",
+   "rx": "You are too stunned to move anywhere(?: to hide)?!",
+   "example": "You are too stunned to move anywhere!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "teleported",
+   "cat": "movement",
+   "rx": "You find yourself\\.\\.\\. ?elsewhere\\.",
+   "example": "You find yourself...elsewhere.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "toll_paid",
+   "cat": "movement",
+   "rx": "You just paid (?P<paid>.+) in toll charges\\.",
+   "example": "You just paid 5 gold crowns in toll charges.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "paid"
+   ]
+  },
+  {
+   "name": "toll_short",
+   "cat": "movement",
+   "rx": "You do not have enough to cover the toll of (?P<n>\\d+) (?P<cur>.+)\\.",
+   "example": "You do not have enough to cover the toll of 5 gold crowns.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "n",
+    "cur"
+   ]
+  },
+  {
+   "name": "too_heavy",
+   "cat": "movement",
+   "rx": "You are too heavy to (?:move(?: anywhere)?|be dragged)!",
+   "example": "You are too heavy to move!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "follower_joined",
+   "cat": "party",
+   "rx": "(?P<who>.+) started to follow you\\.",
+   "example": "Bob started to follow you.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "follower_removed",
+   "cat": "party",
+   "rx": "(?P<who>.+) has been removed from your followers\\.",
+   "example": "Bob has been removed from your followers.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "following",
+   "cat": "party",
+   "rx": "You are (?:now )?following (?P<who>.+?)\\.?",
+   "example": "You are now following Bob",
+   "seen": "C",
+   "prio": 90,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "gang_msg",
+   "cat": "party",
+   "rx": "(?:You have joined the gang (?P<gang>.+)\\.|(?P<who>.+) just joined your gang\\.|You have left (?P<gang2>.+)\\.|(?P<who2>.+) has left (?P<gang3>.+)\\.)",
+   "example": "You have joined the gang Wolves.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "gang",
+    "who",
+    "gang2",
+    "who2",
+    "gang3"
+   ]
+  },
+  {
+   "name": "group_left",
+   "cat": "party",
+   "rx": "You just left group (?P<n>\\d+)\\.|(?P<who>.+) just left your group \\((?P<n2>\\d+)\\)",
+   "example": "You just left group 3.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "n",
+    "who",
+    "n2"
+   ]
+  },
+  {
+   "name": "invite_needed",
+   "cat": "party",
+   "rx": "You must be invited first!",
+   "example": "You must be invited first!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "invited_follow",
+   "cat": "party",
+   "rx": "(?P<who>.+) has invited you to (?P<what>follow|join) (?P<target>.+)\\.",
+   "example": "Bob has invited you to follow him.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "what",
+    "target"
+   ]
+  },
+  {
+   "name": "party_header",
+   "cat": "party",
+   "rx": "The following people are in your travel party:",
+   "example": "The following people are in your travel party:",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "party_none",
+   "cat": "party",
+   "rx": "You are not in a party at the present time\\.",
+   "example": "You are not in a party at the present time.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "rank_moved",
+   "cat": "party",
+   "rx": "(?:You have moved to the (?P<rank>front|middle|back) ranks of your group\\.|(?P<who>.+) just moved to the (?P<rank2>front rank|middle|back rank) (?:in|of) your group\\.)",
+   "example": "You have moved to the front ranks of your group.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "rank",
+    "who",
+    "rank2"
+   ]
+  },
+  {
+   "name": "rank_refused",
+   "cat": "party",
+   "rx": "You (?:may not (?:enter the backrank of your own party|leave your current rank in your own party)|are the only one in the (?:front|back) rank\\.  You may not leave)\\.|There would not be enough people left in the frontrank if you did that\\.",
+   "example": "You are the only one in the front rank.  You may not leave.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "unfollowed",
+   "cat": "party",
+   "rx": "You are no longer following (?P<who>.+)\\.",
+   "example": "You are no longer following Bob.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "you_invited",
+   "cat": "party",
+   "rx": "You have invited (?P<who>.+) to (?:follow you|join your gang)\\.",
+   "example": "You have invited Bob to follow you.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "aided",
+   "cat": "rest",
+   "rx": "You have aided (?P<who>.+), (?P<pron>\\w+) wounds are now healing\\.|(?P<who2>.+) has aided you\\.|(?P<who3>.+) is in no need of assistance\\.",
+   "example": "Bob has aided you.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "pron",
+    "who2",
+    "who3"
+   ]
+  },
+  {
+   "name": "meditate_done",
+   "cat": "rest",
+   "rx": "You awake from deep meditation feeling stronger!",
+   "example": "You awake from deep meditation feeling stronger!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "meditate_other",
+   "cat": "rest",
+   "rx": "(?P<who>.+) kneels to meditate\\.",
+   "example": "Bob kneels to meditate.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "meditate_start",
+   "cat": "rest",
+   "rx": "You are now meditating\\.",
+   "example": "You are now meditating.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "meditate_useless",
+   "cat": "rest",
+   "rx": "Meditation will not help at this time\\.",
+   "example": "Meditation will not help at this time.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "poison_tick",
+   "cat": "rest",
+   "rx": "You feel ill\\.",
+   "example": "You feel ill.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "rest_other",
+   "cat": "rest",
+   "rx": "(?P<who>.+) stops to rest\\.",
+   "example": "Bob stops to rest.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "rest_sick",
+   "cat": "rest",
+   "rx": "You are too sick to (?P<what>rest|meditate)!",
+   "example": "You are too sick to rest!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "what"
+   ]
+  },
+  {
+   "name": "rest_start",
+   "cat": "rest",
+   "rx": "You are now resting\\.",
+   "example": "You are now resting.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "arena_warning",
+   "cat": "room",
+   "rx": "(?:NOTE: This room is \\*not\\* a death-free zone right now!|Treat this room as you would any other combat zone\\.)",
+   "example": "NOTE: This room is *not* a death-free zone right now!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "blind",
+   "cat": "room",
+   "rx": "You are blind[.!]",
+   "example": "You are blind.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "coin_desc",
+   "cat": "room",
+   "rx": "The (?:copper farthings look like they've been around forever|silver nobles glitter with use|gold crowns are rustic and used|platinum pieces shine as though they were new)\\.",
+   "example": "The silver nobles glitter with use.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "concealed_opens",
+   "cat": "room",
+   "rx": "A concealed passage opens to the (?P<dir>\\w+)\\.",
+   "example": "A concealed passage opens to the west.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "dir"
+   ]
+  },
+  {
+   "name": "currency_rates",
+   "cat": "room",
+   "rx": "(?:The currency conversion rates are:|(?P<n>\\d+) (?P<small>.+) == 1 (?P<big>.+))",
+   "example": "10 copper farthings == 1 silver noble",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "n",
+    "small",
+    "big"
+   ]
+  },
+  {
+   "name": "hiding_seen",
+   "cat": "room",
+   "rx": "You see (?P<who>.+) hiding in the shadows\\.",
+   "example": "You see Bob hiding in the shadows.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "look_door_closed",
+   "cat": "room",
+   "rx": "The door is closed in that direction!",
+   "example": "The door is closed in that direction!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "look_equipped",
+   "cat": "room",
+   "rx": "(?P<who>He|She|It) is equipped with:",
+   "example": "He is equipped with:",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "look_monster",
+   "cat": "room",
+   "rx": "(?P<who>.+) appears to be (?P<state>.+)\\.",
+   "example": "The giant rat appears to be unwounded.",
+   "seen": "C",
+   "prio": 90,
+   "groups": [
+    "who",
+    "state"
+   ]
+  },
+  {
+   "name": "look_no_exit",
+   "cat": "room",
+   "rx": "There are no exits (?:upwards|downwards|to the (?P<dir>\\w+))!",
+   "example": "There are no exits to the north!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "dir"
+   ]
+  },
+  {
+   "name": "look_nothing",
+   "cat": "room",
+   "rx": "Why would you want to look at that\\?",
+   "example": "Why would you want to look at that?",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "look_others",
+   "cat": "room",
+   "rx": "(?P<who>.+) is looking (?:around the room|up|down|to the (?P<dir>\\w+)|at you)\\.",
+   "example": "Bob is looking around the room.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "dir"
+   ]
+  },
+  {
+   "name": "look_player",
+   "cat": "room",
+   "rx": "(?P<who>[A-Z][A-Za-z]+) is a (?P<desc>.+?, .+)",
+   "example": "Bob is a Human Warrior, ...",
+   "seen": "C",
+   "prio": 90,
+   "groups": [
+    "who",
+    "desc"
+   ]
+  },
+  {
+   "name": "look_player_header",
+   "cat": "room",
+   "rx": "\\[ (?P<name>.+?) \\](?: \\((?P<gang>.+)\\))?",
+   "example": "[ Nester TheDupe ] (Old Guard)",
+   "seen": "F",
+   "prio": 50,
+   "groups": [
+    "name",
+    "gang"
+   ]
+  },
+  {
+   "name": "look_poisoned",
+   "cat": "room",
+   "rx": "(?P<who>.+) is poisoned!",
+   "example": "Bob is poisoned!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "look_up_down",
+   "cat": "room",
+   "rx": "(?P<who>.+) looks (?P<target>.+) up and down\\.",
+   "example": "Bob looks Ann up and down.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "target"
+   ]
+  },
+  {
+   "name": "noise",
+   "cat": "room",
+   "rx": "You hear movement (?:to the (?P<dir>north|south|east|west|northeast|northwest|southeast|southwest|up|down)|above you|below you|above|below)[.!]",
+   "example": "You hear movement to the north.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "dir"
+   ]
+  },
+  {
+   "name": "peek_in",
+   "cat": "room",
+   "rx": "(?P<who>.+) peeks in from (?:above|below|the (?P<dir>\\w+))!",
+   "example": "Bob peeks in from the north!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who",
+    "dir"
+   ]
+  },
+  {
+   "name": "room_also_here",
+   "cat": "room",
+   "rx": "Also here:\\s+(?P<who>.+)\\.",
+   "example": "Also here: Thornwyn, giant rat.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "room_dark",
+   "cat": "room",
+   "rx": "The room is (?P<light>pitch black|very dark) - you can't see anything",
+   "example": "The room is very dark - you can't see anything",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "light"
+   ]
+  },
+  {
+   "name": "room_exits",
+   "cat": "room",
+   "rx": "Obvious exits: (?P<exits>.+)",
+   "example": "Obvious exits: closed door north, up",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "exits"
+   ]
+  },
+  {
+   "name": "room_items",
+   "cat": "room",
+   "rx": "You notice (?P<items>.+) here\\.",
+   "example": "You notice 9 copper farthings, torch here.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "items"
+   ]
+  },
+  {
+   "name": "room_light",
+   "cat": "room",
+   "rx": "The room is (?P<light>barely visible|dimly lit)",
+   "example": "The room is dimly lit",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "light"
+   ]
+  },
+  {
+   "name": "search_found_exit",
+   "cat": "room",
+   "rx": "You found an exit (?:upwards|downwards|to the (?P<dir>\\w+))!",
+   "example": "You found an exit to the west!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "dir"
+   ]
+  },
+  {
+   "name": "search_found_trap",
+   "cat": "room",
+   "rx": "You found a trap (?:above you|below you|to the (?P<dir>\\w+))!",
+   "example": "You found a trap to the north!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "dir"
+   ]
+  },
+  {
+   "name": "search_nothing",
+   "cat": "room",
+   "rx": "Your search revealed nothing\\.",
+   "example": "Your search revealed nothing.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "search_nothing_dir",
+   "cat": "room",
+   "rx": "You notice nothing different (?:above you|below you|to the (?P<dir>\\w+))\\.",
+   "example": "You notice nothing different to the north.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "dir"
+   ]
+  },
+  {
+   "name": "search_others",
+   "cat": "room",
+   "rx": "(?P<who>.+) is searching (?:the area|for exits)\\.",
+   "example": "Bob is searching the area.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "bank_balance",
+   "cat": "shop",
+   "rx": "Your balance at (?P<bank>.+) \\(#(?P<num>\\d+)\\) is:|On deposit: (?P<dep>.+)",
+   "example": "Your balance at First Bank (#7) is:",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "bank",
+    "num",
+    "dep"
+   ]
+  },
+  {
+   "name": "bank_deposit",
+   "cat": "shop",
+   "rx": "You deposit (?P<paid>(?:(?:\\d+ (?:runic coins?|platinum pieces?|gold crowns?|silver nobles?|copper farthings?)(?:, )?)+|nothing))\\.",
+   "example": "You deposit 5 gold crowns.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "paid"
+   ]
+  },
+  {
+   "name": "bank_misc",
+   "cat": "shop",
+   "rx": "The bank cannot accept your deposit at this time\\.|Please specify a more reasonable amount\\.|You see (?P<who>.+) making a (?:deposit|withdrawal)\\.",
+   "example": "You see Bob making a deposit.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "bank_withdraw",
+   "cat": "shop",
+   "rx": "You withdrew (?P<n>\\d+) (?P<coin>.+)\\.",
+   "example": "You withdrew 5 gold crowns.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "n",
+    "coin"
+   ]
+  },
+  {
+   "name": "bought",
+   "cat": "shop",
+   "rx": "You just bought (?P<item>.+) for (?P<price>(?:(?:\\d+ (?:runic coins?|platinum pieces?|gold crowns?|silver nobles?|copper farthings?)(?:, )?)+|nothing))\\.",
+   "example": "You just bought torch for 2 silver nobles, 5 copper farthings.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item",
+    "price"
+   ]
+  },
+  {
+   "name": "buy_not_here",
+   "cat": "shop",
+   "rx": "You cannot buy (?P<item>.+) here!",
+   "example": "You cannot buy torch here!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "buy_poor",
+   "cat": "shop",
+   "rx": "You cannot afford (?P<item>.+)\\.|You cannot afford to do that!",
+   "example": "You cannot afford chainmail.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "buy_unknown",
+   "cat": "shop",
+   "rx": "(?P<item>.+) is not a known item\\.",
+   "example": "sowrd is not a known item.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "cured_paid",
+   "cat": "shop",
+   "rx": "You hand over (?P<paid>(?:(?:\\d+ (?:runic coins?|platinum pieces?|gold crowns?|silver nobles?|copper farthings?)(?:, )?)+|nothing)) and (?:your poisoning is cured|find that you were not poisoned!?)\\.?",
+   "example": "You hand over 1 silver noble and your poisoning is cured.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "paid"
+   ]
+  },
+  {
+   "name": "hand_over_generic",
+   "cat": "shop",
+   "rx": "You hand over (?P<paid>(?:(?:\\d+ (?:runic coins?|platinum pieces?|gold crowns?|silver nobles?|copper farthings?)(?:, )?)+|nothing)) and (?P<what>.+)",
+   "example": "You hand over 1 gold crown and you are now female!",
+   "seen": "C",
+   "prio": 90,
+   "groups": [
+    "paid",
+    "what"
+   ]
+  },
+  {
+   "name": "heal_poor",
+   "cat": "shop",
+   "rx": "You do not have sufficient funds to buy (?:full healing|curing)!",
+   "example": "You do not have sufficient funds to buy full healing!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "healed_paid",
+   "cat": "shop",
+   "rx": "You hand over (?P<paid>(?:(?:\\d+ (?:runic coins?|platinum pieces?|gold crowns?|silver nobles?|copper farthings?)(?:, )?)+|nothing)) and all your wounds are healed\\.",
+   "example": "You hand over 3 silver nobles and all your wounds are healed.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "paid"
+   ]
+  },
+  {
+   "name": "healer_done",
+   "cat": "shop",
+   "rx": "There is nothing more that (?P<who>.+) can do for you\\.",
+   "example": "There is nothing more that healer can do for you.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "not_in_shop",
+   "cat": "shop",
+   "rx": "You cannot (?P<cmd>BUY|SELL|LIST|DEPOSIT|WITHDRAW|STOCK|UNSTOCK|MARKUP) if you are not in (?:a shop|a bank|your gangs shop)!",
+   "example": "You cannot BUY if you are not in a shop!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "cmd"
+   ]
+  },
+  {
+   "name": "other_bought",
+   "cat": "shop",
+   "rx": "You see (?P<who>.+) (?P<act>buy|sell) a (?P<item>.+)\\.",
+   "example": "You see Bob buy a torch.",
+   "seen": "C",
+   "prio": 60,
+   "groups": [
+    "who",
+    "act",
+    "item"
+   ]
+  },
+  {
+   "name": "sell_refused",
+   "cat": "shop",
+   "rx": "You cannot sell (?P<item>.+) here\\.|You may not sell (?:that item!|items to a gang shop\\.)|You don't have (?P<item2>.+) to sell!",
+   "example": "You cannot sell club here.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item",
+    "item2"
+   ]
+  },
+  {
+   "name": "sell_value",
+   "cat": "shop",
+   "rx": "You would get (?P<n>\\d+) (?P<coin>.+) for your (?P<item>.+)\\.",
+   "example": "You would get 2 copper farthings for your club.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "n",
+    "coin",
+    "item"
+   ]
+  },
+  {
+   "name": "shop_list_header",
+   "cat": "shop",
+   "rx": "Item\\s+Quantity\\s+Price",
+   "example": "Item                          Quantity    Price",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "shop_list_intro",
+   "cat": "shop",
+   "rx": "The following items are for sale here:",
+   "example": "The following items are for sale here:",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "shop_list_rule",
+   "cat": "shop",
+   "rx": "-{20,}",
+   "example": "------------------------------------------------------",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "sold",
+   "cat": "shop",
+   "rx": "You sold (?P<item>.+) for (?P<n>\\d+) (?P<coin>.+)\\.",
+   "example": "You sold club for 2 copper farthings.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item",
+    "n",
+    "coin"
+   ]
+  },
+  {
+   "name": "alone",
+   "cat": "spell",
+   "rx": "You are the only one in the room!",
+   "example": "You are the only one in the room!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "already_known",
+   "cat": "spell",
+   "rx": "You realize that you already know this scroll!",
+   "example": "You realize that you already know this scroll!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "already_this_round",
+   "cat": "spell",
+   "rx": "You have already (?P<what>cast a spell|invoked a power) this round!",
+   "example": "You have already cast a spell this round!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "what"
+   ]
+  },
+  {
+   "name": "bad_target",
+   "cat": "spell",
+   "rx": "(?:You may not cast that spell on (?:a user|a monster|an item)!|Why would you want to cast a spell on that\\?|(?P<who>.+) is not in this room!)",
+   "example": "You may not cast that spell on a user!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "bash_spell_fail",
+   "cat": "spell",
+   "rx": "Your spell fails to bash one of the exits!",
+   "example": "Your spell fails to bash one of the exits!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "cast_at_you_failed",
+   "cat": "spell",
+   "rx": "(?:The )?(?P<caster>.+) attempted to cast (?P<spell>.+) (?:at|on) you, but failed\\.",
+   "example": "The orc shaman attempted to cast chill at you, but failed.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "caster",
+    "spell"
+   ]
+  },
+  {
+   "name": "cast_fail",
+   "cat": "spell",
+   "rx": "You attempt to cast (?P<spell>.+?)(?: at (?P<target>.+))?, but fail\\.",
+   "example": "You attempt to cast vine strike, but fail.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "spell",
+    "target"
+   ]
+  },
+  {
+   "name": "cast_on_you_generic",
+   "cat": "spell",
+   "rx": "(?P<caster>.+) casts? (?P<spell>.+?) (?:on|upon|at) you(?P<rest>.*)[.!]",
+   "example": "Thornwyn casts mend on you, regenerating some of your wounds!",
+   "seen": "C",
+   "prio": 90,
+   "groups": [
+    "caster",
+    "spell",
+    "rest"
+   ]
+  },
+  {
+   "name": "cast_other_generic",
+   "cat": "spell",
+   "rx": "(?P<caster>.+) casts? (?P<spell>.+?)(?: (?:on|upon|at) (?P<target>.+?))?(?: for (?P<dmg>\\d+) damage)?[.!]",
+   "example": "Thornwyn casts vine strike on rat for 5 damage!",
+   "seen": "C",
+   "prio": 90,
+   "groups": [
+    "caster",
+    "spell",
+    "target",
+    "dmg"
+   ]
+  },
+  {
+   "name": "cast_resisted",
+   "cat": "spell",
+   "rx": "You attempt to cast (?P<spell>.+) at (?P<target>.+), but the spell is resisted\\.",
+   "example": "You attempt to cast mmis at orc, but the spell is resisted.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "spell",
+    "target"
+   ]
+  },
+  {
+   "name": "detect_magic",
+   "cat": "spell",
+   "rx": "(?:(?P<item>.+) glows (?:faintly|softly|brightly), indicating .+ magic within\\.|You are almost blinded by the aura from .+|You detect no magic in that item!)",
+   "example": "torch glows faintly, indicating a small amount of magic within.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item"
+   ]
+  },
+  {
+   "name": "kai_learned",
+   "cat": "spell",
+   "rx": "You learn the following Kai abilities:",
+   "example": "You learn the following Kai abilities:",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "learn_scroll",
+   "cat": "spell",
+   "rx": "You read (?P<item>.+) and learn the spell (?P<spell>.+)\\.",
+   "example": "You read scroll of vines and learn the spell vine strike.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "item",
+    "spell"
+   ]
+  },
+  {
+   "name": "learn_spell",
+   "cat": "spell",
+   "rx": "You learn the spell (?P<spell>.+)\\.",
+   "example": "You learn the spell vine strike.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "spell"
+   ]
+  },
+  {
+   "name": "level_too_low",
+   "cat": "spell",
+   "rx": "You are not of a high enough level to cast that spell\\.",
+   "example": "You are not of a high enough level to cast that spell.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "may_not_cast",
+   "cat": "spell",
+   "rx": "You may not cast this spell\\.|You may not (?:invoke|cast)\\.\\.\\. You are (?:not )?KAI!.*",
+   "example": "You may not cast this spell.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "need_target",
+   "cat": "spell",
+   "rx": "You must specify a target for that spell!",
+   "example": "You must specify a target for that spell!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "no_component",
+   "cat": "spell",
+   "rx": "You do not have the required material component to cast this spell!",
+   "example": "You do not have the required material component to cast this spell!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "no_effect_on",
+   "cat": "spell",
+   "rx": "Your spell has no effect on (?P<target>.+)\\.",
+   "example": "Your spell has no effect on skeleton.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "target"
+   ]
+  },
+  {
+   "name": "no_effect_room",
+   "cat": "spell",
+   "rx": "Your spell has no effect in this room!",
+   "example": "Your spell has no effect in this room!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "no_mana",
+   "cat": "spell",
+   "rx": "You do not have enough (?P<what>mana|kai)(?: to cast that spell| to invoke that power)?\\.",
+   "example": "You do not have enough mana to cast that spell.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "what"
+   ]
+  },
+  {
+   "name": "no_spells",
+   "cat": "spell",
+   "rx": "You have no (?:spells to cast|powers to invoke)!",
+   "example": "You have no spells to cast!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "other_cast_failed",
+   "cat": "spell",
+   "rx": "(?:The )?(?P<caster>.+) attempted to cast (?P<spell>.+?)(?: (?:at|on) (?P<target>.+))?, but failed\\.",
+   "example": "Bob attempted to cast mend, but failed.",
+   "seen": "C",
+   "prio": 60,
+   "groups": [
+    "caster",
+    "spell",
+    "target"
+   ]
+  },
+  {
+   "name": "other_resisted",
+   "cat": "spell",
+   "rx": "(?P<who>.+) resisted (?P<caster>.+)'s (?:cast of )?(?P<spell>.+)\\.",
+   "example": "Bob resisted orc shaman's cast of chill.",
+   "seen": "C",
+   "prio": 60,
+   "groups": [
+    "who",
+    "caster",
+    "spell"
+   ]
+  },
+  {
+   "name": "spell_fails",
+   "cat": "spell",
+   "rx": "Your (?:spell|power) fails!",
+   "example": "Your spell fails!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "spell_purged",
+   "cat": "spell",
+   "rx": "Purging spell (?P<spell>.+) from your spellbook\\.",
+   "example": "Purging spell x from your spellbook.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "spell"
+   ]
+  },
+  {
+   "name": "spells_columns",
+   "cat": "spell",
+   "rx": "Level (?:Mana|Kai)\\s+Short Spell Name",
+   "example": "Level Mana Short Spell Name",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "spells_header",
+   "cat": "spell",
+   "rx": "You have the following (?P<what>spells|powers):",
+   "example": "You have the following spells:",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "what"
+   ]
+  },
+  {
+   "name": "spells_none",
+   "cat": "spell",
+   "rx": "You have no (?P<what>spells|powers)\\.",
+   "example": "You have no spells.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "what"
+   ]
+  },
+  {
+   "name": "spells_wrong_kind",
+   "cat": "spell",
+   "rx": "You may not list your (?:spells|powers)\\..*",
+   "example": "You may not list your spells. You are KAI! ...",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "target_resists",
+   "cat": "spell",
+   "rx": "(?:The )?(?P<target>.+) resists your spell!",
+   "example": "The orc resists your spell!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "target"
+   ]
+  },
+  {
+   "name": "too_powerful",
+   "cat": "spell",
+   "rx": "This spell is too powerful for you(?: to control\\.| - .*)",
+   "example": "This spell is too powerful for you to control.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "unknown_spell",
+   "cat": "spell",
+   "rx": "You do not know how to cast (?P<spell>.+)\\.",
+   "example": "You do not know how to cast fireball.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "spell"
+   ]
+  },
+  {
+   "name": "use_unknown",
+   "cat": "spell",
+   "rx": "You don't know what to do with this!",
+   "example": "You don't know what to do with this!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "you_cast_generic",
+   "cat": "spell",
+   "rx": "You cast (?P<spell>.+?)(?: (?:at|on|upon) (?P<target>.+?))?(?: for (?P<dmg>\\d+) damage| for (?P<heal>\\d+)|, regenerating (?P<regen>\\d+) damage)?[.!]",
+   "example": "You cast vine strike at acid slime for 7 damage!",
+   "seen": "C",
+   "prio": 90,
+   "groups": [
+    "spell",
+    "target",
+    "dmg",
+    "heal",
+    "regen"
+   ]
+  },
+  {
+   "name": "you_resisted",
+   "cat": "spell",
+   "rx": "You resisted (?P<caster>.+)'s (?:cast of )?(?P<spell>.+)\\.",
+   "example": "You resisted orc shaman's cast of chill.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "caster",
+    "spell"
+   ]
+  },
+  {
+   "name": "exp",
+   "cat": "status",
+   "rx": "Exp: (?P<exp>\\d+) Level: (?P<level>\\d+) Exp needed for next level: (?P<left>\\d+) \\((?P<total>\\d+)\\) \\[(?P<pct>\\d+)%\\]",
+   "example": "Exp: 346 Level: 1 Exp needed for next level: 1304 (1650) [21%]",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "exp",
+    "level",
+    "left",
+    "total",
+    "pct"
+   ]
+  },
+  {
+   "name": "exp_not_restructured",
+   "cat": "status",
+   "rx": "Your experience has not been restructured for the new system\\.|Please exit and re-enter The Realm\\. This should restructure your experience points\\.",
+   "example": "Your experience has not been restructured for the new system.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "health",
+   "cat": "status",
+   "rx": "Health:\\s+(?P<hp>-?\\d+)/(?P<maxhp>\\d+)\\s+\\[(?P<hppct>-?\\d+)%\\](?:\\s+(?P<mtype>Mana|Kai):\\s+(?P<mana>-?\\d+)/(?P<maxmana>\\d+)\\s+\\[(?P<mpct>-?\\d+)%\\])?",
+   "example": "Health:    48/56    [85%]",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "hp",
+    "maxhp",
+    "hppct",
+    "mtype",
+    "mana",
+    "maxmana",
+    "mpct"
+   ]
+  },
+  {
+   "name": "st_class",
+   "cat": "status",
+   "rx": "Class: (?P<cls>.+?)\\s+Level: (?P<level>\\d+)\\s+Stealth:\\s+\\*?\\s*(-?\\d+)",
+   "example": "Class: Witchunter Level: 2             Stealth:         0",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "cls",
+    "level"
+   ]
+  },
+  {
+   "name": "st_hits",
+   "cat": "status",
+   "rx": "Hits:\\s+(?P<hp>-?\\d+)/(?P<maxhp>\\d+)\\s+Armour Class:\\s+(?P<ac>-?\\d+)/(?P<dr>-?\\d+)\\s+Thievery:\\s+\\*?\\s*(-?\\d+)",
+   "example": "Hits:    48/56    Armour Class:  19/1  Thievery:        0",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "hp",
+    "maxhp",
+    "ac",
+    "dr"
+   ]
+  },
+  {
+   "name": "st_int",
+   "cat": "status",
+   "rx": "Intellect:\\s*\\*?\\s*(-?\\d+)\\s+Health:\\s+\\*?\\s*(-?\\d+)\\s+Martial Arts:\\s*\\*?\\s*(-?\\d+)",
+   "example": "Intellect: 40     Health:  64          Martial Arts:   0",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "st_mana",
+   "cat": "status",
+   "rx": "(?P<mtype>Mana|Kai):\\s+\\*?\\s*(?P<mana>-?\\d+)/(?P<maxmana>\\d+)(?:\\s+Spellcasting:\\s+\\*?\\s*(-?\\d+))?\\s+Traps:\\s+\\*?\\s*(-?\\d+)",
+   "example": "Mana: *  9/9    Spellcasting: 40     Traps:           0",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "mtype",
+    "mana",
+    "maxmana"
+   ]
+  },
+  {
+   "name": "st_name",
+   "cat": "status",
+   "rx": "Name: (?P<name>.+?)\\s+Lives/CP:\\s+(?P<lives>-?\\d+)/(?P<cp>-?\\d+)",
+   "example": "Name: Kasimir Drakemoor                Lives/CP:      9/12",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "name",
+    "lives",
+    "cp"
+   ]
+  },
+  {
+   "name": "st_picklocks",
+   "cat": "status",
+   "rx": "Picklocks:\\s+\\*?\\s*(-?\\d+)",
+   "example": "                                       Picklocks:       0",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "st_poisoned",
+   "cat": "status",
+   "rx": "You are Poisoned!",
+   "example": "You are Poisoned!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "st_race",
+   "cat": "status",
+   "rx": "Race: (?P<race>.+?)\\s+Exp: (?P<exp>\\d+)\\s+Perception:\\s+\\*?\\s*(-?\\d+)",
+   "example": "Race: Kang        Exp: 1712            Perception:     33",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "race",
+    "exp"
+   ]
+  },
+  {
+   "name": "st_rank",
+   "cat": "status",
+   "rx": "You are in the (?P<rank>front|back) rank of your group\\.",
+   "example": "You are in the front rank of your group.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "rank"
+   ]
+  },
+  {
+   "name": "st_spells_on",
+   "cat": "status",
+   "rx": "You have the following spell cast upon you:",
+   "example": "You have the following spell cast upon you:",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "st_str",
+   "cat": "status",
+   "rx": "Strength:\\s+\\*?\\s*(-?\\d+)\\s+Agility:\\s*\\*?\\s*(-?\\d+)\\s+Tracking:\\s+\\*?\\s*(-?\\d+)",
+   "example": "Strength:  79     Agility: 42          Tracking:        0",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "st_traps",
+   "cat": "status",
+   "rx": "Traps:\\s+\\*?\\s*(-?\\d+)",
+   "example": "                                       Traps:           0",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "st_wil",
+   "cat": "status",
+   "rx": "Willpower:\\s*\\*?\\s*(-?\\d+)\\s+Charm:\\s+\\*?\\s*(-?\\d+)\\s+MagicRes:\\s+\\*?\\s*(-?\\d+)",
+   "example": "Willpower: 40     Charm:   30          MagicRes:       30",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "ambiguous",
+   "cat": "system",
+   "rx": "Please be more specific\\.  You could have meant any of these:",
+   "example": "Please be more specific.  You could have meant any of these:",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "ambiguous_item",
+   "cat": "system",
+   "rx": "-- (?P<name>.+)",
+   "example": "-- short sword",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "name"
+   ]
+  },
+  {
+   "name": "bbs_banner",
+   "cat": "system",
+   "rx": "Enter Username or enter \\\"NEW\\\" to create a new Account",
+   "example": "Enter Username or enter \"NEW\" to create a new Account",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "bbs_logoff_broadcast",
+   "cat": "system",
+   "rx": ">> (?P<who>\\S+) has just logged off, (?P<n>\\d+) users on-line\\.",
+   "example": ">> Witch1 has just logged off, 28 users on-line.",
+   "seen": "F",
+   "prio": 50,
+   "groups": [
+    "who",
+    "n"
+   ]
+  },
+  {
+   "name": "bbs_logoff_confirm",
+   "cat": "system",
+   "rx": "Are you sure \\(Y/N, or R to re-logon\\)\\?",
+   "example": "Are you sure (Y/N, or R to re-logon)?",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "bbs_logoff_self",
+   "cat": "system",
+   "rx": "\\[(?P<who>[^\\]]+)\\] logs OFF - Bye bye now!",
+   "example": "[Bob] logs OFF - Bye bye now!",
+   "seen": "F",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "bbs_masked",
+   "cat": "system",
+   "rx": "\\*+",
+   "example": "*********",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "bbs_menu_intro",
+   "cat": "system",
+   "rx": "Please select one of the following:",
+   "example": "Please select one of the following:",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "bbs_menu_item",
+   "cat": "system",
+   "rx": "(?P<key>\\w) \\.\\.\\. (?P<item>.+)",
+   "example": "M ... MajorMUD",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "key",
+    "item"
+   ]
+  },
+  {
+   "name": "bbs_menu_prompt",
+   "cat": "system",
+   "rx": "Make your selection \\(X to exit\\):",
+   "example": "Make your selection (X to exit):",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "bbs_menu_title",
+   "cat": "system",
+   "rx": "Main Menu",
+   "example": "Main Menu",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "bbs_more",
+   "cat": "system",
+   "rx": ".*\\((?:N)\\)onstop, \\((?:Q)\\)uit, or \\((?:C)\\)ontinue\\?.*",
+   "example": "(N)onstop, (Q)uit, or (C)ontinue?",
+   "seen": "I",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "bbs_password",
+   "cat": "system",
+   "rx": "Password:",
+   "example": "Password:",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "bbs_signup",
+   "cat": "system",
+   "rx": "Please (?:enter|re-enter|select) .+|NOTE: Passwords are stored .+|The MajorBBS and Worldgroup have a maximum password size.+",
+   "example": "Please enter a unique Username (Max. 29 Characters):",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "bbs_username",
+   "cat": "system",
+   "rx": "Username:",
+   "example": "Username:",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "chargen_box",
+   "cat": "system",
+   "rx": ".*[\\u2500-\\u257f\\u2580-\\u259f].*",
+   "example": "│ » Strength ($$$$ to $$$$) $$$$ « │",
+   "seen": "C",
+   "prio": 90,
+   "groups": []
+  },
+  {
+   "name": "chargen_choose",
+   "cat": "system",
+   "rx": "(?:Please choose (?:a|your) (?P<what>race|class)(?: from the following list:| \\[ \\? for help \\] :)|You must choose a (?:valid )?(?:race|class)\\. \\[ \\? for help \\])",
+   "example": "Please choose your race [ ? for help ] :",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "what"
+   ]
+  },
+  {
+   "name": "chargen_cp",
+   "cat": "system",
+   "rx": "You have (?P<cp>\\d+) CP to distribute\\.",
+   "example": "You have 12 CP to distribute.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "cp"
+   ]
+  },
+  {
+   "name": "chargen_lawful",
+   "cat": "system",
+   "rx": "Do you want to be Lawful\\?\\s+\\[Yes/No\\]",
+   "example": "Do you want to be Lawful?  [Yes/No]",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "chargen_limit",
+   "cat": "system",
+   "rx": "(?P<stat>Strength|Intellect|Willpower|Agility|Health|Charm) may not be (?P<dir>lower|higher) than (?P<n>\\d+)\\.(?:\\s+.*)?",
+   "example": "Health may not be lower than 40.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "stat",
+    "dir",
+    "n"
+   ]
+  },
+  {
+   "name": "chargen_list_row",
+   "cat": "system",
+   "rx": "\\[(?P<n>\\d+)\\]\\s+(?P<name>.+)",
+   "example": "[1]  Human",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "n",
+    "name"
+   ]
+  },
+  {
+   "name": "chargen_name",
+   "cat": "system",
+   "rx": "(?:You must enter a last name!|You have entered an invalid name!|Your given name can only be 10 characters long!|Only ALPHA characters are allowed in a name!|Your family name can only be 18 characters long!)",
+   "example": "You must enter a last name!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "chargen_toomuch",
+   "cat": "system",
+   "rx": "You may not assign that much to (?P<stat>\\w+)",
+   "example": "You may not assign that much to Strength",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "stat"
+   ]
+  },
+  {
+   "name": "chargen_values",
+   "cat": "system",
+   "rx": "(?:\\d+|none|black|white|silver|red|brown|blonde|green|blue|grey|SAVE|EXIT|short|long|[\\s_\\\\/|.])+",
+   "example": "40   50   none   black",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "command_interrupted",
+   "cat": "system",
+   "rx": "Command interrupted\\.",
+   "example": "Command interrupted.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "enter_banner",
+   "cat": "system",
+   "rx": "MajorMUD - ROL",
+   "example": "MajorMUD - ROL",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "enter_hangup_note",
+   "cat": "system",
+   "rx": "Last time you were on, you disconnected while playing\\.",
+   "example": "Last time you were on, you disconnected while playing.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "enter_hangup_punished",
+   "cat": "system",
+   "rx": "The gods have punished you appropriately\\.",
+   "example": "The gods have punished you appropriately.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "enter_rule",
+   "cat": "system",
+   "rx": "(?:=-)+=?",
+   "example": "=-=-=-=-=-...",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "exit_interrupted",
+   "cat": "system",
+   "rx": "\\.*Your meditation has been interrupted - you may not exit now!",
+   "example": "Your meditation has been interrupted - you may not exit now!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "exit_meditate",
+   "cat": "system",
+   "rx": "You will exit after a period of silent meditation\\.\\.?",
+   "example": "You will exit after a period of silent meditation.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "exit_others",
+   "cat": "system",
+   "rx": "(?P<who>.+) sits down and meditates\\.",
+   "example": "Bob sits down and meditates.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "exit_saved",
+   "cat": "system",
+   "rx": "Your character has been saved\\. If you have any comments or suggestions, please",
+   "example": "Your character has been saved. ...",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "exit_saved2",
+   "cat": "system",
+   "rx": "leave them in E-mail to Sysop\\. Thanks\\.",
+   "example": "leave them in E-mail to Sysop. Thanks.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "exit_waiting",
+   "cat": "system",
+   "rx": "You may not perform any commands while waiting to exit!",
+   "example": "You may not perform any commands while waiting to exit!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "exit_wounded",
+   "cat": "system",
+   "rx": "You may not exit MajorMud while you are mortally wounded!",
+   "example": "You may not exit MajorMud while you are mortally wounded!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "game_full",
+   "cat": "system",
+   "rx": "We're sorry, but the game is currently full\\.",
+   "example": "We're sorry, but the game is currently full.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "help_none",
+   "cat": "system",
+   "rx": "Sorry, no help is available for that topic!",
+   "example": "Sorry, no help is available for that topic!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "help_topics",
+   "cat": "system",
+   "rx": "The following help topics are currently available:",
+   "example": "The following help topics are currently available:",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "inactive_hangup",
+   "cat": "system",
+   "rx": "You have been inactive for too long\\.\\s+Bye!",
+   "example": "You have been inactive for too long.   Bye!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "login_greeting",
+   "cat": "system",
+   "rx": "Fantasy awaits you in MajorMUD v(?P<ver>\\S+)!",
+   "example": "Fantasy awaits you in MajorMUD v1.11p-WG!",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "ver"
+   ]
+  },
+  {
+   "name": "mud_ansi_note",
+   "cat": "system",
+   "rx": "\\*ANSI RECOMMENDED\\*",
+   "example": "*ANSI RECOMMENDED*",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "mud_menu_item",
+   "cat": "system",
+   "rx": "\\[(?P<key>[A-Z]+)\\] \\. (?P<item>.+?)(?: \\[(?P<left>\\d+) game minutes left\\]| \\[Last chance\\])?",
+   "example": "[E] . Enter the Realm",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "key",
+    "item",
+    "left"
+   ]
+  },
+  {
+   "name": "mud_menu_prompt",
+   "cat": "system",
+   "rx": "\\[MAJORMUD\\]:",
+   "example": "[MAJORMUD]:",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "mud_title",
+   "cat": "system",
+   "rx": "M A J O R  M U D v(?P<ver>\\S+) \\((?P<built>.+)\\)",
+   "example": "M A J O R  M U D v1.11p-WG (Dec 30 2005 14:20:05)",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "ver",
+    "built"
+   ]
+  },
+  {
+   "name": "mud_world",
+   "cat": "system",
+   "rx": "\\{(?P<world>[^}]+)\\}",
+   "example": "{Realm Of Legends}",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "world"
+   ]
+  },
+  {
+   "name": "name_validating",
+   "cat": "system",
+   "rx": "(?:Please wait - Validating your name|Validating your name, please wait)\\.",
+   "example": "Please wait - Validating your name.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "out_of_credits",
+   "cat": "system",
+   "rx": "You have run out of credits for Major Mud\\.",
+   "example": "You have run out of credits for Major Mud.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "player_disconnected",
+   "cat": "system",
+   "rx": "(?P<who>.+) just disconnected!!!",
+   "example": "Bob just disconnected!!!",
+   "seen": "C",
+   "prio": 60,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "player_entered",
+   "cat": "system",
+   "rx": "(?P<who>.+) just entered the Realm\\.",
+   "example": "Bob just entered the Realm.",
+   "seen": "C",
+   "prio": 60,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "player_hungup",
+   "cat": "system",
+   "rx": "(?P<who>.+) just hung up!!!",
+   "example": "Bob just hung up!!!",
+   "seen": "F",
+   "prio": 60,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "player_left_realm",
+   "cat": "system",
+   "rx": "(?P<who>.+) just left the Realm\\.",
+   "example": "Bob just left the Realm.",
+   "seen": "C",
+   "prio": 60,
+   "groups": [
+    "who"
+   ]
+  },
+  {
+   "name": "quiet_set",
+   "cat": "system",
+   "rx": "Quiet mode set",
+   "example": "Quiet mode set",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "set_confirm",
+   "cat": "system",
+   "rx": "You will (?:now|no longer) .+\\.",
+   "example": "You will now see game broadcasts such as user entrances and exits.",
+   "seen": "C",
+   "prio": 90,
+   "groups": []
+  },
+  {
+   "name": "set_options",
+   "cat": "system",
+   "rx": "Valid (?:\\w+ )?(?:options|palettes)(?: are)?:? .+",
+   "example": "Valid follow options: BLIND, NORMAL",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "settings_line",
+   "cat": "system",
+   "rx": "(?P<key>Life for this CHAR|Display Mode|Broadcast Channel|Talking speed|Follow Mode|Attack Interrupts|Receive Items|Warn on Evil|Allow Telepaths|Block Entrance Msg|Allow Gossip|Allow Auction|View gang members|Keep some exp|Messages|Paging|Talking Responses|Style|Colour Palette):?\\s+(?P<val>.+)",
+   "example": "Display Mode:       Verbose",
+   "seen": "C",
+   "prio": 90,
+   "groups": [
+    "key",
+    "val"
+   ]
+  },
+  {
+   "name": "settings_statline",
+   "cat": "system",
+   "rx": "Statusline:\\s+(?P<mode>.+)",
+   "example": "Statusline:         Full",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "mode"
+   ]
+  },
+  {
+   "name": "slow_down",
+   "cat": "system",
+   "rx": "Why don't you slow down for a few seconds\\?",
+   "example": "Why don't you slow down for a few seconds?",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "statline_options",
+   "cat": "system",
+   "rx": "Valid statline options: ON, OFF, FULL, CUSTOM xxx, FULL CUSTOM xxx",
+   "example": "Valid statline options: ...",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "statline_syntax",
+   "cat": "system",
+   "rx": "Syntax: STATLINE \\{ON/OFF/FULL\\}",
+   "example": "Syntax: STATLINE {ON/OFF/FULL}",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "suicide_pw_notice",
+   "cat": "system",
+   "rx": "(?:To prevent accidental suicide or reroll, these commands|have been password protected\\.  You have not yet entered|your suicide password, so please do so soon using the|SET SUICIDE command\\.)",
+   "example": "SET SUICIDE command.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "syntax",
+   "cat": "system",
+   "rx": "Syntax: (?P<syntax>.+)",
+   "example": "Syntax: AID {user name}",
+   "seen": "C",
+   "prio": 90,
+   "groups": [
+    "syntax"
+   ]
+  },
+  {
+   "name": "too_fast",
+   "cat": "system",
+   "rx": "You are typing too quickly - command ignored",
+   "example": "You are typing too quickly - command ignored",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "topten_header",
+   "cat": "system",
+   "rx": "(?:Top )?Heroes of (?:T|t)he Realm|Top Gangs of the Realm",
+   "example": "Top Heroes of the Realm",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "tournament_notice",
+   "cat": "system",
+   "rx": "\\*\\*\\* MajorMUD Tournament Play enabled! \\*\\*\\*",
+   "example": "*** MajorMUD Tournament Play enabled! ***",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "verbose_set",
+   "cat": "system",
+   "rx": "Verbose mode set",
+   "example": "Verbose mode set",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "version",
+   "cat": "system",
+   "rx": "MajorMUD v (?P<ver>\\S+)",
+   "example": "MajorMUD v 1.11p",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "ver"
+   ]
+  },
+  {
+   "name": "who_count",
+   "cat": "system",
+   "rx": "There are (?P<n>\\d+) users in the game\\.",
+   "example": "There are 3 users in the game.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "n"
+   ]
+  },
+  {
+   "name": "who_header",
+   "cat": "system",
+   "rx": "Current Adventurers",
+   "example": "Current Adventurers",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "who_none",
+   "cat": "system",
+   "rx": "There are no users in the game at the moment\\.",
+   "example": "There are no users in the game at the moment.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "who_rule",
+   "cat": "system",
+   "rx": "=+",
+   "example": "===================",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "stats_reset_notice",
+   "cat": "training",
+   "rx": "Please TRAIN STATS as soon as possible to re-apply your CPs|Your stats have been reset due to an earlier bug\\.",
+   "example": "Please TRAIN STATS as soon as possible to re-apply your CPs",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "train_capped",
+   "cat": "training",
+   "rx": "You may not train any further\\.  Please contact your sysop|for appropriate access so that you may continue your training\\.",
+   "example": "You may not train any further.  Please contact your sysop",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "train_cp",
+   "cat": "training",
+   "rx": "(?P<cp>\\d+) additional character points",
+   "example": "10 additional character points",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "cp"
+   ]
+  },
+  {
+   "name": "train_level_band",
+   "cat": "training",
+   "rx": "You have (?P<which>not progressed far enough|progressed too far) to use the training provided here\\.",
+   "example": "You have progressed too far to use the training provided here.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "which"
+   ]
+  },
+  {
+   "name": "train_lives",
+   "cat": "training",
+   "rx": "(?P<lives>\\d+) additional lives",
+   "example": "1 additional lives",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "lives"
+   ]
+  },
+  {
+   "name": "train_no_exp",
+   "cat": "training",
+   "rx": "You do not have the required experience to train yet!",
+   "example": "You do not have the required experience to train yet!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "train_no_money",
+   "cat": "training",
+   "rx": "You do not have the money required for your training\\.",
+   "example": "You do not have the money required for your training.",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "train_receive",
+   "cat": "training",
+   "rx": "You receive the following:",
+   "example": "You receive the following:",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "train_stats_refused",
+   "cat": "training",
+   "rx": "You may not train your stats here!|Your stats are unnaturally altered!  You may not train stats now\\.|You may not do any training while in tournament mode!",
+   "example": "You may not train your stats here!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "train_wrong_room",
+   "cat": "training",
+   "rx": "You must be in an appropriate training room to train!|This shop is not suitable for your training\\.",
+   "example": "You must be in an appropriate training room to train!",
+   "seen": "C",
+   "prio": 50,
+   "groups": []
+  },
+  {
+   "name": "trained",
+   "cat": "training",
+   "rx": "You hand over (?P<paid>(?:(?:\\d+ (?:runic coins?|platinum pieces?|gold crowns?|silver nobles?|copper farthings?)(?:, )?)+|nothing)) and you receive training to attain level (?P<level>\\d+)\\.",
+   "example": "You hand over 5 silver nobles and you receive training to attain level 2.",
+   "seen": "C",
+   "prio": 50,
+   "groups": [
+    "paid",
+    "level"
+   ]
+  }
+ ],
+ "tables": [
+  {
+   "opener": "kai_learned",
+   "row_name": "kai_row",
+   "cat": "spell",
+   "rx": "(?P<ability>.+)",
+   "example": "Kai: punch",
+   "max_rows": 12
+  },
+  {
+   "opener": "look_equipped",
+   "row_name": "equip_row",
+   "cat": "room",
+   "rx": "(?P<item>.+?)\\s+\\((?P<slot>[^)]+)\\)",
+   "example": "padded vest                    (Torso)",
+   "max_rows": null
+  },
+  {
+   "opener": "party_header",
+   "row_name": "party_row",
+   "cat": "party",
+   "rx": "(?P<name>.+?)\\s+\\((?P<cls>[^)]+)\\)\\s*(?:\\[(?P<mtype>[MK]):\\s*(?P<mpct>\\d+)%\\]\\s*)?\\[H:\\s*(?P<hpct>-?\\d+)%\\](?P<flags>.*)|(?P<invited>.+?)\\s+\\[Invited\\]",
+   "example": "  Bob Smith  (Warrior)      [H:100%]  - Frontrank",
+   "max_rows": null
+  },
+  {
+   "opener": "shop_list_rule",
+   "row_name": "shop_row",
+   "cat": "shop",
+   "rx": "(?P<item>.+?)\\s+(?P<qty>\\d+)\\s+(?:(?P<price>\\d+) (?P<cur>[a-z ]+?)|Free)(?: \\((?P<flag>Too powerful|You can't use)\\))?",
+   "example": "quarterstaff                  31           Free",
+   "max_rows": null
+  },
+  {
+   "opener": "spells_columns",
+   "row_name": "spell_row",
+   "cat": "spell",
+   "rx": "(?P<level>\\d+)\\s+(?P<mana>\\d+)\\s+(?P<short>\\S{1,4})\\s+(?P<name>.+?)",
+   "example": "  1   2    vine  vine strike",
+   "max_rows": null
+  },
+  {
+   "opener": "st_spells_on",
+   "row_name": "spells_on_row",
+   "cat": "status",
+   "rx": "(?P<spells>.+)",
+   "example": "  bless (3,10), mend.",
+   "max_rows": 3
+  },
+  {
+   "opener": "train_receive",
+   "row_name": "train_row",
+   "cat": "training",
+   "rx": "(?P<what>.+)",
+   "example": "10 additional character points",
+   "max_rows": 3
+  },
+  {
+   "opener": "who_rule",
+   "row_name": "who_row",
+   "cat": "system",
+   "rx": "(?:(?P<align>[A-Z][A-Za-z]+) )?(?P<name>[A-Z]\\w*)(?: (?P<last>\\S+))?\\s+-\\s+(?P<title>.+?)(?:\\s+of (?P<gang>.+))?",
+   "example": "Good Nester TheDupe   -  Monk  of Old Guard",
+   "max_rows": null
+  }
+ ],
+ "join": [
+  {
+   "prefix": "Obvious exits:",
+   "rule": "exits"
+  },
+  {
+   "prefix": "You notice ",
+   "rule": "dot_here"
+  },
+  {
+   "prefix": "Also here:",
+   "rule": "dot"
+  },
+  {
+   "prefix": "You are carrying ",
+   "rule": "until_have"
+  },
+  {
+   "prefix": "You have the following keys:",
+   "rule": "dot"
+  }
+ ],
+ "exit_tail": [
+  "door",
+  "gate",
+  "passage",
+  "trap",
+  "closed",
+  "open",
+  "secret",
+  "Secret"
+ ],
+ "prompt": {
+  "std": "\\[HP=(?P<hp>-?\\d+)(?:/(?P<mtype>MA|KAI)=(?P<mana>-?\\d+))?(?P<state1> \\((?:Resting|Meditating)\\) )?\\]:(?P<state2> \\((?:Resting|Meditating)\\) )?(?:\\{Energy=(?P<energy>-?\\d+) (?P<dbg>[^}]*)\\}:)?",
+  "generic": "\\[(?P<body>(?=[^\\]\\n]*(?:hp|HP|Hp)=)[^\\]\\n]{1,80})\\]:(?P<state> \\((?:Resting|Meditating)\\) )?",
+  "statline_codes": {
+   "h": {
+    "field": "hp",
+    "rx": "-?\\d+"
+   },
+   "H": {
+    "field": "maxhp",
+    "rx": "-?\\d+"
+   },
+   "m": {
+    "field": "mana",
+    "rx": "-?\\d+"
+   },
+   "M": {
+    "field": "maxmana",
+    "rx": "-?\\d+"
+   },
+   "x": {
+    "field": "exp",
+    "rx": "\\d+"
+   },
+   "X": {
+    "field": "exp_left",
+    "rx": "\\d+"
+   },
+   "c": {
+    "field": "wealth",
+    "rx": "\\d+"
+   },
+   "i": {
+    "field": "name",
+    "rx": "[A-Za-z]+"
+   },
+   "w": {
+    "field": "evilwarn",
+    "rx": "On|Off"
+   },
+   "p": {
+    "field": null,
+    "rx": "his|her|its"
+   },
+   "P": {
+    "field": null,
+    "rx": "him|her|it"
+   },
+   "t": {
+    "field": null,
+    "rx": "nothing"
+   },
+   "r": {
+    "field": "state",
+    "rx": "(?: \\((?:Resting|Meditating)\\) )?"
+   }
+  },
+  "statline_len": 60
+ },
+ "roles": {
+  "args": {
+   "mon_hits_you": [
+    "mon",
+    "dmg"
+   ],
+   "mon_hits_other": [
+    "mon",
+    "victim",
+    "dmg"
+   ],
+   "mon_deflect_you": [
+    "mon",
+    "verb"
+   ],
+   "mon_deflect_other": [
+    "mon",
+    "verb",
+    "victim",
+    "pron"
+   ],
+   "mon_dodge_you": [
+    "mon",
+    "verb",
+    "weapon"
+   ],
+   "mon_dodge_other": [
+    "mon",
+    "verb",
+    "victim",
+    "weapon",
+    "pron"
+   ],
+   "mon_miss_you": [
+    "mon",
+    "verb",
+    "weapon"
+   ],
+   "mon_miss_other": [
+    "mon",
+    "verb",
+    "victim",
+    "weapon"
+   ],
+   "monster_arrives": [
+    "mon",
+    "frm"
+   ],
+   "monster_leaves": [
+    "mon",
+    "to"
+   ],
+   "monster_follows": [],
+   "monster_death": [],
+   "spell_cast_you": [
+    "spell",
+    "target",
+    "dmg"
+   ],
+   "spell_cast_on_you": [
+    "caster",
+    "spell",
+    "dmg"
+   ],
+   "spell_cast_room": [
+    "caster",
+    "spell",
+    "target",
+    "dmg"
+   ]
+  },
+  "cat": {
+   "monster_arrives": "movement",
+   "monster_leaves": "movement",
+   "monster_follows": "movement",
+   "monster_death": "combat"
+  }
+ },
+ "verbs": {
+  "hit": [],
+  "hit3": [],
+  "miss": [],
+  "miss3": []
+ },
+ "template_rules": "Generated families (WCCMSG texts) are built from the game database by template_regex(): split the template on %s, %d and %%; %s becomes a lazy group (.*?), %d becomes -?\\d+, %% becomes a literal percent sign; a group is named after the role's argument (see roles.args) or s<N>/n<N> otherwise, and a repeated name becomes a non-capturing group; the first letter of the text matches either case ([Xx]); literal text is re.escape()d; a trailing run of %s is dropped and replaced by an optional (?:\\s.*)? tail.",
+ "context": {
+  "room_title": "A line equal to a room name from the game data; not a regex.",
+  "room_desc": "Any unmatched line after a room title and before the next room_* pattern; a context rule, not a regex."
+ },
+ "known_failures": []
+}

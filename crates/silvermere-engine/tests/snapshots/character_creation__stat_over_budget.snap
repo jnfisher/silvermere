@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/character_creation.rs
+expression: escape(&budget)
+---
+You may not assign that much to Strength\r\nStrength (55-120) [55]:

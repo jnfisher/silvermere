@@ -1,0 +1,11 @@
+{
+ "scenario": "groups-solo",
+ "script": "groups-solo.script.json",
+ "deterministic": "all",
+ "setup": [
+  {
+   "side": "both",
+   "scenario": "creation-fsd"
+  }
+ ]
+}

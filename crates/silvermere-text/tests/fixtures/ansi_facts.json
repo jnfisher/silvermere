@@ -1,0 +1,233 @@
+{
+  "macros": [
+    {
+      "name": "ANSI_CLRLINE",
+      "text": "\u001b[[\u001b[79D\u001b[K| \b \b \b \b]"
+    },
+    {
+      "name": "ANSI_NORMAL",
+      "text": "\u001b[[\u001b[0;37;40m| \b \b \b \b \b]"
+    },
+    {
+      "name": "ANSI_LTRED",
+      "text": "\u001b[[\u001b[1;31m| \b \b \b \b]"
+    },
+    {
+      "name": "ANSI_LTREDBLK",
+      "text": "\u001b[[\u001b[1;31;40m| \b \b \b \b \b]"
+    },
+    {
+      "name": "ANSI_GREY",
+      "text": "\u001b[[\u001b[0;37m| \b \b \b \b]"
+    },
+    {
+      "name": "ANSI_BROWN",
+      "text": "\u001b[[\u001b[0;33m| \b \b \b \b]"
+    },
+    {
+      "name": "ANSI_WHITE",
+      "text": "\u001b[[\u001b[1;37m| \b \b \b \b]"
+    },
+    {
+      "name": "ANSI_GREEN",
+      "text": "\u001b[[\u001b[0;32m| \b \b \b \b]"
+    },
+    {
+      "name": "ANSI_CYAN",
+      "text": "\u001b[[\u001b[0;36m| \b \b \b \b]"
+    },
+    {
+      "name": "ANSI_YELLOW",
+      "text": "\u001b[[\u001b[1;33m| \b \b \b \b]"
+    },
+    {
+      "name": "ANSI_LTBLUE",
+      "text": "\u001b[[\u001b[1;34m| \b \b \b \b]"
+    },
+    {
+      "name": "ANSI_MAGENTA",
+      "text": "\u001b[[\u001b[0;35m| \b \b \b \b]"
+    },
+    {
+      "name": "ANSI_LTCYAN",
+      "text": "\u001b[[\u001b[1;36m| \b \b \b \b]"
+    },
+    {
+      "name": "ANSI_RED",
+      "text": "\u001b[[\u001b[0;31m| \b \b \b \b]"
+    },
+    {
+      "name": "ANSI_BOLD",
+      "text": "\u001b[[\u001b[1m| \b \b \b]"
+    },
+    {
+      "name": "ANSI_FGRED",
+      "text": "\u001b[[\u001b[31m| \b \b \b]"
+    },
+    {
+      "name": "ANSI_FGBROWN",
+      "text": "\u001b[[\u001b[33m| \b \b \b]"
+    },
+    {
+      "name": "ANSI_FGCYAN",
+      "text": "\u001b[[\u001b[36m| \b \b \b]"
+    },
+    {
+      "name": "ANSI_FGGREY",
+      "text": "\u001b[[\u001b[37m| \b \b \b]"
+    },
+    {
+      "name": "ANSI_FGGREEN",
+      "text": "\u001b[[\u001b[32m| \b \b \b]"
+    },
+    {
+      "name": "PROMPT_SYSOP",
+      "text": "\u001b[1;30m[\u001b[0mMAJORMUD Sysop\u001b[1;30m]\u001b[0m: "
+    },
+    {
+      "name": "ANSI_LTMAGENTA",
+      "text": "\u001b[[\u001b[1;35m| \b \b \b \b]"
+    },
+    {
+      "name": "ANSI_BLKONWHT",
+      "text": "\u001b[[\u001b[0;30m| \b \b \b \b]\u001b[[\u001b[47m| \b \b \b]"
+    },
+    {
+      "name": "ANSI_BLKBACK",
+      "text": "\u001b[[\u001b[40m| \b \b \b]"
+    },
+    {
+      "name": "NOCOLOR",
+      "text": ""
+    },
+    {
+      "name": "ANSI_FGMAGENTA",
+      "text": "\u001b[[\u001b[35m| \b \b \b]"
+    },
+    {
+      "name": "ANSI_DKGREY",
+      "text": "\u001b[[\u001b[1;30m| \b \b \b \b]"
+    },
+    {
+      "name": "ANSI_RESET",
+      "text": "\u001b[[\u001b[0m| \b \b \b]"
+    },
+    {
+      "name": "ANSI_BGRED",
+      "text": "\u001b[[\u001b[41m| \b \b \b]"
+    },
+    {
+      "name": "ANSI_BGBLACK",
+      "text": "\u001b[[\u001b[40m| \b \b \b]"
+    },
+    {
+      "name": "KEYNODE_NOMEM",
+      "text": "Unable to create Key Node (Out of memory)"
+    },
+    {
+      "name": "ANSI_FGBLUE",
+      "text": "\u001b[[\u001b[34m| \b \b \b]"
+    },
+    {
+      "name": "ANSI_DKGRAY",
+      "text": "\u001b[[\u001b[1;30m| \b \b \b \b]"
+    },
+    {
+      "name": "EVILMODNAM",
+      "text": "WCC MAJOR MUD EVIL"
+    }
+  ],
+  "clrtbl": [
+    [
+      "ANSI_GREEN",
+      "ANSI_BROWN",
+      "ANSI_GREEN",
+      "ANSI_GREEN"
+    ],
+    [
+      "ANSI_MAGENTA",
+      "ANSI_GREEN",
+      "ANSI_LTMAGENTA",
+      "ANSI_MAGENTA"
+    ],
+    [
+      "ANSI_GREY",
+      "ANSI_GREY",
+      "ANSI_CYAN",
+      "ANSI_CYAN"
+    ],
+    [
+      "NOCOLOR",
+      "NOCOLOR",
+      "ANSI_LTCYAN",
+      "ANSI_LTCYAN"
+    ],
+    [
+      "ANSI_WHITE",
+      "ANSI_WHITE",
+      "ANSI_GREY",
+      "ANSI_GREY"
+    ],
+    [
+      "ANSI_LTRED",
+      "ANSI_LTRED",
+      "ANSI_LTRED",
+      "ANSI_LTRED"
+    ],
+    [
+      "ANSI_LTBLUE",
+      "ANSI_LTBLUE",
+      "ANSI_LTCYAN",
+      "ANSI_LTCYAN"
+    ],
+    [
+      "ANSI_LTRED",
+      "ANSI_LTRED",
+      "ANSI_LTRED",
+      "ANSI_LTRED"
+    ],
+    [
+      "ANSI_LTMAGENTA",
+      "NOCOLOR",
+      "NOCOLOR",
+      "ANSI_LTMAGENTA"
+    ],
+    [
+      "ANSI_LTRED",
+      "ANSI_RED",
+      "ANSI_BLKONWHT",
+      "ANSI_LTRED"
+    ],
+    [
+      "NOCOLOR",
+      "NOCOLOR",
+      "ANSI_BLKBACK",
+      "NOCOLOR"
+    ],
+    [
+      "ANSI_GREEN",
+      "ANSI_GREEN",
+      "NOCOLOR",
+      "ANSI_GREEN"
+    ],
+    [
+      "ANSI_GREEN",
+      "ANSI_GREEN",
+      "ANSI_GREEN",
+      "ANSI_GREEN"
+    ],
+    [
+      "ANSI_GREY",
+      "ANSI_GREY",
+      "ANSI_GREY",
+      "ANSI_LTCYAN"
+    ],
+    [
+      "ANSI_MAGENTA",
+      "ANSI_CYAN",
+      "ANSI_LTMAGENTA",
+      "ANSI_LTCYAN"
+    ]
+  ],
+  "maxclr": 14
+}

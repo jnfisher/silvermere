@@ -1,0 +1,33 @@
+{
+ "scenario": "m1/status-screens",
+ "script": "../../../tests/captures/status-screens/script.json",
+ "deterministic": [
+  "st",
+  "exp",
+  "i",
+  "set",
+  "keys",
+  "spells",
+  "health",
+  "wealth"
+ ],
+ "setup": [
+  {
+   "side": "orig",
+   "scenario": "entry-new-account"
+  },
+  {
+   "side": "orig",
+   "scenario": "creation-fsd"
+  },
+  {
+   "side": "new",
+   "script": "m1/setup/new-aldric.json"
+  }
+ ],
+ "ignore_steps": [
+  0,
+  1,
+  2
+ ]
+}

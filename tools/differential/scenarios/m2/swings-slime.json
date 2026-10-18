@@ -1,0 +1,39 @@
+{
+ "scenario": "m2/swings-slime",
+ "script": "m2/scripts/swings.json",
+ "statistical": true,
+ "world_patterns": true,
+ "ignore_host_banner": true,
+ "mask_prompt": true,
+ "setup": [],
+ "subst": {
+  "@MONNUM@": "5",
+  "@MON@": "slime",
+  "@MONRX@": "acid slime",
+  "@ROOM@": "2489"
+ },
+ "m2": {
+  "sequence": [],
+  "min_swings": 2000,
+  "about": "Kang Witchunter (level 1, quarterstaff) against the acid slime sheet (WCCKNMSR 5): the player's and the monster's swings, N >= 2,000 a side each; one monster a cycle (the target), the room cleared first; the run stops when both samples are in",
+  "repeat": {
+   "first": 42,
+   "last": 48,
+   "times": 3000
+  },
+  "stop": {
+   "minutes": 30,
+   "at_least": 2000,
+   "count": "You (?:critically |surprise )*[a-z]+(?: at)? (?:[\\w'-]+ )*?acid slime(?: for \\d+ damage!|!| who dodges your attack!)|Your [a-z]+(?: at)? (?:[\\w'-]+ )*?acid slime hits, but glances",
+   "also": [
+    {
+     "count": "\\bThe (?:[\\w'-]+ )*?acid slime [^\\n]*\\byou\\b",
+     "at_least": 2000
+    }
+   ]
+  },
+  "monster": "acid slime",
+  "regen": false,
+  "rates": false
+ }
+}

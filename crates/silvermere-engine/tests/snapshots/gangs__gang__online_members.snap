@@ -1,0 +1,7 @@
+---
+source: crates/silvermere-engine/tests/gangs.rs
+expression: "h.line(bob, \"gb\")"
+---
+Wolves members (online)
+Bob Smith                      [Leader]
+Ann Lee                        [Lieutenant]

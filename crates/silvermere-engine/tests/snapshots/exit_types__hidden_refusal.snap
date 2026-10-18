@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/exit_types.rs
+expression: r.snapshot()
+---
+no_exit: There is no exit in that direction!\r\n

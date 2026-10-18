@@ -1,0 +1,160 @@
+{
+ "scenario": "m1/setup/new-aldric",
+ "port": 2325,
+ "naws": [
+  79,
+  24
+ ],
+ "description": "silvermere only: NEW account Aldric/aldric1 and the character Aldric Stonebrook (Human Warrior, Strength and Health 50) through the line-mode editor, then a clean logoff. The original's setup is entry-new-account + creation-fsd, whose keystrokes follow MBBSEmu's full-screen form (cursor positions) that this server does not draw.",
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "NEW",
+   "until": "Please enter a unique Username",
+   "timeout": 15
+  },
+  {
+   "send": "Aldric",
+   "until": "Please enter a strong Password",
+   "timeout": 15
+  },
+  {
+   "send": "aldric1",
+   "until": "re-enter your password",
+   "timeout": 15
+  },
+  {
+   "send": "aldric1",
+   "until": "e-Mail Address",
+   "timeout": 15
+  },
+  {
+   "send": "",
+   "until": "gender",
+   "timeout": 15
+  },
+  {
+   "send": "M",
+   "until": "Make your selection \\(X to exit\\):",
+   "timeout": 15
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 15
+  },
+  {
+   "send": "E",
+   "until": "choose your race",
+   "timeout": 15
+  },
+  {
+   "send": "1",
+   "until": "choose your class",
+   "timeout": 15
+  },
+  {
+   "send": "1",
+   "until": "Lawful\\?",
+   "timeout": 15
+  },
+  {
+   "send": "N",
+   "until": "Given name",
+   "timeout": 15
+  },
+  {
+   "send": "",
+   "until": "Family name",
+   "timeout": 15
+  },
+  {
+   "send": "Stonebrook",
+   "until": "Strength",
+   "timeout": 15,
+   "note": "Strength and Health raised to 50 as in creation-fsd"
+  },
+  {
+   "send": "50",
+   "until": "Intellect",
+   "timeout": 15
+  },
+  {
+   "send": "",
+   "until": "Willpower",
+   "timeout": 15
+  },
+  {
+   "send": "",
+   "until": "Agility",
+   "timeout": 15
+  },
+  {
+   "send": "",
+   "until": "Health",
+   "timeout": 15
+  },
+  {
+   "send": "50",
+   "until": "Charm",
+   "timeout": 15
+  },
+  {
+   "send": "",
+   "until": "Hair length",
+   "timeout": 15
+  },
+  {
+   "send": "",
+   "until": "Hair colour",
+   "timeout": 15
+  },
+  {
+   "send": "",
+   "until": "Eye colour",
+   "timeout": 15
+  },
+  {
+   "send": "",
+   "until": "SAVE or QUIT",
+   "timeout": 15
+  },
+  {
+   "send": "",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 120,
+   "required": true,
+   "note": "SAVE"
+  },
+  {
+   "send": "",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 15,
+   "note": "the first room"
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 90
+  },
+  {
+   "send": "X",
+   "until": "Make your selection",
+   "timeout": 15
+  },
+  {
+   "send": "X",
+   "until": "Are you sure",
+   "timeout": 15
+  },
+  {
+   "send": "Y",
+   "timeout": 15,
+   "wait": 1
+  }
+ ]
+}

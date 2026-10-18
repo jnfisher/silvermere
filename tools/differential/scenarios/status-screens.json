@@ -1,0 +1,10 @@
+{
+ "scenario": "status-screens",
+ "script": "../../../tests/captures/status-screens/script.json",
+ "setup": [
+  {
+   "side": "both",
+   "scenario": "creation-fsd"
+  }
+ ]
+}

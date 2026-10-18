@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/info_commands.rs
+expression: esc(&got)
+---
+\x1b[0;37;40m\x1b[79D\x1b[K\x1b[0;33mTop Heroes of the Realm\r\n\x1b[37m-=-=-=-=-=-=-=-=-=-=-=-\r\n\r\n\x1b[31mClass\x1b[31mRank \x1b[32mName                  \x1b[35mClass      \x1b[33mGang/Guild          \x1b[32mExperience   \x1b[35m      \r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\r\n\x1b[0m\x1b[31m  1. \x1b[32mAnn Smith             \x1b[35mWarrior    \x1b[33mNone                \x1b[32m4000005000   \x1b[35m      \r\n\x1b[31m  2. \x1b[32mCy Smith              \x1b[35mWarrior    \x1b[33mNone                \x1b[32m3000         \x1b[35m      \r\n\x1b[31m  3. \x1b[32mEd Smith              \x1b[35mWarrior    \x1b[33mNone                \x1b[32m1000         \x1b[35mEDITED\r\n

@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/character_creation.rs
+expression: "escape(&writes(&outs, id))"
+---
+\x1b[1;37m\r\nTo prevent accidental suicide or reroll, these commands\r\nhave been password protected.  You have not yet entered\r\nyour suicide password, so please do so soon using the\r\nSET SUICIDE command.\r\n\x1b[1;36mPlease wait - Validating your name.\r\n

@@ -1,0 +1,63 @@
+---
+source: crates/silvermere-engine/tests/exit_types.rs
+expression: r.snapshot()
+---
+door_already_open: The door was already open.\r\n
+door_locked: The door is locked.\r\n
+door_opened: The door is now open.\r\n
+door_others: You see Aldric open the door to the n \x08orth.\r\n<P>
+door_moved_remote: The door to the s \x08outh just opened.\r\n<P>
+door_closed_now: The door is now closed.\r\n
+door_others: You see Aldric close the door to the n \x08orth.\r\n<P>
+door_moved_remote: The door to the s \x08outh just closed.\r\n<P>
+door_not_open: \x1b[1;31;40mThat door is not open. Closing it will do nothing!\r\n
+door_locked_now: The door is now locked.\r\n
+lock_need_close: You must close the door before you may lock it.\r\n
+unlocked: You successfully unlocked the door.\r\n
+door_others: You see Aldric pick the lock on the door to the n \x08orth.\r\n<P>
+picklock_fail: \x1b[79D\x1b[KYour skill fails you this time.\r\n
+bash_ok: You bashed the door open.\r\n
+door_others: \x1b[79D\x1b[KYou see Aldric bash the door to the n \x08orth.\r\n<P>
+door_moved_remote: \x1b[79D\x1b[KThe door to the s \x08outh just flew open.\r\n<P>
+bash_fail: Your attempts to bash through fail!\r\n
+door_others: \x1b[79D\x1b[KYou see Aldric attempt to bash the door to the n \x08orth.\r\n<P>
+door_already_open: The gate was already open.\r\n
+door_locked: The gate is locked.\r\n
+door_opened: The gate is now open.\r\n
+door_others: You see Aldric open the gate to the n \x08orth.\r\n<P>
+door_moved_remote: The gate to the s \x08outh just opened.\r\n<P>
+door_closed_now: The gate is now closed.\r\n
+door_others: You see Aldric close the gate to the n \x08orth.\r\n<P>
+door_moved_remote: The gate to the s \x08outh just closed.\r\n<P>
+door_not_open: \x1b[1;31;40mThat gate is not open. Closing it will do nothing!\r\n
+door_locked_now: The gate is now locked.\r\n
+lock_need_close: You must close the gate before you may lock it.\r\n
+unlocked: You successfully unlocked the gate.\r\n
+door_others: You see Aldric pick the lock on the gate to the n \x08orth.\r\n<P>
+picklock_fail: \x1b[79D\x1b[KYour skill fails you this time.\r\n
+bash_ok: You bashed the gate open.\r\n
+door_others: \x1b[79D\x1b[KYou see Aldric bash the gate to the n \x08orth.\r\n<P>
+door_moved_remote: \x1b[79D\x1b[KThe gate to the s \x08outh just flew open.\r\n<P>
+bash_fail: Your attempts to bash through fail!\r\n
+door_others: \x1b[79D\x1b[KYou see Aldric attempt to bash the gate to the n \x08orth.\r\n<P>
+door_already_open: The door was already open.\r\n
+door_locked: The door is locked.\r\n
+door_opened: The door is now open.\r\n
+door_others: You see Aldric open the door to the n \x08orth.\r\n<P>
+door_moved_remote: The door to the s \x08outh just opened.\r\n<P>
+door_closed_now: The door is now closed.\r\n
+door_others: You see Aldric close the door to the n \x08orth.\r\n<P>
+door_moved_remote: The door to the s \x08outh just closed.\r\n<P>
+door_not_open: \x1b[1;31;40mThat gate is not open. Closing it will do nothing!\r\n
+door_locked_now: The door is now locked.\r\n
+lock_need_close: You must close the door before you may lock it.\r\n
+unlocked: You successfully unlocked the door.\r\n
+door_others: You see Aldric pick the lock on the door to the n \x08orth.\r\n<P>
+picklock_fail: \x1b[79D\x1b[KYour skill fails you this time.\r\n
+not_a_door: \x1b[1;31;40mThat is not a door or a gate!\r\n
+syntax: \x1b[1;31;40mSyntax: OPEN {Direction|Item}\r\n
+syntax: \x1b[1;31;40mSyntax: CLOSE {Direction}\r\n
+syntax: \x1b[1;31;40mSyntax: LOCK {Direction}\r\n
+lock_no_benefit: \x1b[79D\x1b[KThere is no benefit to locking in that direction.\r\n
+look_no_exit: \x1b[1;31;40mThere are no exits to the s \x08outh!\r\n
+syntax: \x1b[1;31;40mSyntax: PICKLOCK {direction}\r\n

@@ -1,0 +1,6 @@
+---
+source: crates/silvermere-engine/tests/comms.rs
+expression: "format!(\"receiver: {:?}\\nsender: {:?}\", String::from_utf8_lossy(&wire),\nString::from_utf8_lossy(&sent))"
+---
+receiver: "\u{1b}[79D\u{1b}[K\u{1b}[32mAnn telepaths: \u{1b}[0;37m@ok\r\n\u{1b}[79D\u{1b}[K\u{1b}[0;37m[HP=48\u{1b}[0;37m]:"
+sender: "\u{1b}[0;37m--- Telepath Sent to Brynja ---\r\n\u{1b}[79D\u{1b}[K\u{1b}[0;37m[HP=48\u{1b}[0;37m]:"

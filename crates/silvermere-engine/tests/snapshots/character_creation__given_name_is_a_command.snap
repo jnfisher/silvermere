@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/character_creation.rs
+expression: escape(&out)
+---
+\x1b[1;31mThe name you have chosen is already in use!\r\nYou will have to start over again.\r\nPress Enter.

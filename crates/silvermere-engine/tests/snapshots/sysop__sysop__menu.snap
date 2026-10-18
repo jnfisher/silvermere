@@ -1,0 +1,19 @@
+---
+source: crates/silvermere-engine/tests/sysop.rs
+expression: "h.raw_since(from, s)"
+---
+
+[SYSOP MENU]
+
+C - Clear all saved evil points
+CP- Clear all saved profiles (for resetting only)
+R - Reindex the Limited Items  (RF = Full reindex)
+D - Check for defunct MUD users, etc.
+H - Check for item hoarders
+I - Sysop Instructions (wccmmud.rln)
+N - Sysop Release notes (wccmmsys.rel)
+S - Online Sysop Command Help (wccmmsys.not)
+L - Change the limits for defunct user checking
+X - Exit to Main Menu
+
+[1;30m[[0mMAJORMUD Sysop[1;30m][0m: [0;37;40m

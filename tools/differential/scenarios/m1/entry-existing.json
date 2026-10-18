@@ -1,0 +1,24 @@
+{
+ "scenario": "m1/entry-existing",
+ "script": "../../../tests/captures/entry-existing/script.json",
+ "deterministic": "all",
+ "setup": [
+  {
+   "side": "orig",
+   "scenario": "entry-new-account"
+  },
+  {
+   "side": "orig",
+   "scenario": "creation-fsd"
+  },
+  {
+   "side": "new",
+   "script": "m1/setup/new-aldric.json"
+  }
+ ],
+ "ignore_steps": [
+  0,
+  1,
+  2
+ ]
+}

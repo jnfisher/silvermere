@@ -1,0 +1,240 @@
+{
+ "scenario": "m2/death-rebirth",
+ "port": 2323,
+ "description": "The death-rebirth capture's script for a fresh Corvin: he starts at the Village Entrance where creation leaves him, so `w`, `w` come before the capture's `d` into the arena (the captured Corvin had logged off on the Narrow Road). A level-1 Elf Mage (20 HP, no armour, no weapon) goes down into the arena and rests (accepted); then fights each spawn with bare hands until a monster knocks it below 0 HP (negative HP in the prompt; `rest` refused while mortally wounded), lies there until `You have been killed!`, then the miracle and lives lines, the rebirth room, `i` (empty) and `st`.",
+ "character": {
+  "user": "Corvin",
+  "password": "corvin1",
+  "name": "Corvin Ashdown",
+  "race": "Elf",
+  "class": "Mage",
+  "level": 1,
+  "start": "Newhaven, Narrow Road"
+ },
+ "behaviours": [
+  "a life is lost (lives count shown)",
+  "resting in a spawn room",
+  "gear and coins stay in the death room (`i` empty)",
+  "negative HP in the prompt",
+  "DEATHHP -200: the unconscious window before death",
+  "death text",
+  "rebirth room",
+  "mortally wounded restrictions"
+ ],
+ "mask": [
+  {
+   "regex": "\\(Dec 30 2005 14:20:05\\)",
+   "why": "build stamp of the DLL (mud_title)"
+  },
+  {
+   "regex": " \\[\\d+ game minutes left\\]| \\[Last chance\\]",
+   "why": "menu time-left suffix"
+  },
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "every direction name carries a random capital letter and a backspace, rewritten each slow cycle: `nJ\\borth`"
+  },
+  {
+   "regex": "(?<=\\[HP=)-?\\d+|(?<=/MA=)-?\\d+|(?<=/KAI=)-?\\d+",
+   "why": "the prompt's numbers only, never its labels (as m4)"
+  },
+  {
+   "regex": "(?<=for )\\d+(?= damage)|(?<=You gain )\\d+(?= experience)|\\d+(?= (?:copper farthings?|silver nobles?|gold crowns?|platinum pieces?|runic coins?)\\b)",
+   "why": "RNG: the damage, the experience share and the coin amounts, digits only (the words and the currency name stay compared)"
+  },
+  {
+   "regex": "giant rat|lashworm|filthbug|carrion beast|acid slime|kobold thief",
+   "why": "which monster spawned"
+  },
+  {
+   "regex": "\\w+ just (?:entered|left) the Realm\\.",
+   "why": "other players coming and going"
+  },
+  {
+   "regex": "(?<=Exp: \\x1b\\[36m)\\d+ *|(?<=Exp: )\\d+ *",
+   "why": "the experience after random fights (st, exp): the number and its column padding, not the label"
+  },
+  {
+   "regex": "(?<=Hits: \\x1b\\[36m) *-?\\d+(?=/)|(?<=Hits: ) *-?\\d+(?=/)",
+   "why": "current hit points after random fights (st): the number and its padding, not the label or the maximum"
+  },
+  {
+   "regex": "(?<=next level: \\x1b\\[36m)\\d+(?= \\()|(?<=next level: )\\d+(?= \\()|(?<=\\) \\[)\\d+(?=%\\])",
+   "why": "experience still needed and its percentage (exp): digits only"
+  }
+ ],
+ "notes": [
+  "No sysop commands were used: Corvin rested, then fought back with fists until killed.",
+  "A first attempt that only rested was stopped after ten minutes: the arena's giant rat never hurt Corvin (`The fat giant rat lunges at you!` only). Its broken connection was cleared by a login (not captured) before this run, so no punishment lines appear here.",
+  "Up to 25 fight rounds (m2.repeat over the one stored round, steps 9-13): only the arena's acid slime reliably hurts a level-1 character (the others hit at the 10% floor and are mostly dodged), about one spawn in eight, so eight rounds left a third of the runs without a death (#72, run 39015886068); the rounds after the knockout are skipped (`skip_if`)."
+ ],
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "Corvin",
+   "until": "Password:"
+  },
+  {
+   "send": "corvin1",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "note": "MajorMUD from the BBS menu"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm"
+  },
+  {
+   "send": "w",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Newhaven, Narrow Path"
+  },
+  {
+   "send": "w",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "Newhaven, Narrow Road"
+  },
+  {
+   "send": "d",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the arena"
+  },
+  {
+   "send": "rest",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "resting in a spawn room"
+  },
+  {
+   "op": "sleep",
+   "seconds": 240,
+   "until": "into the room|at you|you for \\d+|Also here:",
+   "skip_if": "\\[HP=-\\d+",
+   "note": "a monster"
+  },
+  {
+   "send": "",
+   "until": "Obvious exits:[^\\n]*\\n[^\\n]*\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "set": {
+    "mon": "Also here:[^.\\n]*? ([a-z]+)[.,]"
+   },
+   "skip_if": "\\[HP=-\\d+",
+   "note": "waits for the room's exits line, not the first prompt: a monster's line and its prompt can come before the room text, and `Also here` must be in this step (live runs 38953732059, 38988606081)"
+  },
+  {
+   "send": "a {mon}",
+   "until": "\\*Combat Engaged\\*|You don't see|guilt",
+   "timeout": 10,
+   "skip_if": "\\[HP=-\\d+",
+   "note": "fists; a monster already gone (`You don't see`) ends the cycle",
+   "set": {
+    "over#CYCLE#": "(You don't see)"
+   }
+  },
+  {
+   "op": "sleep",
+   "seconds": 300,
+   "until": "\\*Combat Off\\*|\\[HP=-\\d+",
+   "skip_if": "\\[HP=-\\d+",
+   "may_time_out": true,
+   "set": {
+    "over#CYCLE#": "(\\*Combat Off\\*|\\[HP=-\\d+)"
+   },
+   "note": "to the end of the fight or the knockout; a fight still on after 300 s goes to the next step",
+   "if_unset": [
+    "over#CYCLE#"
+   ]
+  },
+  {
+   "op": "sleep",
+   "seconds": 900,
+   "until": "\\*Combat Off\\*|\\[HP=-\\d+",
+   "skip_if": "\\[HP=-\\d+",
+   "if_unset": [
+    "over#CYCLE#",
+    "slow"
+   ],
+   "may_time_out": true,
+   "note": "a slow fight: fists (1-2 damage, most blows glancing off its armour) against a monster that regenerates (slow_update_monster) and hits a dodging mage at the 10% floor: the new side's filthbug was still up after 300 s (live run 39030247260). Nothing else spawns meanwhile (the arena spawns only while its players outnumber its monsters), so the cycle waits the fight out. Once per run (`slow`, set by any output of this wait), so the worst case stays well inside the nightly cleanup (CLEANUP_AT); a later slow fight goes on to the next cycle",
+   "set": {
+    "slow": "([\\s\\S])"
+   }
+  },
+  {
+   "op": "sleep",
+   "seconds": 600,
+   "until": "\\[HP=-\\d+",
+   "note": "until mortally wounded"
+  },
+  {
+   "send": "rest",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "refused while mortally wounded"
+  },
+  {
+   "op": "sleep",
+   "seconds": 2400,
+   "until": "You have been killed",
+   "note": "until dead"
+  },
+  {
+   "op": "sleep",
+   "seconds": 5
+  },
+  {
+   "send": "",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the rebirth room"
+  },
+  {
+   "send": "i",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "st",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 90,
+   "note": "exit after silent meditation (USREXIT)"
+  },
+  {
+   "send": "X",
+   "until": "Make your selection",
+   "note": "leave MajorMUD"
+  },
+  {
+   "send": "X",
+   "until": "Are you sure",
+   "note": "BBS logoff"
+  },
+  {
+   "send": "Y",
+   "wait": 2,
+   "timeout": 10
+  }
+ ],
+ "naws": null,
+ "captured": "2026-10-14 14:57",
+ "dll_sha256": "e308533696e1e64cf52715921d94d4245f4708f56ea048e4f7c6ec9b564b725f"
+}

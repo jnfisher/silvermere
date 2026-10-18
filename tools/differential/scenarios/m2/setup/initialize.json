@@ -1,0 +1,76 @@
+{
+ "scenario": "m2/setup/initialize",
+ "port": 2323,
+ "description": "T-040: SYSOP INITIALIZE -1 on a staged m2 sysop (@USER@), the original only: how far its start-up cycle has come. Under MBBSEmu every record cache is at its floor and the cycle crawls; m2_live.sh waits for `(Finished)` before play. silvermere drops the command (no record caches).",
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "@USER@",
+   "until": "Password:|already logged in",
+   "set": {
+    "busy": "(already logged in)"
+   },
+   "note": "MBBSEmu admits one connection per user; the previous sheet's session can still be held for a moment after its logoff (\"... is already logged in -- only 1 connection allowed per user\", live run 38953732059)"
+  },
+  {
+   "op": "sleep",
+   "seconds": 60,
+   "if_set": "busy",
+   "note": "wait for the original to let the previous session go"
+  },
+  {
+   "send": "@USER@",
+   "until": "Password:",
+   "timeout": 20,
+   "if_set": "busy",
+   "note": "the name again at the Username prompt MBBSEmu shows after the refusal"
+  },
+  {
+   "send": "@PASSWORD@",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "note": "MajorMUD from the BBS menu"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm"
+  },
+  {
+   "send": "sysop initialize -1",
+   "until": "State: -?\\d+[^\\n]*\\(Rate -?\\d+\\)",
+   "required": true,
+   "note": "a negative rate only shows the start-up cycle: its progress, maxactive and state; it never restarts it"
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 90,
+   "note": "exit after silent meditation (USREXIT)"
+  },
+  {
+   "send": "X",
+   "until": "Make your selection",
+   "note": "leave MajorMUD"
+  },
+  {
+   "send": "X",
+   "until": "Are you sure",
+   "note": "BBS logoff"
+  },
+  {
+   "send": "Y",
+   "wait": 2,
+   "timeout": 10
+  }
+ ]
+}

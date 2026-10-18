@@ -1,0 +1,7 @@
+# The party soak's server (docs/testing-live-sessions.md, "Layer 5: the party soak"): telnet on 2325 and the
+# admin API on 2326, both local; the database is SQLite under the data directory the run is
+# given (`--data-dir`), so a temporary directory leaves nothing behind. Everything else is the
+# default, so cycle lengths and rates are those of the module.
+[server]
+telnet_bind = "127.0.0.1:2325"
+admin_bind = "127.0.0.1:2326"

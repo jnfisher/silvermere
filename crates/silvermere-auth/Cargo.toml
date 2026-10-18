@@ -1,0 +1,29 @@
+[package]
+name = "silvermere-auth"
+description = "Accounts, passwords, roles, login state machine."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+silvermere-types.workspace = true
+silvermere-text.workspace = true
+silvermere-db.workspace = true
+argon2.workspace = true
+rand.workspace = true
+jiff.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+sqlx = { workspace = true, features = ["any"] }
+tokio.workspace = true
+proptest.workspace = true
+serde_json.workspace = true
+jiff.workspace = true

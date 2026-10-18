@@ -1,0 +1,5 @@
+{
+ "scenario": "creation-line-mode",
+ "script": "../../../tests/captures/creation-line-mode/script.json",
+ "deterministic": []
+}

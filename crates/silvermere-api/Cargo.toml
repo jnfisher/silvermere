@@ -1,0 +1,31 @@
+[package]
+name = "silvermere-api"
+description = "Admin HTTP API (health, metrics, event stream; CRUD reserved)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+silvermere-types.workspace = true
+silvermere-engine.workspace = true
+axum.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+metrics.workspace = true
+metrics-exporter-prometheus.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tower.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
+tracing-subscriber.workspace = true

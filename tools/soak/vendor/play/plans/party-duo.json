@@ -1,0 +1,15 @@
+{
+  "class": "party duo (Warrior + Cleric)",
+  "source": "John 2026-10-13: a party hunts at its lowest member's level",
+  "levels_by": "lowest member",
+  "stages": [
+    {"levels": [1, 3],   "area": "Newhaven Dungeon Entrance", "anchor": "1:2152", "radius": 0,
+     "note": "Arena monsters, but no maxlevel (the Arena refuses players above level 3). Radius 0: the Small Cavern next door (1:2156) holds a cave bear (50 hp, hit 18) and is pitch dark"},
+    {"levels": [4, 8],   "area": "Graveyard",                 "anchor": "1:817",  "radius": 10},
+    {"levels": [9, 10],  "area": "Crypt levels 1-3",          "anchor": "1:835",  "radius": 12},
+    {"levels": [10, 10], "quest": "Crypt quests: Warrior golden battleaxe, Cleric black flail (each a human's job)"},
+    {"levels": [11, 15], "area": "Kobold caves",              "anchor": "6:752",  "radius": 10},
+    {"levels": [16, 20], "area": "Frozen Caverns (wolves)",   "anchor": "10:35",  "radius": 10,
+     "requires": ["search n at 10:3"]}
+  ]
+}

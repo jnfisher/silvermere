@@ -1,0 +1,12 @@
+---
+source: crates/silvermere-text/tests/statline.rs
+expression: out
+---
+[HP=%h/%H,MA=%m/%M]:
+  -> [HP=10/40,MA=392/433]:|
+[hp=%h/%H,MA=%m/%M,CASH=%c,WARNS=%w]:
+  -> [hp=10/40,MA=392/433,CASH=180750,WARNS=Off]:|
+%d[%h/%H]%r%n%B%f1%b1Exp:%x Left:%X%N>
+  -> \x1b[0;36m[\x1b[1;31m10\x1b[0;36m/40] (Resting) \r\x1b[1m\x1b[31m\x1b[42mExp:123456 Left:76544\x1b[0m>|
+%i loves %p sword; give %P %t. 100%% %z %5 %f9
+  -> Aldric loves his sword; give him nothing. 100%% %z 5 %f9|

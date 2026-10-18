@@ -1,0 +1,8 @@
+---
+source: crates/silvermere-engine/tests/exit_types.rs
+expression: r.snapshot()
+---
+cant_move: You can\'t seem to move anywhere!\r\n
+stunned: You are too stunned to move anywhere!\r\n
+too_heavy: \x1b[79D\x1b[K\x1b[1;37mYou are too heavy to move!\r\n
+too_heavy: \x1b[79D\x1b[K\x1b[1;37mYou are too heavy to move anywhere!\r\n

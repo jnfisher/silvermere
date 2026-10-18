@@ -1,0 +1,21 @@
+---
+source: crates/silvermere-testkit/tests/stock_item_use.rs
+expression: text
+---
+learn_scroll: You read scroll of vine strike and learn the spell vine strike.
+already_known: You realize that you already know this scroll!
+use_unknown: You don't know what to do with this!
+receive_hp: You receive 10 hit points.
+uses_gone: It's uses gone, elixir disappears from your inventory!
+no_uses: There are no more uses in waterskin.
+use_forbidden: You may not use that item!
+dont_have: You don't have feather.
+eat_drink: You eat the iron ration. | You feel a little better. | The iron ration tastes bland, but is nutritious.
+other_eat_drink: Rowan eats iron ration.
+light_ok: You lit the torch.
+light_fail: You already have something lit!
+light_level: The current light level is Regular Light
+light_out: Your torch flickers and goes out.
+light_out_other: Rowan's torch just went out.
+light_out (standard): torch is no longer lit!
+not_lit: You do not have torch lit.

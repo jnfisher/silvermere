@@ -1,0 +1,196 @@
+{
+ "scenario": "groups-solo",
+ "port": 2323,
+ "description": "Group commands of a character alone (T-043): PARTY with no party, the FOLLOW/JOIN/INVITE/UNINVITE/DISBAND/AID/SHARE syntax and refusals, the ranks outside a party, and the broadcast channels JOIN N / LEAVE. Written for the differential harness, not yet run against the original. The two-session party script (party-duo) needs a second connection, which the harness does not drive.",
+ "character": {
+  "user": "Aldric",
+  "password": "aldric1",
+  "name": "Aldric Stonebrook",
+  "race": "Human",
+  "class": "Warrior",
+  "level": 1
+ },
+ "mask": [
+  {
+   "regex": "\\(Dec 30 2005 14:20:05\\)",
+   "why": "build stamp of the DLL (mud_title)"
+  },
+  {
+   "regex": " \\[\\d+ game minutes left\\]| \\[Last chance\\]",
+   "why": "menu time-left suffix"
+  },
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "every direction name carries a random capital letter and a backspace, rewritten each slow cycle: `nJ\\borth`"
+  },
+  {
+   "regex": "\\[HP=-?\\d+(?:/(?:MA|KAI)=-?\\d+)?",
+   "why": "HP/mana in the prompt depend on earlier fights and regen"
+  }
+ ],
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "Aldric",
+   "until": "Password:"
+  },
+  {
+   "send": "aldric1",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "note": "MajorMUD from the BBS menu"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm"
+  },
+  {
+   "send": "par",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "PARTY alone: party_none, then the own row; the M1 `par` gap"
+  },
+  {
+   "send": "follow",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "FOLLOW alone without a leader: the syntax"
+  },
+  {
+   "send": "follow zed",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "nobody of that name"
+  },
+  {
+   "send": "join",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "JOIN alone: the syntax"
+  },
+  {
+   "send": "join zed",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "JOIN {name} is FOLLOW"
+  },
+  {
+   "send": "invite",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "INVITE alone: the syntax"
+  },
+  {
+   "send": "invite zed",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "You don't see zed here!"
+  },
+  {
+   "send": "uninvite",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "UNINVITE alone: the syntax"
+  },
+  {
+   "send": "uninvite zed",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "nobody anywhere: the syntax"
+  },
+  {
+   "send": "frontrank",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "not in a party"
+  },
+  {
+   "send": "backrank",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "not in a party"
+  },
+  {
+   "send": "midrank",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "not in a party"
+  },
+  {
+   "send": "disband party",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "no followers: nothing printed"
+  },
+  {
+   "send": "disband",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "DISBAND alone: the syntax"
+  },
+  {
+   "send": "join 7",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "channel 7"
+  },
+  {
+   "send": "join 8",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "old channel told, then channel 8"
+  },
+  {
+   "send": "leave",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "leaves channel 8"
+  },
+  {
+   "send": "aid",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "AID alone: the syntax"
+  },
+  {
+   "send": "aid zed",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "no player of that name: the syntax"
+  },
+  {
+   "send": "share",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the syntax with the default"
+  },
+  {
+   "send": "share 0 gold",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the syntax"
+  },
+  {
+   "send": "share 5 wood",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "no such currency: the syntax"
+  },
+  {
+   "send": "par",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "PARTY again: the rank is still Midrank"
+  }
+ ]
+}

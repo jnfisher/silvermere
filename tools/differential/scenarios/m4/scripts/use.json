@@ -1,0 +1,242 @@
+{
+ "scenario": "m4/use",
+ "port": 2323,
+ "description": "T-057 (T-053's m4_use) as the sysop's character made a level-2 druid: a scroll of vine strike read and a second one already known, a torch lit and the light level, a second light refused, a potion drunk, a ration eaten, the iron key on the Marble Passage's door. Needs the developer code on both sides: on the original CODEC_OF_TWINKS=78 in wccmmud.ini (STAGE_CODEC_OF_TWINKS or docker -e CODEC_OF_TWINKS) and the BBS key WCCSYSOP on the sysop account (mbbsemu_key.py; TWEAK, SUMMON, EXPRESS_TRAIN, MONSTER), on silvermere the DEBUG grant (`silvermere account grant sysop DEBUG`); and the BBS sysop account sysop/sysop with its character Sysadm on both (docs/testing.md, M4).",
+ "character": {
+  "user": "sysop",
+  "password": "sysop",
+  "name": "Sysadm"
+ },
+ "mask": [
+  {
+   "regex": "(?<=Current pollrate:)[^\\r\\n]*|(?<=Current initrate:)[^\\r\\n]*|(?<=Logfile:)[^\\r\\n]*",
+   "why": "the values of the record cache rates and the log file name: none in silvermere; the labels stay compared"
+  },
+  {
+   "regex": "You must purchase the .* before you may move through this exit\\.",
+   "why": "the add-on gate of GOTO, dropped (licensing)"
+  },
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "direction names' random capital"
+  },
+  {
+   "regex": "(?<=\\[HP=)-?\\d+|(?<=/MA=)-?\\d+|(?<=/KAI=)-?\\d+",
+   "why": "the prompt's hit point and mana numbers (not its labels)"
+  },
+  {
+   "regex": "Also here: .*",
+   "why": "monsters that happen to be around"
+  }
+ ],
+ "echo_anchored": true,
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20
+  },
+  {
+   "send": "sysop",
+   "until": "Password:"
+  },
+  {
+   "send": "sysop",
+   "until": "Make your selection"
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "note": "MajorMUD from the BBS menu"
+  },
+  {
+   "send": "E",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 20,
+   "required": true,
+   "note": "enter the realm as Sysadm"
+  },
+  {
+   "send": "sysop tweak clear",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "a known start: TWEAK CLEAR empties the pack, the worn items and the keys and zeroes the money, so an earlier scenario's abort on one side cannot carry over"
+  },
+  {
+   "send": "sysop tweak class 13",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "the fixed sheet: class (TWEAK)"
+  },
+  {
+   "send": "sysop tweak experience 10000000",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "experience for any level below 16: a level above the experience is taken down at the next entry with its character points, and a negative CP total resets the stats into the editor, even after a run cut short"
+  },
+  {
+   "send": "sysop tweak level 2",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "and level"
+  },
+  {
+   "send": "sysop tweak hp 100",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "hit points to outlast the scenario"
+  },
+  {
+   "send": "sysop tweak lives 9",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "and the lives a death would take"
+  },
+  {
+   "send": "sysop tweak mana 50",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "mana, current and maximum"
+  },
+  {
+   "send": "sysop express_train 2140 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "to 1:2140 (EXPRESS_TRAIN)"
+  },
+  {
+   "send": "sysop summon scroll of vine strike",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "SUMMON: an item into the pack"
+  },
+  {
+   "send": "use scroll of vine strike",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "learn_scroll, or already_known when an earlier run left the spell in the book"
+  },
+  {
+   "send": "spells",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "vine strike in the book"
+  },
+  {
+   "send": "sysop summon scroll of vine strike",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "read scroll of vine strike",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "already_known: the scroll stays"
+  },
+  {
+   "send": "drop scroll",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "the second scroll goes"
+  },
+  {
+   "send": "sysop summon torch",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "light torch",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "light_ok"
+  },
+  {
+   "send": "light",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "light_level"
+  },
+  {
+   "send": "sysop summon torch",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "use torch",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "a second light source while one burns"
+  },
+  {
+   "send": "sysop summon minor healing potion",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "drink minor healing potion",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "receive_hp: the amount is random, events only"
+  },
+  {
+   "send": "sysop summon iron ration",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "eat iron ration",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "the line, the One Time Cast, the destroy message"
+  },
+  {
+   "send": "sysop express_train 2225 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "Marble Passage (1:2225): the Key exit south (item 338); no generation, few wanderers"
+  },
+  {
+   "send": "open s",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "locked"
+  },
+  {
+   "send": "sysop summon iron key",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "use iron key s",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "You successfully unlocked the door."
+  },
+  {
+   "send": "use iron key s",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "The door was not locked."
+  },
+  {
+   "send": "i",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:"
+  },
+  {
+   "send": "drop torch",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "one of the two torches"
+  },
+  {
+   "send": "drop torch",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "the other"
+  },
+  {
+   "send": "i",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "no torch left"
+  },
+  {
+   "send": "sysop express_train 2140 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "to 1:2140 (EXPRESS_TRAIN)"
+  },
+  {
+   "send": "sysop tweak level 1",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "note": "the level the experience allows, for the next entry"
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 90,
+   "note": "the silent meditation takes a few ticks"
+  },
+  {
+   "send": "X",
+   "until": "Make your selection"
+  },
+  {
+   "send": "X",
+   "until": "Are you sure"
+  },
+  {
+   "send": "Y",
+   "until": ""
+  }
+ ],
+ "settle": 0.5
+}

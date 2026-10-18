@@ -1,0 +1,6 @@
+---
+source: crates/silvermere-engine/tests/sysop.rs
+expression: "h.line(s, \"sysop list\")"
+---
+Valid lists: USERS, EVIL, GANG <gangname>, LIMITED_ITEMS, NEWLIMITED (monster | map (map_no) | user (user_name) | name item_name)
+[HP=40]:

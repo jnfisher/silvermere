@@ -1,0 +1,11 @@
+{
+ "scenario": "spawn-arena",
+ "script": "../scripts/spawn-arena.json",
+ "statistical": true,
+ "setup": [
+  {
+   "side": "both",
+   "scenario": "creation-fsd"
+  }
+ ]
+}

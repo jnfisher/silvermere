@@ -1,0 +1,16 @@
+---
+source: crates/silvermere-engine/tests/train_stats.rs
+expression: out
+---
+tournament:
+\x1b[0;37;40m\x1b[79D\x1b[K\x1b[1;31mYou may not do any training while in tournament mode!\r\n
+\x1b[79D\x1b[K\x1b[0;37m[HP=31\x1b[0;37m]:
+not a shop:
+\x1b[0;37;40m\x1b[79D\x1b[K\x1b[1;31mYou may not train your stats here!\r\n
+\x1b[79D\x1b[K\x1b[0;37m[HP=31\x1b[0;37m]:
+altered:
+\x1b[0;37;40m\x1b[79D\x1b[K\x1b[1;31mYour stats are unnaturally altered!  You may not train stats now.\r\n
+\x1b[79D\x1b[K\x1b[0;37m[HP=31\x1b[0;37m]:
+another class:
+\x1b[0;37;40m\x1b[79D\x1b[K\x1b[1;31mYou may not train your stats here!\r\n
+\x1b[79D\x1b[K\x1b[0;37m[HP=31\x1b[0;37m]:

@@ -1,0 +1,377 @@
+{
+ "scenario": "creation-line-mode",
+ "port": 2323,
+ "description": "Character creation with the terminal reported as 79x24 by NAWS, so the module takes the non-full-screen path (the full-screen editor needs at least 80 columns): no form background, the text Point Cost Chart and race ranges (`Strength  35 - 0`: the maximum prints 0), and `You have N CP to distribute.` after every accepted stat. MBBSEmu's FSD engine still positions every field with `ESC[row;colf`, so the keystrokes are the same as in creation-fsd.",
+ "character": {
+  "user": "Corvin",
+  "password": "corvin1",
+  "name": "Corvin Ashdown",
+  "race": "Elf",
+  "class": "Mage",
+  "level": 1
+ },
+ "naws": [
+  79,
+  24
+ ],
+ "behaviours": [
+  "the line-mode editor (terminal not ANSI >= 80x23)",
+  "line-mode fallback",
+  "the lawful question"
+ ],
+ "mask": [
+  {
+   "regex": "\\(Dec 30 2005 14:20:05\\)",
+   "why": "build stamp of the DLL (mud_title)"
+  },
+  {
+   "regex": " \\[\\d+ game minutes left\\]| \\[Last chance\\]",
+   "why": "menu time-left suffix"
+  },
+  {
+   "regex": "[A-Z ]\\x08",
+   "why": "every direction name carries a random capital letter and a backspace, rewritten each slow cycle: `nJ\\borth`"
+  },
+  {
+   "regex": "Build #\\S+|\\d{1,2}/\\d{1,2}/\\d{2,4}|\\d{1,2}:\\d{2}(?::\\d{2})?",
+   "why": "MBBSEmu banner build and clock"
+  },
+  {
+   "regex": "[-\\\\|/]\\x08",
+   "why": "name-validation spinner (one frame per poll; the count depends on timing)"
+  }
+ ],
+ "notes": [
+  "The BBS account was created beforehand (same NEW dialogue as entry-new-account; not captured).",
+  "Answers: race 5 (Elf), class 12 (Mage), lawful N, family name Ashdown, Int 60, Wil 50; 80 CP left. Corvin is the death-rebirth character."
+ ],
+ "steps": [
+  {
+   "op": "connect",
+   "until": "Username:",
+   "timeout": 20,
+   "result": {
+    "offset": 0,
+    "waited": 0.0,
+    "matched": true
+   }
+  },
+  {
+   "send": "Corvin",
+   "until": "Password:",
+   "result": {
+    "offset": 2085,
+    "waited": 0.0,
+    "matched": true
+   }
+  },
+  {
+   "send": "corvin1",
+   "until": "Make your selection",
+   "result": {
+    "offset": 2116,
+    "waited": 0.0,
+    "matched": true
+   }
+  },
+  {
+   "send": "M",
+   "until": "\\[MAJORMUD\\]:",
+   "note": "MajorMUD from the BBS menu",
+   "result": {
+    "offset": 2332,
+    "waited": 0.0,
+    "matched": true
+   }
+  },
+  {
+   "send": "E",
+   "until": "choose your race",
+   "timeout": 10,
+   "result": {
+    "offset": 2935,
+    "waited": 0.0,
+    "matched": true
+   }
+  },
+  {
+   "send": "5",
+   "until": "choose your class",
+   "timeout": 10,
+   "note": "Elf",
+   "result": {
+    "offset": 3594,
+    "waited": 0.0,
+    "matched": true
+   }
+  },
+  {
+   "send": "12",
+   "until": "Lawful\\?",
+   "timeout": 10,
+   "note": "Mage",
+   "result": {
+    "offset": 4333,
+    "waited": 0.0,
+    "matched": true
+   }
+  },
+  {
+   "send": "N",
+   "until_cursor": "4;20",
+   "timeout": 15,
+   "required": true,
+   "result": {
+    "offset": 5093,
+    "waited": 0.31,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "5;20",
+   "result": {
+    "offset": 6748,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "Ashdown",
+   "raw": true,
+   "timeout": 10,
+   "wait": 0.5,
+   "note": "family name",
+   "result": {
+    "offset": 6927,
+    "waited": 0.5,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "9;34",
+   "result": {
+    "offset": 6934,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "10;34",
+   "result": {
+    "offset": 7136,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "6",
+   "raw": true,
+   "timeout": 10,
+   "wait": 0.5,
+   "result": {
+    "offset": 7319,
+    "waited": 0.5,
+    "matched": true
+   }
+  },
+  {
+   "send": "0",
+   "raw": true,
+   "timeout": 10,
+   "wait": 0.5,
+   "result": {
+    "offset": 7356,
+    "waited": 0.5,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "11;34",
+   "note": "Intellect 60",
+   "result": {
+    "offset": 7357,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "5",
+   "raw": true,
+   "timeout": 10,
+   "wait": 0.5,
+   "result": {
+    "offset": 7541,
+    "waited": 0.5,
+    "matched": true
+   }
+  },
+  {
+   "send": "0",
+   "raw": true,
+   "timeout": 10,
+   "wait": 0.5,
+   "result": {
+    "offset": 7578,
+    "waited": 0.5,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "12;34",
+   "note": "Willpower 50",
+   "result": {
+    "offset": 7579,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "13;34",
+   "result": {
+    "offset": 7763,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "14;34",
+   "result": {
+    "offset": 7947,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "16;22",
+   "result": {
+    "offset": 8131,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "17;22",
+   "result": {
+    "offset": 8328,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "18;22",
+   "result": {
+    "offset": 8509,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "timeout": 10,
+   "until_cursor": "20;14",
+   "result": {
+    "offset": 8691,
+    "waited": 0.3,
+    "matched": true
+   }
+  },
+  {
+   "send": "\\r",
+   "raw": true,
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 120,
+   "required": true,
+   "note": "SAVE",
+   "result": {
+    "offset": 8861,
+    "waited": 4.42,
+    "matched": true
+   }
+  },
+  {
+   "send": "",
+   "until": "\\[HP=-?\\d+[^\\]\\n]*\\]:",
+   "timeout": 10,
+   "note": "the first room",
+   "result": {
+    "offset": 12353,
+    "waited": 0.0,
+    "matched": true
+   }
+  },
+  {
+   "send": "x",
+   "until": "\\[MAJORMUD\\]:",
+   "timeout": 90,
+   "note": "exit after silent meditation (USREXIT)",
+   "result": {
+    "offset": 12553,
+    "waited": 5.08,
+    "matched": true
+   }
+  },
+  {
+   "send": "X",
+   "until": "Make your selection",
+   "note": "leave MajorMUD",
+   "result": {
+    "offset": 12796,
+    "waited": 0.0,
+    "matched": true
+   }
+  },
+  {
+   "send": "X",
+   "until": "Are you sure",
+   "note": "BBS logoff",
+   "result": {
+    "offset": 12950,
+    "waited": 0.0,
+    "matched": true
+   }
+  },
+  {
+   "send": "Y",
+   "wait": 2,
+   "timeout": 10,
+   "result": {
+    "offset": 13064,
+    "waited": 0.0,
+    "matched": true
+   }
+  }
+ ],
+ "captured": "2026-10-14 14:44",
+ "dll_sha256": "e308533696e1e64cf52715921d94d4245f4708f56ea048e4f7c6ec9b564b725f"
+}

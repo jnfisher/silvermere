@@ -1,0 +1,8 @@
+---
+source: crates/silvermere-engine/tests/progression.rs
+expression: esc(&bytes)
+---
+\x1b[0;37;40mYou hand over 5 silver nobles and you receive training to attain level 2.\r\n
+You receive the following:\r\n
+10 additional character points\r\n
+\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m]:

@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/room_display.rs
+expression: esc(&got)
+---
+\x1b[79D\x1b[K\x1b[1;36mNewhaven, Bank\r\n\x1b[79D\x1b[K\x1b[0;37;40m    A quiet counting house. \r\nA clerk waits behind iron bars. \r\n\x1b[79D\x1b[K\x1b[0;36m\r\nThe currency conversion rates are:\r\n100 platinum pieces == 1 runic coins\r\n100 gold crowns == 1 platinum piece\r\n10 silver nobles == 1 gold crown\r\n10 copper farthings == 1 silver noble\r\n\x1b[0;32mObvious exits: NONE!!!\r\n

@@ -1,0 +1,10 @@
+{
+ "scenario": "shop",
+ "script": "../../../tests/captures/shop/script.json",
+ "setup": [
+  {
+   "side": "both",
+   "scenario": "creation-fsd"
+  }
+ ]
+}

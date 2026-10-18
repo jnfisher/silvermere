@@ -1,0 +1,5 @@
+---
+source: crates/silvermere-engine/tests/character_creation.rs
+expression: escape(&under)
+---
+Strength may not be lower than 55.\r\nStrength (55-120) [55]:
