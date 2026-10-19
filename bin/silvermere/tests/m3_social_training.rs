@@ -58,24 +58,33 @@ async fn social_actions() {
     r.stop().await.unwrap();
 }
 
-/// `train stats` at the Weapons Shop and at the Arena (no trainer): `train_stats_refused`.
-#[tokio::test]
-async fn train_stats_refusal() {
+/// `train stats` in `room` (no trainer): `train_stats_refused`.
+async fn train_stats_refused_in(room: u32) {
     let (_dir, url) = team_db();
-    for room in [2141u32, 2150] {
-        place(&url, "Aldric", room).await;
-        let r = start(&url).await;
-        let mut p = Player::enter(&r, "Aldric").await;
-        let at = p.c.position();
-        let t = p.cmd("train stats").await;
-        assert_eq!(
-            body_lines(&t),
-            ["train stats", "You may not train your stats here!"],
-            "room {room}"
-        );
-        assert!(names(&p.c.raw()[at..]).contains(&"train_stats_refused".into()));
-        assert_classified("train stats", &p.c.raw()[at..], &["train stats"]);
-        p.leave().await;
-        r.stop().await.unwrap();
-    }
+    place(&url, "Aldric", room).await;
+    let r = start(&url).await;
+    let mut p = Player::enter(&r, "Aldric").await;
+    let at = p.c.position();
+    let t = p.cmd("train stats").await;
+    assert_eq!(
+        body_lines(&t),
+        ["train stats", "You may not train your stats here!"],
+        "room {room}"
+    );
+    assert!(names(&p.c.raw()[at..]).contains(&"train_stats_refused".into()));
+    assert_classified("train stats", &p.c.raw()[at..], &["train stats"]);
+    p.leave().await;
+    r.stop().await.unwrap();
+}
+
+/// `train stats` at the Weapons Shop.
+#[tokio::test]
+async fn train_stats_refusal_weapons_shop() {
+    train_stats_refused_in(2141).await;
+}
+
+/// `train stats` at the Arena.
+#[tokio::test]
+async fn train_stats_refusal_arena() {
+    train_stats_refused_in(2150).await;
 }

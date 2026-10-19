@@ -37,6 +37,7 @@ whose format is described in `tests/captures/README.md`. For a client-only check
 | `PatternSet` | Loads `tests/fixtures/patterns.json` (`load_default()`), expands the verb placeholders as the Python does without game data, picks `regex` or `fancy-regex` per pattern, and classifies lines like `Registry.iter_events` (prompts, echo, tables, wrapped exits). |
 | `Capture`, `raw_to_lines`, `plain` | The twelve T-005 scenarios under `tests/captures/` and the two text-preparation ports. |
 | `normalise`, `diff_events`, `MaskSpec` | Masks random fields **by pattern field** from `tests/fixtures/masks.json` and compares event sequences by name and unmasked fields. |
+| `shared_template::shared_file`, `shared_source_file` | A database file built by the first test process that asks for it and copied by the others (a lock file under `target/tmp`). `shared_file`'s directory is named for the test executable and the fixtures, so each test binary builds its own; `shared_source_file`'s for the sources it is given alone, so every test binary of a build shares one (the `silvermere` binary's stock, Aldric and team templates). |
 | `TestServer::echo()` | The real `silvermere-net` acceptor with a stand-in engine, on a random port. The full server (engine, clock, RNG, temp SQLite, fixture world) joins when T-015 and the fixture import land. |
 
 ## Files

@@ -116,7 +116,7 @@ lines dropped, event sequence and bytes).
 | `flood-and-refusals` | the burst of steps 6-20 (counts only) | `flood_control_warns_at_8_drops_at_12` |
 
 Routes: `tests/fixtures/routes/*.mp` (see its README), walked by `walk_slum_loop_titles_and_exits`
-and `routecheck_loops_close_on_new_server`.
+and the `routecheck_*` tests (one per route walk).
 
 Command lines:
 

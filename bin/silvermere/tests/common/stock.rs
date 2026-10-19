@@ -14,24 +14,55 @@ use silvermere_db::Db;
 use silvermere_engine::{SeededRng, SystemClock};
 use silvermere_import::{ImportOptions, Importer};
 use silvermere_testkit::TelnetClient;
-use silvermere_testkit::shared_template::shared_file;
+use silvermere_testkit::shared_template::shared_source_file;
 
 pub const WAIT: Duration = Duration::from_secs(30);
 
 static TEMPLATE: OnceLock<PathBuf> = OnceLock::new();
+static ALDRIC: OnceLock<PathBuf> = OnceLock::new();
 
 fn stock_dir() -> PathBuf {
     silvermere_testkit::stock::vir_dir()
 }
 
-/// The imported stock world as a SQLite file, built once per build of the test binary and shared
-/// by every test process (nextest runs each test in its own).
+/// What the shared database templates are made from: the stock `.VIR` files, and the sources of
+/// the code that imports them and creates characters in them (the workspace's crates, this
+/// binary's code, these helpers, the migrations and the lock file). One template serves every
+/// test binary of a build.
+pub fn template_sources() -> Vec<PathBuf> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut v = vec![stock_dir()];
+    for p in [
+        "crates",
+        "bin/silvermere/src",
+        "bin/silvermere/Cargo.toml",
+        "bin/silvermere/tests/common",
+        "migrations",
+        "patches",
+        "Cargo.lock",
+        "Cargo.toml",
+    ] {
+        v.push(root.join(p));
+    }
+    v
+}
+
+/// `file` under `dir_prefix<fingerprint of template_sources>/`, built by `build` once for every
+/// test process of every test binary (nextest runs each test in its own process).
+pub fn shared_template(dir_prefix: &str, file: &str, build: impl FnOnce(&Path)) -> PathBuf {
+    // under target/ so `cargo clean` takes it
+    let base = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    let sources = template_sources();
+    let inputs: Vec<&Path> = sources.iter().map(PathBuf::as_path).collect();
+    shared_source_file(base, dir_prefix, file, &inputs, build)
+}
+
+/// The imported stock world as a SQLite file, built once per build and shared by every test
+/// process.
 fn template() -> &'static Path {
     TEMPLATE.get_or_init(|| {
-        // under target/ so `cargo clean` takes it
-        let base = Path::new(env!("CARGO_TARGET_TMPDIR"));
         let from = stock_dir();
-        shared_file(base, "silvermere-m1-", "stock.db", &[&from], |path| {
+        shared_template("silvermere-m1-", "stock.db", |path| {
             let url = format!("sqlite://{}", path.display());
             let from = from.clone();
             std::thread::spawn(move || {
@@ -54,6 +85,28 @@ fn template() -> &'static Path {
     })
 }
 
+/// The stock world with Aldric created by [`create_aldric`], built once per build like the
+/// stock world itself.
+fn aldric_template() -> &'static Path {
+    ALDRIC.get_or_init(|| {
+        shared_template("silvermere-aldric-", "aldric.db", |path| {
+            let (stock_dir, stock_url) = fresh_db();
+            std::fs::copy(stock_url.trim_start_matches("sqlite://"), path).unwrap();
+            drop(stock_dir);
+            let url = format!("sqlite://{}", path.display());
+            std::thread::spawn(move || {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(create_aldric(&url));
+            })
+            .join()
+            .unwrap();
+        })
+    })
+}
+
 /// A throwaway directory, removed when dropped.
 pub struct TempDir(PathBuf);
 
@@ -65,7 +118,17 @@ impl Drop for TempDir {
 
 /// A copy of the stock world: `(its directory, database url)`.
 pub fn fresh_db() -> (TempDir, String) {
-    let t = template().to_owned();
+    copy_of(template())
+}
+
+/// A copy of the stock world in which [`create_aldric`] has run: `(its directory, url)`.
+pub fn aldric_db() -> (TempDir, String) {
+    copy_of(aldric_template())
+}
+
+/// A copy of the template `t` in a directory of its own: `(the directory, database url)`.
+fn copy_of(t: &Path) -> (TempDir, String) {
+    let t = t.to_owned();
     static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
     let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let dir = t
@@ -171,10 +234,7 @@ pub async fn create_aldric(url: &str) {
         c.send_line(line).await.unwrap();
         c.until(next, WAIT).await.unwrap();
     }
-    c.send_line("x").await.unwrap();
-    c.until(r"\[MAJORMUD\]:", WAIT).await.unwrap();
-    c.send_line("X").await.unwrap();
-    c.until(r"Make your selection", WAIT).await.unwrap();
+    quit_to_menu(&mut c, &r.to_engine, "Aldric").await;
     c.disconnect().await;
     r.stop().await.unwrap();
 }
@@ -203,8 +263,16 @@ pub async fn on_world<T: Send + 'static>(
     r: &silvermere::Running,
     f: impl FnOnce(&mut silvermere_engine::World) -> T + Send + 'static,
 ) -> T {
+    on_engine(&r.to_engine, f).await
+}
+
+/// [`on_world`] given only the server's engine input.
+pub async fn on_engine<T: Send + 'static>(
+    to_engine: &std::sync::mpsc::Sender<silvermere_engine::EngineInput>,
+    f: impl FnOnce(&mut silvermere_engine::World) -> T + Send + 'static,
+) -> T {
     let (tx, rx) = std::sync::mpsc::channel();
-    r.to_engine
+    to_engine
         .send(silvermere_engine::EngineInput::Custom {
             session: None,
             run: Box::new(move |w| {
@@ -215,4 +283,41 @@ pub async fn on_world<T: Send + 'static>(
     tokio::task::spawn_blocking(move || rx.recv().unwrap())
         .await
         .unwrap()
+}
+
+/// Logs `c` (in the realm as `name`) off with `x` and `X`: the clean logoff, which saves the
+/// character. The silent meditation before the exit counts down one step per fast cycle; the
+/// test steps `name`'s countdown to its end instead of waiting for the real-time cycles, so the
+/// same dots and the same exit arrive without the wait.
+pub async fn quit_to_menu(
+    c: &mut TelnetClient,
+    to_engine: &std::sync::mpsc::Sender<silvermere_engine::EngineInput>,
+    name: &str,
+) {
+    c.send_line("x").await.unwrap();
+    c.until("silent meditation", WAIT).await.unwrap();
+    let name = name.to_owned();
+    on_engine(to_engine, move |w| {
+        use silvermere_engine::state::login::leave::{exit_countdown, is_exiting};
+        let id = w
+            .session_ids()
+            .into_iter()
+            .find(|&id| {
+                w.session(id)
+                    .and_then(|s| s.character.as_ref())
+                    .is_some_and(|p| p.firstname == name)
+            })
+            .unwrap_or_else(|| panic!("{name} is not in the game"));
+        // the real cycles may finish it first; the delay is a handful of cycles
+        for _ in 0..1000 {
+            if !is_exiting(w, id) {
+                break;
+            }
+            exit_countdown(w, id);
+        }
+    })
+    .await;
+    c.until(r"\[MAJORMUD\]:", WAIT).await.unwrap();
+    c.send_line("X").await.unwrap();
+    c.until(r"Make your selection", WAIT).await.unwrap();
 }

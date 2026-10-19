@@ -70,6 +70,13 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  # Most of the job is compiling the tests, almost all of it LLVM work on 164 test binaries (T-127).
+  # No debug info and no crate-local ThinLTO cut that build by a quarter (358 s to 269 s on 4
+  # cores) and the target dir from 11 GB to 2.7 GB, for 9 s more test run time. Neither changes
+  # what a test checks: overflow checks and debug assertions stay on. Local builds keep line
+  # tables for backtraces (Cargo.toml).
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_DEV_LTO: "off"
 
 jobs:
   ci:

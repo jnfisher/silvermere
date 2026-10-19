@@ -7,7 +7,9 @@
 //! process takes a lock file and builds, the others wait for the result.
 //!
 //! The directory name carries a fingerprint of the test executable and the fixture files, so a
-//! rebuilt binary or an edited fixture never reuses an older file. Directories of other
+//! rebuilt binary or an edited fixture never reuses an older file. [`shared_source_file`]
+//! leaves the executable out and fingerprints only the sources it is given, so every test binary
+//! of a build shares one file: one build per run instead of one per binary. Directories of other
 //! fingerprints under the same prefix are removed when they are old enough that no test of a
 //! finished run can still be using them.
 
@@ -67,8 +69,32 @@ pub fn shared_file(
     inputs: &[&Path],
     build: impl FnOnce(&Path),
 ) -> PathBuf {
+    shared(base, dir_prefix, file, inputs, true, build)
+}
+
+/// [`shared_file`] shared by every test binary: the fingerprint is `inputs` alone, not the test
+/// executable, so `inputs` must hold every source the content depends on (the code that builds
+/// it as well as the fixtures).
+pub fn shared_source_file(
+    base: &Path,
+    dir_prefix: &str,
+    file: &str,
+    inputs: &[&Path],
+    build: impl FnOnce(&Path),
+) -> PathBuf {
+    shared(base, dir_prefix, file, inputs, false, build)
+}
+
+fn shared(
+    base: &Path,
+    dir_prefix: &str,
+    file: &str,
+    inputs: &[&Path],
+    with_exe: bool,
+    build: impl FnOnce(&Path),
+) -> PathBuf {
     let mut h = 0xcbf2_9ce4_8422_2325_u64;
-    if let Ok(exe) = std::env::current_exe() {
+    if with_exe && let Ok(exe) = std::env::current_exe() {
         fold(&mut h, &exe);
     }
     for i in inputs {

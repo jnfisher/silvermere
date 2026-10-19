@@ -9,7 +9,7 @@ use common::m3::{
     PROMPT, Player, assert_classified, body_lines, classify, copies, edit_char, place, stored,
     stored_stock_total, team_db,
 };
-use common::stock::{WAIT, create_aldric, fresh_db, login_to_menu, start};
+use common::stock::{WAIT, aldric_db, login_to_menu, start};
 use silvermere_testkit::capture_compare::{assert_clean, replay_steps};
 use silvermere_testkit::{Capture, TelnetClient, captures};
 use silvermere_types::ids::ClassNo;
@@ -23,8 +23,7 @@ fn capture(name: &str) -> Capture {
 /// the healer's empty list.
 #[tokio::test]
 async fn shop_capture_replays_byte_equal() {
-    let (_dir, url) = fresh_db();
-    create_aldric(&url).await;
+    let (_dir, url) = aldric_db();
     let cap = capture("shop");
     let r = start(&url).await;
     let mut c = TelnetClient::connect(r.telnet_addr).await.unwrap();

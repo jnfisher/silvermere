@@ -19,6 +19,9 @@ download); a test with no copy fails saying so, it never skips.
 CI (`.github/workflows/ci.yml`) runs all four on GitHub-hosted runners, with the stock
 distribution kept by `actions/cache`. It runs the tests with `cargo-nextest` (settings in
 `.config/nextest.toml`) plus the doctests, and skips changes that touch only prose no test reads.
+CI builds without debug info and without crate-local ThinLTO (`CARGO_PROFILE_DEV_DEBUG=0`,
+`CARGO_PROFILE_DEV_LTO=off`), which cuts the test build by about a quarter; overflow checks and
+debug assertions stay on, and a local build keeps the line tables of `Cargo.toml`.
 
 ## Tests that need the original game
 

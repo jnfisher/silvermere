@@ -7,7 +7,7 @@ mod common;
 
 use std::time::Duration;
 
-use common::stock::{WAIT, create_aldric, fresh_db, login_to_menu, on_world, start, start_with};
+use common::stock::{WAIT, aldric_db, fresh_db, login_to_menu, on_world, start, start_with};
 use silvermere_testkit::capture_compare::{assert_clean, assert_matches_capture, replay_steps};
 use silvermere_testkit::{Capture, TelnetClient, captures};
 
@@ -20,8 +20,7 @@ fn capture(name: &str) -> Capture {
 /// `entry-existing` once the build stamp and direction bytes are masked.
 #[tokio::test]
 async fn entry_existing_matches_capture() {
-    let (_dir, url) = fresh_db();
-    create_aldric(&url).await;
+    let (_dir, url) = aldric_db();
     let cap = capture("entry-existing");
     let r = start(&url).await;
     let mut c = TelnetClient::connect(r.telnet_addr).await.unwrap();
@@ -62,8 +61,7 @@ async fn in_realm_on(r: silvermere::Running) -> (TelnetClient, silvermere::Runni
 /// the capture's bytes after masking.
 #[tokio::test]
 async fn status_exp_inventory_set_match_captures() {
-    let (_dir, url) = fresh_db();
-    create_aldric(&url).await;
+    let (_dir, url) = aldric_db();
     let cap = capture("status-screens");
     let (mut c, r) = in_realm(&url).await;
     // The capture was recorded after the `shop` scenario had dressed Aldric: padded armour
@@ -163,8 +161,7 @@ async fn start_ticked_by_test(url: &str) -> silvermere::Running {
 /// the skiff, duplicate titles) is byte-equal to the original after masking.
 #[tokio::test]
 async fn room_screens_match_captures() {
-    let (_dir, url) = fresh_db();
-    create_aldric(&url).await;
+    let (_dir, url) = aldric_db();
     let cap = capture("room-walk");
     let (mut c, r) = in_realm_ticked_by_test(&url).await;
     let ticker = walker_ticker(&r);
@@ -183,8 +180,7 @@ async fn room_screens_match_captures() {
 /// and the Action exit `go manhole` (step 36) comes back; both screens equal the capture.
 #[tokio::test]
 async fn text_exit_borrow_skiff() {
-    let (_dir, url) = fresh_db();
-    create_aldric(&url).await;
+    let (_dir, url) = aldric_db();
     let cap = capture("room-walk");
     let (mut c, r) = on_narrow_road(&url).await;
     // steps 5-22 reach the docks and cross (the capture goes on south at step 23); from step 29 on the capture holds a wandering
@@ -211,8 +207,7 @@ const PROMPT: &str = r"\[HP=-?\d+[^\]\n]*\]:";
 /// punishment lines, in order, before the room (`disconnect-punish` steps 12-13).
 #[tokio::test]
 async fn entry_after_disconnect_shows_punishment() {
-    let (_dir, url) = fresh_db();
-    create_aldric(&url).await;
+    let (_dir, url) = aldric_db();
     let cap = capture("disconnect-punish");
     let (mut c, r) = in_realm(&url).await;
     c.disconnect().await;
@@ -307,8 +302,7 @@ async fn creation_first_name_command_bounces() {
 /// come from the test, and only once the last line has been dropped.
 #[tokio::test]
 async fn flood_control_warns_at_8_drops_at_12() {
-    let (_dir, url) = fresh_db();
-    create_aldric(&url).await;
+    let (_dir, url) = aldric_db();
     let (mut c, r) = in_realm_ticked_by_test(&url).await;
     let burst = "search\r\n".to_owned() + &"exp\r\n".repeat(14);
     let at = c.position();
@@ -343,8 +337,7 @@ async fn flood_control_warns_at_8_drops_at_12() {
 /// second (two strikes), driven by `Tick` inputs rather than waiting.
 #[tokio::test]
 async fn inactivity_two_strikes() {
-    let (_dir, url) = fresh_db();
-    create_aldric(&url).await;
+    let (_dir, url) = aldric_db();
     let r = start_with(&url, |cfg| cfg.game.inactive_secs = 60).await;
     let mut c = TelnetClient::connect(r.telnet_addr).await.unwrap();
     login_to_menu(&mut c, "Aldric", "aldric1").await;
@@ -371,8 +364,7 @@ async fn inactivity_two_strikes() {
 /// refused with the mortally-wounded line and the room is unchanged.
 #[tokio::test]
 async fn mortally_wounded_gate_allows_only_listed() {
-    let (_dir, url) = fresh_db();
-    create_aldric(&url).await;
+    let (_dir, url) = aldric_db();
     let (mut c, r) = in_realm(&url).await;
     on_world(&r, |w| {
         for id in w.session_ids() {
@@ -402,8 +394,7 @@ async fn mortally_wounded_gate_allows_only_listed() {
 /// interrupted.`, other sessions go on and the world thread is alive.
 #[tokio::test]
 async fn handler_panic_isolated() {
-    let (_dir, url) = fresh_db();
-    create_aldric(&url).await;
+    let (_dir, url) = aldric_db();
     common::stock::add_account(&url, "Bob", "bob123").await;
     let (mut a, r) = in_realm(&url).await;
     let mut b = TelnetClient::connect(r.telnet_addr).await.unwrap();
@@ -441,8 +432,7 @@ async fn handler_panic_isolated() {
 /// room.
 #[tokio::test]
 async fn level_exit_1_33_refuses_level_4() {
-    let (_dir, url) = fresh_db();
-    create_aldric(&url).await;
+    let (_dir, url) = aldric_db();
     common::stock::edit_aldric(&url, |c| {
         c.map = silvermere_types::ids::MapId(1);
         c.room = silvermere_types::ids::RoomId(33);
@@ -662,14 +652,16 @@ async fn walk_route(
         let is_move = ["n", "s", "e", "w", "ne", "nw", "se", "sw", "u", "d"]
             .contains(&cmd.as_str())
             || cmd.starts_with("go ");
+        // The prompt behind the reply ends it: what the step printed has all arrived.
         let done = if is_move {
-            r"(Obvious exits:|very dark|[Cc]losed|locked|no exit|can.t|cannot|not allowed|You say)"
+            format!(
+                r"(?s)(Obvious exits:|very dark|[Cc]losed|locked|no exit|can.t|cannot|not allowed|You say).*?{PROMPT}"
+            )
         } else {
-            PROMPT
+            PROMPT.to_owned()
         };
         c.send_line(cmd).await.unwrap();
-        c.until(done, WAIT).await.unwrap();
-        let _ = c.read(Duration::from_millis(60)).await;
+        c.until(&done, WAIT).await.unwrap();
         // MegaMud opens a closed door and goes on; a timed gate may close again meanwhile
         for _ in 0..4 {
             let out = c.plain_from(at);
@@ -698,8 +690,7 @@ async fn walk_route(
                 c.until(PROMPT, WAIT).await.unwrap();
             }
             c.send_line(cmd).await.unwrap();
-            c.until(done, WAIT).await.unwrap();
-            let _ = c.read(Duration::from_millis(60)).await;
+            c.until(&done, WAIT).await.unwrap();
             let _ = retry;
         }
         let out = c.plain_from(at);
@@ -758,8 +749,7 @@ async fn walk_file(
     map_room: u32,
     unlock: bool,
 ) -> (WalkReport, Option<(u32, u32)>, Option<(u32, u32)>) {
-    let (_dir, url) = fresh_db();
-    create_aldric(&url).await;
+    let (_dir, url) = aldric_db();
     common::stock::edit_aldric(&url, |ch| {
         ch.map = silvermere_types::ids::MapId(1);
         ch.room = silvermere_types::ids::RoomId(map_room);
@@ -808,43 +798,57 @@ async fn walk_slum_loop_titles_and_exits() {
     );
 }
 
-/// `routes.md`: the six verified loops close on the new server (each ends in the room it
-/// started in with every step's title as the route's room id names it), and the two plain
-/// paths resolve (`rivpgnol` to its end on map 2; `rivpboat`'s step 1 `go passage` is broken
-/// in the data and is refused, not crashed on): "6 loops verified, 8 routes resolved".
-/// `routecheck.py` itself reads the world files and talks to no server, so this is its
-/// telnet counterpart (see the PR description).
-#[tokio::test]
-async fn routecheck_loops_close_on_new_server() {
-    // The walks are independent servers; run them side by side. The crypt, the labyrinth and
-    // the sewers are dark: their rooms are checked against the data's exits, not a title.
-    let (slm2, cry1, narn, mad, lab_locked, lab, gnol, boat) = tokio::join!(
-        walk_file("slm2loop.mp", 1076, true),
-        walk_file("cry1loop.mp", 1028, true),
-        walk_file("narnloop.mp", 2150, true),
-        walk_file("madwloop.mp", 2323, true),
-        walk_file("labeloop.mp", 1832, false),
-        walk_file("labeloop.mp", 1832, true),
-        walk_file("rivpgnol.mp", 2398, true),
-        walk_file("rivpboat.mp", 2398, true),
+// `routes.md`: the six verified loops close on the new server (each ends in the room it
+// started in with every step's title as the route's room id names it), and the two plain
+// paths resolve (`rivpgnol` to its end on map 2; `rivpboat`'s step 1 `go passage` is broken
+// in the data and is refused, not crashed on): "6 loops verified, 8 routes resolved".
+// `routecheck.py` itself reads the world files and talks to no server, so the tests below are
+// its telnet counterpart (see the PR description), one walk each on a server of its own so
+// they run side by side. The crypt, the labyrinth and the sewers are dark: their rooms are
+// checked against the data's exits, not a title. slmsloop, the sixth loop, is
+// `walk_slum_loop_titles_and_exits`.
+
+/// A verified loop: nothing broken, at least `min_checked` rooms checked, back where it began.
+async fn routecheck_loop(file: &str, map_room: u32, min_checked: usize) {
+    let (report, start, end) = walk_file(file, map_room, true).await;
+    assert!(report.broken.is_empty(), "{file}: {:?}", report.broken);
+    assert!(
+        report.steps >= min_checked,
+        "{file}: {} rooms checked",
+        report.steps
     );
-    for (file, (report, start, end), min_checked) in [
-        ("slm2loop.mp", slm2, 70),
-        ("cry1loop.mp", cry1, 0),
-        ("narnloop.mp", narn, 0),
-        ("madwloop.mp", mad, 0),
-        ("labeloop.mp", lab, 0),
-    ] {
-        assert!(report.broken.is_empty(), "{file}: {:?}", report.broken);
-        assert!(
-            report.steps >= min_checked,
-            "{file}: {} rooms checked",
-            report.steps
-        );
-        assert_eq!(start, end, "{file} is a closed loop");
-    }
-    // a locked door refuses a keyless walker with its own text (labeloop, step 11)
-    let lab_locked = lab_locked.0;
+    assert_eq!(start, end, "{file} is a closed loop");
+}
+
+#[tokio::test]
+async fn routecheck_slm2loop_closes() {
+    routecheck_loop("slm2loop.mp", 1076, 70).await;
+}
+
+#[tokio::test]
+async fn routecheck_cry1loop_closes() {
+    routecheck_loop("cry1loop.mp", 1028, 0).await;
+}
+
+#[tokio::test]
+async fn routecheck_narnloop_closes() {
+    routecheck_loop("narnloop.mp", 2150, 0).await;
+}
+
+#[tokio::test]
+async fn routecheck_madwloop_closes() {
+    routecheck_loop("madwloop.mp", 2323, 0).await;
+}
+
+#[tokio::test]
+async fn routecheck_labeloop_closes() {
+    routecheck_loop("labeloop.mp", 1832, 0).await;
+}
+
+/// A locked door refuses a keyless walker with its own text (labeloop, step 11).
+#[tokio::test]
+async fn routecheck_labeloop_locked_door_refuses() {
+    let (lab_locked, _, _) = walk_file("labeloop.mp", 1832, false).await;
     assert_eq!(lab_locked.broken.len(), 1, "{:?}", lab_locked.broken);
     assert!(
         lab_locked.broken[0].contains("step 11 (w)"),
@@ -856,15 +860,23 @@ async fn routecheck_loops_close_on_new_server() {
         "{:?}",
         lab_locked.broken
     );
-    // the plain paths: rivpgnol walks to map 2; rivpboat's step 1 `go passage` is broken in
-    // the data (routes.md) and the server refuses it without moving
-    let (path, start, end) = gnol;
+}
+
+/// The plain path rivpgnol walks to map 2.
+#[tokio::test]
+async fn routecheck_rivpgnol_reaches_map_2() {
+    let (path, start, end) = walk_file("rivpgnol.mp", 2398, true).await;
     assert!(path.broken.is_empty(), "rivpgnol: {:?}", path.broken);
     assert_ne!(start, end);
     assert_eq!(end.map(|e| e.0), Some(2), "ends on map 2");
-    let (_, start, end) = boat;
+}
+
+/// rivpboat's step 1 `go passage` is broken in the data (routes.md) and the server refuses it
+/// without moving.
+#[tokio::test]
+async fn routecheck_rivpboat_broken_step_moves_nobody() {
+    let (_, start, end) = walk_file("rivpboat.mp", 2398, true).await;
     assert_eq!(start, end, "rivpboat: the broken step moves nobody");
-    // slmsloop, the sixth loop, is `walk_slum_loop_titles_and_exits`
 }
 
 /// Character creation and the line-mode editor (`creation-line-mode`, 79x24): race list,
@@ -927,8 +939,7 @@ async fn creation_line_mode_reaches_realm() {
 /// (`SL_FULL`, or mode 4, `SL_FULLCUSTOM`); the other modes just print the prompt.
 #[tokio::test]
 async fn enter_redisplays_room_only_in_full() {
-    let (_dir, url) = fresh_db();
-    create_aldric(&url).await;
+    let (_dir, url) = aldric_db();
     let (mut c, r) = in_realm(&url).await;
     for (set, redisplays) in [
         ("statline off", false),
@@ -956,8 +967,7 @@ async fn enter_redisplays_room_only_in_full() {
 /// data the server never answers `There is no exit in that direction!`.
 #[tokio::test]
 async fn no_exit_never_for_existing_exit() {
-    let (_dir, url) = fresh_db();
-    create_aldric(&url).await;
+    let (_dir, url) = aldric_db();
     let (mut c, r) = in_realm_ticked_by_test(&url).await;
     let ticker = walker_ticker(&r);
     let mut exits: Vec<(u32, usize)> = on_world(&r, |w| {
@@ -1037,8 +1047,7 @@ async fn no_exit_never_for_existing_exit() {
 /// restart (clean logoff saves; a hang-up saves on its own path).
 #[tokio::test]
 async fn persistence_round_trip_after_the_walk() {
-    let (_dir, url) = fresh_db();
-    create_aldric(&url).await;
+    let (_dir, url) = aldric_db();
     let (mut c, r) = in_realm(&url).await;
     for line in ["w", "w", "statline off"] {
         c.send_line(line).await.unwrap();
@@ -1047,10 +1056,7 @@ async fn persistence_round_trip_after_the_walk() {
             .ok();
         tokio::time::sleep(Duration::from_millis(1200)).await; // the move delay
     }
-    c.send_line("x").await.unwrap();
-    c.until(r"\[MAJORMUD\]:", WAIT).await.unwrap();
-    c.send_line("X").await.unwrap();
-    c.until("Make your selection", WAIT).await.unwrap();
+    common::stock::quit_to_menu(&mut c, &r.to_engine, "Aldric").await;
     c.disconnect().await;
     r.stop().await.unwrap();
 
@@ -1074,8 +1080,7 @@ async fn persistence_round_trip_after_the_walk() {
 /// differential saw `w` go unechoed about once in three runs.
 #[tokio::test]
 async fn a_move_typed_after_the_prompt_is_always_echoed() {
-    let (_dir, url) = fresh_db();
-    create_aldric(&url).await;
+    let (_dir, url) = aldric_db();
     let (mut c, r) = on_narrow_road(&url).await;
     for n in 0..12 {
         let dir = if n % 2 == 0 { "e" } else { "w" };
@@ -1094,8 +1099,7 @@ async fn a_move_typed_after_the_prompt_is_always_echoed() {
 /// echoed nor processed, the account never released) would stall this loop.
 #[tokio::test]
 async fn a_line_sent_the_instant_the_prompt_arrives_is_never_lost() {
-    let (_dir, url) = fresh_db();
-    create_aldric(&url).await;
+    let (_dir, url) = aldric_db();
     let (mut c, r) = in_realm(&url).await;
     let cmds = ["exp", "st", "keys", "health", "wealth", "i"];
     for n in 0..300usize {

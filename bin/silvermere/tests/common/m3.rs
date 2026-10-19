@@ -7,11 +7,12 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use super::stock::{WAIT, add_account, fresh_db, login_to_menu, start};
+use super::stock::{
+    WAIT, add_account, aldric_db, login_to_menu, quit_to_menu, shared_template, start,
+};
 use silvermere_db::Db;
 use silvermere_testkit::capture_compare::{events_of, masked_lines};
 use silvermere_testkit::client::Wait;
-use silvermere_testkit::shared_template::shared_file;
 use silvermere_testkit::{Event, MaskSpec, PatternSet, TelnetClient};
 
 pub const PROMPT: &str = r"\[HP=-?\d+[^\]\n]*\]:";
@@ -23,16 +24,15 @@ pub const QUIET: Duration = Duration::from_millis(400);
 static TEAM: OnceLock<PathBuf> = OnceLock::new();
 
 /// The stock world with the characters Aldric, Brynja and Isolde created (Human Warriors,
-/// Strength and Health 50, as `creation-fsd`), built once per test binary.
+/// Strength and Health 50, as `creation-fsd`), built once per build for every test binary.
 fn team_template() -> &'static Path {
     TEAM.get_or_init(|| {
-        let base = Path::new(env!("CARGO_TARGET_TMPDIR"));
-        let fixtures = silvermere_testkit::stock::vir_dir();
-        shared_file(base, "silvermere-m3-", "team.db", &[&fixtures], |path| {
-            let (stock_dir, stock_url) = fresh_db();
-            let from = stock_url.trim_start_matches("sqlite://").to_owned();
+        shared_template("silvermere-m3-", "team.db", |path| {
+            // Aldric is the M1 template's; Brynja and Isolde are made the same way
+            let (aldric_dir, aldric_url) = aldric_db();
+            let from = aldric_url.trim_start_matches("sqlite://").to_owned();
             std::fs::copy(&from, path).unwrap();
-            drop(stock_dir);
+            drop(aldric_dir);
             let url = format!("sqlite://{}", path.display());
             std::thread::spawn(move || {
                 tokio::runtime::Builder::new_current_thread()
@@ -40,7 +40,7 @@ fn team_template() -> &'static Path {
                     .build()
                     .unwrap()
                     .block_on(async {
-                        for name in ["Aldric", "Brynja", "Isolde"] {
+                        for name in ["Brynja", "Isolde"] {
                             create_character(&url, name).await;
                         }
                     });
@@ -111,10 +111,7 @@ pub async fn create_character(url: &str, name: &str) {
         c.send_line(line).await.unwrap();
         c.until(next, WAIT).await.unwrap();
     }
-    c.send_line("x").await.unwrap();
-    c.until(r"\[MAJORMUD\]:", WAIT).await.unwrap();
-    c.send_line("X").await.unwrap();
-    c.until(r"Make your selection", WAIT).await.unwrap();
+    quit_to_menu(&mut c, &r.to_engine, name).await;
     c.disconnect().await;
     r.stop().await.unwrap();
 }
@@ -160,6 +157,7 @@ pub async fn place(url: &str, name: &str, room: u32) {
 pub struct Player {
     pub name: String,
     pub c: TelnetClient,
+    to_engine: std::sync::mpsc::Sender<silvermere_engine::EngineInput>,
 }
 
 impl Player {
@@ -175,6 +173,7 @@ impl Player {
         Self {
             name: name.to_owned(),
             c,
+            to_engine: r.to_engine.clone(),
         }
     }
 
@@ -216,11 +215,9 @@ impl Player {
     }
 
     /// `x`, `X`: leaves the realm by the clean logoff (which saves the character) and hangs up.
+    /// The meditation before the exit is stepped by the test ([`quit_to_menu`]).
     pub async fn leave(mut self) {
-        self.c.send_line("x").await.unwrap();
-        self.c.until(r"\[MAJORMUD\]:", WAIT).await.unwrap();
-        self.c.send_line("X").await.unwrap();
-        self.c.until("Make your selection", WAIT).await.unwrap();
+        quit_to_menu(&mut self.c, &self.to_engine, &self.name).await;
         self.c.disconnect().await;
     }
 
