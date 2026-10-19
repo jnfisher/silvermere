@@ -23,6 +23,12 @@ CI builds without debug info and without crate-local ThinLTO (`CARGO_PROFILE_DEV
 `CARGO_PROFILE_DEV_LTO=off`), which cuts the test build by about a quarter; overflow checks and
 debug assertions stay on, and a local build keeps the line tables of `Cargo.toml`.
 
+Each crate's integration tests are modules of one test binary, `tests/all.rs`: a new test file is
+a `mod` line there, and a test's name starts with its file's name, so
+`cargo test -p silvermere --test all m1_walk::` runs one file. The one exception is the
+binary's `metrics_recorder`, a test binary of its own because it installs the process-wide
+metrics recorder.
+
 ## Tests that need the original game
 
 The differential harness (`tools/differential/`) runs the original module under MBBSEmu next to

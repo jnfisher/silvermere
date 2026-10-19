@@ -2,7 +2,7 @@
 //! reports, the `[MAJORMUD Sysop]` menu and the audit events. The tests sit in `mod sysop` so
 //! `cargo test -p silvermere-engine sysop::` runs them.
 
-mod common;
+use crate::common;
 
 mod sysop {
     use std::sync::mpsc::Receiver;

@@ -5,7 +5,7 @@
 //! The medium cycle is driven by hand (`start_manual` + `tick`): the burst of telepaths
 //! cannot straddle a real-time cycle boundary.
 
-mod common;
+use crate::common;
 
 use common::m3::{
     Player, assert_classified, body_lines, classify, edit_char, place, start_manual, stored,

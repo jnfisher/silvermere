@@ -48,7 +48,7 @@ counted per room.
 
 differential.py calls `scenario_checks` for every scenario with an `m2` block and puts the
 checks into the scenario's summary.json (`stats`) and its pass/fail; `ab_sheets.json` (from
-`$SILVERMERE_AB_EXPORT`, written by `cargo test -p silvermere-testkit --test stock_ab_sheets`) adds the
+`$SILVERMERE_AB_EXPORT`, written by `cargo test -p silvermere-testkit --test all stock_ab_sheets::`) adds the
 closed-form checks for a scenario that names its `sheet`.
 """
 import argparse

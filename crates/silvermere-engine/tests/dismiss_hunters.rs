@@ -4,7 +4,7 @@
 //! guardsmen, the bounty hunter, mercenaries and demon imps, and they go all the same.
 //! Removing them prints nothing.
 
-mod common;
+use crate::common;
 
 use common::{enter, test_config, tiny_snapshot};
 use silvermere_engine::monsters::cache::MonsterCache;

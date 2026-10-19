@@ -8,7 +8,7 @@
 //! checked in `silvermere-text/tests/patterns_snapshot.rs` (each catalogue entry names its
 //! pattern); here the lines are compared with the literal texts.
 
-mod common;
+use crate::common;
 
 use std::sync::mpsc::Receiver;
 use std::time::Instant;

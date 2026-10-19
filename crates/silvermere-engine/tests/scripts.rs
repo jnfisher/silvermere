@@ -8,7 +8,7 @@
 //! Every test lives in `mod scripts`, so `cargo test -p silvermere-engine scripts::`
 //! selects them with the unit tests of `src/scripts`.
 
-mod common;
+use crate::common;
 
 mod scripts {
     use std::collections::BTreeSet;

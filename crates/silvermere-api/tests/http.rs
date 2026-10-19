@@ -2,7 +2,7 @@
 //! HTTP/1.1 client over TCP. The auth matrix on every route, reload-world, the SSE
 //! filters and keep-alive, the log-leak check and the doc-versus-router checks.
 
-mod common;
+use crate::common;
 
 use std::collections::BTreeSet;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};

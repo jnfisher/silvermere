@@ -3,7 +3,7 @@
 //! a refusal from what answers on `server.admin_bind` and the single-writer guard (T-072). On the backend
 //! `SILVERMERE_DATABASE_URL` names (SQLite by default).
 
-mod common;
+use crate::common;
 
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener};

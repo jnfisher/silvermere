@@ -2,7 +2,7 @@
 //! reach it through a proxy that adds 15 ms each way (a 30 ms round trip, a hosted
 //! database in another region). On SQLite there is no network and they return early.
 
-mod common;
+use crate::common;
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};

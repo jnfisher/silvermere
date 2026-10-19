@@ -1,6 +1,6 @@
 //! Graceful shutdown (T-059): the notice, the saves, the barrier, the closes, in order.
 
-mod common;
+use crate::common;
 
 use std::time::Duration;
 

@@ -8,10 +8,8 @@
 //! downloaded distribution. Every test sits in `mod shop`, so `cargo test -p
 //! silvermere-testkit shop::` runs them.
 
-#[path = "../../silvermere-engine/tests/common/mod.rs"]
-mod common;
-#[path = "support/stock_records.rs"]
-mod stock_records;
+use crate::engine_common as common;
+use crate::stock_records;
 
 mod shop {
     use std::sync::mpsc::Receiver;

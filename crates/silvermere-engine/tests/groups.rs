@@ -7,7 +7,7 @@
 //! with `NORTH_OF_MIDDLE` north of the middle, and `GATED` east of the east end behind a
 //! Level exit for levels 5 and up.
 
-mod common;
+use crate::common;
 
 use std::sync::mpsc::Receiver;
 

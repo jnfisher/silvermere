@@ -2,7 +2,7 @@
 //! actor and for a target in the room (`cmd_action`, WCCACTS records, whose lines the Rust
 //! registry cannot classify) and the `train stats` refusal away from a trainer.
 
-mod common;
+use crate::common;
 
 use common::m3::{Player, assert_classified, body_lines, classify, place, start_manual, team_db};
 use common::stock::start;

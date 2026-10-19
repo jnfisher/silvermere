@@ -2,7 +2,7 @@
 //! `scheduler::on_fast_tick` (what `EngineInput::Tick` runs) one simulated second at a
 //! time over the tiny world, and reads what the cycles queued for each session.
 
-mod common;
+use crate::common;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 

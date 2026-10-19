@@ -9,7 +9,7 @@
 //! `template_regex` builds them from those WCCMSG records (its ROLE_ARGS and the
 //! hit/def/miss mapping of the message records).
 
-mod common;
+use crate::common;
 
 use std::sync::mpsc::Receiver;
 

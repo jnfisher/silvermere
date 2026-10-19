@@ -1,6 +1,6 @@
 //! `serve_in_process` loads the world, binds the telnet port, runs the engine and stops.
 
-mod common;
+use crate::common;
 
 use std::time::Duration;
 

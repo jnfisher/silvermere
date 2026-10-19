@@ -2,7 +2,7 @@
 //! restart: the engine's write-behind requests go through `store` to the persistence
 //! worker, and a fresh `load_snapshot` brings them back.
 
-mod common;
+use crate::common;
 
 use std::time::Instant;
 

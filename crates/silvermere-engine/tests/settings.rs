@@ -4,7 +4,7 @@
 //! settings bite (Enter under FULL, `messages`, `entrances`, the new `utf8`); and what
 //! survives logoff and death.
 
-mod common;
+use crate::common;
 
 use std::sync::mpsc::Receiver;
 use std::time::Instant;

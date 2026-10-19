@@ -4,7 +4,7 @@
 //! a life lost, the character deleted, the kept experience on the next `E`, and the log
 //! events.
 
-mod common;
+use crate::common;
 
 use std::sync::mpsc::Receiver;
 

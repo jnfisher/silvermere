@@ -2,7 +2,7 @@
 //! logged in, every emitted event kind on the SSE stream and in the `events` table, and the
 //! `admin token` CLI against the bearer check.
 
-mod common;
+use crate::common;
 
 use std::collections::BTreeMap;
 use std::process::Command;

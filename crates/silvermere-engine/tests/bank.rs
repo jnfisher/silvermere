@@ -2,7 +2,7 @@
 //! input pipeline: `cmd_deposit`/`cmd_withdraw`/`cmd_bankbook`, `deposit_gold`/`withdraw_gold`
 //! and `display_bank_balance`, as the original behaves.
 
-mod common;
+use crate::common;
 
 use std::sync::mpsc::Receiver;
 

@@ -6,6 +6,8 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 license.workspace = true
+# one test binary for all of tests/ (tests/all.rs), not one per file (T-129)
+autotests = false
 
 [lints]
 workspace = true
@@ -42,3 +44,13 @@ tracing-subscriber.workspace = true
 [dev-dependencies]
 metrics-util.workspace = true
 silvermere-testkit.workspace = true
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
+
+# Installs the process-wide metrics recorder, which the in-process servers of the other tests
+# also install: it needs a process of its own under `cargo test` too.
+[[test]]
+name = "metrics_recorder"
+path = "tests/metrics_recorder.rs"

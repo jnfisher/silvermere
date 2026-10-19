@@ -4,7 +4,7 @@
 //! `Also here:`, the points kept at death and the
 //! evil reincarnation room (`check_kill_user`).
 
-mod common;
+use crate::common;
 
 use std::sync::mpsc::channel;
 

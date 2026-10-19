@@ -6,7 +6,7 @@
 //! pattern registry (`tests/fixtures/patterns.json`) and `insta` snapshots; the paged
 //! TOPTEN list and the look notices run through the engine with two sessions.
 
-mod common;
+use crate::common;
 
 use std::sync::mpsc::Receiver;
 

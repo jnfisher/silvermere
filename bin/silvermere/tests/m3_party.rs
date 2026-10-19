@@ -3,7 +3,7 @@
 //! `cmd_invite`, `cmd_follow`, `cmd_uninvite`, the party screen, the march and
 //! `change_user_rank`.
 
-mod common;
+use crate::common;
 
 use common::m3::{Player, assert_classified, body_lines, classify, edit_live, place, team_db};
 use common::stock::start;

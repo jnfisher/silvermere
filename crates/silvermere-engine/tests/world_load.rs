@@ -1,6 +1,6 @@
 //! `World::load` over the tiny fixture world and `reload_content`.
 
-mod common;
+use crate::common;
 
 use silvermere_engine::{World, WorldError, WorldSnapshot};
 use silvermere_types::config::GameConfig;

@@ -6,10 +6,8 @@
 //! The records come from the downloaded distribution ([`extract`]). Every test lives in
 //! `mod scripts`, so `cargo test -p silvermere-testkit scripts::` selects them.
 
-#[path = "../../silvermere-engine/tests/common/mod.rs"]
-mod common;
-#[path = "support/stock_records.rs"]
-mod stock_records;
+use crate::engine_common as common;
+use crate::stock_records;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 

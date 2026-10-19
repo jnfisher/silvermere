@@ -3,7 +3,7 @@
 //! Pins: the buy price, the sell price, and that a Hospital sells `healing` and `curing`
 //! only.
 
-mod common;
+use crate::common;
 
 use common::m3::{
     PROMPT, Player, assert_classified, body_lines, classify, copies, edit_char, place, stored,

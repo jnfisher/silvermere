@@ -1,7 +1,7 @@
 //! Graceful shutdown (T-059): the real binary on SIGTERM, and an in-process server whose
 //! player is told before the socket closes and whose character is saved.
 
-mod common;
+use crate::common;
 
 #[cfg(unix)]
 use std::io::{BufRead, Read, Write};

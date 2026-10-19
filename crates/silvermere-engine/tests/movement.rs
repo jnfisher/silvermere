@@ -9,7 +9,7 @@
 //! with `NORTH_OF_MIDDLE` north of the middle; the slum street 619 with its hidden exit
 //! west to the sewer 620; a door room pair for the bash.
 
-mod common;
+use crate::common;
 
 use std::sync::mpsc::Receiver;
 

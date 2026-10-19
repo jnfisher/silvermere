@@ -11,7 +11,7 @@
 //! 8310). The auto-combat ring is T-034's: a round here is a direct call with
 //! [`Mode::Auto`] and a full energy pool, as `do_autocombat_for_user` will make it.
 
-mod common;
+use crate::common;
 
 use common::{enter, test_config, tiny_snapshot};
 use silvermere_engine::combat::{

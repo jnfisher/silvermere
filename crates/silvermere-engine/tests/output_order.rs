@@ -1,6 +1,6 @@
 //! One event, one write per touched session, in emission order.
 
-mod common;
+use crate::common;
 
 use silvermere_engine::{EngineInput, EngineOutput, tell_user};
 use silvermere_text::colour::Palette;

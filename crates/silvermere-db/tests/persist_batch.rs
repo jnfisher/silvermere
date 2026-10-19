@@ -2,7 +2,7 @@
 //! must be what applying the same writes one at a time with the per-row writers (the path
 //! before T-113) stores, on either backend.
 
-mod common;
+use crate::common;
 
 use std::sync::Arc;
 use std::time::Duration;

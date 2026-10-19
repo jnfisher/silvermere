@@ -11,7 +11,7 @@
 //! 8294 and 8307. The monsters' own round (`do_monster_combat`) is T-036's; its tests are
 //! in `monster_combat.rs`.
 
-mod common;
+use crate::common;
 
 use std::sync::mpsc::Receiver;
 

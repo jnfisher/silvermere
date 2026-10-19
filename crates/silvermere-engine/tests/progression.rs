@@ -8,7 +8,7 @@
 //! exp 35) Witchunter (class 2, exp 30, 4 hit points a level) is the +65% character whose
 //! level 2 needs 1,650.
 
-mod common;
+use crate::common;
 
 use std::sync::mpsc::Receiver;
 

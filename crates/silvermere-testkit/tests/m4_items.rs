@@ -8,7 +8,7 @@
 //! rat. Rules: using items, learning from scrolls, light, eat, drink, and the slow cycle
 //! (light burns down).
 
-mod common;
+use crate::common;
 
 use std::time::Duration;
 

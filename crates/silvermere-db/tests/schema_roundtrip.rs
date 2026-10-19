@@ -4,7 +4,7 @@
 //!
 //! Runs on the backend `SILVERMERE_DATABASE_URL` names (a temp SQLite file by default).
 
-mod common;
+use crate::common;
 
 use common::*;
 use silvermere_db::DbError;

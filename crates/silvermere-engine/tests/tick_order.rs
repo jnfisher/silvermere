@@ -3,7 +3,7 @@
 //! v1.0-alpha-090826): the module's input routine ran in the pass that echoed the CR
 //! (:426, :929), the slow cycle's prompt redraw only after it (:458-459).
 
-mod common;
+use crate::common;
 
 use silvermere_engine::{EngineInput, EngineOutput, Routine, SessionId};
 use silvermere_types::enums::MessageLevel;

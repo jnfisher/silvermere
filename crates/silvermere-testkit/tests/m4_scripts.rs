@@ -9,7 +9,7 @@
 //! 31 mummy: bone key 177 at 100%), 1:2224 Large Chamber (82 troll: iron key 338 at
 //! 100%), 1:2236 Large Tomb (85 witchunter spirit; item 342 mithril cutlass).
 
-mod common;
+use crate::common;
 
 use std::time::Duration;
 

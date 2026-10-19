@@ -1,5 +1,5 @@
 //! Placeholder so `cargo test -p silvermere-NAME` has a target. Later cards add their
-//! tests next to this file.
+//! tests next to this file, each listed in tests/all.rs.
 
 use silvermere_NAME as _;
 

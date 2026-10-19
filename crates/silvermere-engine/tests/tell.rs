@@ -1,7 +1,7 @@
 //! The `tell_*` filters over a four-session world: two in room A, one in B,
 //! one blind in A, with message levels high, medium and low.
 
-mod common;
+use crate::common;
 
 use silvermere_engine::output::Item;
 use silvermere_engine::tell::{Noise, TellBlind, prompt_bytes, tell_game, tell_room};

@@ -30,10 +30,7 @@ use silvermere_import::decode::{self, Record};
 use silvermere_import::importer::{Decoded, read_file};
 use silvermere_import::json::ExportRecord;
 
-mod support {
-    pub mod world_digest;
-}
-use support::world_digest;
+use crate::support::world_digest;
 
 #[path = "../../silvermere-testkit/src/stock.rs"]
 #[allow(dead_code)]

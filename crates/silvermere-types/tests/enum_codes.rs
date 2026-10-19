@@ -1,7 +1,7 @@
 //! Every `FAMILY_NAME` constant of the committed facts has a Rust enum variant, flag or
 //! constant of the same name and value, and every Rust name maps back to a constant.
 
-mod facts;
+use crate::facts;
 
 use std::collections::BTreeMap;
 

@@ -259,7 +259,7 @@ These are the steps the first start runs, one at a time. `import --from DIR` imp
 and use PostgreSQL when `SILVERMERE_DATABASE_URL` points at one. A differential comparison against the
 original runs on the maintainers' runner against an installed copy (harness in
 [tools/differential](tools/differential/README.md)). The docs are checked by
-`python3 tools/docs/check_links.py` and `cargo test -p silvermere --test docs_in_sync`.
+`python3 tools/docs/check_links.py` and `cargo test -p silvermere --test all docs_in_sync::`.
 How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 | Path | What it is |

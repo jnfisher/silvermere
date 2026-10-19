@@ -1,6 +1,6 @@
 //! A panicking handler interrupts one session's command and nothing else.
 
-mod common;
+use crate::common;
 
 use silvermere_engine::{EngineInput, EngineOutput, tell_user};
 use silvermere_text::Msg;

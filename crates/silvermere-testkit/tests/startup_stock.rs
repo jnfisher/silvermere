@@ -3,7 +3,7 @@
 //! (rooms 1309, 2224, 2236, 1813: known monsters 31, 82, 85, 61 in the world export) are
 //! alive after a cold start, and the lairs and shops are filled.
 
-mod common;
+use crate::common;
 
 use common::*;
 use silvermere_types::enums::RoomType;

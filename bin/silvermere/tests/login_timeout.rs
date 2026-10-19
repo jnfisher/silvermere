@@ -1,7 +1,7 @@
 //! `net.login_timeout_secs`: a connection that never types in the login dialogue is
 //! closed (T-021 review, silvermere#26).
 
-mod common;
+use crate::common;
 
 use std::time::Duration;
 

@@ -26,10 +26,7 @@ use silvermere_import::json::ExportRecord;
 use silvermere_import::patch::{PatchKind, PatchReport, apply_patches};
 use sqlx::{Column, Row};
 
-mod support {
-    pub mod world_digest;
-}
-use support::world_digest;
+use crate::support::world_digest;
 
 #[path = "../../silvermere-testkit/src/stock.rs"]
 #[allow(dead_code)]

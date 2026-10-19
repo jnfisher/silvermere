@@ -8,7 +8,7 @@
 //! Every scenario also checks that each line it saw is classified (static registry plus the
 //! stock WCCMSG texts, [`common::Classifier`]) and that it ends at a prompt.
 
-mod common;
+use crate::common;
 
 use std::time::Duration;
 

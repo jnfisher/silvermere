@@ -1,6 +1,6 @@
 //! Every name table equals the committed facts, entry by entry.
 
-mod facts;
+use crate::facts;
 
 use silvermere_types::enums::{Currency, Direction, ItemType, RoomType, WornLocation};
 use silvermere_types::names::*;

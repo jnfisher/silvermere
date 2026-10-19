@@ -4,7 +4,7 @@
 //! hang-up's save; and once the store has committed every queued write, it says so and
 //! the engine holds no queued record.
 
-mod common;
+use crate::common;
 
 use std::sync::mpsc::Receiver;
 use std::time::Duration;

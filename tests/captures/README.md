@@ -91,7 +91,7 @@ The prompt regex used by the realm steps is `\[HP=-?\d+[^\]\n]*\]:`; the BBS ste
 tools/differential/vendor/test/stage.sh && tools/differential/vendor/test/run.sh orig
 python3 -I tools/differential/vendor/play/capture.py tests/captures/fight-arena            # replays script.json, rewrites all four files
 python3 -I tools/differential/vendor/play/capture.py tests/captures/fight-arena --readme   # only README.md
-cargo test -p silvermere-testkit --test raw_to_lines                                        # every capture still parses
+cargo test -p silvermere-testkit --test all raw_to_lines::                                 # every capture still parses
 ```
 
 `capture.py` also leaves the session's own log in `logs/<ts>-capture-<scenario>/` next to itself
@@ -121,7 +121,7 @@ and the `routecheck_*` tests (one per route walk).
 Command lines:
 
 ```
-cargo test -p silvermere --test m1_walk
+cargo test -p silvermere --test all m1_walk::
 # the same scenarios against the original game, nightly (MBBSEmu container), one at a time:
 python3 -I tools/differential/differential.py run --scenario m1/room-walk --report report
 ```

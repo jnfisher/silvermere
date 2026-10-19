@@ -2,7 +2,7 @@
 //! and receipts, say-to, broadcast, gossip and auction, the forget list, say and yell.
 //! The tests sit in `mod comms` so `cargo test -p silvermere-engine comms::` runs them.
 
-mod common;
+use crate::common;
 
 mod comms {
     use std::sync::mpsc::Receiver;

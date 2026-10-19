@@ -1,7 +1,7 @@
 //! T-113 b: the cold start keeps only the last save of each row (`coalesce_saves`). The
 //! database after the start-up's writes must be what writing every save leaves.
 
-mod common;
+use crate::common;
 
 use std::sync::Arc;
 

@@ -27,7 +27,7 @@ class StatisticsTests(unittest.TestCase):
         stats.selftest()
 
     def test_agrees_with_the_rust_export(self):
-        # written by `cargo test -p silvermere-testkit --test stock_ab_sheets`; skipped before a build
+        # written by `cargo test -p silvermere-testkit --test all stock_ab_sheets::`; skipped before a build
         found = glob.glob(os.path.join(ROOT, "target", "**", "ab_sheets.json"), recursive=True)
         if not found:
             self.skipTest("no ab_sheets.json under target/ (run the Rust test first)")

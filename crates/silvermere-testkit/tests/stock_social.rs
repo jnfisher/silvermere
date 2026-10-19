@@ -3,10 +3,8 @@
 //! actions file (name, 11 texts and target mask of each), decoded from the downloaded
 //! distribution.
 
-#[path = "../../silvermere-engine/tests/common/mod.rs"]
-mod common;
-#[path = "support/stock_records.rs"]
-mod stock_records;
+use crate::engine_common as common;
+use crate::stock_records;
 
 mod social {
     use super::common::{enter, special_rooms, tiny_world};

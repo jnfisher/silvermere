@@ -1,7 +1,7 @@
 //! Layer 3: `World::load` over the fixture world read through the `silvermere-db`
 //! repositories on a temp SQLite.
 
-mod common;
+use crate::common;
 
 use silvermere::bridge::load_snapshot;
 use silvermere_engine::World;

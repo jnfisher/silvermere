@@ -4,7 +4,7 @@
 //! hang-up and the inactivity hang-up. The bytes are compared with the vendored
 //! `tests/captures/entry-existing` capture of the original DLL under MBBSEmu.
 
-mod common;
+use crate::common;
 
 use std::sync::mpsc::Receiver;
 

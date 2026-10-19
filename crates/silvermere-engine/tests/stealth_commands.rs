@@ -6,7 +6,7 @@
 //! HIDE and SNEAK ask. The output is compared byte for byte; where a roll decides, the
 //! world's rng is seeded and the test reads the next draws from a clone first.
 
-mod common;
+use crate::common;
 
 use common::{enter, test_config, tiny_snapshot};
 use silvermere_engine::SessionId;

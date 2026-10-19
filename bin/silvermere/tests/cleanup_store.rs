@@ -3,7 +3,7 @@
 //! updated records go back through the persistence worker and the lines the original
 //! wrote to the BBS audit trail land in the `events` table.
 
-mod common;
+use crate::common;
 
 use std::time::Duration;
 

@@ -15,8 +15,7 @@
 //! `$SILVERMERE_AB_EXPORT` when set, else `ab_sheets.json` in Cargo's per-test temporary
 //! directory.
 
-#[path = "support/stock_records.rs"]
-mod stock_records;
+use crate::stock_records;
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;

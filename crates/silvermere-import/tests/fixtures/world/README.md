@@ -12,4 +12,4 @@ game's records, so it is not kept here (T-120). Per table, the file holds:
 
 No value is stored. `tests/support/world_digest.rs` gives the canonical form. To rebuild it from
 an export directory (`MANIFEST.json` and `<TABLE>.jsonl.gz`):
-`MMUD_WORLD_JSON=DIR UPDATE_WORLD_DIGEST=1 cargo test -p silvermere-import --test equivalence`.
+`MMUD_WORLD_JSON=DIR UPDATE_WORLD_DIGEST=1 cargo test -p silvermere-import --test all equivalence::`.

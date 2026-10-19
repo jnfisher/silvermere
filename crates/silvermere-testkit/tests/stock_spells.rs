@@ -2,8 +2,7 @@
 //! distribution converts to its effects with no unknown ability, rolls inside its range
 //! and casts on a player without a panic.
 
-#[path = "support/stock_records.rs"]
-mod stock_records;
+use crate::stock_records;
 
 use std::collections::BTreeMap;
 

@@ -3,7 +3,7 @@
 //! (`silvermere_testkit::capture_compare`). The scenario files shared with the differential
 //! harness live in `tools/differential/scenarios/m1/`.
 
-mod common;
+use crate::common;
 
 use std::time::Duration;
 
@@ -408,8 +408,18 @@ async fn handler_panic_isolated() {
     })
     .await
     .expect("Aldric's session");
+    // Keep the expected panic's report out of the output, and only it: other tests of this binary
+    // share the process (and its panic hook) under `cargo test`.
     let default_hook = std::panic::take_hook();
-    std::panic::set_hook(Box::new(|_| {}));
+    std::panic::set_hook(Box::new(move |info| {
+        let expected = info
+            .payload()
+            .downcast_ref::<&str>()
+            .is_some_and(|m| *m == "handler bug");
+        if !expected {
+            default_hook(info);
+        }
+    }));
     r.to_engine
         .send(silvermere_engine::EngineInput::Custom {
             session: Some(victim),
@@ -417,7 +427,6 @@ async fn handler_panic_isolated() {
         })
         .unwrap();
     a.until("Command interrupted.", WAIT).await.unwrap();
-    std::panic::set_hook(default_hook);
     // the world thread answers, and both sessions still work
     assert_eq!(on_world(&r, |w| w.session_ids().len()).await, 2);
     a.send_line("set").await.unwrap();

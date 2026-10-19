@@ -1,7 +1,7 @@
 //! The admin API against a running server: `serve_in_process` with a token configured, and
 //! `serve` refusing an open bind with no token.
 
-mod common;
+use crate::common;
 
 use std::process::Command;
 use std::time::{Duration, Instant};

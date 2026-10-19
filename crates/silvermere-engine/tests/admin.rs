@@ -1,7 +1,7 @@
 //! The admin requests the engine answers: `Who` (the data `display_scan_of_users` lists) and
 //! `Broadcast` (the sysop `SPEAK`).
 
-mod common;
+use crate::common;
 
 use std::sync::mpsc::channel;
 

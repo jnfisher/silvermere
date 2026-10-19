@@ -17,7 +17,7 @@ fail-fast = false
 retries = 0
 default-filter = '''
 package(silvermere-db)
-| (package(silvermere-auth) & (binary(lockout) | binary(cli)))
-| (package(silvermere) & (binary(single_writer) | binary(account_delete) | binary(cli) | binary(name_check_latency) | binary(shutdown_barrier)))
-| (package(silvermere-import) & (binary(invariants) | binary(post_update_equivalence) | binary(import_latency)))
+| (package(silvermere-auth) & binary(all) & test(/^(lockout|cli)::/))
+| (package(silvermere) & binary(all) & test(/^(single_writer|account_delete|cli|name_check_latency|shutdown_barrier)::/))
+| (package(silvermere-import) & binary(all) & test(/^(invariants|post_update_equivalence|import_latency)::/))
 '''

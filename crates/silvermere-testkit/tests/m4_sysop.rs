@@ -4,7 +4,7 @@
 //! Rules pinned: SYSOP GOTO's towns, GOD, LIGHTNING, LIST, ARENA and the role gates
 //! (`has_permission`).
 
-mod common;
+use crate::common;
 
 use std::time::Duration;
 

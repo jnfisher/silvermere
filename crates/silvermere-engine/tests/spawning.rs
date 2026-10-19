@@ -6,7 +6,7 @@
 //! 6, levels 1-3, `maxmonsters` 2) with the group-6 genindex-1 monsters of the stock
 //! WCCKNMSR (giant rat, lashworm, filthbug, carrion beast, acid slime, kobold thief).
 
-mod common;
+use crate::common;
 
 use std::collections::BTreeMap;
 use std::time::Duration;

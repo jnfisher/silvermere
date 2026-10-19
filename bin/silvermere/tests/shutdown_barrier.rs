@@ -1,7 +1,7 @@
 //! T-113 e: the shutdown's persistence barrier gives up only when the database stops
 //! taking writes, and then names what was not saved, per kind, players first.
 
-mod common;
+use crate::common;
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};

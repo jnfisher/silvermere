@@ -10,7 +10,7 @@
 //! Poison, 12-20, 60 rounds, Descriptive Message 8575); spell 120 fireball as T-050's tests
 //! have it. The pick-lock trap spell is made up: the stock ones (640, 1040) run text blocks.
 
-mod common;
+use crate::common;
 
 use std::sync::mpsc::channel;
 

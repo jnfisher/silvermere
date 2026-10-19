@@ -2,7 +2,7 @@
 //! `silvermere-auth`'s dialogue, passes the BBS menu shim, and reaches the realm's
 //! prompt; `NEW` creates an account that reaches the `[MAJORMUD]:` menu.
 
-mod common;
+use crate::common;
 
 use std::time::Duration;
 

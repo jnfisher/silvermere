@@ -5,7 +5,7 @@
 //!
 //! Every test sits in `mod gang`, so `cargo test -p silvermere-engine gang::` runs them.
 
-mod common;
+use crate::common;
 
 mod gang {
     use std::sync::mpsc::Receiver;

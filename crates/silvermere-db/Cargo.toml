@@ -6,6 +6,8 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 license.workspace = true
+# one test binary for all of tests/ (tests/all.rs), not one per file (T-129)
+autotests = false
 
 [lints]
 workspace = true
@@ -28,3 +30,7 @@ tokio = { workspace = true, features = ["test-util"] }
 serde_json.workspace = true
 jiff.workspace = true
 tracing-subscriber.workspace = true
+
+[[test]]
+name = "all"
+path = "tests/all.rs"

@@ -1,7 +1,5 @@
 //! `silvermere backup` and `restore` through the binary.
 
-mod common;
-
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 

@@ -1,7 +1,7 @@
 //! T-023: the player record. Create, save, load, the secondary stats, the save points and
 //! the profiles, each against the original's behaviour.
 
-mod common;
+use crate::common;
 
 use std::collections::HashMap;
 use std::sync::mpsc::Receiver;

@@ -5,7 +5,7 @@
 //! with players online (the host's `mcurou` call, T-056; John's decision: no downtime,
 //! nobody disconnected) and its forgiveness and minute folding.
 
-mod common;
+use crate::common;
 
 use std::time::Duration;
 

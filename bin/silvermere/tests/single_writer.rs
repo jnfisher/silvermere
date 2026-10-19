@@ -5,7 +5,7 @@
 //! Unix only, as every test here was already: they stop the server with `kill -TERM`.
 #![cfg(unix)]
 
-mod common;
+use crate::common;
 
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};

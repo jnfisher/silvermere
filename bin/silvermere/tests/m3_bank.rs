@@ -5,7 +5,7 @@
 //! `tools/differential/scenarios/m3-bank.json`); the expectations here are the game's
 //! texts, the same ones `crates/silvermere-engine/tests/bank.rs` pins.
 
-mod common;
+use crate::common;
 
 use common::m3::{
     Player, assert_classified, body_lines, classify, edit_char, place, stored, stored_balance,

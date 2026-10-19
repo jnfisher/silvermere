@@ -1,7 +1,7 @@
 //! The migrations apply cleanly (and twice) on the configured backend, and `TestDb`
 //! hands out isolated databases.
 
-mod common;
+use crate::common;
 
 use silvermere_db::{Db, Dialect, TestDb};
 

@@ -26,5 +26,5 @@ Not written yet: `legacy-clients.md` and `human-play-checklist.md` (TODO(T-062))
 | [testing.md](testing.md) | running the tests, and which ones need the original game |
 
 The checks: `python3 tools/docs/check_links.py` (links, anchors, CLI subcommands in `bash` blocks) and
-`cargo test -p silvermere --test docs_in_sync` (config keys and defaults). Regenerate the schema doc with
+`cargo test -p silvermere --test all docs_in_sync::` (config keys and defaults). Regenerate the schema doc with
 `cargo run --manifest-path tools/schema-doc/Cargo.toml --locked`.

@@ -11,7 +11,7 @@
 //! the stock race; Elf (race 5) the minimums of the `creation-line-mode`
 //! capture.
 
-mod common;
+use crate::common;
 
 use std::sync::mpsc::Receiver;
 

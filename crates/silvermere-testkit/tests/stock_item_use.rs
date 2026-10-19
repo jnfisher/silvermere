@@ -13,10 +13,7 @@
 //! Every test sits in `mod items::use_item`, so `cargo test -p silvermere-testkit
 //! items::use_item` runs them.
 
-#[path = "../../silvermere-engine/tests/common/mod.rs"]
-mod common;
-#[path = "support/stock_records.rs"]
-mod stock_records;
+use crate::engine_common as common;
 
 mod items {
     pub mod use_item {

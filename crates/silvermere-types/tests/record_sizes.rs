@@ -1,6 +1,6 @@
 //! Record lengths and byte layouts match the committed facts.
 
-mod facts;
+use crate::facts;
 
 use silvermere_types::ids::RoomKey;
 use silvermere_types::records::*;

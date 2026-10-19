@@ -12,7 +12,7 @@
 //! `RoundHooks::cast` (`spells::autocombat_cast`), with the energy pool and `PS_CANCAST`
 //! set as the energy round leaves them.
 
-mod common;
+use crate::common;
 
 use common::{enter, test_config, tiny_snapshot};
 use silvermere_engine::SessionId;

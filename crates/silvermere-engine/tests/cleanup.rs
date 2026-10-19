@@ -4,7 +4,7 @@
 //! The harness plays `bin`'s store: it keeps the last saved record of every account and
 //! answers `EngineOutput::CleanupScan` with them, as `store.rs` does from the database.
 
-mod common;
+use crate::common;
 
 use std::collections::BTreeMap;
 use std::sync::mpsc::Receiver;

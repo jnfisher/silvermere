@@ -7,7 +7,7 @@
 //! backspace in the original's output; comparisons with a
 //! capture drop every `X\b` pair on both sides.
 
-mod common;
+use crate::common;
 
 use common::{enter, tiny_snapshot};
 use silvermere_engine::commands::info::{cmd_look_room, display_visible_exits};

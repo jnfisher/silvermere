@@ -18,10 +18,7 @@ use silvermere_import::decode::{
 use silvermere_import::{ImportError, ImportOptions, Importer};
 use silvermere_types::ids::RoomKey;
 
-mod support {
-    pub mod btrieve_v5;
-}
-use support::btrieve_v5::{with_record_length, write_v5};
+use crate::support::btrieve_v5::{with_record_length, write_v5};
 
 #[path = "../../silvermere-testkit/src/stock.rs"]
 #[allow(dead_code)]

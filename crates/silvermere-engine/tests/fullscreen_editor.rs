@@ -7,7 +7,7 @@
 //! editor's (`tests/character_creation.rs`, `tests/train_stats.rs`); here the two paths
 //! are shown to end with the same record.
 
-mod common;
+use crate::common;
 
 use std::sync::mpsc::Receiver;
 use std::time::Instant;

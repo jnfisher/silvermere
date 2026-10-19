@@ -11,32 +11,7 @@
 //!
 //! Random draws are never compared as sequences, only as masked events or distributions.
 
-// The testkit pieces this test uses, by path: the engine may not name silvermere-testkit, not
-// even as a dev-dependency (tests/deps.rs), and no build edge is added here. At the crate root,
-// so their `crate::` paths hold; `captures.rs` decodes with `silvermere_net::cp437`, a plain
-// table, which this crate provides under that name.
-extern crate self as silvermere_net;
-#[path = "../../silvermere-testkit/src/captures.rs"]
-#[allow(dead_code)]
-mod captures;
-#[path = "../../silvermere-testkit/src/clock.rs"]
-#[allow(dead_code)]
-mod clock;
-#[path = "../../silvermere-net/src/cp437.rs"]
-#[allow(dead_code)]
-mod cp437;
-#[path = "../../silvermere-testkit/src/scripts/m2.rs"]
-#[allow(dead_code)]
-mod m2;
-#[path = "../../silvermere-testkit/src/normalise.rs"]
-#[allow(dead_code)]
-mod normalise;
-#[path = "../../silvermere-testkit/src/patterns.rs"]
-#[allow(dead_code)]
-mod patterns;
-#[path = "../../silvermere-testkit/src/stats.rs"]
-#[allow(dead_code)]
-mod stats;
+use crate::{captures, m2, normalise, patterns, stats};
 
 use captures::Capture;
 use m2::*;

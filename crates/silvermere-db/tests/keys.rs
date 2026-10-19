@@ -1,7 +1,7 @@
 //! Key semantics: the Btrieve ACS ALLCAPS keys are case-insensitive, duplicates are
 //! refused, the top list is descending and the name scan is "at or after".
 
-mod common;
+use crate::common;
 
 use common::*;
 use silvermere_db::DbError;

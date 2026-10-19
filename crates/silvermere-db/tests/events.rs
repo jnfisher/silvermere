@@ -1,6 +1,6 @@
 //! The append-only events table: append, read back, prune to a retention count.
 
-mod common;
+use crate::common;
 
 use common::*;
 use silvermere_db::Event;

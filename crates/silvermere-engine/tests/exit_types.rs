@@ -8,7 +8,7 @@
 //! The world is a hub room per exit type (`5100 + type`) with the exit under test to
 //! the north, leading to `5200 + type`; the walker stands in the hub.
 
-mod common;
+use crate::common;
 
 use std::collections::BTreeMap;
 

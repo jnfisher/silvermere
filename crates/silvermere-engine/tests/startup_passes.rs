@@ -2,7 +2,7 @@
 //! monster, then the lair and shop fill, then on a cold start only the room reset, room by
 //! room in `room_walk` order.
 
-mod common;
+use crate::common;
 
 use common::{test_config, tiny_snapshot};
 use silvermere_engine::monsters::active::remove_active_monster;

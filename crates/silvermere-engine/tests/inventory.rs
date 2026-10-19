@@ -5,7 +5,7 @@
 //! The item records are the stock ones (`WCCITEMS` rows of the T-006 world export, the
 //! fields these tests read); the rest are made up for the refusals.
 
-mod common;
+use crate::common;
 
 use common::enter;
 use proptest::prelude::*;

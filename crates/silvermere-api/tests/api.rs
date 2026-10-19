@@ -15,7 +15,7 @@ use silvermere_engine::{AdminRequest, EngineInput, SessionId, WhoEntry};
 use tokio_stream::StreamExt;
 use tower::ServiceExt;
 
-mod common;
+use crate::common;
 use common::{FakeHealth, FakeLog};
 
 // ---- doubles ------------------------------------------------------------------------

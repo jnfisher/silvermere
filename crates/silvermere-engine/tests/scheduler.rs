@@ -1,7 +1,7 @@
 //! The timer queue runs each periodic routine at the period seen on the original and,
 //! within a tick, in the order its effects appear there.
 
-mod common;
+use crate::common;
 
 use silvermere_engine::scheduler::{Periods, on_fast_tick};
 use silvermere_engine::{EngineInput, Ran, Routine, Scheduler, World};

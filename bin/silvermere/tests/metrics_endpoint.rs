@@ -1,6 +1,6 @@
 //! `GET /metrics` on a running server returns the metrics of `docs/metrics.md`.
 
-mod common;
+use crate::common;
 
 use std::time::Duration;
 

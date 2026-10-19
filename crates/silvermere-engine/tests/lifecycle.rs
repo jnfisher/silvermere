@@ -1,6 +1,6 @@
 //! The connect and logoff boundaries of one event: what the transport sees, in order.
 
-mod common;
+use crate::common;
 
 use std::time::Instant;
 

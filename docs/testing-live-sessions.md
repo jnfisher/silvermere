@@ -17,7 +17,7 @@ imported stock world, connects `TelnetClient`s and drives them.
 | `m3_comms.rs` | telepath allowance and `set maxpages`, say / yell / gossip, gang lifecycle, 100 telepaths |
 | `m3_social_training.rs` | social actions with and without a target; the `train stats` refusal |
 
-`cargo test -p silvermere --test m3_shops` runs one file. The database follows
+`cargo test -p silvermere --test all m3_shops::` runs one file. The database follows
 `SILVERMERE_DATABASE_URL` for the workspace run in CI (`sqlite://` and a PostgreSQL 16 service);
 the live tests build their own SQLite copy of the stock world under `target/tmp/`.
 

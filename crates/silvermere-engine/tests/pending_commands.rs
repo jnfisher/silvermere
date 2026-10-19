@@ -3,7 +3,7 @@
 //! gate, the text exits, speech and the key during a paged listing. Every tick is a `Tick`
 //! input from the `TestClock`.
 
-mod common;
+use crate::common;
 
 use std::sync::mpsc::Receiver;
 

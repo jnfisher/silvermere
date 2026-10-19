@@ -10,7 +10,7 @@
 //! The stock export has no kobold shaman and the orc shaman casts `harm`, not `chill`
 //! (the card's wording); the snapshot takes the three casters the data has.
 
-mod common;
+use crate::common;
 
 use common::{enter, test_config, tiny_snapshot};
 use silvermere_engine::SessionId;

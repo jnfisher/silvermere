@@ -7,7 +7,7 @@
 //! a queued write gives up reads as free, and the answer comes in a few round trips
 //! while 20,000 monster saves are still queued.
 
-mod common;
+use crate::common;
 
 use std::time::{Duration, Instant};
 
