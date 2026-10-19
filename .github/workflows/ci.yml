@@ -50,8 +50,17 @@ jobs:
         with:
           path: ~/.cache/silvermere/stock/WCCMMUD_1.11p_DOS_MBBSEmu_v2.zip
           key: stock-${{ steps.stock.outputs.sha }}
+      # The publisher's server refuses GitHub-hosted runners, so a failed download retries from
+      # the mirror in the SILVERMERE_STOCK_URL secret when one is set; the sha256 is checked either way.
       - name: Stock data (download when not cached, check)
-        run: tools/differential/fetch-stock.sh
+        env:
+          MIRROR: ${{ secrets.SILVERMERE_STOCK_URL }}
+        run: |
+          tools/differential/fetch-stock.sh || {
+            [ -n "$MIRROR" ] || { echo "no SILVERMERE_STOCK_URL mirror secret to retry from" >&2; exit 1; }
+            echo "retrying from the SILVERMERE_STOCK_URL mirror" >&2
+            SILVERMERE_STOCK_URL="$MIRROR" tools/differential/fetch-stock.sh
+          }
       - run: cargo fmt --all --check
       - name: clippy
         if: ${{ !cancelled() }}
