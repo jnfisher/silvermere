@@ -2,8 +2,64 @@ name: CI
 
 on:
   pull_request:
+    paths-ignore:
+      # No Rust build or test reads these. Kept out of the list on purpose: README.md,
+      # docs/config.md, docs/config-defaults.md, docs/admin-api.md and docs/schema.md (tests and
+      # the schema check read them).
+      - "docs/auth.md"
+      - "docs/deploy-checklist.md"
+      - "docs/differences.md"
+      - "docs/engine.md"
+      - "docs/engine/**"
+      - "docs/images/**"
+      - "docs/import.md"
+      - "docs/install.md"
+      - "docs/legacy-clients.md"
+      - "docs/metrics.md"
+      - "docs/net.md"
+      - "docs/sysop.md"
+      - "docs/testing.md"
+      - "docs/testing-live-sessions.md"
+      - "docs/testkit.md"
+      - "docs/text.md"
+      - "docs/types.md"
+      - "docs/windows.md"
+      - "CONTRIBUTING.md"
+      - "SECURITY.md"
+      - ".github/*.md"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/workflows/release.yml"
+      - ".gitignore"
   push:
     branches: [main]
+    paths-ignore:
+      # No Rust build or test reads these. Kept out of the list on purpose: README.md,
+      # docs/config.md, docs/config-defaults.md, docs/admin-api.md and docs/schema.md (tests and
+      # the schema check read them).
+      - "docs/auth.md"
+      - "docs/deploy-checklist.md"
+      - "docs/differences.md"
+      - "docs/engine.md"
+      - "docs/engine/**"
+      - "docs/images/**"
+      - "docs/import.md"
+      - "docs/install.md"
+      - "docs/legacy-clients.md"
+      - "docs/metrics.md"
+      - "docs/net.md"
+      - "docs/sysop.md"
+      - "docs/testing.md"
+      - "docs/testing-live-sessions.md"
+      - "docs/testkit.md"
+      - "docs/text.md"
+      - "docs/types.md"
+      - "docs/windows.md"
+      - "CONTRIBUTING.md"
+      - "SECURITY.md"
+      - ".github/*.md"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/workflows/release.yml"
+      - ".gitignore"
 
 permissions:
   contents: read
@@ -39,7 +95,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-deny
+          tool: cargo-deny,cargo-nextest@0.9.100
       # The stock distribution the tests read (T-120): downloaded once, cached under its pinned
       # sha256, checked on every use.
       - name: Stock data cache key (the pinned sha256)
@@ -67,14 +123,22 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       # Includes the importer's suites and the end-to-end tests that import the stock world from
       # the cached distribution.
+      # cargo-nextest runs the tests in parallel (settings: .config/nextest.toml); it does not run
+      # doctests, so those follow. PostgreSQL runs the tests that depend on the database backend
+      # (the `pg-pr` profile).
       - name: test (sqlite)
         if: ${{ !cancelled() }}
-        run: cargo test --workspace --locked --no-fail-fast
+        run: cargo nextest run --workspace --locked --no-fail-fast
+        env:
+          SILVERMERE_DATABASE_URL: "sqlite://"
+      - name: doctests
+        if: ${{ !cancelled() }}
+        run: cargo test --workspace --doc --locked
         env:
           SILVERMERE_DATABASE_URL: "sqlite://"
       - name: test (postgres subset)
         if: ${{ !cancelled() }}
-        run: cargo test --locked --no-fail-fast -p silvermere-db
+        run: cargo nextest run --workspace --locked --profile pg-pr --no-fail-fast
         env:
           SILVERMERE_DATABASE_URL: "postgres://silvermere:silvermere@127.0.0.1:5432/silvermere"
       - run: cargo deny check

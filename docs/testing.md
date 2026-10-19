@@ -17,7 +17,8 @@ download); a test with no copy fails saying so, it never skips.
 | `cargo run --manifest-path tools/schema-doc/Cargo.toml -- --check` | `docs/schema.md` matches the migrations |
 
 CI (`.github/workflows/ci.yml`) runs all four on GitHub-hosted runners, with the stock
-distribution kept by `actions/cache`.
+distribution kept by `actions/cache`. It runs the tests with `cargo-nextest` (settings in
+`.config/nextest.toml`) plus the doctests, and skips changes that touch only prose no test reads.
 
 ## Tests that need the original game
 
