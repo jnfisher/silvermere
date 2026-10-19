@@ -20,9 +20,7 @@ use silvermere_types::ids::RoomKey;
 
 use crate::support::btrieve_v5::{with_record_length, write_v5};
 
-#[path = "../../silvermere-testkit/src/stock.rs"]
-#[allow(dead_code)]
-mod stock_data;
+use crate::stock as stock_data;
 
 fn stock() -> PathBuf {
     stock_data::vir_dir()

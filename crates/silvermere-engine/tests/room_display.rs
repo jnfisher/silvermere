@@ -29,11 +29,8 @@ use silvermere_types::records::{
     ActiveMonster, ActiveSpell, Coins, Exit, Message, Room, RoomItem, Shop, ShopSlot,
 };
 
-// The stock distribution, downloaded once and checked (the engine may not depend on the
-// testkit, tests/deps.rs, so its helper is included by path).
-#[path = "../../silvermere-testkit/src/stock.rs"]
-#[allow(dead_code)]
-mod stock;
+// The stock distribution, downloaded once and checked (the helper is declared in `all.rs`).
+use crate::stock;
 
 const ENTRY: &[u8] = include_bytes!("../../../tests/captures/entry-existing/raw.bin");
 const ARENA: &[u8] = include_bytes!("../../../tests/captures/fight-arena/raw.bin");

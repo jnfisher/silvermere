@@ -21,9 +21,7 @@ use silvermere_types::ids::{MessageNo, RoomKey};
 use silvermere_types::records::Room;
 use sqlx::{Column, Row};
 
-#[path = "../../silvermere-testkit/src/stock.rs"]
-#[allow(dead_code)]
-mod stock_data;
+use crate::stock as stock_data;
 
 fn stock() -> PathBuf {
     stock_data::vir_dir()

@@ -28,9 +28,7 @@ use sqlx::{Column, Row};
 
 use crate::support::world_digest;
 
-#[path = "../../silvermere-testkit/src/stock.rs"]
-#[allow(dead_code)]
-mod stock_data;
+use crate::stock as stock_data;
 
 fn manifest_dir() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))

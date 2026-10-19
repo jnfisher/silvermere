@@ -32,9 +32,7 @@ use silvermere_import::json::ExportRecord;
 
 use crate::support::world_digest;
 
-#[path = "../../silvermere-testkit/src/stock.rs"]
-#[allow(dead_code)]
-mod stock;
+use crate::stock;
 
 fn world_json() -> PathBuf {
     std::env::var_os("MMUD_WORLD_JSON")

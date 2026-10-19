@@ -8,9 +8,7 @@ use std::path::{Path, PathBuf};
 use silvermere_import::assets::{ASSET_ARCHIVES, AssetCount, LOOSE, unpack_assets};
 use silvermere_import::stock::sha256_hex;
 
-#[path = "../../silvermere-testkit/src/stock.rs"]
-#[allow(dead_code)]
-mod stock_data;
+use crate::stock as stock_data;
 
 fn dir(name: &str) -> PathBuf {
     let d = Path::new(env!("CARGO_TARGET_TMPDIR"))

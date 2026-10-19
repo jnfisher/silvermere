@@ -8,9 +8,7 @@ use std::time::{Duration, Instant};
 use silvermere_db::{Db, TestDb};
 use silvermere_import::importer::{ImportOptions, Importer};
 
-#[path = "../../silvermere-testkit/src/stock.rs"]
-#[allow(dead_code)]
-mod stock_data;
+use crate::stock as stock_data;
 
 const ONE_WAY: Duration = Duration::from_millis(15);
 

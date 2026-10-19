@@ -13,9 +13,7 @@ use silvermere_import::btrieve::{
     BtrieveError, BtrieveFile, KeyDataType as T, OpenOptions, Version,
 };
 
-#[path = "../../silvermere-testkit/src/stock.rs"]
-#[allow(dead_code)]
-mod stock_data;
+use crate::stock as stock_data;
 
 /// The stock `.VIR` files.
 fn stock() -> PathBuf {

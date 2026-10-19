@@ -10,9 +10,7 @@ use silvermere_import::btrieve::{
     BtrieveError, BtrieveFile, KeyAttributes as A, KeyDataType, OpenOptions, RecordType, Version,
 };
 
-#[path = "../../silvermere-testkit/src/stock.rs"]
-#[allow(dead_code)]
-mod stock_data;
+use crate::stock as stock_data;
 
 fn fixture(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

@@ -24,11 +24,8 @@ use silvermere_types::ids::{
 };
 use silvermere_types::records::{ActiveMonster, ActiveSpell, Character, Coins, Exit, Message};
 
-// The stock distribution, downloaded once and checked (the engine may not depend on the
-// testkit, tests/deps.rs, so its helper is included by path).
-#[path = "../../silvermere-testkit/src/stock.rs"]
-#[allow(dead_code)]
-mod stock;
+// The stock distribution, downloaded once and checked (the helper is declared in `all.rs`).
+use crate::stock;
 
 const HALL: u32 = 3000;
 const NORTH: u32 = 3001;

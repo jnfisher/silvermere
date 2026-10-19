@@ -2,9 +2,11 @@
 //! crate's dependency graph is linked once rather than once per file. A new test file
 //! goes in the list below.
 
-// Several files include the testkit's stock-download source as their own module, as they did as
-// separate binaries, so its unit tests still run once per file.
-#![allow(clippy::duplicate_mod)]
+// The testkit's stock-download helper, by path and once for the binary (`crate::stock`): the
+// import crate takes no dependency on the testkit.
+#[path = "../../silvermere-testkit/src/stock.rs"]
+#[allow(dead_code)]
+mod stock;
 
 mod support {
     pub mod btrieve_v5;
