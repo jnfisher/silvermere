@@ -13,7 +13,6 @@
 //!
 //! The sneak and drag state of SNEAK and DRAG are the arguments of [`move_user_with`].
 
-use silvermere_rules::economy;
 use silvermere_text::Msg;
 use silvermere_types::enums::{Ability, Alignment, Direction, ExitType, MonsterType, RoomType};
 use silvermere_types::flags::{PlayerSettings, PlayerStatus, PlayerStatus2, RoomFlags};
@@ -480,16 +479,7 @@ pub use crate::party::stop_following;
 
 /// The load as a percentage of the maximum, stored in `encumpct`. 100 with no character.
 pub fn get_encumbrance_percent(world: &mut World, id: SessionId) -> i16 {
-    let alter = HOOKS
-        .abilities
-        .value(world, id, Ability::Encumbrance)
-        .unwrap_or(0);
-    let Some(p) = world.session_mut(id).and_then(|s| s.character.as_mut()) else {
-        return 100;
-    };
-    let max = economy::max_weight(p.str, alter);
-    p.encumpct = economy::encumbrance_pct(p.wgt, p.coins, max);
-    p.encumpct
+    crate::items::inventory::update_encumbrance(world, id)
 }
 
 /// The chance to hide or sneak: stealth less 10 over 66% load or 5 over 33%, two thirds

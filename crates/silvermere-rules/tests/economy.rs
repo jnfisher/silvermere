@@ -3,8 +3,8 @@
 use proptest::prelude::*;
 use silvermere_rules::economy::{
     EncumbranceLevel, Payment, amount_to_copper, buy_price, can_pay, carrying_capacity,
-    coin_weight, convert_currency, encumbrance_pct, from_copper, max_weight, normalise, pay,
-    sell_price, to_copper,
+    coin_weight, convert_currency, encumbrance_pct, from_copper, normalise, pay, sell_price,
+    to_copper,
 };
 use silvermere_types::enums::Currency;
 use silvermere_types::records::Coins;
@@ -162,18 +162,6 @@ fn carrying_capacity_from_strength() {
     assert_eq!(carrying_capacity(79), 3_792);
     assert_eq!(carrying_capacity(100), 4_800);
     assert_eq!(carrying_capacity(101), 4_884);
-}
-
-// Maximum weight: carrying capacity raised by Alter Encumbrance percent.
-#[test]
-fn max_weight_with_alter_encumbrance() {
-    assert_eq!(max_weight(79, 0), 3_792);
-    assert_eq!(max_weight(101, 0), 4_884);
-    assert_eq!(max_weight(79, 10), 3_792 * 110 / 100);
-    assert_eq!(max_weight(79, -10), 3_792 * 90 / 100);
-    // never 0
-    assert_eq!(max_weight(0, 0), 1);
-    assert_eq!(max_weight(79, -100), 1);
 }
 
 // Coin weight: three coins of a type weigh one, per type.

@@ -14,6 +14,7 @@ use super::{Cmd, CommandLine, eq_ignore_case, parse_command, starts_with_ignore_
 use crate::display::exits::exits_msg;
 use crate::display::{RoomMode, can_see, describe, display_room, spells, status, topten, who};
 use crate::help::{help_text, matches_any_word};
+use crate::movement::exits::live_exit;
 use crate::output::clear_output;
 use crate::tell::{Noise, TellBlind, tell_room, tell_user};
 use crate::world::World;
@@ -120,7 +121,7 @@ pub fn look_direction(world: &mut World, id: SessionId, dir: usize) {
     };
     let hidden = plr.hidden != 0;
     let who = plr.firstname.clone();
-    let Some(exit) = world.room(old).map(|r| r.exits[dir]) else {
+    let Some(exit) = live_exit(world, old, Direction::from_code(dir as u16)) else {
         let m = no_exit(world, dir);
         push(world, id, m);
         return;

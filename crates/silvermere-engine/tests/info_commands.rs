@@ -21,6 +21,7 @@ use silvermere_engine::commands::inventory::{
 use silvermere_engine::commands::{Cmd, CommandLine, parse_command};
 use silvermere_engine::display::topten::{display_only_topten, display_top_gangs};
 use silvermere_engine::help::help_text;
+use silvermere_engine::items::use_item::{UseTarget, use_item};
 use silvermere_engine::tell::palette_of;
 use silvermere_engine::world::blank;
 use silvermere_engine::{
@@ -144,7 +145,12 @@ fn snapshot() -> WorldSnapshot {
     let mut arena = room(ARENA, "Newhaven, Arena");
     arena.exits[0] = exit(2152, ExitType::Door, 2, 30);
     arena.exits[8] = exit(2146, ExitType::Normal, 0, 0);
+    // a shut Door exit west and a locked Key exit east, each with a room behind it
+    arena.exits[3] = exit(2152, ExitType::Door, 1, 30);
+    arena.exits[2] = exit(2153, ExitType::Key, BRASS_KEY as u32, 2);
     s.rooms.push(arena);
+    s.rooms.push(room(2152, "Newhaven, Armoury"));
+    s.rooms.push(room(2153, "Newhaven, Vault"));
     s.classes.clear();
     for (n, name, magery) in [
         (WARRIOR, "Warrior", Magery::None),
@@ -1249,6 +1255,74 @@ fn look_into_the_next_room() {
     // and back where he was
     let p = h.engine.world.session(id).unwrap().player().unwrap();
     assert_eq!(p.room, RoomId(ENTRANCE));
+}
+
+// OPEN and CLOSE change the live exit, and LOOK reads it
+#[test]
+fn look_through_a_door_opened_and_closed_in_play() {
+    for (dir, word, room_name) in [
+        ("w", "west", "Newhaven, Armoury"),
+        ("e", "east", "Newhaven, Vault"),
+    ] {
+        let mut h = Harness::new();
+        let id = h.player("Aldric");
+        edit(&mut h.engine.world, id, |c| c.room = RoomId(ARENA));
+        h.text(id);
+        h.line(id, &format!("look {dir}"));
+        assert_eq!(
+            lines(h.text(id).as_bytes())[0],
+            "The door is closed in that direction!"
+        );
+        if dir == "e" {
+            // locked: the key unlocks it, then it opens
+            h.line(id, "open e");
+            for _ in 0..5 {
+                h.tick();
+            }
+            h.text(id);
+            use_item(
+                &mut h.engine.world,
+                id,
+                ItemNo(BRASS_KEY),
+                UseTarget::Direction(silvermere_types::enums::Direction::East),
+            );
+            h.text(id);
+        }
+        h.line(id, &format!("open {dir}"));
+        for _ in 0..5 {
+            h.tick();
+        }
+        h.text(id);
+        let here = h.player("Bob");
+        edit(&mut h.engine.world, here, |c| c.room = RoomId(ARENA));
+        let there = h.player("Cy");
+        edit(&mut h.engine.world, there, |c| {
+            c.room = RoomId(if dir == "w" { 2152 } else { 2153 })
+        });
+        h.text(here);
+        h.text(there);
+        h.line(id, &format!("look {dir}"));
+        let ls = lines(h.text(id).as_bytes());
+        assert_eq!(ls[0], room_name, "{ls:?}");
+        assert!(ls.iter().any(|l| l == "Also here: Cy."), "{ls:?}");
+        let ls = lines(h.text(here).as_bytes());
+        assert!(
+            ls[0].starts_with(&format!("Aldric is looking to the {word}")),
+            "{ls:?}"
+        );
+        let ls = lines(h.text(there).as_bytes());
+        assert!(ls[0].starts_with("Aldric peeks in from the "), "{ls:?}");
+        h.line(id, &format!("close {dir}"));
+        for _ in 0..5 {
+            h.tick();
+        }
+        h.text(id);
+        h.line(id, &format!("look {dir}"));
+        assert_eq!(
+            lines(h.text(id).as_bytes())[0],
+            "The door is closed in that direction!"
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------------------

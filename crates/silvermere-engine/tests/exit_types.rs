@@ -182,6 +182,7 @@ fn player(world: &mut World, name: &str, room: u32) -> SessionId {
     edit(world, id, |c| {
         c.movedir = -1;
         c.str = 50;
+        c.maxwgt = 2400; // 48 per point
         c.level = 1;
     });
     id
@@ -1217,7 +1218,7 @@ fn ability_exit() {
         lines(&take(&mut w, watcher)),
         ["Aldric frowns at the arch."]
     );
-    // the record's own slot gives it (T-032 adds the other sources)
+    // the record's own slot gives it
     edit(&mut w, id, |c| {
         c.abils[0] = (silvermere_types::enums::Ability::Bash, 10)
     });
@@ -1228,6 +1229,34 @@ fn ability_exit() {
     });
     take(&mut w, id);
     assert!(!walk(&mut w, id, 0), "over the top");
+}
+
+// The exit's ability counts every source: a worn item's and the race's add to the total
+#[test]
+fn ability_exit_counts_items_and_race() {
+    let mut w = world();
+    let room = hub(ExitType::Ability);
+    let id = player(&mut w, "Aldric", room);
+    set_exit(&mut w, room, 0, |e| {
+        e.par1 = 31;
+        e.par2 = 5;
+        e.par3 = 20;
+    });
+    w.items.get_mut(&ItemNo(1)).unwrap().abilities[0] =
+        (silvermere_types::enums::Ability::Bash, 10);
+    edit(&mut w, id, |c| c.worn[0] = ItemNo(1));
+    assert!(walk(&mut w, id, 0), "the worn item gives 10");
+    // the race adds 15 more: 25, over the top
+    w.races
+        .get_mut(&silvermere_types::ids::RaceNo(1))
+        .unwrap()
+        .abilities[0] = (silvermere_types::enums::Ability::Bash, 15);
+    edit(&mut w, id, |c| c.room = RoomId(room));
+    take(&mut w, id);
+    assert!(!walk(&mut w, id, 0), "10 + 15 is over the top");
+    // the race alone: 15
+    edit(&mut w, id, |c| c.worn[0] = ItemNo(0));
+    assert!(walk(&mut w, id, 0), "the race gives 15");
 }
 
 // EXIT_SPELLTRAP: the room texts end with a blank line
@@ -1294,6 +1323,7 @@ fn status_refusals() {
     edit(&mut w, id, |c| {
         c.status2.remove(PlayerStatus2::KNOCKEDDOWN);
         c.str = 10;
+        c.maxwgt = 480;
         c.wgt = 600;
     });
     assert!(!walk(&mut w, id, 0));

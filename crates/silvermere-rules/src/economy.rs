@@ -221,19 +221,6 @@ pub fn carrying_capacity(str: u16) -> i16 {
     maxwgt
 }
 
-/// The most weight a character with Strength `str` can carry, raised or lowered by his
-/// "Alter Encumbrance" ability (`alter_encumbrance_pct`, percent). The carrying capacity is
-/// read zero-extended; never 0 (1 then), because callers divide by it.
-pub fn max_weight(str: u16, alter_encumbrance_pct: i32) -> i32 {
-    // zero-extended
-    let mut maxw = i32::from(carrying_capacity(str) as u16);
-    if alter_encumbrance_pct != 0 {
-        // in 32 bits
-        maxw = maxw.wrapping_mul(alter_encumbrance_pct.wrapping_add(100)) / 100;
-    }
-    if maxw != 0 { maxw } else { 1 }
-}
-
 /// Three coins of a type weigh one unit, each type counted on its own (so up to two coins
 /// of each type weigh nothing).
 pub fn coin_weight(coins: Coins) -> i32 {
@@ -245,9 +232,9 @@ pub fn coin_weight(coins: Coins) -> i32 {
         .wrapping_add(coins.copper / 3) as i32
 }
 
-/// The weight `carried` plus the coins' weight, as a percentage of `max` ([`max_weight`]),
-/// truncated, in a signed 16-bit value. A `max` of 0 is taken as 1, as [`max_weight`]
-/// guarantees.
+/// The weight `carried` plus the coins' weight, as a percentage of `max` (the carrying
+/// capacity raised or lowered by "Alter Encumbrance"), truncated, in a signed 16-bit value.
+/// A `max` of 0 is taken as 1.
 pub fn encumbrance_pct(carried: u16, coins: Coins, max: i32) -> i16 {
     let load = i32::from(carried).wrapping_add(coin_weight(coins));
     let max = if max == 0 { 1 } else { max };

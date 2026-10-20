@@ -97,9 +97,8 @@ pub trait ItemHooks: Sync {
     fn deduct_item_charge(&self, _world: &mut World, _id: SessionId, _slot: usize) {}
 }
 
-/// A player's abilities: T-032 adds up spells, race, class, items and the record's own
-/// slots. The default reads the record's own ability slots (`player.abils`), which the
-/// stats update fills.
+/// A player's abilities. The default reads only the record's own ability slots
+/// (`player.abils`); [`CharacterTotals`] adds up every source.
 pub trait AbilityHooks: Sync {
     fn has(&self, world: &World, id: SessionId, ability: Ability) -> bool {
         self.value(world, id, ability).is_some()
@@ -111,6 +110,25 @@ pub trait AbilityHooks: Sync {
             .iter()
             .find(|(a, _)| *a == ability && *a != Ability::None)
             .map(|(_, v)| i32::from(*v))
+    }
+}
+
+/// The character's full ability total: own slots, race, class, worn items and spells, as
+/// the inventory display adds them up.
+pub struct CharacterTotals;
+
+impl AbilityHooks for CharacterTotals {
+    fn has(&self, world: &World, id: SessionId, ability: Ability) -> bool {
+        world
+            .session(id)
+            .and_then(|s| s.player())
+            .is_some_and(|plr| crate::items::inventory::has_ability(world, plr, ability))
+    }
+    /// The total, or `None` when no source gives the ability.
+    fn value(&self, world: &World, id: SessionId, ability: Ability) -> Option<i32> {
+        let plr = world.session(id)?.player()?;
+        crate::items::inventory::has_ability(world, plr, ability)
+            .then(|| crate::items::inventory::ability_value(world, plr, ability))
     }
 }
 
@@ -137,8 +155,8 @@ pub static HOOKS: Hooks = Hooks {
     combat: &crate::combat::Hooks, // T-033 (attack_monster_user); T-034, T-036, T-038
     spells: &crate::spells::room::RoomCasts,
     monsters: &crate::monsters::MONSTER_HOOKS,
-    items: &Defaults,     // T-030
-    abilities: &Defaults, // T-032
+    items: &Defaults, // T-030
+    abilities: &CharacterTotals,
 };
 
 /// `dirnames[dir]`: the live direction name, letter slot and backspace included.

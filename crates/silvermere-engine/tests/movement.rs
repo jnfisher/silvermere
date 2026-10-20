@@ -161,6 +161,7 @@ fn player(world: &mut World, name: &str, room: u32) -> SessionId {
     edit(world, id, |c| {
         c.movedir = -1;
         c.str = 50;
+        c.maxwgt = 2400; // 48 per point
         c.level = 1;
         c.perception = 115;
     });
@@ -503,6 +504,65 @@ fn the_move_delay() {
     cmd_move(h.w(), id, Cmd::East, &CommandLine::parse("e"));
     // (1 + 1) * 2, and moves is now 3: one more
     assert_eq!(delay(&mut h), 5);
+}
+
+// The heavy-load check uses the full "Alter Encumbrance" total: a dwarf's race +20% raises
+// 90 strength's 4320 to 5184, so 2895 carried is 55% and moves at normal speed.
+#[test]
+fn the_race_alter_encumbrance_counts_for_the_move_delay() {
+    let mut h = Harness::new();
+    let id = h.playing("Aldric", WEST_END);
+    h.w()
+        .races
+        .get_mut(&silvermere_types::ids::RaceNo(1))
+        .unwrap()
+        .abilities[0] = (silvermere_types::enums::Ability::Encumbrance, 20);
+    let state = |h: &mut Harness| {
+        let p = h.w().session(id).unwrap().player().unwrap();
+        (p.delay, p.encumpct)
+    };
+    edit(h.w(), id, |c| {
+        c.str = 90;
+        c.maxwgt = 4320;
+        c.delay = 0;
+        c.wgt = 2895;
+    });
+    cmd_move(h.w(), id, Cmd::East, &CommandLine::parse("e"));
+    assert_eq!(state(&mut h), (1, 55), "normal speed at 55%");
+    edit(h.w(), id, |c| {
+        c.delay = 0;
+        c.wgt = 3500; // 67% of 5184
+    });
+    cmd_move(h.w(), id, Cmd::East, &CommandLine::parse("e"));
+    assert_eq!(state(&mut h), (2, 67), "slow just over 66%");
+}
+
+// The load is weighed against the record's carrying capacity (`maxwgt`), not worked out
+// again from strength: 1000 carried is 10% of a 10000 capacity whatever the strength.
+#[test]
+fn the_move_delay_follows_the_records_capacity() {
+    let mut h = Harness::new();
+    let id = h.playing("Aldric", WEST_END);
+    let state = |h: &mut Harness| {
+        let p = h.w().session(id).unwrap().player().unwrap();
+        (p.delay, p.encumpct)
+    };
+    edit(h.w(), id, |c| {
+        c.str = 10; // 480 from strength: 1000 would be 208%, too heavy
+        c.maxwgt = 10_000;
+        c.delay = 0;
+        c.wgt = 1000;
+    });
+    cmd_move(h.w(), id, Cmd::East, &CommandLine::parse("e"));
+    assert_eq!(state(&mut h), (1, 10), "normal speed at 10%");
+    edit(h.w(), id, |c| {
+        c.str = 200; // 12000 from strength: 7000 would be 58%
+        c.maxwgt = 10_000;
+        c.delay = 0;
+        c.wgt = 7000;
+    });
+    cmd_move(h.w(), id, Cmd::East, &CommandLine::parse("e"));
+    assert_eq!(state(&mut h), (2, 70), "slow at 70% of the capacity");
 }
 
 // cmd_search: the slum's hidden exit at 1:619 west
@@ -930,6 +990,36 @@ fn a_failed_sneak_is_noticed_in_both_rooms() {
     assert_eq!(take(&mut w, watcher), b"");
     assert_eq!(take(&mut w, ahead), b"");
     assert_eq!(lines(&take(&mut w, id))[0], "East End");
+}
+
+// Perfect Stealth from a worn item (not the record's own slots) sneaks unseen with no roll
+#[test]
+fn perfect_stealth_from_a_worn_item_sneaks_unseen() {
+    let mut w = World::load(test_config(), 16, snapshot()).unwrap();
+    w.rng = SeededRng::new(5);
+    let id = player(&mut w, "Aldric", MIDDLE);
+    let watcher = player(&mut w, "Bob", MIDDLE);
+    let ahead = player(&mut w, "Cid", EAST_END);
+    w.items.get_mut(&ItemNo(1)).unwrap().abilities[0] =
+        (silvermere_types::enums::Ability::PerfectStealth, 1);
+    edit(&mut w, id, |c| {
+        c.status |= PlayerStatus::SNEAKING;
+        c.stealth = 0;
+        c.worn[0] = ItemNo(1);
+    });
+    assert!(silvermere_engine::movement::move_user_with(
+        &mut w, id, 2, 1, true, None
+    ));
+    assert_eq!(take(&mut w, watcher), b"");
+    assert_eq!(take(&mut w, ahead), b"");
+    assert!(
+        w.session(id)
+            .unwrap()
+            .player()
+            .unwrap()
+            .status
+            .contains(PlayerStatus::SNEAKING)
+    );
 }
 
 // The transport echoes at receive time. The tick that runs a queued move turns the echo back
