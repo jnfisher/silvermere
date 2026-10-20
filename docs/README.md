@@ -6,6 +6,8 @@
 |---|---|
 | [install.md](install.md) | Docker, release binary, VPS runbook, hosted PostgreSQL, VPS and cloud, firewall, connecting, backup, upgrade, troubleshooting |
 | [deploy-checklist.md](deploy-checklist.md) | A real VPS deploy step by step (SQLite, then hosted PostgreSQL), with what to check and paste back |
+| [cli.md](cli.md) | every `silvermere` command and flag, with where its details are |
+| [sysop.md](sysop.md) | first steps for a new sysop, and the sysop commands |
 | [config.md](config.md) | every `silvermere.toml` key, its environment variable, default and original name |
 | [config-defaults.md](config-defaults.md) | every option of the original and what became of it (generated) |
 | [differences.md](differences.md) | what is different from the original |
@@ -26,5 +28,5 @@ Not written yet: `legacy-clients.md` and `human-play-checklist.md` (TODO(T-062))
 | [testing.md](testing.md) | running the tests, and which ones need the original game |
 
 The checks: `python3 tools/docs/check_links.py` (links, anchors, CLI subcommands in `bash` blocks) and
-`cargo test -p silvermere --test all docs_in_sync::` (config keys and defaults). Regenerate the schema doc with
+`cargo test -p silvermere --test all docs_in_sync::` (config keys and defaults, and every command and flag in `cli.md`). Regenerate the schema doc with
 `cargo run --manifest-path tools/schema-doc/Cargo.toml --locked`.

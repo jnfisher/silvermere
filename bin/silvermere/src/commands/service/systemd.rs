@@ -162,9 +162,14 @@ pub fn run(cmd: &ServiceCmd, data_dir: Option<&Path>, ov: &Overrides) -> anyhow:
                 data_dir: data_dir.map(|p| cwd.join(p)),
                 env_file: None,
             };
+            let mut closing = None;
             install(&host, plan, url.as_deref(), &mut std::io::stdout(), |url| {
-                setup(data_dir, ov, url)
+                closing = Some(setup(data_dir, ov, url)?);
+                Ok(())
             })?;
+            if let Some(line) = closing {
+                println!("\n{line}");
+            }
         }
         ServiceCmd::Uninstall(m) => uninstall(&host, host.mode(m)?, &mut std::io::stdout())?,
     }
@@ -189,7 +194,7 @@ fn read_url() -> anyhow::Result<String> {
 /// The first start without serving (`first_start::prepare`) on the configuration the unit
 /// will use: the stock world if the database is empty, a sysop if there is none. The prompts
 /// read the terminal, since stdin may have carried the URL.
-fn setup(data_dir: Option<&Path>, ov: &Overrides, url: Option<&str>) -> anyhow::Result<()> {
+fn setup(data_dir: Option<&Path>, ov: &Overrides, url: Option<&str>) -> anyhow::Result<String> {
     let mut ov = Overrides {
         config_file: ov.config_file.clone(),
         flag_lines: ov.flag_lines.clone(),
@@ -201,7 +206,7 @@ fn setup(data_dir: Option<&Path>, ov: &Overrides, url: Option<&str>) -> anyhow::
         ));
     }
     let cfg = Config::load(data_dir, &ov)?;
-    match std::fs::File::open("/dev/tty") {
+    let made = match std::fs::File::open("/dev/tty") {
         Ok(tty) => crate::commands::first_start::prepare(
             &cfg,
             &mut std::io::BufReader::new(tty),
@@ -214,7 +219,11 @@ fn setup(data_dir: Option<&Path>, ov: &Overrides, url: Option<&str>) -> anyhow::
             &mut std::io::stdout(),
             false,
         ),
-    }
+    }?;
+    Ok(crate::commands::first_start::next_steps(
+        made.as_deref(),
+        &cfg.server.telnet_bind,
+    ))
 }
 
 /// The install, step by step. `prepare` builds the world and asks for the sysop, given the

@@ -232,6 +232,115 @@ fn account_create_grant_list_delete() {
     assert_eq!(out(&o), "");
 }
 
+/// `account passwd --missing`: only accounts with no password (as an import creates
+/// them) get one; `--dry-run` lists them; `--out` refuses an existing file and writes a
+/// private one; the lines printed log in.
+#[tokio::test(flavor = "multi_thread")]
+async fn account_passwd_missing() {
+    let d = tmp("passwd-missing");
+    let o = run_stdin(
+        &d,
+        &["account", "create", "Bob", "--password-stdin"],
+        "secret\n",
+    );
+    assert!(o.status.success(), "{}", err(&o));
+    let url = format!("sqlite://{}", d.join("data/silvermere.db").display());
+    {
+        let db = silvermere_db::Db::connect(&url).await.expect("open");
+        for name in ["Mira", "Tobin"] {
+            let a = silvermere_db::repo::Account::new(name, "", jiff::Timestamp::now());
+            db.accounts().insert(&a).await.unwrap();
+        }
+        db.close().await;
+    }
+    let hash = |name: &'static str| {
+        let url = url.clone();
+        async move {
+            let db = silvermere_db::Db::connect(&url).await.expect("open");
+            let h = db.accounts().by_username(name).await.unwrap().unwrap();
+            db.close().await;
+            h.account.password_hash
+        }
+    };
+    let bob = hash("Bob").await;
+
+    let o = run(&d, &[], &["account", "passwd", "--missing", "--dry-run"]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert_eq!(out(&o), "Mira\nTobin\n");
+    assert!(hash("Mira").await.is_empty(), "--dry-run changes nothing");
+
+    // stdout closed before anything is written: the write fails, so nothing is stored
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_silvermere"))
+        .current_dir(&d)
+        .args(["account", "passwd", "--missing"])
+        .env_clear()
+        .env("PATH", std::env::var("PATH").unwrap_or_default())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    drop(child.stdout.take());
+    let o = child.wait_with_output().unwrap();
+    assert_eq!(o.status.code(), Some(1), "{}", err(&o));
+    assert!(err(&o).contains("writing the line for Mira"), "{}", err(&o));
+    assert!(
+        hash("Mira").await.is_empty(),
+        "a failed write stores nothing"
+    );
+    assert!(hash("Tobin").await.is_empty());
+
+    let existing = d.join("exists.txt");
+    std::fs::write(&existing, "keep").unwrap();
+    let o = run(
+        &d,
+        &[],
+        &["account", "passwd", "--missing", "--out", "exists.txt"],
+    );
+    assert_eq!(o.status.code(), Some(1));
+    assert!(err(&o).contains("exists"), "{}", err(&o));
+    assert_eq!(std::fs::read_to_string(&existing).unwrap(), "keep");
+    assert!(
+        hash("Mira").await.is_empty(),
+        "a refused --out changes nothing"
+    );
+
+    let o = run(
+        &d,
+        &[],
+        &["account", "passwd", "--missing", "--out", "passwords.txt"],
+    );
+    assert!(o.status.success(), "{}", err(&o));
+    assert_eq!(out(&o), "", "with --out nothing goes to stdout");
+    let file = d.join("passwords.txt");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let mode = std::fs::metadata(&file).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600);
+    }
+    let lines = std::fs::read_to_string(&file).unwrap();
+    let pairs: Vec<(&str, &str)> = lines.lines().map(|l| l.split_once('\t').unwrap()).collect();
+    assert_eq!(
+        pairs.iter().map(|p| p.0).collect::<Vec<_>>(),
+        ["Mira", "Tobin"]
+    );
+    for (name, (_, pw)) in ["Mira", "Tobin"].into_iter().zip(&pairs) {
+        let h = hash(name).await;
+        assert!(silvermere_auth::password::verify(pw, &h), "{name}");
+        assert!(!err(&o).contains(pw), "the password is not logged");
+    }
+    assert_eq!(
+        hash("Bob").await,
+        bob,
+        "an account with a password is untouched"
+    );
+
+    // Nothing left: a second run prints nothing.
+    let o = run(&d, &[], &["account", "passwd", "--missing"]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert_eq!(out(&o), "");
+}
+
 #[tokio::test]
 async fn migrate_creates_database_with_tables() {
     let d = tmp("migrate");

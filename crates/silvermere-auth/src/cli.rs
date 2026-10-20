@@ -12,6 +12,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use jiff::Timestamp;
+use rand::RngExt as _;
 use silvermere_db::{DbError, Event};
 use silvermere_types::ids::AccountId;
 
@@ -147,14 +148,73 @@ pub async fn set_password_with_cost<S: AccountStore>(
 ) -> Result<(), AuthError> {
     validate_password(password)?;
     let mut account = find(store, username).await?;
+    store_password(store, &mut account, password, cost).await
+}
+
+async fn store_password<S: AccountStore>(
+    store: &S,
+    account: &mut Account,
+    password: &str,
+    cost: Cost,
+) -> Result<(), AuthError> {
     account.password_hash = password::hash_with(password, cost);
-    store.update(&account).await?;
+    store.update(account).await?;
     audit(
         store,
         "auth.password",
         serde_json::json!({ "account": account.id.0, "username": account.username }),
     )
     .await
+}
+
+/// The characters of a generated password: lower-case letters and digits without the
+/// look-alikes `0`/`o`, `1`/`l`/`i`, so it can be typed and read aloud.
+const GENERATED_ALPHABET: &[u8] = b"abcdefghjkmnpqrstuvwxyz23456789";
+
+/// The length of a generated password: 14 of 31 characters, about 69 bits.
+pub const GENERATED_LEN: usize = 14;
+
+/// A fresh random password for `account passwd --missing`.
+pub fn generate_password() -> String {
+    let mut rng = rand::rng();
+    (0..GENERATED_LEN)
+        .map(|_| char::from(GENERATED_ALPHABET[rng.random_range(0..GENERATED_ALPHABET.len())]))
+        .collect()
+}
+
+/// The accounts with no password (an import creates its players' accounts without one;
+/// nobody can log in to them), by id.
+pub async fn without_password<S: AccountStore>(store: &S) -> Result<Vec<Account>, AuthError> {
+    let mut all = store.all().await?;
+    all.retain(|a| a.password_hash.is_empty());
+    Ok(all)
+}
+
+/// Stores `password` (a [`generate_password`], already handed to the sysop) for
+/// `username` if it still has no password (default cost); `false`, storing nothing, when
+/// the account has one by now.
+pub async fn set_missing_password<S: AccountStore>(
+    store: &S,
+    username: &str,
+    password: &str,
+) -> Result<bool, AuthError> {
+    set_missing_password_with_cost(store, username, password, Cost::Default).await
+}
+
+/// [`set_missing_password`] with an explicit hash cost (tests).
+pub async fn set_missing_password_with_cost<S: AccountStore>(
+    store: &S,
+    username: &str,
+    password: &str,
+    cost: Cost,
+) -> Result<bool, AuthError> {
+    validate_password(password)?;
+    let mut account = find(store, username).await?;
+    if !account.password_hash.is_empty() {
+        return Ok(false);
+    }
+    store_password(store, &mut account, password, cost).await?;
+    Ok(true)
 }
 
 /// Grants a role, permission or flag; returns the account as stored.

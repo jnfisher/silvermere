@@ -47,6 +47,10 @@ note = "silvermere's own (the BBS had no lockout): config lockout.max_failures f
 text = "\r\n\u001B[1m\u001B[31mThis account is already logged on.\u001B[0m\r\n"
 note = "silvermere's own. compat.duplicate_login. MBBSEmu refused a second session at the username prompt with `{user} is already logged in -- only 1 connection allowed per user.` and re-asked; silvermere checks after the password (so the text says nothing about an account to someone without its password) and closes the connection."
 
+[messages.no_password]
+text = "\r\n\u001B[1m\u001B[31mThis account has no password yet. Ask the sysop to set one.\u001B[0m\r\n"
+note = "silvermere's own. An account with no password (an import creates its players' accounts without one) is refused with this whatever is typed; it does not count towards the lockout."
+
 [messages.signup_closed]
 text = "\r\n\u001B[1m\u001B[31mNew accounts are created by the sysop on this system.\u001B[0m\r\n"
 note = "silvermere's own. `NEW` while compat.open_signup = false; the username prompt follows again."

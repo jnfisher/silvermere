@@ -152,8 +152,28 @@ pub enum AccountCmd {
         #[arg(long)]
         password_stdin: bool,
     },
-    /// Change a password.
-    Passwd { name: String },
+    /// Change a password (read from stdin), or with --missing give every account that has
+    /// none a random one.
+    Passwd {
+        #[arg(required_unless_present = "missing")]
+        name: Option<String>,
+        /// Every account with no password (as an import creates them) gets a random one;
+        /// prints `name<TAB>password` lines.
+        #[arg(long, conflicts_with = "name")]
+        missing: bool,
+        /// With --missing: list the accounts that would get one, change nothing.
+        #[arg(long, requires = "missing")]
+        dry_run: bool,
+        /// With --missing: write the lines to FILE (created with mode 600; refused if it
+        /// exists) instead of stdout.
+        #[arg(
+            long,
+            requires = "missing",
+            conflicts_with = "dry_run",
+            value_name = "FILE"
+        )]
+        out: Option<PathBuf>,
+    },
     /// Grant a role.
     Grant { name: String, role: String },
     /// Revoke a role.

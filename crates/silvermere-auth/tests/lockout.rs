@@ -166,3 +166,53 @@ async fn the_numbers_are_configurable() {
     drop(svc);
     t.close().await;
 }
+
+/// An account with no password (as an import creates it) is refused with its own text
+/// whatever is typed, and the tries never lock it.
+#[tokio::test]
+async fn no_password_is_refused_without_counting() {
+    let (t, svc, _clock) = setup().await;
+    let new = silvermere_auth::NewAccount {
+        username: "Mira".into(),
+        password_hash: String::new(),
+        email: None,
+        sex: silvermere_auth::Sex::Female,
+        roles: [Role::Player].into_iter().collect(),
+    };
+    silvermere_auth::AccountStore::insert(&**t.db(), &new, Timestamp::now())
+        .await
+        .unwrap();
+    for typed in ["", "anything", "kangtest1"] {
+        for _ in 0..4 {
+            let r = svc.authenticate("mira", typed).await.unwrap();
+            assert_eq!(r.unwrap_err(), Refusal::NoPassword, "{typed:?}");
+        }
+    }
+    let a = svc.account("mira").await.unwrap().unwrap();
+    assert_eq!((a.failed_logins, a.locked_until), (0, None));
+
+    let mut dlg = LoginDialogue::new(LoginConfig::default());
+    dlg.start();
+    svc.drive(&mut dlg, "Mira").await.unwrap();
+    let out = svc.drive(&mut dlg, "guess").await.unwrap();
+    assert!(out.contains(&Output::Text(AuthMsg::NoPassword)), "{out:?}");
+    assert!(!out.contains(&Output::Text(AuthMsg::InvalidCredentials)));
+    assert_eq!(dlg.state(), &State::Username);
+    assert!(
+        AuthMsg::NoPassword
+            .text()
+            .contains("This account has no password yet. Ask the sysop to set one.")
+    );
+
+    let reasons: Vec<String> = t
+        .events()
+        .recent(100)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|e| e.event.kind == "auth.login_failed")
+        .map(|e| e.event.payload["reason"].as_str().unwrap_or("").to_string())
+        .collect();
+    assert_eq!(reasons.len(), 13);
+    assert!(reasons.iter().all(|r| r == "no_password"), "{reasons:?}");
+}

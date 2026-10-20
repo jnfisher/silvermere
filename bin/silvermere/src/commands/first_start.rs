@@ -26,14 +26,38 @@ pub fn running_line(port: u16) -> String {
 pub fn setup(cfg: &Config) -> anyhow::Result<ExitCode> {
     use std::io::IsTerminal as _;
     let hide = std::io::stdin().is_terminal();
-    prepare(
+    let made = prepare(
         cfg,
         &mut std::io::stdin().lock(),
         &mut std::io::stdout(),
         hide,
     )?;
     println!("Ready. Start it with: silvermere serve");
+    println!("{}", next_steps(made.as_deref(), &cfg.server.telnet_bind));
     Ok(ExitCode::SUCCESS)
+}
+
+/// The closing lines of `setup` and `service install`: the sysop account just made (if any),
+/// where to connect (`telnet_bind` is `server.telnet_bind`), and where the sysop commands are.
+pub fn next_steps(sysop: Option<&str>, telnet_bind: &str) -> String {
+    let (host, port) = telnet_bind.rsplit_once(':').unwrap_or((telnet_bind, ""));
+    let host = match host.trim_matches(['[', ']']) {
+        "" | "0.0.0.0" | "::" => "localhost",
+        h => h,
+    };
+    let who = match sysop {
+        Some(name) => format!("Log in as {name} (the sysop account just made). "),
+        None => String::new(),
+    };
+    let at = if port.is_empty() {
+        host.to_owned()
+    } else {
+        format!("{host} port {port}")
+    };
+    format!(
+        "{who}Connect to {at}. Type SYSOP in the game for the sysop commands; \
+         see docs/sysop.md."
+    )
 }
 
 /// The whole first start: [`prepare`] on the console, then `serve`.
@@ -62,7 +86,7 @@ pub fn prepare(
     input: &mut impl BufRead,
     out: &mut impl Write,
     hide: bool,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Option<String>> {
     let (rooms, import) = with_db(cfg, async |db| {
         let rooms: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM rooms")
             .fetch_one(&db.pool())
@@ -109,10 +133,10 @@ pub fn prepare(
             .iter()
             .any(|a| has_role(a, Role::Sysop)))
     })?;
-    if !sysop {
-        create_sysop(cfg, input, out, hide)?;
+    if sysop {
+        return Ok(None);
     }
-    Ok(())
+    create_sysop(cfg, input, out, hide)
 }
 
 /// The data directory as an absolute path, for messages.
@@ -132,7 +156,7 @@ fn create_sysop(
     input: &mut impl BufRead,
     out: &mut impl Write,
     hide: bool,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Option<String>> {
     const LATER: &str = "No sysop account made. Make one later with: \
                          silvermere account create NAME --sysop";
     writeln!(
@@ -143,11 +167,11 @@ fn create_sysop(
     loop {
         let Some(name) = ask(input, out, "Sysop name: ")? else {
             writeln!(out, "\n{LATER}")?;
-            return Ok(());
+            return Ok(None);
         };
         if name.is_empty() {
             writeln!(out, "{LATER}")?;
-            return Ok(());
+            return Ok(None);
         }
         let mut password = |prompt: &str| -> anyhow::Result<Option<String>> {
             if hide {
@@ -161,7 +185,7 @@ fn create_sysop(
             (password("Password: ")?, password("Password again: ")?)
         else {
             writeln!(out, "\n{LATER}")?;
-            return Ok(());
+            return Ok(None);
         };
         if password != again {
             writeln!(out, "The two passwords differ; try again.")?;
@@ -176,7 +200,7 @@ fn create_sysop(
         match made {
             Ok(account) => {
                 writeln!(out, "Created the sysop account {}.", account.username)?;
-                return Ok(());
+                return Ok(Some(account.username));
             }
             Err(e) => writeln!(out, "{e}; try again.")?,
         }
@@ -287,6 +311,22 @@ mod tests {
             assert_eq!(code, ExitCode::SUCCESS);
             assert_eq!((out.as_str(), read), ("", 0));
         }
+    }
+
+    #[test]
+    fn next_steps_name_the_account_the_host_and_the_sysop_page() {
+        let t = next_steps(Some("Ada"), "0.0.0.0:2323");
+        assert!(t.contains("Log in as Ada"), "{t}");
+        assert!(t.contains("localhost port 2323"), "{t}");
+        assert!(
+            t.contains("Type SYSOP") && t.contains("docs/sysop.md"),
+            "{t}"
+        );
+        let t = next_steps(None, "10.0.0.5:4000");
+        assert!(!t.contains("Log in as"), "{t}");
+        assert!(t.contains("10.0.0.5 port 4000"), "{t}");
+        let t = next_steps(None, "example.org");
+        assert!(t.contains("Connect to example.org. Type"), "{t}");
     }
 
     #[test]

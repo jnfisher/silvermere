@@ -57,6 +57,12 @@ world into `./data/silvermere.db`, asks
 for a sysop name and password, and serves. Later starts go straight to serving. Then
 `telnet localhost 2323`.
 
+**First steps as the sysop.** Log in with the sysop account. At the `[MAJORMUD]:` menu type
+`sysop` (the word is hidden) for the maintenance menu; in the game, `SYSOP` alone lists the
+sysop commands. `silvermere account ...` manages roles and passwords, and the admin API is for
+scripts, not a web console. [docs/sysop.md](docs/sysop.md) has the details and
+[docs/cli.md](docs/cli.md) lists every command-line tool.
+
 ### macOS
 
 With [Homebrew](https://brew.sh):
@@ -330,6 +336,8 @@ Details: [docs/testing.md](docs/testing.md) and [docs/differences.md](docs/diffe
 | [docs/install.md](docs/install.md) | Docker, release binary, VPS and cloud, firewall, backup, upgrade |
 | [docs/windows.md](docs/windows.md) | Windows: first start, connecting, hosting, running as a service |
 | [docs/deploy-checklist.md](docs/deploy-checklist.md) | a checked VPS deployment, SQLite then hosted PostgreSQL |
+| [docs/cli.md](docs/cli.md) | every `silvermere` command and flag |
+| [docs/sysop.md](docs/sysop.md) | first steps for a new sysop, and the sysop commands |
 | [docs/config.md](docs/config.md) | every setting, environment variable and default |
 | [docs/differences.md](docs/differences.md) | how this differs from the original |
 | [docs/import.md](docs/import.md) | importing the legacy world files |

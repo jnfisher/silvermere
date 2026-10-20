@@ -1,8 +1,8 @@
 //! `account`: calls `silvermere-auth::cli` (T-013).
 //!
 //! Passwords are read as one line from stdin (`--password-stdin` for `create`; always
-//! for `passwd`), so scripts can pipe them in. Role changes take effect at the
-//! account's next login.
+//! for `passwd NAME`), so scripts can pipe them in; `passwd --missing` makes them up. Role
+//! changes take effect at the account's next login.
 //!
 //! `delete` goes through the running server's `DELETE /v1/accounts/{id}` when one answers
 //! on `server.admin_bind` (T-069), so the engine's write-behind cannot bring the rows
@@ -12,6 +12,7 @@
 
 use std::io::{BufRead as _, Read as _, Write as _};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream};
+use std::path::Path;
 use std::process::ExitCode;
 use std::time::Duration;
 
@@ -67,7 +68,14 @@ async fn run_on(cfg: &Config, db: &Db, action: &AccountCmd) -> anyhow::Result<Ex
             let account = cli::create(db, name, &password, &roles).await?;
             eprintln!("created account {} (id {})", account.username, account.id.0);
         }
-        AccountCmd::Passwd { name } => {
+        AccountCmd::Passwd {
+            missing: true,
+            dry_run,
+            out,
+            ..
+        } => set_missing(db, *dry_run, out.as_deref()).await?,
+        AccountCmd::Passwd { name, .. } => {
+            let name = name.as_deref().context("a NAME or --missing")?;
             let password = read_password("New password: ")?;
             cli::set_password(db, name, &password).await?;
             eprintln!("password changed for {name}");
@@ -124,6 +132,77 @@ async fn run_on(cfg: &Config, db: &Db, action: &AccountCmd) -> anyhow::Result<Ex
         }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+/// `account passwd --missing`: a random password for every account without one, one
+/// `name<TAB>password` line each to stdout or to `out`, never to the log. The file is
+/// opened before any password changes, so a refused `--out` changes nothing, and each line
+/// is written and flushed before its password is stored, so a failed write (stdout closed
+/// by `| head`, a full disk) never leaves an account with a password nobody saw.
+async fn set_missing(db: &Db, dry_run: bool, out: Option<&Path>) -> anyhow::Result<()> {
+    let accounts = cli::without_password(db).await?;
+    if dry_run {
+        for account in &accounts {
+            println!("{}", account.username);
+        }
+        eprintln!(
+            "{} account(s) have no password; nothing changed (--dry-run)",
+            accounts.len()
+        );
+        return Ok(());
+    }
+    let mut sink: Box<dyn std::io::Write> = match out {
+        Some(path) => Box::new(create_private(path)?),
+        None => Box::new(std::io::stdout().lock()),
+    };
+    let mut set = 0usize;
+    for account in &accounts {
+        let name = &account.username;
+        let password = cli::generate_password();
+        writeln!(sink, "{name}\t{password}")
+            .and_then(|()| sink.flush())
+            .with_context(|| {
+                format!(
+                    "writing the line for {name}; its password and those after it were not \
+                     changed ({set} set before it)"
+                )
+            })?;
+        match cli::set_missing_password(db, name, &password).await {
+            Ok(true) => set += 1,
+            Ok(false) => eprintln!(
+                "{name} was given a password meanwhile; the line written for it does not apply"
+            ),
+            Err(e) => {
+                return Err(anyhow::Error::new(e).context(format!(
+                    "storing the password for {name} failed; the line written for it does not \
+                     apply and the accounts after it were not changed ({set} set before it)"
+                )));
+            }
+        }
+    }
+    match out {
+        Some(path) => eprintln!(
+            "set a password on {set} account(s); written to {}",
+            path.display()
+        ),
+        None => eprintln!("set a password on {set} account(s)"),
+    }
+    Ok(())
+}
+
+/// A new file only its owner can read (mode 600 on Unix); refused if `path` exists.
+fn create_private(path: &Path) -> anyhow::Result<std::fs::File> {
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    options.open(path).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::AlreadyExists {
+            anyhow::anyhow!("{} exists; not overwriting it", path.display())
+        } else {
+            anyhow::Error::new(e).context(format!("creating {}", path.display()))
+        }
+    })
 }
 
 /// How long the probe and the delete call wait on the admin API.

@@ -437,6 +437,10 @@ async fn accounts_round_trip() {
     a2.roles = vec!["player".to_string()];
     assert!(db.accounts().update(id, &a2).await.unwrap());
     assert_eq!(db.accounts().get(id).await.unwrap().unwrap().account, a2);
+    // The same statement with values where it had NULLs (an account that has never
+    // logged in, then logs in): PostgreSQL keeps the parameter types of the first run.
+    assert!(db.accounts().update(id, &a).await.unwrap());
+    assert_eq!(db.accounts().get(id).await.unwrap().unwrap().account, a);
     db.close().await;
 }
 

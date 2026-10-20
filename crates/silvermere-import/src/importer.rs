@@ -329,7 +329,13 @@ pub struct Report {
     /// Every record read and not written that is not a duplicate or a skip by request:
     /// one line each.
     pub uncarried: Vec<Note>,
+    /// After an import that created players' accounts (`--with-users`, `--live`): how
+    /// many accounts in the store have no password, so nobody can log in to them yet.
+    pub accounts_without_password: Option<u32>,
 }
+
+/// The command that gives every account without a password a random one.
+pub const SET_MISSING_PASSWORDS: &str = "silvermere account passwd --missing";
 
 impl Report {
     /// The count for `file`.
@@ -353,6 +359,13 @@ impl fmt::Display for Report {
         }
         for n in &self.uncarried {
             writeln!(f, "{n}")?;
+        }
+        if let Some(n) = self.accounts_without_password.filter(|&n| n > 0) {
+            writeln!(
+                f,
+                "{n} account(s) have no password and cannot log in yet; give each a random \
+                 one with `{SET_MISSING_PASSWORDS}`"
+            )?;
         }
         if self.dry_run {
             writeln!(f, "dry run: nothing written")?;
@@ -719,6 +732,7 @@ impl<'a> Importer<'a> {
             return Err(ImportError::Skipped(errors));
         }
         let start = Instant::now();
+        let mut accounts_without_password = None;
         if !self.opts.dry_run {
             let db = self.db.expect("a database unless --dry-run");
             // T-109: marked before the first table and after the last, so a start can tell
@@ -735,6 +749,21 @@ impl<'a> Importer<'a> {
                 .await
                 .map_err(marker)?;
             plan.notes.extend(kept);
+            if self.opts.with_users {
+                let all = db
+                    .accounts()
+                    .all()
+                    .await
+                    .map_err(|source| ImportError::Db {
+                        table: "accounts",
+                        source,
+                    })?;
+                let n = all
+                    .iter()
+                    .filter(|a| a.account.password_hash.is_empty())
+                    .count();
+                accounts_without_password = Some(u32::try_from(n).unwrap_or(u32::MAX));
+            }
         }
         let mut uncarried = content.uncarried.clone();
         uncarried.append(&mut plan.notes);
@@ -746,6 +775,7 @@ impl<'a> Importer<'a> {
             patches: None,
             assets: Vec::new(),
             uncarried,
+            accounts_without_password,
         })
     }
 }

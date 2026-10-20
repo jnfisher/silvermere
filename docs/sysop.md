@@ -1,5 +1,26 @@
 # Sysop commands (`SYSOP ...` and the sysop menu)
 
+## First steps
+
+You made a sysop account when you first started silvermere (`silvermere account list` shows the
+accounts; [cli.md](cli.md) has every command-line tool).
+
+1. Connect with MegaMud or a telnet client and log in with the sysop account.
+2. At the `[MAJORMUD]:` menu, type `sysop`. The word is hidden, so it is not listed. It opens the
+   maintenance menu ([below](#the-sysop-menu)).
+3. In the game, type `SYSOP` alone: it lists the sysop commands you may use.
+4. The everyday ones, each [described below](#sub-commands):
+   - `GOTO <place>` takes you to a town, for example `GOTO NEWHAVEN`;
+   - `SPEAK <text>` says a line to everyone online;
+   - `STATUS <user>` shows a player's status page;
+   - `GOD <user> ...` looks at or changes a player (`GOD <user> INVENTORY`, `GOD <user> JAIL`);
+   - `LIST USERS` lists the players;
+   - `ARENA` shows whether the arena is death-free;
+   - `RELOAD` reads the game options of the config file again.
+5. Roles and passwords are managed outside the game: `silvermere account grant NAME gameop`,
+   `silvermere account passwd NAME`, and so on ([cli.md](cli.md#silvermere-account)).
+6. The [admin API](admin-api.md) is for scripts and monitoring, not a web console.
+
 What an operator can do in the game: the `SYSOP` command and the `[MAJORMUD Sysop]` menu,
 added by T-055. The code is
 `crates/silvermere-engine/src/commands/sysop.rs` (the sub-commands, in the original's order),

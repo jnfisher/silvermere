@@ -51,7 +51,7 @@ silvermere import [ZIP|DIR | --from DIR|ZIP | --download] [--live] [--map-files 
 | `--json OUT` | Also write every decoded record to `OUT/<TABLE>.jsonl` (see "JSON export"). |
 | `--content-only` | Write content tables only; state is neither created nor changed. |
 | `--reset-state` | Rewrite state from the records (excludes `--content-only`). |
-| `--with-users` | Import `WCCUSERS` records as characters (an account per userid, no password). |
+| `--with-users` | Import `WCCUSERS` records as characters (an account per userid, no password; see `account passwd --missing`). |
 | `--allow-duplicates` | Keep the first of records with the same key instead of failing. |
 | `--legacy-tz ZONE` | The zone the legacy server ran in (IANA name, default `UTC`), for the records' DOS dates. |
 | `--no-patches` | Skip the `WCCUPDAT.DAT` patches (see "Patches"). |
@@ -162,8 +162,12 @@ included. Stop the BBS first (or copy the files from a clean shutdown).
 - **Rooms** come from `WCCMP001` alone (the DLL never opens `NEWMP001`, see above);
   `--map-files` overrides it.
 - **Players.** `--live` implies `--with-users`: every `WCCUSERS` record becomes a character
-  under an account of its userid (created with no password; set one with
-  `silvermere account passwd`). The gangs, bank books, item ownership, active monsters, room
+  under an account of its userid, created with no password: nobody can log in to it
+  until it has one. The import's closing output counts the accounts with no password;
+  `silvermere account passwd --missing` gives each a random one and prints
+  `name<TAB>password` lines to hand on to the players (`--out FILE` writes them to a new
+  file only its owner can read; `--dry-run` lists the accounts), and
+  `silvermere account passwd NAME` sets one by hand. The gangs, bank books, item ownership, active monsters, room
   state (floor items, coins, owners, ...), shop stock, monster state and `items.active` come
   from the realm's records through the same state path as the stock import: created where
   missing by default, rewritten with `--reset-state`, untouched with `--content-only`.

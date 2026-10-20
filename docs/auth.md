@@ -68,6 +68,7 @@ the line is in. Then:
 |---|---|
 | right password | logged in (`State::Done`): the BBS menu shim follows (T-021) |
 | unknown name or wrong password | `Invalid Credentials`, the intro and `Username:` again |
+| an account with no password (an import creates its players' accounts without one) | `This account has no password yet. Ask the sysop to set one.` (silvermere), the intro and `Username:` again, whatever was typed; never logs in and never counts towards the lockout |
 | third failure on this connection | `Invalid Credentials`, then the connection is closed (MBBSEmu let a client retry forever) |
 | account locked | `Too many failed logins: this account is locked for N more minute(s).` (silvermere), counted as a failure of the connection |
 | right password, account already logged on | `This account is already logged on.` (silvermere, `compat.duplicate_login`), connection closed |
@@ -171,6 +172,7 @@ Nineteen of these end in `_KEY`; `SYS_RESET_ROOMS` and `SYS_DISABLE_GANGS` are k
 |---|---|
 | `account create NAME [--sysop] [--gameop] [--password-stdin]` | `cli::create` (the password is one line on stdin) |
 | `account passwd NAME` | `cli::set_password` (stdin) |
+| `account passwd --missing [--dry-run] [--out FILE]` | `cli::without_password` and `cli::set_missing_password`: every account with no password (as an import creates them) gets a random one, 14 lower-case letters and digits without the look-alikes `0`, `o`, `1`, `l`, `i`; accounts that have a password are never touched. Prints `name<TAB>password` once to stdout and nothing to the log; `--out FILE` writes the lines to a new file instead (mode 600; refused if it exists, before anything changes). Each line is written and flushed before its password is stored, so a failed write (stdout closed by `| head`, a full disk) stops the run with no account given a password nobody saw; `--dry-run` lists the accounts and changes nothing. Each account gets the same `auth.password` audit line and row as `account passwd`. It is a flag of `passwd` rather than its own subcommand because it is the same change, made for the accounts that need it. |
 | `account grant NAME WHAT`, `account revoke NAME WHAT` | `cli::grant` / `cli::revoke`; `WHAT` is a role (`sysop`), an INI key (`SYS_GOTO_KEY`, `GOSSIP`) or a flag (`no_gossip`) |
 | `account list` | `cli::list`, one line per account: id, name, sex, roles/perms/flags |
 | `account delete NAME --yes` | `cli::delete`: the character first (the hook T-023 owns), then the account and its `account_roles` rows |
@@ -183,7 +185,7 @@ Every login, failure, lockout, signup, password and role change writes a
 | `kind` | When |
 |---|---|
 | `auth.login` | a successful login |
-| `auth.login_failed` | unknown name (`reason: unknown`) or wrong password (`reason: password`) |
+| `auth.login_failed` | unknown name (`reason: unknown`), wrong password (`reason: password`) or an account with no password (`reason: no_password`) |
 | `auth.lockout` | a failure that locked the account (`until`) |
 | `auth.login_locked` | a login refused because the account is locked |
 | `auth.login_duplicate` | the right password for an account already logged on |

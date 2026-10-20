@@ -160,3 +160,128 @@ fn config_subcommands_are_documented() {
         );
     }
 }
+
+/// `silvermere <path> --help`.
+fn help(path: &[String]) -> String {
+    let o = Command::new(env!("CARGO_BIN_EXE_silvermere"))
+        .args(path)
+        .arg("--help")
+        .output()
+        .unwrap();
+    assert!(o.status.success(), "{path:?} --help");
+    String::from_utf8(o.stdout).unwrap()
+}
+
+/// The subcommands in a help text's `Commands:` list.
+fn children(help: &str) -> Vec<String> {
+    let Some(list) = help.split("Commands:\n").nth(1) else {
+        return Vec::new();
+    };
+    let list = list.split("\n\n").next().unwrap();
+    list.lines()
+        .filter_map(|l| l.split_whitespace().next())
+        .filter(|w| *w != "help")
+        .map(str::to_owned)
+        .collect()
+}
+
+/// The flags in a help text's `Options:` list: each long name, and a short name that has no
+/// long one.
+fn flags(help: &str) -> Vec<String> {
+    let opts = help.split("Options:\n").nth(1).unwrap_or("");
+    let mut out = Vec::new();
+    for l in opts.lines() {
+        let Some(l) = l.strip_prefix("  ") else {
+            continue;
+        };
+        let mut words = l.split_whitespace();
+        let Some(first) = words.next() else { continue };
+        let first = first.trim_end_matches(',');
+        let is_short = first.len() == 2 && first.starts_with('-') && !first.starts_with("--");
+        if is_short
+            && l.trim_start().starts_with(&format!("{first}, "))
+            && let Some(long) = words.next().filter(|w| w.starts_with("--"))
+        {
+            out.push(long.to_owned());
+            continue;
+        }
+        if first.starts_with('-') {
+            out.push(first.to_owned());
+        }
+    }
+    out
+}
+
+/// True when `text` has `needle` as a whole word: not part of a longer flag or command name
+/// (`--out` is not in `--output`, `account pass` is not in `account passwd`).
+fn mentions(text: &str, needle: &str) -> bool {
+    let word = |c: char| c.is_alphanumeric() || c == '-' || c == '_';
+    text.match_indices(needle).any(|(at, _)| {
+        let before = text[..at].chars().next_back();
+        let after = text[at + needle.len()..].chars().next();
+        !before.is_some_and(word) && !after.is_some_and(word)
+    })
+}
+
+/// Every command path below `path`, `path` itself first (the root is the empty path).
+fn command_paths(path: &[String], out: &mut Vec<Vec<String>>) {
+    out.push(path.to_vec());
+    for c in children(&help(path)) {
+        let mut p = path.to_vec();
+        p.push(c);
+        command_paths(&p, out);
+    }
+}
+
+/// T-133: `docs/cli.md` has a section for each top-level command, names every subcommand
+/// and every flag of it, and lists the global flags.
+#[test]
+fn cli_md_names_every_command_and_flag() {
+    let md =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/cli.md")).unwrap();
+    let mut paths = Vec::new();
+    command_paths(&[], &mut paths);
+    let root_help = help(&[]);
+    let globals = flags(&root_help);
+    assert!(globals.len() >= 4, "{globals:?}");
+    let global_section = md
+        .split("\n## Global flags")
+        .nth(1)
+        .expect("## Global flags in docs/cli.md")
+        .split("\n## ")
+        .next()
+        .unwrap();
+    for g in &globals {
+        assert!(
+            mentions(global_section, g),
+            "docs/cli.md ## Global flags lacks {g}"
+        );
+    }
+    let sections: Vec<&str> = md.split("\n## `silvermere ").skip(1).collect();
+    for p in paths.iter().filter(|p| p.len() == 1) {
+        // `admin` has one subcommand, `token`, and the page has one section for both.
+        let heading = if p[0] == "admin" {
+            "admin token"
+        } else {
+            p[0].as_str()
+        };
+        let section = sections
+            .iter()
+            .find(|s| s.starts_with(&format!("{heading}`")))
+            .unwrap_or_else(|| panic!("docs/cli.md lacks a `## silvermere {heading}` section"));
+        let section = section.split("\n## ").next().unwrap();
+        for sub in paths.iter().filter(|q| q.first() == p.first()) {
+            let name = sub.join(" ");
+            assert!(
+                mentions(section, &name),
+                "docs/cli.md section `{heading}` does not name `{name}`"
+            );
+            for f in flags(&help(sub)).iter().filter(|f| !globals.contains(f)) {
+                assert!(
+                    mentions(section, f),
+                    "docs/cli.md section `{heading}` lacks {f} of `{name}`"
+                );
+            }
+        }
+    }
+}

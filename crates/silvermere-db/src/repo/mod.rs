@@ -65,7 +65,23 @@ pub(crate) enum Arg {
     Int(i64),
     Text(String),
     Bool(bool),
-    Null,
+    /// A NULL of the type its `Some` would have had: PostgreSQL caches a statement with
+    /// the parameter types of its first run, so an untyped NULL followed by a value on the
+    /// same statement is refused (`22P03`).
+    Null(NullOf),
+}
+
+/// The type of a NULL [`Arg`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NullOf {
+    Int,
+    Text,
+    Bool,
+}
+
+/// The NULL of a type that converts to an [`Arg`].
+pub(crate) trait Nullable {
+    const NULL: NullOf;
 }
 
 macro_rules! int_arg {
@@ -78,6 +94,17 @@ macro_rules! int_arg {
     )* };
 }
 int_arg!(i8, u8, i16, u16, i32, u32, i64);
+
+macro_rules! nullable {
+    ($kind:ident: $($t:ty),*) => { $(
+        impl Nullable for $t {
+            const NULL: NullOf = NullOf::$kind;
+        }
+    )* };
+}
+nullable!(Int: i8, u8, i16, u16, i32, u32, i64);
+nullable!(Text: &str, &String, String);
+nullable!(Bool: bool);
 
 impl From<&str> for Arg {
     fn from(v: &str) -> Self {
@@ -99,9 +126,9 @@ impl From<bool> for Arg {
         Self::Bool(v)
     }
 }
-impl<T: Into<Arg>> From<Option<T>> for Arg {
+impl<T: Into<Arg> + Nullable> From<Option<T>> for Arg {
     fn from(v: Option<T>) -> Self {
-        v.map_or(Self::Null, Into::into)
+        v.map_or(Self::Null(T::NULL), Into::into)
     }
 }
 
@@ -146,7 +173,9 @@ impl Args {
                 Arg::Int(v) => q.bind(v),
                 Arg::Text(v) => q.bind(v),
                 Arg::Bool(v) => q.bind(v),
-                Arg::Null => q.bind(Option::<i64>::None),
+                Arg::Null(NullOf::Int) => q.bind(Option::<i64>::None),
+                Arg::Null(NullOf::Text) => q.bind(Option::<String>::None),
+                Arg::Null(NullOf::Bool) => q.bind(Option::<bool>::None),
             };
         }
         q

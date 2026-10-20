@@ -20,6 +20,8 @@
 //!    step 1's intro and prompt. silvermere closes the connection after the third
 //!    failure (MBBSEmu let a client retry forever) and refuses a locked account with
 //!    `account_locked`.
+//!    An account with no password (one an import created) is refused with
+//!    `no_password`, which never counts towards the lockout.
 //! 4. The right password for an account already in use prints `duplicate_login` and
 //!    closes; otherwise the dialogue is [`State::Done`].
 
@@ -72,6 +74,8 @@ pub enum AuthMsg {
     },
     /// The account already has a session.
     DuplicateLogin,
+    /// The account has no password yet.
+    NoPassword,
     /// `NEW` while signup is closed.
     SignupClosed,
     /// Signup: username prompt.
@@ -111,6 +115,7 @@ impl AuthMsg {
         "duplicate_login",
         "invalid_credentials",
         "login_intro",
+        "no_password",
         "password_prompt",
         "signup_closed",
         "signup_confirm_prompt",
@@ -142,6 +147,7 @@ impl AuthMsg {
             Self::InvalidCredentials => "invalid_credentials",
             Self::AccountLocked { .. } => "account_locked",
             Self::DuplicateLogin => "duplicate_login",
+            Self::NoPassword => "no_password",
             Self::SignupClosed => "signup_closed",
             Self::SignupUsernamePrompt => "signup_username_prompt",
             Self::SignupUsernameInvalid => "signup_username_invalid",
@@ -258,6 +264,8 @@ pub enum Refusal {
     },
     /// The account already has a session.
     AlreadyOnline,
+    /// The account has no password yet (an imported player's, until the sysop sets one).
+    NoPassword,
 }
 
 /// The store's answer to a [`Request`].
@@ -478,6 +486,7 @@ impl LoginDialogue {
                 Err(refusal) => {
                     out.push(Output::Text(match refusal {
                         Refusal::Locked { minutes } => AuthMsg::AccountLocked { minutes },
+                        Refusal::NoPassword => AuthMsg::NoPassword,
                         _ => AuthMsg::InvalidCredentials,
                     }));
                     self.attempts += 1;
@@ -734,6 +743,17 @@ impl<S: AccountStore, C: Clock> LoginService<S, C> {
             return Ok(Err(Refusal::Locked {
                 minutes: Lockout::minutes_left(until, now),
             }));
+        }
+        if account.password_hash.is_empty() {
+            // Nobody can log in to it, so a try is not a guess: no lockout count.
+            tracing::info!(target: "audit", account = id.0, username = %account.username, "login refused: no password");
+            self.audit(
+                now,
+                "auth.login_failed",
+                serde_json::json!({ "account": id.0, "username": account.username, "reason": "no_password" }),
+            )
+            .await?;
+            return Ok(Err(Refusal::NoPassword));
         }
         if !password::verify(password, &account.password_hash) {
             let locked = self.lockout.record_failure(id, now);

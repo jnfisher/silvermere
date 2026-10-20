@@ -211,6 +211,16 @@ async fn live_dat_hand_set_fields_round_trip() {
         ]
     );
 
+    // Mira's account is created with no password, and the closing output says so.
+    assert_eq!(report.accounts_without_password, Some(1));
+    assert!(
+        report.to_string().contains(
+            "1 account(s) have no password and cannot log in yet; give each a random one with \
+             `silvermere account passwd --missing`"
+        ),
+        "{report}"
+    );
+
     let account = db.accounts().by_username("Mira").await.unwrap().unwrap().id;
     let c = db
         .characters()

@@ -154,3 +154,98 @@ async fn delete_calls_the_character_hook_first() {
     assert!(cli::delete(&store, "Bob").await.unwrap());
     assert_eq!(*store.hook.lock().unwrap(), [a.id]);
 }
+
+/// An account as an import creates it: no password.
+async fn insert_without_password(db: &silvermere_db::Db, username: &str) -> Account {
+    let new = NewAccount {
+        username: username.to_string(),
+        password_hash: String::new(),
+        email: None,
+        sex: silvermere_auth::Sex::Male,
+        roles: [Role::Player].into_iter().collect(),
+    };
+    db.insert(&new, Timestamp::now()).await.unwrap()
+}
+
+#[tokio::test]
+async fn missing_passwords_are_set_only_where_there_is_none() {
+    let t = TestDb::from_env().await.expect("test database");
+    let db = &**t.db();
+    cli::create_with_cost(db, "Kasimir", "kangtest1", &[], Cost::Low)
+        .await
+        .unwrap();
+    let kept = db
+        .by_username("kasimir")
+        .await
+        .unwrap()
+        .unwrap()
+        .password_hash;
+    insert_without_password(db, "Mira").await;
+    insert_without_password(db, "Tobin").await;
+
+    let missing: Vec<String> = cli::without_password(db)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|a| a.username)
+        .collect();
+    assert_eq!(missing, ["Mira", "Tobin"]);
+
+    let mut set = Vec::new();
+    for name in &missing {
+        let pw = cli::generate_password();
+        assert!(
+            cli::set_missing_password_with_cost(db, name, &pw, Cost::Low)
+                .await
+                .unwrap(),
+            "{name} had no password"
+        );
+        assert_eq!(pw.len(), cli::GENERATED_LEN);
+        assert!(
+            pw.bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit()),
+            "{pw}"
+        );
+        assert!(!pw.contains(['0', 'o', '1', 'l', 'i']), "{pw}");
+        set.push((name.clone(), pw));
+    }
+    assert_ne!(set[0].1, set[1].1);
+
+    // An account with a password is never touched, and a second run finds nothing.
+    assert!(
+        !cli::set_missing_password_with_cost(db, "Kasimir", "unused1", Cost::Low)
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        db.by_username("kasimir")
+            .await
+            .unwrap()
+            .unwrap()
+            .password_hash,
+        kept
+    );
+    assert!(cli::without_password(db).await.unwrap().is_empty());
+
+    // The printed password logs in.
+    let svc = silvermere_auth::LoginService::new(
+        t.db().clone(),
+        silvermere_auth::SystemClock,
+        silvermere_auth::LockoutConfig::default(),
+    );
+    for (name, pw) in &set {
+        let r = svc.authenticate(name, pw).await.unwrap();
+        assert!(r.is_ok(), "{name}: {r:?}");
+    }
+
+    // The same audit row as `account passwd`, once per account.
+    let passwords = t
+        .events()
+        .recent(100)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|e| e.event.kind == "auth.password")
+        .count();
+    assert_eq!(passwords, 2);
+}
