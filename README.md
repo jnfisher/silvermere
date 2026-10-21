@@ -9,6 +9,15 @@ It is one binary. The stock 1.11p game data is downloaded from MBBSEmu
 server's own database. There are no legacy dependencies: no Worldgroup or MajorBBS, no Btrieve,
 no DOS emulator, no `WCCMMUD.DLL`.
 
+**What's not included.** This repository and its release downloads contain none of MajorMUD's
+game files (rooms, items, monsters, spells, text databases) and none of its original code. On
+first start, silvermere downloads the 1.11p package from MBBSEmu, or imports your own BBS's files,
+and builds its database on your machine. The test suite includes short recordings of the
+original's output, used to check that silvermere behaves the same.
+
+MajorMUD is a trademark of its owner. silvermere is an independent project and is not affiliated
+with or endorsed by its owner.
+
 It keeps its data in a local SQLite file out of the box, or in PostgreSQL: your own server or a
 hosted service such as Neon.
 
@@ -354,8 +363,9 @@ compatibility. A place where silvermere behaves differently from the original is
 fix for it belongs here; say how you checked it against the original running under MBBSEmu. A
 change to gameplay that departs from 1.11p does not.
 
-To make your own game, fork it. Rules, text, items and areas are readable Rust and data files,
-so changing them is far easier than patching `WCCMMUD.DLL`, as many sysops once had to.
+To make your own game, fork it. The rules are readable Rust, and the world (rooms, items,
+monsters, text) lives in your database after import, so changing either is far easier than
+patching `WCCMMUD.DLL`, as many sysops once had to.
 
 The practical steps (building, tests, the faithfulness checks) are in
 [CONTRIBUTING.md](CONTRIBUTING.md).
