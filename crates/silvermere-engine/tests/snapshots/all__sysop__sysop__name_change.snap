@@ -1,8 +1,8 @@
 ---
 source: crates/silvermere-engine/tests/sysop.rs
-expression: "h.line(s, \"sysop god bob change name Robert\")"
+expression: "crate::common::redact(&h.line(s, \"sysop god bob change name Robert\"))"
 ---
-Name changed -- Warning, this function should NOT be used 
-on a routine basis as it may not change all that is required.
-NOTE also that you probably just had a VERY LONG system pause and that is expected.
+[package text] 
+[package text]
+[package text]
 [HP=40]:

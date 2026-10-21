@@ -180,26 +180,41 @@ and `render_login_greeting` is `USRLOGIN` with `SHORTVER`. Their texts are in
 `messages/prompt.toml` with the prompt's pieces; the bytes are those of the T-005 capture
 `entry-existing`, which `tests/menu.rs` compares against.
 
-## The converted `.MSG` files
+## The game's long text, from the package
 
-`tools/msgconv/msgconv.py` (T-011; see `tools/msgconv/README.md`) converts the module's three
-message files into checked-in data. Entries are keyed by the original symbolic names in lower
-case, in the catalogue format above, one file per message file:
+The long, prose-like text is not in the repository: the server reads it from the downloaded
+package when it starts (T-138; `silvermere-text`'s `package` module). The import copies the
+module's three message files into `<data_dir>/assets/` and writes the long screens it takes
+out of `WCCMMUD.DLL` into `DLLTEXT.TXT` there ([import.md](import.md#assets)); a data directory
+without them gets them from the cached package at start-up. `PackageText::load` parses them and
+`package::install` makes them the process's text:
 
-| File | Source | Entries |
+| From | What | Used by |
 |---|---|---|
-| `messages/wccmmud.toml` | `WCCMMUD.MSG` | `usrlogin`, `usrlogof`, `usrfoled`, `usrexit`, `leavemnu`, `inachup` (the six text blocks; `USRLOGOF` and `LEAVEMNU` are unused) |
-| `messages/wcctext.toml` | `WCCTEXT.MSG` | `goodtext`, `goodpmpt`, `chsrace`, `chsclass`, `menutext`, `menupmpt` |
-| `messages/assets/editcha1.toml`, `edtchan2.toml` | `WCCTEXT.MSG` | the two full-screen-display templates, kept for character creation (T-063); not catalogue entries |
-| `messages/help_topics.toml` | `WCCMMHLP.MSG` | `overview` (`HL1B0`) and 131 `[[topic]]` rows |
+| `WCCMMUD.MSG` | the six text blocks `usrlogin`, `usrlogof`, `usrfoled`, `usrexit`, `leavemnu`, `inachup` (`USRLOGOF` and `LEAVEMNU` are unused) | the exit and inactivity texts |
+| `WCCTEXT.MSG` | the six text blocks `goodtext`, `goodpmpt`, `chsrace`, `chsclass`, `menutext`, `menupmpt`, and the full-screen forms `EDITCHA1` and `EDTCHAN2` | `goodtext`; the full-screen character editor (T-063) |
+| `WCCMMHLP.MSG` | the overview (`HL1B0`) and 131 topics | HELP |
+| `DLLTEXT.TXT` | the long catalogue screens of `package::MOVED_KEYS` | the main menu's About, Information and Counts screens (ANSI and plain), the SYSOP help and menu, the line-mode chart, and a few long notices |
+
+The moved catalogue entries keep their keys and arguments in `catalogue.toml`, so `Msg` still
+has them; their catalogue text is the notice `package::NOT_INSTALLED`, which is what they print
+while no text is installed. Once it is, the renderer takes their template from the package.
+HELP without the text prints the same notice (the built-in topics still work), and character
+creation uses the line-mode editor. The short messages stay in `catalogue.toml` and
+`prompt.toml`.
+
+The release guard (`tools/release/moved-text-guard.py`) checks that the published tree holds
+none of this text, and `crates/silvermere-text/tests/package_text.rs` that what the package
+gives is byte for byte the text the repository held before (hashes of every help topic, text
+block, form and rendered screen). Tests compare against the text loaded from the stock package,
+and snapshots replace it with `[package text]` (`PackageText::redact`).
 
 The numeric options of `WCCMMUD.MSG` are not text; they are in `docs/config-defaults.md`.
-`prompt.toml` still carries its own copies of the four texts the menu and entry screen print,
-and `tests/msg_catalogue.rs` checks that they equal the converted entries; moving the prompt
-code onto the converted files is for whichever card next touches it.
+`prompt.toml` still carries its own copies of the four short texts the menu and entry screen
+print, and `tests/msg_catalogue.rs` checks that they equal the text blocks the package gives.
 
 **Escapes and line ends.** In the `.MSG` text `~}` is a literal `}` and `~~` a literal `~`
-(so `MENUTEXT` writes the world name as `{Realm Of Legends~}`). The converter drops every CR
+(so `MENUTEXT` writes the world name as `{Realm Of Legends~}`). The reader drops every CR
 and turns **every LF into the catalogue's `\r` line end**; the renderer's `finish` then makes
 `\r` into CR LF. This differs from the MBBSEmu compiler (`MsgFile.cs`), which keeps an LF only
 before an alphanumeric, `%`, `(` or `"`: the T-005 capture `entry-existing` shows the line end
@@ -216,7 +231,8 @@ topics the texts' two `%c` are `{talk_char}` and `{yell_char}`, the say and yell
 **Help topics.** The file is pairs of messages: a topic string (`HL1Tn`, the words) and the
 message after it, which is what the original shows for the topic. The names do not always
 agree (`HL1T60` is followed by `HL1B61`); the loader pairs by position and keeps both names
-(`key`, `body_key`). `Catalogue::help_topics` parses and checks the file. There are 131 topics;
+(`key`, `body_key`). `package::help_topics` reads the file and `HelpTopics::validated` checks
+it. There are 131 topics;
 the "263" of the card is the number of messages in `WCCMMHLP.MSG` (`HL1B0`, 131 topic strings,
 131 texts). The last topic, `Help ?` (`HL1T9999`), is the end marker (`HELP_END_MARK`) and
 stays as the last row. Matching, which T-027 implements: the player's topic is compared with

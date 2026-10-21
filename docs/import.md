@@ -73,7 +73,8 @@ patches [WCCUPDAT.DAT] UPD_ROOM    26720 applied (6948 rewritten), 0 inserted
 patches [WCCUPDAT.DAT]: 38754 records, seqnum 1..38754, 21 gang shops left alone
 assets [WCCHSE.ZIP]: 47 files, 47 written, 0 kept
 ...
-assets [text files]: 5 files, 5 written, 0 kept
+assets [text files]: 8 files, 8 written, 0 kept
+assets [WCCMMUD.DLL]: 1 files, 1 written, 0 kept
 ```
 
 That is the stock import. Each description archive gets its own line (`WCCHSE.ZIP` 47,
@@ -130,18 +131,43 @@ The engine reads a few text files by name from `<data_dir>/assets/` (loaded once
 server starts, `display::Assets::load_dir`): the `FILE DESCRIPTION` room files (the gang houses'
 `WCCnnnnn.HSE` and the emblem, banner, statue and stone files, `.EMB` `.BAN` `.STA` `.STO`), the
 room map files (`WCCMAP01.ANS`, the MAP command), the release notes `WCCMMUD.NOT` (main menu R)
-and the sysop menu's `WCCMMUD.RLN`, `WCCMMSYS.REL` and `WCCMMSYS.NOT` ([sysop.md](sysop.md)).
-The import writes them there (`assets::unpack_assets`):
+and the sysop menu's `WCCMMUD.RLN`, `WCCMMSYS.REL` and `WCCMMSYS.NOT` ([sysop.md](sysop.md)),
+and the game's long text ([text.md](text.md#the-games-long-text-from-the-package)): the help,
+the creation forms and the text blocks of `WCCMMHLP.MSG`, `WCCTEXT.MSG` and `WCCMMUD.MSG`, and
+the long screens in `DLLTEXT.TXT`. The import writes them there (`assets::unpack_assets`):
 
 1. the members of the archives the install step `WCCMISC.BAT` unpacks with `pkunzip -o`:
    `WCCHSE.ZIP`, `WCCEMB.ZIP`, `WCCBAN.ZIP`, `WCCSTA.ZIP`, `WCCSTO.ZIP`;
 2. then every file of the source with the extension `.ANS`, `.HSE`, `.BAN`, `.EMB`, `.STA`,
-   `.STO`, `.NOT`, `.REL` or `.RLN`. A running BBS's own copy (a sysop may have edited a gang
-   house's description) wins over the archive's.
+   `.STO`, `.NOT`, `.REL` or `.RLN`, and `WCCMMUD.MSG`, `WCCMMHLP.MSG` and `WCCTEXT.MSG` as
+   they are. A running BBS's own copy (a sysop may have edited a gang house's description or
+   the help) wins over the archive's;
+3. then `DLLTEXT.TXT`, the long screens read out of `WCCMMUD.DLL` (its own count line,
+   `[WCCMMUD.DLL]`): the main menu's About, Information and Counts screens, the SYSOP help and
+   menu and a few long notices. A small table in the repository
+   (`crates/silvermere-import/src/dll_text.tsv`) gives, for each catalogue key, the byte ranges
+   of the DLL its text is made of, their SHA-256 and the ANSI macros between them. A realm's
+   own DLL whose bytes do not match (another build: a Worldgroup realm keeps its 32-bit module
+   as `WCCMMUD.DLL`, a DOS realm may run a patched one) is skipped with a warning naming the
+   key on its count line; every other asset is written and `DLLTEXT.TXT` comes from the stock
+   package. Only the stock package's own DLL failing to match is an error.
+
+After the import, `DLLTEXT.TXT` missing or a realm's own `.MSG` that does not parse (another
+format or other placeholders) is made good from the cached stock package, without downloading:
+the stock file replaces the one that does not parse, which is kept beside it as `NAME.REALM`,
+and one line says so. The same check runs when the server starts, downloading the package if
+needed, so one file never leaves all the help and screens uninstalled.
 
 Names match in any case, as on DOS. A file already in the assets directory is kept (counted
 "kept") unless `--overwrite-assets`, which writes over it under its existing name. A dry run
-counts and writes nothing. A damaged archive fails the import, naming it. The archives are
+counts and writes nothing. A damaged archive fails the import, naming it.
+
+A data directory imported by 0.1.3 or earlier has none of the text files. `serve`, `setup` and
+the first start copy what is missing from the cached package in `<data_dir>/cache/`
+(downloading it first if it is not there, as the first start does) and log one line; no
+operator action is needed, whatever the store or the way the server runs. When the package
+cannot be had, the server starts anyway and HELP and the long screens say the text is not
+installed until `silvermere import` runs. The archives are
 read by the crate's own zip reader (`zip.rs`: stored and deflated members, CRC-32 checked).
 
 ## Live import

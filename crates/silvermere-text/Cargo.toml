@@ -36,6 +36,11 @@ serde_json.workspace = true
 # The pattern registry (tests/fixtures/patterns.json) is a table of regexes; the
 # layer-2 snapshot test matches rendered messages against them.
 regex.workspace = true
+# the testkit's stock helper, included by path: the tests read the game's long text from the
+# stock package (T-138)
+sha2.workspace = true
+ureq.workspace = true
+miniz_oxide.workspace = true
 
 [[test]]
 name = "all"

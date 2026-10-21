@@ -1,5 +1,6 @@
-//! The converted `.MSG` files (T-011): `wccmmud.toml`, `wcctext.toml`, `help_topics.toml`,
-//! the two character-creation assets and `docs/config-defaults.md`.
+//! The `.MSG` texts as the package text reads them (T-011, T-138): the text blocks of
+//! `WCCMMUD.MSG` and `WCCTEXT.MSG`, the help topics, the two character-creation forms, and
+//! `docs/config-defaults.md`. The text comes from the stock package (`crate::package`).
 //!
 //! The texts are rendered here exactly as the game printed them and compared
 //! with the bytes of the T-005 capture `entry-existing` (the same constants as `menu.rs`)
@@ -10,10 +11,7 @@ use std::path::{Path, PathBuf};
 
 use regex::Regex;
 use serde::Deserialize;
-use silvermere_text::catalogue::{
-    self, Catalogue, Entry, HELP_END_MARK, HELP_TOPICS_TOML, TemplatePiece, WCCMMUD_TOML,
-    WCCTEXT_TOML,
-};
+use silvermere_text::catalogue::{Catalogue, Entry, HELP_END_MARK, HelpTopics, TemplatePiece};
 use silvermere_text::menu::{MUDVER, SHORTVER};
 use silvermere_text::prompt::prompt_text;
 use silvermere_text::strip::strip_ansi;
@@ -30,15 +28,10 @@ const CAPTURED_BANNER: &[u8] = b"\x1b[0m\x1b[2J\r\n\x1b[1;33mMajorMUD - ROL\r\n\
 const CAPTURED_GREETING: &[u8] =
     b"\r\n\x1b[1mFantasy awaits you in \x1b[33mMajorMUD v1.11p-WG!\r\n\r\n";
 
-// SHA-256 of the committed generated files, so a hand edit is noticed. Regenerate the files
-// with tools/msgconv/README.md and update these.
-const SHA_WCCMMUD: &str = "c971eb9dc38bfbc5a04256e33af03bbec0a6da1e317c4a459c400242b18bd379";
-const SHA_WCCTEXT: &str = "bb64085f898443549d91a69468610fad7e79d4921c132a71f99ef09fd9007a1f";
-const SHA_HELP: &str = "79196d96d0379a4794a4cfc061f0241dda6f81343fab6101a84b5f4a24a38d11";
-const SHA_EDITCHA1: &str = "4217af8d73bfbed35ef7b1ddecc3461156e3d39add8a3e99d6d72a37c850098d";
-const SHA_EDTCHAN2: &str = "5e2b662be3daf4ee8a1e35509cd6355a798407d4a8466f30b319b5e414c2bbb5";
+// SHA-256 of the generated document, so a hand edit is noticed. Regenerate it with
+// tools/msgconv/README.md and update this.
 const SHA_CONFIG_DEFAULTS: &str =
-    "b90e44408985947e5a3bb9430ba8100d001d4e54587c33f5969ea257c96a1909";
+    "2681048e1ba467f6a1d831a603ec1aea2f2fab59c150cc8e4a25a206e94c1e01";
 
 fn crate_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -46,10 +39,6 @@ fn crate_dir() -> PathBuf {
 
 fn repo_dir() -> PathBuf {
     crate_dir().join("../..")
-}
-
-fn messages_dir() -> PathBuf {
-    crate_dir().join("messages")
 }
 
 // ---- rendering a converted entry the way the game printed it --------------------------
@@ -107,11 +96,11 @@ fn pattern(name: &str) -> Regex {
 }
 
 fn wccmmud() -> Catalogue {
-    catalogue::parse(WCCMMUD_TOML).expect("wccmmud.toml is a valid catalogue")
+    crate::package().wccmmud().clone()
 }
 
 fn wcctext() -> Catalogue {
-    catalogue::parse(WCCTEXT_TOML).expect("wcctext.toml is a valid catalogue")
+    crate::package().wcctext().clone()
 }
 
 // ---- the text blocks ----------------------------------------------------------------
@@ -268,18 +257,14 @@ fn creation_prompts() {
     assert!(good.ends_with(b"unless you start a new character.\r\n"));
 }
 
-// EDITCHA1/EDTCHAN2, the full-screen displays: assets, not catalogue entries
+// EDITCHA1/EDTCHAN2, the full-screen displays: forms, not catalogue entries
 #[test]
-fn fsd_templates_are_assets() {
-    for (name, want_sha, marker) in [
-        ("editcha1", SHA_EDITCHA1, "Character Creation"),
-        ("edtchan2", SHA_EDTCHAN2, "Character Generator"),
+fn fsd_templates_are_forms() {
+    let package = crate::package();
+    for (name, text, marker) in [
+        ("editcha1", package.editcha1(), "$$"),
+        ("edtchan2", package.edtchan2(), "\r"),
     ] {
-        let path = messages_dir().join(format!("assets/{name}.toml"));
-        let raw = std::fs::read(&path).unwrap();
-        assert_eq!(sha256_hex(&raw), want_sha, "{name} was edited by hand");
-        let table: toml::Table = toml::from_str(std::str::from_utf8(&raw).unwrap()).unwrap();
-        let text = table["text"].as_str().unwrap();
         assert!(text.starts_with("\u{1b}[0m"));
         assert!(text.contains(marker));
         // every character has a CP437 byte, so the template round-trips to the original
@@ -297,7 +282,7 @@ fn fsd_templates_are_assets() {
 // that is the message count); the last topic is the end mark
 #[test]
 fn help_topics_load() {
-    let help = Catalogue::help_topics(HELP_TOPICS_TOML).expect("help_topics.toml is valid");
+    let help = crate::package().help();
     assert_eq!(help.topics.len(), 131);
     assert_eq!(1 + 2 * help.topics.len(), 263);
     let first = &help.topics[0];
@@ -325,7 +310,7 @@ fn help_topics_load() {
 // the two %c of the texts are the say and yell characters
 #[test]
 fn help_texts_take_the_say_and_yell_characters() {
-    let help = Catalogue::help_topics(HELP_TOPICS_TOML).unwrap();
+    let help = crate::package().help();
     let with_chars = help
         .topics
         .iter()
@@ -341,12 +326,21 @@ fn help_texts_take_the_say_and_yell_characters() {
         );
     }
     // a topic set without the end marker, or with a bad argument, is refused
-    assert!(Catalogue::help_topics("overview = \"\"\n[[topic]]\nkey = \"a\"\nbody_key = \"b\"\nwords = \"x\"\ntext = \"y\"\n").is_err());
-    let bad = HELP_TOPICS_TOML.replacen("{talk_char}<TEXT>", "{who}<TEXT>", 1);
-    assert!(Catalogue::help_topics(&bad).is_err());
+    let mut no_end = help.clone();
+    no_end.topics.pop();
+    assert!(no_end.validated().is_err());
+    let mut bad = help.clone();
+    let t = bad
+        .topics
+        .iter_mut()
+        .find(|t| t.text.contains("{talk_char}"))
+        .unwrap();
+    t.text = t.text.replacen("{talk_char}", "{who}", 1);
+    assert!(bad.validated().is_err());
+    assert!(HelpTopics::validated(help.clone()).is_ok());
 }
 
-// ---- the generated files are the converter's output ---------------------------------
+// ---- the generated document is the converter's output -------------------------------
 
 fn sha256_hex(data: &[u8]) -> String {
     const K: [u32; 64] = [
@@ -424,18 +418,15 @@ fn sha256_known_answers() {
     );
 }
 
-// Without MMUD_DIST_ZIP: the committed files are what the converter wrote (stored hashes).
+// Without MMUD_DIST_ZIP: the committed document is what the converter wrote (stored hash).
 #[test]
 fn generated_files_are_unedited() {
-    assert_eq!(sha256_hex(WCCMMUD_TOML.as_bytes()), SHA_WCCMMUD);
-    assert_eq!(sha256_hex(WCCTEXT_TOML.as_bytes()), SHA_WCCTEXT);
-    assert_eq!(sha256_hex(HELP_TOPICS_TOML.as_bytes()), SHA_HELP);
     let doc = std::fs::read(repo_dir().join("docs/config-defaults.md")).unwrap();
     assert_eq!(sha256_hex(&doc), SHA_CONFIG_DEFAULTS);
 }
 
 /// With `MMUD_DIST_ZIP` set (the path of `WCCMMUD_1.11p_DOS_MBBSEmu_v2.zip`), the converter is
-/// run again and must write identical files. Needs `unzip` and `python3`.
+/// run again and must write an identical document. Needs `unzip` and `python3`.
 #[test]
 fn converter_regenerates_identical_files() {
     let Some(zip) = std::env::var_os("MMUD_DIST_ZIP") else {
@@ -448,7 +439,7 @@ fn converter_regenerates_identical_files() {
     let unzip = std::process::Command::new("unzip")
         .args(["-o", "-q"])
         .arg(&zip)
-        .args(["WCCMMUD.MSG", "WCCTEXT.MSG", "WCCMMHLP.MSG", "-d"])
+        .args(["WCCMMUD.MSG", "-d"])
         .arg(&work)
         .status()
         .expect("unzip runs");
@@ -465,54 +456,18 @@ fn converter_regenerates_identical_files() {
         assert!(status.success());
     };
     let out = |name: &str| work.join(name);
-    let (m, t, h) = (out("WCCMMUD.MSG"), out("WCCTEXT.MSG"), out("WCCMMHLP.MSG"));
     let flag = |s: &'static str| Path::new(s);
     run(&[
         flag("--msg"),
-        &m,
-        flag("--catalogue"),
-        &out("wccmmud.toml"),
+        &out("WCCMMUD.MSG"),
         flag("--options"),
         &out("config-defaults.md"),
     ]);
-    run(&[
-        flag("--msg"),
-        &t,
-        flag("--catalogue"),
-        &out("wcctext.toml"),
-        flag("--assets"),
-        &out("assets"),
-    ]);
-    run(&[
-        flag("--msg"),
-        &h,
-        flag("--help-topics"),
-        &out("help_topics.toml"),
-    ]);
-    let pairs = [
-        ("wccmmud.toml", messages_dir().join("wccmmud.toml")),
-        ("wcctext.toml", messages_dir().join("wcctext.toml")),
-        ("help_topics.toml", messages_dir().join("help_topics.toml")),
-        (
-            "assets/editcha1.toml",
-            messages_dir().join("assets/editcha1.toml"),
-        ),
-        (
-            "assets/edtchan2.toml",
-            messages_dir().join("assets/edtchan2.toml"),
-        ),
-        (
-            "config-defaults.md",
-            repo_dir().join("docs/config-defaults.md"),
-        ),
-    ];
-    for (name, committed) in pairs {
-        assert_eq!(
-            std::fs::read(work.join(name)).unwrap(),
-            std::fs::read(&committed).unwrap(),
-            "{name} differs from the converter's output"
-        );
-    }
+    assert_eq!(
+        std::fs::read(out("config-defaults.md")).unwrap(),
+        std::fs::read(repo_dir().join("docs/config-defaults.md")).unwrap(),
+        "config-defaults.md differs from the converter's output"
+    );
     let _ = std::fs::remove_dir_all(&work);
 }
 

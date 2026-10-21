@@ -146,6 +146,12 @@ fn first_start_builds_asks_and_serves_then_serves_at_once() {
     );
     std::net::TcpStream::connect(("127.0.0.1", port)).expect("serving telnet");
     drop(first);
+    // the import wrote the game's text (T-138): nothing to copy at start-up
+    assert!(!out.contains("the game's text was not in"), "{out}");
+    let assets = d.join("data/assets");
+    for name in silvermere_import::assets::TEXT_ASSETS {
+        assert!(assets.join(name).is_file(), "{name}");
+    }
 
     // The world is there now: no import, the prompt again (a mismatch first), serving.
     let mut second = Started::spawn(&d, "Sysop\nsecret-1\nsecret-2\nSysop\nsecret-1\nsecret-1\n");
@@ -175,6 +181,22 @@ fn first_start_builds_asks_and_serves_then_serves_at_once() {
     assert!(!out.contains("importing the stock"), "{out}");
     assert!(!out.contains("sysop account"), "{out}");
     drop(third);
+
+    // T-138: a data directory from 0.1.3 or earlier has no text files: the start copies them
+    // from the cached package, says so in one line, and the text loads.
+    for name in silvermere_import::assets::TEXT_ASSETS {
+        std::fs::remove_file(assets.join(name)).unwrap();
+    }
+    let mut upgraded = Started::spawn(&d, "");
+    let out = upgraded.until_running();
+    let copied: Vec<&str> = out
+        .lines()
+        .filter(|l| l.contains("the game's text was not in"))
+        .collect();
+    assert_eq!(copied.len(), 1, "{out}");
+    assert!(copied[0].contains("copied WCCMMUD.MSG, WCCMMHLP.MSG, WCCTEXT.MSG, DLLTEXT.TXT"));
+    drop(upgraded);
+    silvermere_text::package::PackageText::load(&assets).expect("the copied text loads");
 
     // An import cut off after the rooms: `serve` refuses and says how to finish it; the
     // first start asks, refuses on N and builds the world again on Enter.

@@ -154,6 +154,9 @@ pub async fn start_with(url: &str, edit: impl FnOnce(&mut Config)) -> silvermere
     cfg.database.url = url.to_owned();
     cfg.data_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
     edit(&mut cfg);
+    // the game's long text, as a server with imported assets installs it (T-138)
+    silvermere_text::package::load_and_install(&silvermere_testkit::stock::assets_dir())
+        .expect("the stock package's text");
     let running = silvermere::serve_in_process(cfg, SystemClock, SeededRng::new(7))
         .await
         .expect("starts");

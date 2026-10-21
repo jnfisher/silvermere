@@ -83,6 +83,7 @@ fn plain_race(hpbonus: i16) -> Race {
 }
 
 fn world() -> World {
+    crate::common::install_text();
     let mut w = common::tiny_world(16);
     w.races.insert(RaceNo(11), kang());
     w.classes.insert(ClassNo(2), witchunter());
@@ -657,11 +658,15 @@ fn notice_texts() {
         Msg::EnterHangupPunished.text(),
         "The gods have punished you appropriately.\r"
     );
+    // the stats-reset notice is the package's text (T-138): white, a line end, three lines
+    let notice = crate::common::install_text()
+        .catalogue_text("enter_stats_reset")
+        .unwrap();
+    assert!(notice.starts_with("{@ANSI_WHITE}\r"), "{notice:?}");
+    assert_eq!(notice.matches('\r').count(), 4);
     assert_eq!(
         Msg::EnterStatsReset.text(),
-        "\x1b[1;37m\rYour stats have been reset due to an earlier bug.\r\
-         Please TRAIN STATS as soon as possible to re-apply your CPs\r\
-         (Unfortunately, if any spells were cast on you they will be terminated.\r"
+        notice.replace("{@ANSI_WHITE}", "\x1b[1;37m")
     );
 }
 

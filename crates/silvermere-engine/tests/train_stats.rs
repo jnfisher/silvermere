@@ -103,6 +103,7 @@ fn strength_spell() -> Spell {
 }
 
 fn world() -> World {
+    crate::common::install_text();
     let mut s = tiny_snapshot();
     for (room, shopnum, name) in [
         (TRAINER, 38, "Silvermere Universal Trainer"),
@@ -333,7 +334,7 @@ mod training {
             let room_before = h.plr(id).room;
             let from = h.send(id, "train stats");
             let out = plain(&h.written(from, id));
-            assert!(out.contains("     Character Generator\n"));
+            assert!(crate::common::holds_moved(&out, "stat_editor_preamble"));
             assert!(out.contains("\nYou have 15 CP to distribute.\n"));
             // no first-name field: the cursor starts at the family name
             assert!(out.ends_with("Family name [Stonefist]: "), "{out}");
@@ -509,7 +510,8 @@ mod training {
             h.line(id, "");
             let out = finish(&mut h, id, "save");
             let pos = |s: &str| out.find(s).unwrap_or_else(|| panic!("{s}: {out}"));
-            assert!(pos("SET SUICIDE command.") < pos("[HP=31]:"));
+            let notice = crate::common::moved_lines("suicide_pw_notice");
+            assert!(pos(notice.last().unwrap()) < pos("[HP=31]:"));
         }
 
         // T-023: a
@@ -527,7 +529,10 @@ mod training {
                     out.contains("Please TRAIN STATS as soon as possible"),
                     "{out}"
                 );
-                assert!(out.contains("Character Generator"), "{out}");
+                assert!(
+                    crate::common::holds_moved(&out, "stat_editor_preamble"),
+                    "{out}"
+                );
                 assert!(out.ends_with("Family name [Stonefist]: "), "{out}");
                 assert!(
                     h.plr(id).status2.contains(PlayerStatus2::STATRESET),
@@ -556,12 +561,14 @@ mod training {
         fn chart_matches_the_line_mode_capture() {
             const CAPTURE: &[u8] =
                 include_bytes!("../../../tests/captures/creation-line-mode/raw.bin");
-            const START: &[u8] = b"\r\n     M A J O R   M U D";
+            // the chart starts with the package's text
+            let preamble = crate::common::moved_bytes("stat_editor_preamble");
+            let start = &preamble[..24];
             const END: &[u8] = b"CP to distribute.\r\n";
-            fn block(b: &[u8]) -> &[u8] {
+            fn block<'a>(b: &'a [u8], start: &[u8]) -> &'a [u8] {
                 let a = b
-                    .windows(START.len())
-                    .position(|w| w == START)
+                    .windows(start.len())
+                    .position(|w| w == start)
                     .expect("chart start");
                 let e = b[a..]
                     .windows(END.len())
@@ -579,13 +586,16 @@ mod training {
             set_stats(c, [35, 50, 40, 50, 30, 50]);
             (c.totalcp, c.cp) = (100, 100);
             let out = h.bytes(id, "train stats");
-            let got = block(&out);
-            assert_eq!(esc(got), esc(block(CAPTURE)));
+            let got = block(&out, start);
+            assert_eq!(esc(got), esc(block(CAPTURE, start)));
             // CR LF exactly once per line: no bare CR or LF, no doubled CR
             for (i, w) in got.windows(2).enumerate() {
                 assert_eq!(w[0] == b'\r', w[1] == b'\n', "at {i}");
             }
-            insta::assert_snapshot!("train_stats_editor_screen", esc(&out));
+            insta::assert_snapshot!(
+                "train_stats_editor_screen",
+                crate::common::redact(&esc(&out))
+            );
         }
     }
 }
@@ -635,7 +645,7 @@ mod race_change {
         let done = h.line(id, "5");
         assert_eq!(
             done,
-            "You have now completed your race change.\nDon't forget that there is a time limit after which you cannot change again.\nPress <enter> to continue.\n"
+            crate::common::moved_lines("race_change_done").join("\n") + "\n"
         );
         assert_eq!(h.state(id), SessionState::MainMenu);
         let rec = h.saves(from).pop().expect("the record is written");
@@ -731,7 +741,7 @@ mod race_change {
         let from = h.log.len();
         assert_eq!(
             h.line(id, "12"),
-            "You have now completed your class change.\nDon't forget that there is a time limit after which you cannot change again.\nPress <enter> to continue.\n"
+            crate::common::moved_lines("class_change_done").join("\n") + "\n"
         );
         let rec = h.saves(from).pop().expect("saved");
         assert_eq!(
@@ -765,6 +775,6 @@ mod race_change {
         for line in ["changerace", "yes", "yes", "yes", "", "5", "", "12"] {
             out.push_str(&format!("> {line}\n{}\n", esc(&h.bytes(id, line))));
         }
-        insta::assert_snapshot!("race_change_prompts", out);
+        insta::assert_snapshot!("race_change_prompts", crate::common::redact(&out));
     }
 }

@@ -1,14 +1,14 @@
-//! HELP: [`help_text`] over the topics of `WCCMMHLP.MSG`
-//! (`silvermere-text`'s `help_topics.toml`, T-011).
+//! HELP: [`help_text`] over the topics of `WCCMMHLP.MSG`, read from the assets directory
+//! when the server starts (`silvermere-text`'s `package`, T-138). Without them HELP says the
+//! text is not installed; the built-in topics still work.
 //!
 //! The original switched the channel to page mode ("Hit any key to continue...") for the
 //! help screens; that is the host's and is not carried.
 
-use std::sync::OnceLock;
-
 use silvermere_rules::progression::{calc_exp_needed_old, new_calc_exp_needed};
 use silvermere_text::Msg;
-use silvermere_text::catalogue::{Catalogue, HELP_END_MARK, HELP_TOPICS_TOML, HelpTopics};
+use silvermere_text::catalogue::{HELP_END_MARK, HelpTopics};
+use silvermere_text::package::{self, NOT_INSTALLED};
 use silvermere_types::enums::DebugLevel;
 use silvermere_types::ids::{ClassNo, SessionId};
 
@@ -28,10 +28,9 @@ const HLPABOVE: i32 = 5;
 /// `HLPCLSARGS`: words in `HELP EXP n`.
 const HLPCLSARGS: usize = 3;
 
-/// The help topics, parsed once.
-pub fn topics() -> &'static HelpTopics {
-    static TOPICS: OnceLock<HelpTopics> = OnceLock::new();
-    TOPICS.get_or_init(|| Catalogue::help_topics(HELP_TOPICS_TOML).expect("help_topics.toml"))
+/// The help topics of the installed package text, if any.
+pub fn topics() -> Option<&'static HelpTopics> {
+    package::installed().map(|p| p.help())
 }
 
 /// `typed` abbreviates the text
@@ -63,10 +62,10 @@ fn fill(world: &World, text: &str) -> String {
 
 /// The TOPICS list: the first word of each topic, `, ` after each,
 /// a line break before a word that would pass column 79, and the end marker last.
-fn topic_list() -> String {
+fn topic_list(topics: &HelpTopics) -> String {
     let mut out = String::new();
     let mut col = 0usize;
-    for t in &topics().topics {
+    for t in &topics.topics {
         if eq_ignore_case(&t.words, HELP_END_MARK) {
             col += 1 + t.words.len();
             if col > HLPWIDTH {
@@ -99,18 +98,26 @@ pub fn help_text(
     class_word: &str,
 ) {
     let mut msgs = Vec::new();
-    match topic {
-        None => msgs.push(Msg::HelpOverview {
-            text: fill(world, &topics().overview),
+    let installed = topics();
+    let not_installed = || Msg::HelpOverview {
+        text: NOT_INSTALLED.to_string(),
+    };
+    match (topic, installed) {
+        (None, Some(help)) => msgs.push(Msg::HelpOverview {
+            text: fill(world, &help.overview),
         }),
-        Some(t) if matches_any_word(t, "Topics") => {
+        (None, None) => msgs.push(not_installed()),
+        (Some(t), Some(help)) if matches_any_word(t, "Topics") => {
             msgs.push(Msg::HelpTopicsHead);
-            msgs.push(Msg::HelpTopicList { list: topic_list() });
+            msgs.push(Msg::HelpTopicList {
+                list: topic_list(help),
+            });
         }
-        Some(t) => {
+        (Some(t), None) if matches_any_word(t, "Topics") => msgs.push(not_installed()),
+        (Some(t), _) => {
             // The first topic whose words match
             let mut shown = false;
-            for h in &topics().topics {
+            for h in installed.iter().flat_map(|help| &help.topics) {
                 if matches_any_word(t, &h.words) {
                     msgs.push(Msg::HelpBody {
                         text: fill(world, &h.text),
@@ -159,7 +166,11 @@ pub fn help_text(
                 shown = true;
             }
             if !shown {
-                msgs.push(Msg::HelpNone);
+                msgs.push(if installed.is_some() {
+                    Msg::HelpNone
+                } else {
+                    not_installed()
+                });
             }
         }
     }
@@ -247,8 +258,21 @@ mod tests {
 
     #[test]
     fn the_topic_list_ends_with_the_marker() {
-        let l = topic_list();
-        assert!(l.starts_with("Commands, "), "{l}");
+        let topic = |words: String| silvermere_text::catalogue::HelpTopic {
+            key: String::new(),
+            body_key: String::new(),
+            words,
+            text: String::new(),
+        };
+        let mut topics: Vec<_> = (0..40)
+            .map(|i| topic(format!("Commands{i} more words")))
+            .collect();
+        topics.push(topic(HELP_END_MARK.to_string()));
+        let l = topic_list(&HelpTopics {
+            overview: String::new(),
+            topics,
+        });
+        assert!(l.starts_with("Commands0, Commands1, "), "{l}");
         assert!(l.ends_with("Help ?"), "{l}");
         for line in l.split('\r') {
             assert!(line.len() <= HLPWIDTH + 2, "{line}");

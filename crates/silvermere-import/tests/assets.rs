@@ -169,7 +169,7 @@ fn stock_package_is_the_pinned_file() {
         .map(|e| e.unwrap().file_name())
         .collect();
     helper.sort();
-    assert_eq!(written.len(), 93);
+    assert_eq!(written.len(), 97);
     assert_eq!(written, helper);
     for n in &written {
         assert_eq!(
@@ -177,5 +177,65 @@ fn stock_package_is_the_pinned_file() {
             std::fs::read(stock_data::assets_dir().join(n)).unwrap(),
             "{n:?}"
         );
+    }
+}
+
+/// T-138: a realm's own `WCCMMUD.DLL` of another build (a Worldgroup realm keeps its 32-bit
+/// module under that name, beside a lower-case `WCCMMUD.msg`): the import writes every other
+/// asset and skips the screens with a warning naming the key; only the stock package's own
+/// DLL makes a mismatch an error.
+#[test]
+fn a_realm_dll_of_another_build_skips_only_the_screens() {
+    use silvermere_import::assets::{AssetError, unpack_assets_checked};
+    use silvermere_import::dll_text::{DLL_NAME, DllTextError, OUTPUT_NAME, rows};
+    let from = dist("other-dll");
+    let mut dll = std::fs::read(stock_data::file(DLL_NAME)).unwrap();
+    let first = rows().unwrap().remove(0);
+    let silvermere_import::dll_text::Part::Dll { offset, .. } = first
+        .parts
+        .iter()
+        .copied()
+        .find(|p| matches!(p, silvermere_import::dll_text::Part::Dll { .. }))
+        .unwrap()
+    else {
+        unreachable!()
+    };
+    dll[offset] ^= 0x20;
+    std::fs::write(from.join(DLL_NAME), &dll).unwrap();
+    for name in ["WCCMMHLP.MSG", "WCCTEXT.MSG"] {
+        std::fs::write(
+            from.join(name),
+            std::fs::read(stock_data::file(name)).unwrap(),
+        )
+        .unwrap();
+    }
+    std::fs::write(
+        from.join("WCCMMUD.msg"),
+        std::fs::read(stock_data::file("WCCMMUD.MSG")).unwrap(),
+    )
+    .unwrap();
+
+    let dest = dir("other-dll-out");
+    let counts = unpack_assets(&from, &dest, false, false).unwrap();
+    let skipped = count(&counts, DLL_NAME);
+    assert_eq!((skipped.files, skipped.written), (0, 0));
+    let line = skipped.line(false);
+    assert!(
+        line.contains(first.key) && line.contains("skipped"),
+        "{line}"
+    );
+    assert!(!dest.join(OUTPUT_NAME).exists());
+    // everything else is written, the three message files too
+    assert_eq!(count(&counts, "WCCHSE.ZIP").written, 47);
+    assert_eq!(count(&counts, LOOSE).written, 8);
+    for name in ["WCCMMUD.MSG", "WCCMMHLP.MSG", "WCCTEXT.MSG", "WCCMAP01.ANS"] {
+        assert!(dest.join(name).is_file(), "{name}");
+    }
+
+    // the stock package's own DLL must match
+    let strict = unpack_assets_checked(&from, &dir("other-dll-strict"), false, false, true);
+    match strict {
+        Err(AssetError::DllText(DllTextError::Mismatch { key, .. })) => assert_eq!(key, first.key),
+        other => panic!("{other:?}"),
     }
 }

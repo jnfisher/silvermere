@@ -1,5 +1,5 @@
 ---
 source: crates/silvermere-engine/tests/character_creation.rs
-expression: escape(&lawful)
+expression: "crate::common::redact(&escape(&lawful))"
 ---
-\x1b[0m\r\nYou must now choose if you want to be a truly \'lawful\' citizen of the realm.\r\nIf you answer YES to this question then you will never be allowed to instigate\r\nany action which would give you evil points, and any player that attacks or\r\nrobs from you will receive three times the regular evil points in return. You\r\ncan still attack those with a bad reputation. This option is designed\r\nsolely for those who want to stay away from the player combat aspects of the\r\ngame, and choosing it for any other reason (Item storage, etc...) is strictly\r\nprohibited.\r\n\r\nRemember, this is a very important choice. Once you have chosen Lawfulness,\r\nyou may not remove this title, unless you start a new character.\r\n\x1b[0m\r\nDo you want to be \x1b[1mLawful\x1b[0m?  [Yes/No]
+\x1b[0m\r\nYou must now choose if you want to be a truly \'lawful\' citizen of the realm.\r\n[package text]\r\n[package text]\r\n[package text]\r\n[package text]\r\n[package text]\r\n[package text]\r\nprohibited.\r\n\r\n[package text]\r\n[package text]\r\n\x1b[0m\r\nDo you want to be \x1b[1mLawful\x1b[0m?  [Yes/No]

@@ -33,6 +33,7 @@ type TestEngine = Engine<TestClock, SeededRng>;
 /// Human (40-100 in every stat, 100 CP) and Warrior, as in the capture; a universal
 /// trainer for TRAIN STATS.
 fn snapshot() -> silvermere_engine::WorldSnapshot {
+    crate::common::install_text();
     let mut s = tiny_snapshot();
     let mut human = blank::clear_race(RaceNo(1));
     human.name = "Human".into();
@@ -256,7 +257,7 @@ fn first_frame_equals_the_capture() {
         engine.world.session(id).unwrap().state,
         SessionState::NewChar(NewCharStep::Stats)
     );
-    insta::assert_snapshot!("new_character_form", escape(&got));
+    insta::assert_snapshot!("new_character_form", crate::common::redact(&escape(&got)));
 }
 
 // Character creation through the form, with its quirks (the active field varies between
@@ -454,7 +455,10 @@ fn opens_line_mode(caps: Caps) {
     let (mut engine, rx) = new_engine();
     let (id, outs) = to_form(&mut engine, &rx, caps);
     let text = plain(&writes(&outs, id));
-    assert!(text.contains("     Character Generator\r\n"), "{text}");
+    assert!(
+        crate::common::holds_moved(&text, "stat_editor_preamble"),
+        "{text}"
+    );
     assert!(text.ends_with("Given name [Aldric]: "), "{text}");
     assert_eq!(char_mode(&outs, id), None);
     let s = engine.world.session(id).unwrap();
@@ -653,7 +657,10 @@ fn train_stats_on_the_form() {
     assert_eq!(last_cursor(&got), "5;20", "the family name");
     assert!(got.ends_with(b"\x1b[5;20f\x1b[0;1;7m                  \x1b[5;20fStonefist\x1b[5;20f"));
     assert!(contains(&got, b"\x1b[20;33f\x1b[0m  15"), "the CP display");
-    insta::assert_snapshot!("existing_character_form", escape(&got));
+    insta::assert_snapshot!(
+        "existing_character_form",
+        crate::common::redact(&escape(&got))
+    );
     // Up from the family name stays there: the first name is not visited
     let got = key_bytes(&mut engine, &rx, id, b"\x1b[A");
     assert_eq!(last_cursor(&got), "5;20");

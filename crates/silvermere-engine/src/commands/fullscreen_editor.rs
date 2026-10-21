@@ -47,6 +47,17 @@ pub fn fits(caps: &Caps) -> bool {
     caps.ansi && caps.rows >= 23 && caps.columns >= 80
 }
 
+/// Whether the form is installed (the package text, T-138); without it the line-mode editor
+/// runs on every terminal.
+pub fn installed() -> bool {
+    EditorScreen::editcha1().is_some()
+}
+
+/// The `EDITCHA1` form. Only reached when [`installed`], and installed text stays installed.
+fn form() -> &'static EditorScreen {
+    EditorScreen::editcha1().expect("the form is installed (checked before opening it)")
+}
+
 /// The form's own state, kept in [`StatEditor::fullscreen`]; the cursor is
 /// [`StatEditor::field`].
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -119,7 +130,7 @@ impl FullScreen {
 /// [`StatEditor::open_existing`]) and draws it: the background, the CP display, every
 /// field with its initial answer, the empty error line and the first field focused.
 pub fn open(editor: &mut StatEditor, race: &str, class: &str, out: &mut OutputBatch) {
-    let screen = EditorScreen::editcha1();
+    let screen = form();
     let fsd = FullScreen::default();
     let mut bytes = screen.background();
     bytes.extend(screen.cp_left(editor.unspent()));
@@ -210,7 +221,7 @@ fn press(
     key: Key,
     out: &mut Vec<u8>,
 ) -> Option<Exit> {
-    let screen = EditorScreen::editcha1();
+    let screen = form();
     let field = editor.field;
     let n = field.sf();
     let looks = matches!(
@@ -321,14 +332,14 @@ fn start_typing(fsd: &mut FullScreen, n: usize, out: &mut Vec<u8>) {
     fsd.typed = true;
     if !fsd.buffer.is_empty() {
         fsd.buffer.clear();
-        out.extend(EditorScreen::editcha1().focus(n, ""));
+        out.extend(form().focus(n, ""));
     }
 }
 
 /// The cursor leaves the focused field towards `to`: the answer is verified, then the move, or the
 /// refusal on the error line.
 fn leave_field(editor: &mut StatEditor, fsd: &mut FullScreen, to: Field, out: &mut Vec<u8>) {
-    let screen = EditorScreen::editcha1();
+    let screen = form();
     let field = editor.field;
     let answer = if fsd.typed {
         fsd.buffer.clone()
@@ -355,7 +366,7 @@ fn leave_field(editor: &mut StatEditor, fsd: &mut FullScreen, to: Field, out: &m
 /// Clears the error line, redraws the field left (unfocused, with its stored value) and
 /// focuses `to`.
 fn move_to(editor: &mut StatEditor, fsd: &mut FullScreen, to: Field, out: &mut Vec<u8>) {
-    let screen = EditorScreen::editcha1();
+    let screen = form();
     let field = editor.field;
     out.extend(screen.message(""));
     out.extend(screen.draw(field.sf(), &value_of(editor, fsd, field)));
@@ -372,6 +383,13 @@ fn message_text(msg: &Msg) -> String {
     text.trim_end_matches(['\r', '\n']).to_string()
 }
 
+// The testkit's stock helper, by path (the engine may not name the testkit): the form is the
+// stock package's.
+#[cfg(test)]
+#[path = "../../../silvermere-testkit/src/stock.rs"]
+#[allow(dead_code)]
+mod test_stock;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -382,6 +400,8 @@ mod tests {
     use silvermere_types::ids::RaceNo;
 
     fn editor(min: [u16; 6], span: [u16; 6], cp: u16) -> StatEditor {
+        silvermere_text::package::load_and_install(&super::test_stock::assets_dir())
+            .expect("the stock package's text");
         let mut rac = clear_race(RaceNo(1));
         let to_i = |n: u16| n as i16;
         (rac.minstr, rac.minint, rac.minwil) = (to_i(min[0]), to_i(min[1]), to_i(min[2]));

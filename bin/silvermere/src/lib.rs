@@ -280,6 +280,8 @@ pub async fn serve_in_process(
         Ok(a) => world.display.assets = a,
         Err(e) => tracing::warn!(dir = %assets.display(), "room description files not loaded: {e}"),
     }
+    // The help, the creation forms and the long screens (T-138).
+    stock::install_text(&cfg.data_dir);
     serve_world_with_db(cfg, world, Some(db), clock, rng).await
 }
 

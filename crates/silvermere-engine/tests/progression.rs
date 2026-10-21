@@ -58,6 +58,7 @@ fn shop(n: i32, name: &str, minlevel: u16, maxlevel: u16, markup: u16, trainclas
 
 /// The tiny world plus the three trainers' rooms, their shops, Kang and the two classes.
 fn world() -> World {
+    crate::common::install_text();
     let mut s = tiny_snapshot();
     for (room, shopnum, name) in [
         (GUILD, 38, "Newhaven, Adventurer's Guild"),
@@ -544,7 +545,10 @@ fn cmd_train_tournament_rest_and_stats() {
     );
     // T-047: out of tournament mode the stat editor opens (tests/train_stats.rs).
     h.world().config.tournament_play = false;
-    assert!(h.line(id, "train stats").contains("Character Generator"));
+    assert!(crate::common::holds_moved(
+        &h.line(id, "train stats"),
+        "stat_editor_preamble"
+    ));
 }
 
 // ---------------------------------------------------------------------------------------

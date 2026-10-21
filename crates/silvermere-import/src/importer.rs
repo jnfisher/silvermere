@@ -22,7 +22,7 @@ use silvermere_db::Db;
 use silvermere_db::repo::{Account, StateWrite};
 use silvermere_types::records::{BankBook, Character, LayoutSet};
 
-use crate::assets::{AssetCount, unpack_assets};
+use crate::assets::AssetCount;
 use crate::btrieve::{BtrieveError, BtrieveFile, OpenOptions, Version};
 use crate::decode::{self, DecodeError, LegacyClock, Record};
 use crate::json::{ExportRecord, JsonWriter};
@@ -211,6 +211,9 @@ pub struct ImportOptions {
     pub assets: Option<PathBuf>,
     /// Replace asset files that are already there (`--overwrite-assets`).
     pub overwrite_assets: bool,
+    /// The source is the stock distribution package: a `WCCMMUD.DLL` whose screens do not
+    /// match is an error, not a warning (T-138).
+    pub stock_package: bool,
 }
 
 impl ImportOptions {
@@ -231,6 +234,7 @@ impl ImportOptions {
             live: false,
             assets: None,
             overwrite_assets: false,
+            stock_package: false,
         }
     }
 
@@ -907,11 +911,12 @@ impl<'a> Importer<'a> {
         let mut report = self.run_content(&content, start).await?;
         report.patches = patches;
         if let Some(dest) = &self.opts.assets {
-            report.assets = unpack_assets(
+            report.assets = crate::assets::unpack_assets_checked(
                 &self.opts.from,
                 dest,
                 self.opts.overwrite_assets,
                 self.opts.dry_run,
+                self.opts.stock_package,
             )?;
         }
         Ok(report)

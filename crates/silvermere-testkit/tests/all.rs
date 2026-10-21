@@ -6,6 +6,9 @@ mod common;
 // the engine tests' helpers, which the stock_* suites drive the engine with
 #[path = "../../silvermere-engine/tests/common/mod.rs"]
 mod engine_common;
+// `crate::stock` for the engine helpers above (they install the stock text)
+#[allow(unused_imports)]
+use silvermere_testkit::stock;
 #[path = "support/stock_records.rs"]
 mod stock_records;
 

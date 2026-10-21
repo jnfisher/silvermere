@@ -389,7 +389,7 @@ pub fn edit_character_stats(world: &mut World, id: SessionId, newchar: bool) {
         StatEditor::open_existing(plr, rac, blanklast)
     };
     // the EDITCHA1 form on an ANSI screen of at least 80x23 (T-063)
-    if fullscreen_editor::fits(&s.caps) {
+    if fullscreen_editor::fits(&s.caps) && fullscreen_editor::installed() {
         fullscreen_editor::open(&mut editor, &rac.name, &cls.name, &mut s.output);
         s.editor = Some(editor);
         s.state = SessionState::NewChar(NewCharStep::Stats);

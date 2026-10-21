@@ -69,6 +69,8 @@ pub fn run_with(cfg: &Config, args: &ServeArgs, first_start: bool) -> anyhow::Re
             }
         }
         db.close().await;
+        // T-138: the game's text from the cached package when the import did not write it
+        crate::stock::ensure_text_assets(&cfg.data_dir);
         // The world seed is not configurable yet (T-059 adds it to the config); the
         // production source draws from a seed taken from the clock.
         let seed = std::time::SystemTime::now()

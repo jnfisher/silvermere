@@ -244,6 +244,7 @@ fn snapshot() -> WorldSnapshot {
 }
 
 fn world() -> World {
+    crate::common::install_text();
     World::load(test_config(), 16, snapshot()).expect("world loads")
 }
 
@@ -1474,7 +1475,7 @@ fn menu_screens() {
     h.engine.world.session_mut(id).unwrap().caps.ansi = false;
     h.line(id, "c");
     let t = h.text(id);
-    assert!(t.contains(" |      Rooms:    over 19,000"), "{t}");
+    assert!(crate::common::holds_moved(&t, "menu_counts_plain"), "{t}");
     assert!(!t.contains("Copyright"));
     // T, G and S/W: the lists, then `\r[MAJORMUD]: `
     for key in ["T", "G", "S", "W", "R"] {
@@ -1577,31 +1578,12 @@ impl Harness {
     }
 }
 
-// the plain `C` screen is the original's text byte for byte, less the copyright
-// row, then the bare prompt
+// the plain `C` screen is the package's text byte for byte, then the bare prompt
 #[test]
 fn menu_counts_plain_equals_the_text() {
-    const PRF: [&str; 19] = [
-        " +----------------------------------------------------------------------------+\r",
-        " |                                                                            |\r",
-        " |                           M A J O R   M U D                                |\r",
-        " |                                                                            |\r",
-        " |    Here are some statistical pieces of information regarding the 1.1       |\r",
-        " |    release of MajorMUD (with all the addons activated):                    |\r",
-        " |                                                                            |\r",
-        " |      Rooms:    over 19,000                                                 |\r",
-        " |      Monsters: over 750                                                    |\r",
-        " |      Items:    over 1800                                                   |\r",
-        " |      Spells:   over 1200                                                    |\r",
-        " |      Shops:    over 150                                                    |\r",
-        " |      Classes:  15                                                          |\r",
-        " |      Races:    13                                                          |\r",
-        " |                                                                            |\r",
-        " |                                                                            |\r",
-        " |                                                                            |\r",
-        " |                                                                            |\r",
-        " +----------------------------------------------------------------------------+\r\r",
-    ];
+    let screen = crate::common::install_text()
+        .catalogue_text("menu_counts_plain")
+        .unwrap();
     let mut h = Harness::new();
     let id = h.player("Aldric");
     {
@@ -1610,7 +1592,7 @@ fn menu_counts_plain_equals_the_text() {
         s.caps.ansi = false;
     }
     h.line(id, "C");
-    let want = PRF.concat().replace('\r', "\r\n")
+    let want = screen.replace('\r', "\r\n")
         + "\x1b[1;30m[\x1b[0mMAJORMUD\x1b[1;30m]\x1b[0m: \x1b[0;37;40m";
     assert_eq!(h.text(id), want);
 }

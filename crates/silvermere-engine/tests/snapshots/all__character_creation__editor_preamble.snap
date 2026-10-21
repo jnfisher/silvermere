@@ -1,5 +1,5 @@
 ---
 source: crates/silvermere-engine/tests/character_creation.rs
-expression: escape(&out)
+expression: "crate::common::redact(&escape(&out))"
 ---
-\r\n     M A J O R   M U D\r\n\r\n     Character Generator\r\n\r\n+-    Point Cost Chart    -+\r\n|                          |\r\n| 1st 10 points: 1 CP each |\r\n| 2nd 10 points: 2 CP each |\r\n| 3rd 10 points: 3 CP each |\r\n|     ... and so on ...    |\r\n|                          |\r\n| +10 to base stat:  10 CP |\r\n| +20 to base stat:  30 CP |\r\n| +30 to base stat:  60 CP |\r\n| +40 to base stat: 100 CP |\r\n| +50 to base stat: 150 CP |\r\n+-    ... and so on ...   -+\r\n\r\nStrength  55 - 0\r\nIntellect 30 - 0\r\nWillpower 45 - 0\r\nAgility   30 - 0\r\nHealth    50 - 0\r\nCharm     30 - 0\r\n\r\nYou have 100 CP to distribute.\r\nGiven name [KASIMIR]:
+\r\n     [package text]\r\n\r\n     [package text]\r\n\r\n[package text]\r\n|                          |\r\n[package text]\r\n[package text]\r\n[package text]\r\n[package text]\r\n|                          |\r\n[package text]\r\n[package text]\r\n[package text]\r\n[package text]\r\n[package text]\r\n[package text]\r\n\r\nStrength  55 - 0\r\nIntellect 30 - 0\r\nWillpower 45 - 0\r\nAgility   30 - 0\r\nHealth    50 - 0\r\nCharm     30 - 0\r\n\r\nYou have 100 CP to distribute.\r\nGiven name [KASIMIR]:

@@ -80,8 +80,8 @@ text = "{@ANSI_WHITE}\rYou are no longer in the gang {gang}.\r"
 example = { gang = "Raiders" }
 
 [messages.enter_stats_reset]
-text = "{@ANSI_WHITE}\rYour stats have been reset due to an earlier bug.\rPlease TRAIN STATS as soon as possible to re-apply your CPs\r(Unfortunately, if any spells were cast on you they will be terminated.\r"
-note = "Goes out as one message. (sic) The parenthesis is never closed."
+text = "\r(This text is not installed: run `silvermere import`.)\r"
+note = "Goes out as one message. (sic) The parenthesis is never closed. The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 
 [messages.enter_life_ebbing]
 text = "You feel your life-force ebbing.\r"
@@ -476,7 +476,8 @@ text = "{@ANSI_GREEN}Well Spoken...\r"
 pattern = "well_spoken"
 
 [messages.save_refused]
-text = "You may not save your character.  You must exit normally so that \ryour character may be saved properly.  Note that the game will \rautomatically save your character on a routine basis while playing.\r"
+text = "\r(This text is not installed: run `silvermere import`.)\r"
+note = "The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 
 [messages.quiet_set]
 text = "Quiet mode set\r"
@@ -542,8 +543,8 @@ pattern = "chargen_choose"
 [messages.lawful_y_or_n]
 text = "You must respond with a Y or an N.\r"
 [messages.stat_editor_preamble]
-text = "\r\n     M A J O R   M U D\r\n\r\n     Character Generator\r\n\r\n+-    Point Cost Chart    -+\r\n|                          |\r\n| 1st 10 points: 1 CP each |\r\n| 2nd 10 points: 2 CP each |\r\n| 3rd 10 points: 3 CP each |\r\n|     ... and so on ...    |\r\n|                          |\r\n| +10 to base stat:  10 CP |\r\n| +20 to base stat:  30 CP |\r\n| +30 to base stat:  60 CP |\r\n| +40 to base stat: 100 CP |\r\n| +50 to base stat: 150 CP |\r\n+-    ... and so on ...   -+\r\n\r\n"
-note = "Printed before the line-mode editor instead of the full-screen form. Written with `\\r\\n` in the source."
+text = "\r(This text is not installed: run `silvermere import`.)\r"
+note = "Printed before the line-mode editor instead of the full-screen form. Written with `\\r\\n` in the source. The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 [messages.stat_range]
 text = "{label}{min} - {max}\r\n"
 args = { min = "u16", max = "u16" }
@@ -594,8 +595,9 @@ text = "{@ANSI_LTRED}The name you have chosen is invalid!\rYou will have to star
 text = "{@ANSI_LTRED}The name you have chosen is already in use!\rYou will have to start over again.\rPress Enter."
 note = "Printed when the first name parses as a game command (parse_command)."
 [messages.suicide_pw_notice]
-text = "{@ANSI_WHITE}\rTo prevent accidental suicide or reroll, these commands\rhave been password protected.  You have not yet entered\ryour suicide password, so please do so soon using the\rSET SUICIDE command.\r"
+text = "\r(This text is not installed: run `silvermere import`.)\r"
 pattern = "suicide_pw_notice"
+note = "The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 [messages.validating_wait]
 text = "Validating your name, please wait.\r "
 pattern = "name_validating"
@@ -669,20 +671,20 @@ pattern = "suicide"
 example = { who = "Bob" }
 note = "To the rest of the room (tell_room, TRN_ALWAYS, TRB_ALL, with the prompt, no colour)."
 [messages.goodtext]
-text = "\u001B[0m\rYou must now choose if you want to be a truly 'lawful' citizen of the realm.\rIf you answer YES to this question then you will never be allowed to instigate\rany action which would give you evil points, and any player that attacks or\rrobs from you will receive three times the regular evil points in return. You\rcan still attack those with a bad reputation. This option is designed\rsolely for those who want to stay away from the player combat aspects of the\rgame, and choosing it for any other reason (Item storage, etc...) is strictly\rprohibited.\r\rRemember, this is a very important choice. Once you have chosen Lawfulness,\ryou may not remove this title, unless you start a new character.\r"
-note = "The same bytes as messages/wcctext.toml `goodtext` (the converted .MSG text), here so the engine has it as a Msg; tests/msg_catalogue.rs pins the .MSG file."
+text = "\r(This text is not installed: run `silvermere import`.)\r"
+note = "The Lawful explanation the game prints before GOODPMPT. The text is read from the package's `WCCTEXT.MSG` at start-up (src/package.rs); this text is shown until it is installed."
 [messages.goodpmpt]
 text = "\u001B[0m\rDo you want to be \u001B[1mLawful\u001B[0m?  [Yes/No] "
 pattern = "chargen_lawful"
-note = "The same bytes as messages/wcctext.toml `goodpmpt` (the converted .MSG text), here so the engine has it as a Msg; tests/msg_catalogue.rs pins the .MSG file."
+note = "The same bytes as the `GOODPMPT` text block of `WCCTEXT.MSG` (as src/package.rs reads it), here so the engine has it as a Msg; tests/msg_catalogue.rs pins the .MSG file."
 [messages.chsrace]
 text = "\u001B[0m\r\u001B[32mPlease choose your race [ ? for help ] : "
 pattern = "chargen_choose"
-note = "The same bytes as messages/wcctext.toml `chsrace` (the converted .MSG text), here so the engine has it as a Msg; tests/msg_catalogue.rs pins the .MSG file."
+note = "The same bytes as the `CHSRACE` text block of `WCCTEXT.MSG` (as src/package.rs reads it), here so the engine has it as a Msg; tests/msg_catalogue.rs pins the .MSG file."
 [messages.chsclass]
 text = "\u001B[0m\r\u001B[32mPlease choose your class [ ? for help ] : "
 pattern = "chargen_choose"
-note = "The same bytes as messages/wcctext.toml `chsclass` (the converted .MSG text), here so the engine has it as a Msg; tests/msg_catalogue.rs pins the .MSG file."
+note = "The same bytes as the `CHSCLASS` text block of `WCCTEXT.MSG` (as src/package.rs reads it), here so the engine has it as a Msg; tests/msg_catalogue.rs pins the .MSG file."
 
 # ---- T-027: the info commands (LOOK, EXPERIENCE, the status displays, HELP, the menu screens).
 # Field widths (`%-29.29s`, `%5d`, ...) are applied by the engine before the argument is
@@ -972,7 +974,7 @@ example = { what = "spells" }
 [messages.help_overview]
 text = "{text}"
 example = { text = "Type HELP followed by a topic\r" }
-note = "HL1B0 (help_topics.toml `overview`), HELP alone."
+note = "HL1B0 (the help's `overview`, read from the package), HELP alone."
 
 [messages.help_body]
 text = "{text}\r"
@@ -1205,28 +1207,28 @@ note = "When the last part did not end its line."
 # ---- T-027: the main menu I, C and A screens, copyright lines dropped.
 
 [messages.menu_info_ansi]
-text = "\u001b[40m\u001b[2J\u001b[1C\u001b[0m┌────────────────────────────────────────────────────────────────────────────┐\u001b[2;1H │\u001b[76C│\u001b[3;1H │\u001b[27C\u001b[1;34mM A J O R   M U D\u001b[32C\u001b[0m│\u001b[4;1H │\u001b[76C│\u001b[5;1H │    We would like to thank the users of the following boards in their\u001b[7C│\u001b[6;1H │    assistance and ideas during the BETA testing phase of this program.\u001b[5C│\u001b[7;1H │\u001b[76C│\u001b[8;1H │\u001b[6CArgus Information\u001b[5CGameland\u001b[13CRock Garden\u001b[16C│\u001b[9;1H │\u001b[6CComputer Source\u001b[7CGranola Board\u001b[8CThe ADEPT\u001b[18C│\u001b[10;1H │\u001b[6CComputrek\u001b[13CMagic Bus\u001b[12CThe Castle\u001b[17C│\u001b[11;1H │\u001b[6CCreative Cafe\u001b[9CMalum\u001b[16CThe Imposium\u001b[15C│\u001b[12;1H │\u001b[6CCybercomm\u001b[13CMasterpiece\u001b[10CThe Link          \u001b[9C│\u001b[13;1H │\u001b[6CCyberspace\u001b[12CMetropolis\u001b[11CTrilogy\u001b[20C│\u001b[14;1H │\u001b[6CFarwest\u001b[15CMulti-comm\u001b[11CWest Coast Connection\u001b[6C│\u001b[15;1H │\u001b[76C│\u001b[16;1H │   If you wish to contact the creators of MajorMUD, visit our website at    │\u001b[17;1H │   http://www.majormud.com                                                  │\u001b[18;1H │\u001b[76C│\u001b[19;1H │\u001b[76C│\u001b[20;1H └────────────────────────────────────────────────────────────────────────────┘\u001b[22;1H\u001b[23;1H\u001b[24;1H\u001b[25;1H\u001b[0m\u001b[255D"
-note = "I: the information screen (credits) for an ANSI terminal; the copyright line is dropped, the rest is verbatim. The bare `[MAJORMUD]: ` prompt (mud_menu_prompt_normal) follows."
+text = "\r(This text is not installed: run `silvermere import`.)\r"
+note = "I: the information screen (credits) for an ANSI terminal; the copyright line is dropped, the rest is verbatim. The bare `[MAJORMUD]: ` prompt (mud_menu_prompt_normal) follows. The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 
 [messages.menu_info_plain]
-text = " +----------------------------------------------------------------------------+\r |                                                                            |\r |                           M A J O R   M U D                                |\r |                                                                            |\r |    We would like to thank the users of the following boards in their       |\r |    assistance and ideas during the BETA testing phase of this program.     |\r |                                                                            |\r |      Argus Information     Gameland             Rock Garden                |\r |      Computer Source       Granola Board        The ADEPT                  |\r |      Computrek             Magic Bus            The Castle                 |\r |      Creative Cafe         Malum                The Imposium               |\r |      Cybercomm             Masterpiece          The Link                   |\r |      Cyberspace            Metropolis           Trilogy                    |\r |      Farwest               Multi-comm           Dreamscape OES             |\r |                                                                            |\r |  If you wish to contact the creators of MajorMUD, please visit our         |\r |  website at http://www.majormud.com                                        |\r |                                                                            |\r |                                                                            |\r +----------------------------------------------------------------------------+\r\r"
-note = "I: the information screen (credits) for a plain terminal; the copyright line is dropped, the rest is verbatim. The bare `[MAJORMUD]: ` prompt (mud_menu_prompt_normal) follows."
+text = "\r(This text is not installed: run `silvermere import`.)\r"
+note = "I: the information screen (credits) for a plain terminal; the copyright line is dropped, the rest is verbatim. The bare `[MAJORMUD]: ` prompt (mud_menu_prompt_normal) follows. The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 
 [messages.menu_counts_ansi]
-text = "\u001b[40m\u001b[2J\u001b[1C\u001b[0m┌────────────────────────────────────────────────────────────────────────────┐\u001b[2;1H │\u001b[76C│\u001b[3;1H │\u001b[27C\u001b[1;34mM A J O R   M U D\u001b[32C\u001b[0m│\u001b[4;1H │\u001b[76C│\u001b[5;1H │    Here are some statistical pieces of information regarding the 1.1  \u001b[5C│\u001b[6;1H │    release of MajorMUD (with all the addons activated):               \u001b[5C│\u001b[7;1H │\u001b[76C│\u001b[8;1H │\u001b[6CRooms:    over 19,000            \u001b[10C           \u001b[16C│\u001b[9;1H │\u001b[6CMonsters: over 750                 \u001b[8C         \u001b[18C│\u001b[10;1H │\u001b[6CItems:    over 1800            \u001b[12C          \u001b[17C│\u001b[11;1H │\u001b[6CSpells:   over 1200             \u001b[12C          \u001b[17C│\u001b[12;1H │\u001b[6CShops:    over 150             \u001b[12C          \u001b[17C│\u001b[13;1H │\u001b[6CClasses:  15                   \u001b[12C          \u001b[17C│\u001b[14;1H │\u001b[6CRaces:    13                   \u001b[12C          \u001b[17C│\u001b[15;1H │\u001b[76C│\u001b[16;1H │\u001b[76C│\u001b[17;1H │\u001b[76C│\u001b[18;1H │\u001b[76C│\u001b[19;1H │\u001b[76C│\u001b[20;1H └────────────────────────────────────────────────────────────────────────────┘\u001b[22;1H\u001b[23;1H\u001b[24;1H\u001b[25;1H\u001b[0m\u001b[255D"
-note = "C: the game counts (the 1.1 statistics, fixed text in the game) for an ANSI terminal; the copyright line is dropped, the rest is verbatim. The bare `[MAJORMUD]: ` prompt (mud_menu_prompt_normal) follows."
+text = "\r(This text is not installed: run `silvermere import`.)\r"
+note = "C: the game counts (the 1.1 statistics, fixed text in the game) for an ANSI terminal; the copyright line is dropped, the rest is verbatim. The bare `[MAJORMUD]: ` prompt (mud_menu_prompt_normal) follows. The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 
 [messages.menu_counts_plain]
-text = " +----------------------------------------------------------------------------+\r |                                                                            |\r |                           M A J O R   M U D                                |\r |                                                                            |\r |    Here are some statistical pieces of information regarding the 1.1       |\r |    release of MajorMUD (with all the addons activated):                    |\r |                                                                            |\r |      Rooms:    over 19,000                                                 |\r |      Monsters: over 750                                                    |\r |      Items:    over 1800                                                   |\r |      Spells:   over 1200                                                    |\r |      Shops:    over 150                                                    |\r |      Classes:  15                                                          |\r |      Races:    13                                                          |\r |                                                                            |\r |                                                                            |\r |                                                                            |\r |                                                                            |\r +----------------------------------------------------------------------------+\r\r"
-note = "C: the game counts (the 1.1 statistics, fixed text in the game) for a plain terminal; the copyright line is dropped, the rest is verbatim. The bare `[MAJORMUD]: ` prompt (mud_menu_prompt_normal) follows."
+text = "\r(This text is not installed: run `silvermere import`.)\r"
+note = "C: the game counts (the 1.1 statistics, fixed text in the game) for a plain terminal; the copyright line is dropped, the rest is verbatim. The bare `[MAJORMUD]: ` prompt (mud_menu_prompt_normal) follows. The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 
 [messages.menu_about_ansi]
-text = "\u001b[0m\r   \u001b[35m_________________________________________________________________________\r\r                              \u001b[1;34mM A J O R  M U D\r\r    \u001b[0mThe following people have been involved in the development of this game\r\r                     \u001b[35mDoretta Watson   [ Project Manager  ]\r                     Craig Maddux     [   Programmer     ]\r                     Dion Spanggaard  [   Programmer     ] \r                     Isaac Stewart    [ Writing / Design ]\r                     Shannon Stewart  [ Writing / Design ]\r\r    \u001b[37mSpecial thanks to Ed McCullough, Darren Kamensek, Scott Kahler and last\r        but not least the numerous Beta Testers that have devoted immense\r                effort towards making MajorMUD a better game!\r\r\r\r\r        Originally by Lance Neumann and West Coast Creations 1993-1999\r\r   \u001b[35m_________________________________________________________________________\r\r"
-note = "A: the about screen for an ANSI terminal; the copyright line is dropped, the rest is verbatim. The bare `[MAJORMUD]: ` prompt (mud_menu_prompt_normal) follows."
+text = "\r(This text is not installed: run `silvermere import`.)\r"
+note = "A: the about screen for an ANSI terminal; the copyright line is dropped, the rest is verbatim. The bare `[MAJORMUD]: ` prompt (mud_menu_prompt_normal) follows. The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 
 [messages.menu_about_plain]
-text = " +----------------------------------------------------------------------------+\r |                                                                            |\r |                           M A J O R   M U D                                |\r |                                                                            |\r | The following people have been involved in the development of this game    |\r |                                                                            |\r |                     Ed McCullough   [ Project Manager ]                    |\r |                     Dion Spanggaard [   Programmer    ]                    |\r |                     Isaac Stewart   [ Writing/Design  ]                    |\r |                     Shannon Stewart [ Writing/Design  ]                    |\r |                                                                            |\r |  Special thanks to Ed McCullough, Darren Kamensek, Scott Kahler and last   |\r |     but not least the numerous Beta Testers that have devoted immense      |\r |              effort towards making MajorMUD a better game!                 |\r |                                                                            |\r |                                                                            |\r |                                                                            |\r |                                                                            |\r |     Originally by Lance Neumann and West Coast Creations 1993-1999         |\r +----------------------------------------------------------------------------+\r\r"
-note = "A: the about screen for a plain terminal; the copyright line is dropped, the rest is verbatim. The bare `[MAJORMUD]: ` prompt (mud_menu_prompt_normal) follows."
+text = "\r(This text is not installed: run `silvermere import`.)\r"
+note = "A: the about screen for a plain terminal; the copyright line is dropped, the rest is verbatim. The bare `[MAJORMUD]: ` prompt (mud_menu_prompt_normal) follows. The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 
 # --- Movement and exits (T-026): move_user, user_allowed_in_room, cmd_move, searching,
 # the door commands (cmd_open, cmd_close, cmd_lock, cmd_picklock, cmd_bash, cmd_drag),
@@ -3300,12 +3302,12 @@ args = { hp = "i64" }
 example = { hp = "-10" }
 
 [messages.sysop_help]
-text = "Available SYSOP sub-commands (all preceded by SYSOP):\r  BUFFERS   -- Statistics on the memory buffers used [Clear/Save]\r  STATUS    -- View the status of another user or room [SYS STAT ROOM n]\r  MAP       -- Display a generated map of this area\r  GOD       -- Modify certain parameters of other players\r  LIST      -- List things such as USERS\r  REPORT    -- Various Game reports\r  LIGHTNING -- Force lightning to strike a user\r  GOTO      -- Teleport yourself to named locations\r  RELOAD    -- Reload settings from wccmmud.ini\r"
-note = "SYSOP alone, for every operator."
+text = "\r(This text is not installed: run `silvermere import`.)\r"
+note = "SYSOP alone, for every operator. The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 
 [messages.sysop_help_sysop]
-text = "  CONFIGURE -- Configure runtime parameters\r  RESET     -- Reset room or area monster generation\r  DISBAND   -- Disband a gang\r  DISABLE   -- Remove a gang from the topten gangs\r  ENABLE    -- Allow a gang back onto the topten gangs\r  GANGSIZE  -- Adjust gang size\r  ARENA     -- Change the status of the arenas\r"
-note = "The SYSOP key's part of the list. The `INITIALIZE-- Re-initialize MajorMUD buffers` line is dropped with the sub-command (no caches)."
+text = "\r(This text is not installed: run `silvermere import`.)\r"
+note = "The SYSOP key's part of the list. The `INITIALIZE-- Re-initialize MajorMUD buffers` line is dropped with the sub-command (no caches). The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 
 [messages.sysop_debug_set]
 text = "Sysop debug mode set to {level}\r"
@@ -3475,11 +3477,12 @@ example = { gang = "Old Guard", n = "4" }
 text = "You cannot set the gangsize to 0\r"
 
 [messages.sysop_god_syntax]
-text = "Syntax: SYSOP GOD <user> <command>\rValid options: ADD LIFE, CLEAR SUICIDE, ADD EVIL n, SPEAK xxx, CHANGE NAME, DISABLE TOPTEN, ENABLE TOPTEN, INVENTORY, PROFILE, SPELLS, POWERS, GOOD, SAINT, NEUTRAL, LAWFUL, UNLAWFUL, RETRAIN, ABILITIES\rVERIFY ABILITIES, STATUS, INFO, CHANGE SEX, JAIL\r"
+text = "\r(This text is not installed: run `silvermere import`.)\r"
+note = "The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 
 [messages.sysop_god_valid_options]
-text = "Valid options: ADD LIFE, CLEAR SUICIDE, ADD EVIL n, SPEAK xxx, CHANGE NAME, DISABLE TOPTEN, ENABLE TOPTEN, INVENTORY, PROFILE, SPELLS, POWERS, GOOD, SAINT, NEUTRAL, LAWFUL, UNLAWFUL, RETRAIN\rVERIFY ABILITIES, STATUS, INFO, CHANGE SEX, JAIL\r"
-note = "(sic) Without the `, ABILITIES` of the syntax list."
+text = "\r(This text is not installed: run `silvermere import`.)\r"
+note = "(sic) Without the `, ABILITIES` of the syntax list. The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 
 [messages.sysop_bbs_userid]
 text = "BBS Userid: {userid}\r"
@@ -3507,7 +3510,8 @@ text = "That name is too LONG.\r"
 text = "You may not use that name.\r"
 
 [messages.sysop_name_changed]
-text = "Name changed -- Warning, this function should NOT be used \ron a routine basis as it may not change all that is required.\rNOTE also that you probably just had a VERY LONG system pause and that is expected.\r"
+text = "\r(This text is not installed: run `silvermere import`.)\r"
+note = "The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 
 [messages.sysop_gang_changed]
 text = "{name}'s gangname changed from {old} to {new}.\rYou must manually update each gang's user counts.\r"
@@ -3634,7 +3638,8 @@ example = { n = "3" }
 text = "No change made.\r"
 
 [messages.sysop_valid_edits]
-text = "Valid edits: HP, Intellect, Wisdom, Strength, Health, Agility, Charm,\r             Experience, Light, Level, Mana, Gold, UserDefined, Evil\r             Class, Race, Lives, Copper, revision\rOR sysop edit clear\r"
+text = "\r(This text is not installed: run `silvermere import`.)\r"
+note = "The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 
 [messages.sysop_not_recognized]
 text = "Command not recognized.\r"
@@ -3737,8 +3742,8 @@ example = { atleast = "At least ", n = "10" }
 # state/sysop_menu.rs: the [MAJORMUD Sysop] menu
 
 [messages.sysop_menu]
-text = "\r[SYSOP MENU]\r\rC - Clear all saved evil points\rCP- Clear all saved profiles (for resetting only)\rR - Reindex the Limited Items  (RF = Full reindex)\rD - Check for defunct MUD users, etc.\rH - Check for item hoarders\rI - Sysop Instructions (wccmmud.rln)\rN - Sysop Release notes (wccmmsys.rel)\rS - Online Sysop Command Help (wccmmsys.not)\rL - Change the limits for defunct user checking\rX - Exit to Main Menu\r\r\u001B[1;30m[\u001B[0mMAJORMUD Sysop\u001B[1;30m]\u001B[0m: {@ANSI_NORMAL}"
-note = "Without `U - Apply an update` (the importer CLI), `B - Edit the sysop bulletin file`, `E - Edit the wccmmud.ini file` and `A - Addon module codes` (docs/differences.md)."
+text = "\r(This text is not installed: run `silvermere import`.)\r"
+note = "Without `U - Apply an update` (the importer CLI), `B - Edit the sysop bulletin file`, `E - Edit the wccmmud.ini file` and `A - Addon module codes` (docs/differences.md). The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 
 [messages.sysop_menu_prompt_cr]
 text = "\r\u001B[1;30m[\u001B[0mMAJORMUD Sysop\u001B[1;30m]\u001B[0m: {@ANSI_NORMAL}"
@@ -3830,7 +3835,8 @@ text = "Removing limited items from {userid}\rChecking for users with limited it
 example = { userid = "BOB" }
 
 [messages.sysop_xref_another]
-text = "Another sysop may already be checking for limited items.\rIt is strongly recommended that you both immediately exit this process\rand have only ONE person enter it at a time or you may remove items\rfrom the wrong person.\r"
+text = "\r(This text is not installed: run `silvermere import`.)\r"
+note = "The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 
 [messages.sysop_purge_limits]
 text = "Currently all users who have played less than {mins} minutes,\ror who have not played in {days} days,\ror who have less than {exp} experience,\rwill be listed in the defunct user checking.\rNew limit on minutes of play: "
@@ -4325,9 +4331,11 @@ text = "You must choose a valid class. [ ? for help ]"
 pattern = "chargen_choose"
 note = "The class change's refusal: the new-character copy has ANSI_WHITE before it, this one does not."
 [messages.race_change_done]
-text = "{@ANSI_WHITE}You have now completed your race change.\rDon't forget that there is a time limit after which you cannot change again.\rPress <enter> to continue.\r"
+text = "\r(This text is not installed: run `silvermere import`.)\r"
+note = "The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 [messages.class_change_done]
-text = "{@ANSI_WHITE}You have now completed your class change.\rDon't forget that there is a time limit after which you cannot change again.\rPress <enter> to continue.\r"
+text = "\r(This text is not installed: run `silvermere import`.)\r"
+note = "The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 
 # ---- T-050: casting (cmd_cast, cmd_purge, the four casting engines and
 # display_spell_success; update_kai_powers, check_confusion).
@@ -4531,8 +4539,8 @@ text = "{@ANSI_CLRLINE}{@ANSI_CYAN}Your spell fails to bash one of the exits!\r"
 pattern = "bash_spell_fail"
 
 [messages.cast_silly]
-text = "{@ANSI_CLRLINE}{@ANSI_LTRED}This is a silly spell, why would you do that?\rPlease report the spell you just cast and the target (user/monster)\rto the sysop so they can remedy the situation.\r"
-note = "An ability that means nothing for this target or duration. The internal error it logs goes to tracing."
+text = "\r(This text is not installed: run `silvermere import`.)\r"
+note = "An ability that means nothing for this target or duration. The internal error it logs goes to tracing. The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 
 [messages.cast_attacks_room]
 text = "{@ANSI_CLRLINE}{@ANSI_BROWN}{who} moves to attack everyone in the room.\r"

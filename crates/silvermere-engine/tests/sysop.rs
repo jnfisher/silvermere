@@ -47,6 +47,7 @@ mod sysop {
     }
 
     fn world() -> World {
+        crate::common::install_text();
         let mut snap = tiny_snapshot();
         snap.items[0].name = "Ancient Sword".into();
         snap.items[0].limit = 1;
@@ -488,8 +489,14 @@ mod sysop {
         let mut h = Harness::new();
         let s = h.who("Sid", Role::Sysop);
         let g = h.who("Gil", Role::GameOp);
-        insta::assert_snapshot!("help_sysop", snap(&h.line(s, "sysop")));
-        insta::assert_snapshot!("help_gameop", snap(&h.line(g, "sysop")));
+        insta::assert_snapshot!(
+            "help_sysop",
+            crate::common::redact(&snap(&h.line(s, "sysop")))
+        );
+        insta::assert_snapshot!(
+            "help_gameop",
+            crate::common::redact(&snap(&h.line(g, "sysop")))
+        );
     }
 
     #[test]
@@ -498,13 +505,22 @@ mod sysop {
         let s = h.who("Sid", Role::Sysop);
         let _bob = h.who("Bob", Role::Player);
         insta::assert_snapshot!("goto_locations", h.line(s, "sysop goto nowhere"));
-        insta::assert_snapshot!("god_syntax", h.line(s, "sysop god"));
-        insta::assert_snapshot!("god_valid_options", h.line(s, "sysop god bob dance"));
+        insta::assert_snapshot!("god_syntax", crate::common::redact(&h.line(s, "sysop god")));
+        insta::assert_snapshot!(
+            "god_valid_options",
+            crate::common::redact(&h.line(s, "sysop god bob dance"))
+        );
         insta::assert_snapshot!("valid_lists", h.line(s, "sysop list"));
         let dev = h.with_keys("Dev", Role::Sysop, all_keys());
         insta::assert_snapshot!("valid_lists_dev", h.line(dev, "sysop list"));
-        insta::assert_snapshot!("valid_edits", h.line(dev, "sysop tweak"));
-        insta::assert_snapshot!("name_change", h.line(s, "sysop god bob change name Robert"));
+        insta::assert_snapshot!(
+            "valid_edits",
+            crate::common::redact(&h.line(dev, "sysop tweak"))
+        );
+        insta::assert_snapshot!(
+            "name_change",
+            crate::common::redact(&h.line(s, "sysop god bob change name Robert"))
+        );
     }
 
     #[test]
@@ -513,7 +529,7 @@ mod sysop {
         let s = h.who("Sid", Role::Sysop);
         h.engine.world.session_mut(s).unwrap().state = SessionState::MainMenu;
         let from = h.type_line(s, "sysop");
-        insta::assert_snapshot!("menu", h.raw_since(from, s));
+        insta::assert_snapshot!("menu", crate::common::redact(&h.raw_since(from, s)));
         assert_eq!(
             h.engine.world.session(s).unwrap().state,
             SessionState::SysopMenu(SysopStep::Menu)

@@ -5,25 +5,41 @@
 //! gang houses' `WCCnnnnn.HSE`, and the emblem, banner, statue and stone files the same
 //! rooms can name), the room map files (`WCCMAP01.ANS`, the MAP command), the release notes
 //! `WCCMMUD.NOT` (main menu R) and the sysop menu's `WCCMMUD.RLN`, `WCCMMSYS.REL` and
-//! `WCCMMSYS.NOT` (docs/sysop.md). The distribution ships the description files packed:
+//! `WCCMMSYS.NOT` (docs/sysop.md), and the game's long text (T-138): the help, the
+//! creation screens and the `.MSG` text blocks from [`TEXT_FILES`], and the long screens
+//! [`dll_text`](crate::dll_text) takes out of `WCCMMUD.DLL` into `DLLTEXT.TXT`. The distribution ships the description files packed:
 //! its install step `WCCMISC.BAT` runs `pkunzip -o` on `WCCHSE.ZIP`, `WCCEMB.ZIP`,
 //! `WCCBAN.ZIP`, `WCCSTA.ZIP` and `WCCSTO.ZIP` into the BBS directory, where the DLL opens
 //! them by name.
 //!
 //! [`unpack_assets`] takes the members of those archives, then every loose file of `--from`
-//! with one of [`ASSET_EXTENSIONS`] (a running BBS's own copy, possibly edited by the sysop,
-//! wins over the archive's), and writes each into the assets directory. Names match in any
+//! with one of [`ASSET_EXTENSIONS`] or named in [`TEXT_FILES`] (a running BBS's own copy,
+//! possibly edited by the sysop, wins over the archive's), and the DLL's screens, and writes each into the assets directory. Names match in any
 //! case, as on DOS; a file already there is kept unless `overwrite` is set.
 
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+use crate::dll_text::{self, DllTextError};
 use crate::zip::{Archive, ZipError};
 
 /// The extensions of the text files the engine reads from the assets directory.
 pub const ASSET_EXTENSIONS: &[&str] = &[
     "ANS", "HSE", "BAN", "EMB", "STA", "STO", "NOT", "REL", "RLN",
+];
+
+/// The message files whose text the engine reads at start-up (help, creation screens, text
+/// blocks).
+pub const TEXT_FILES: &[&str] = &["WCCMMUD.MSG", "WCCMMHLP.MSG", "WCCTEXT.MSG"];
+
+/// Every file the game's long text needs in the assets directory: [`TEXT_FILES`] and the
+/// DLL's screens.
+pub const TEXT_ASSETS: &[&str] = &[
+    "WCCMMUD.MSG",
+    "WCCMMHLP.MSG",
+    "WCCTEXT.MSG",
+    dll_text::OUTPUT_NAME,
 ];
 
 /// The archives `WCCMISC.BAT` unpacks into the BBS directory, in its order.
@@ -41,6 +57,12 @@ pub enum AssetError {
     /// An archive could not be read.
     #[error(transparent)]
     Zip(#[from] ZipError),
+    /// The DLL is not the one the long screens are taken from.
+    #[error(transparent)]
+    DllText(#[from] DllTextError),
+    /// The package lacks a file the long text needs.
+    #[error("the package has no {0}")]
+    Missing(String),
     /// Reading `--from` or writing the assets directory failed.
     #[error("{}: {source}", path.display())]
     Io {
@@ -69,6 +91,8 @@ pub struct AssetCount {
     pub written: u32,
     /// Files already in the assets directory and kept.
     pub kept: u32,
+    /// Why this source wrote nothing, when it was skipped with a warning.
+    pub skipped: Option<String>,
 }
 
 /// The `source` of the loose files' count line.
@@ -84,6 +108,9 @@ impl AssetCount {
         );
         if self.kept > 0 {
             line.push_str(" (already there; --overwrite-assets replaces them)");
+        }
+        if let Some(why) = &self.skipped {
+            line.push_str(&format!("; skipped: {why}"));
         }
         line
     }
@@ -127,12 +154,27 @@ fn is_plus_file(upper_name: &str) -> bool {
 
 /// Unpacks the assets of `from` into `dest` (created when anything is written); with
 /// `dry_run` only counts. One [`AssetCount`] per archive found, then one for the loose
-/// files.
+/// files, then one for `WCCMMUD.DLL`. A realm's own DLL whose screens do not match the
+/// table (another build) is skipped with a warning naming the key: every other asset is
+/// written, and `DLLTEXT.TXT` comes from the stock package (at start-up, or as the binary
+/// fills it in after the import).
 pub fn unpack_assets(
     from: &Path,
     dest: &Path,
     overwrite: bool,
     dry_run: bool,
+) -> Result<Vec<AssetCount>, AssetError> {
+    unpack_assets_checked(from, dest, overwrite, dry_run, false)
+}
+
+/// [`unpack_assets`]; with `stock_package` (the source is the stock distribution) a DLL
+/// whose screens do not match is an error naming the key.
+pub fn unpack_assets_checked(
+    from: &Path,
+    dest: &Path,
+    overwrite: bool,
+    dry_run: bool,
+    stock_package: bool,
 ) -> Result<Vec<AssetCount>, AssetError> {
     let sources = files_by_name(from)?;
     // upper-case name -> (count slot, bytes); a later source replaces an earlier one
@@ -149,6 +191,7 @@ pub fn unpack_assets(
             files: 0,
             written: 0,
             kept: 0,
+            skipped: None,
         });
         for e in zip.entries().iter().filter(|e| !e.is_dir()) {
             let name = e.file_name().to_ascii_uppercase();
@@ -160,6 +203,7 @@ pub fn unpack_assets(
         files: 0,
         written: 0,
         kept: 0,
+        skipped: None,
     });
     let loose = counts.len() - 1;
     let mut names: Vec<_> = sources
@@ -170,6 +214,35 @@ pub fn unpack_assets(
     for (name, path) in names {
         let bytes = std::fs::read(path).map_err(io(path))?;
         chosen.insert(name.clone(), (loose, bytes));
+    }
+    for name in TEXT_FILES {
+        if let Some(path) = sources.get(*name) {
+            let bytes = std::fs::read(path).map_err(io(path))?;
+            chosen.insert(name.to_string(), (loose, bytes));
+        }
+    }
+    if let Some(path) = sources.get(dll_text::DLL_NAME) {
+        let dll = std::fs::read(path).map_err(io(path))?;
+        counts.push(AssetCount {
+            source: dll_text::DLL_NAME.to_string(),
+            files: 0,
+            written: 0,
+            kept: 0,
+            skipped: None,
+        });
+        match dll_text::extract(&dll) {
+            Ok(text) => {
+                chosen.insert(dll_text::OUTPUT_NAME.to_string(), (counts.len() - 1, text));
+            }
+            Err(e) if stock_package => return Err(e.into()),
+            Err(e) => {
+                tracing::warn!("{e}; the long screens come from the stock package");
+                counts.last_mut().expect("pushed above").skipped = Some(format!(
+                    "{e}; {} comes from the stock package",
+                    dll_text::OUTPUT_NAME
+                ));
+            }
+        }
     }
 
     let existing = files_by_name(dest)?;
@@ -198,4 +271,57 @@ pub fn unpack_assets(
         c.written += 1;
     }
     Ok(counts)
+}
+
+/// The files of [`TEXT_ASSETS`] that `dest` lacks (names in any case).
+pub fn missing_text_assets(dest: &Path) -> Result<Vec<&'static str>, AssetError> {
+    let existing = files_by_name(dest)?;
+    Ok(TEXT_ASSETS
+        .iter()
+        .copied()
+        .filter(|n| !existing.contains_key(*n))
+        .collect())
+}
+
+/// Writes the files of [`TEXT_ASSETS`] that `dest` lacks, taken from the distribution
+/// package at `zip` (the cached download): the message files as they are, the screens out
+/// of its DLL. Files already there are kept. Returns the names written.
+pub fn text_assets_from_package(zip: &Path, dest: &Path) -> Result<Vec<&'static str>, AssetError> {
+    let missing = missing_text_assets(dest)?;
+    if missing.is_empty() {
+        return Ok(missing);
+    }
+    let mut files = Vec::new();
+    for name in &missing {
+        files.push((*name, stock_text_asset(zip, name)?));
+    }
+    std::fs::create_dir_all(dest).map_err(io(dest))?;
+    for (name, data) in &files {
+        let target = dest.join(name);
+        std::fs::write(&target, data).map_err(io(&target))?;
+    }
+    Ok(missing)
+}
+
+/// The stock package's version of one of [`TEXT_ASSETS`]: the message file as it is, or
+/// `DLLTEXT.TXT` made from its DLL.
+pub fn stock_text_asset(zip: &Path, name: &str) -> Result<Vec<u8>, AssetError> {
+    let bytes = std::fs::read(zip).map_err(io(zip))?;
+    let zip_name = zip
+        .file_name()
+        .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+    let archive = Archive::new(zip_name, &bytes)?;
+    let member = |wanted: &str| -> Result<Vec<u8>, AssetError> {
+        let e = archive
+            .entries()
+            .iter()
+            .find(|e| !e.is_dir() && e.file_name().eq_ignore_ascii_case(wanted))
+            .ok_or_else(|| AssetError::Missing(wanted.to_string()))?;
+        Ok(archive.read(e)?)
+    };
+    if name.eq_ignore_ascii_case(dll_text::OUTPUT_NAME) {
+        Ok(dll_text::extract(&member(dll_text::DLL_NAME)?)?)
+    } else {
+        member(name)
+    }
 }

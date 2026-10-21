@@ -1,15 +1,15 @@
 ---
 source: crates/silvermere-engine/tests/sysop.rs
-expression: "snap(&h.line(g, \"sysop\"))"
+expression: "crate::common::redact(&snap(&h.line(g, \"sysop\")))"
 ---
-Available SYSOP sub-commands (all preceded by SYSOP):
-  BUFFERS   -- Statistics on the memory buffers used [Clear/Save]
-  STATUS    -- View the status of another user or room [SYS STAT ROOM n]
-  MAP       -- Display a generated map of this area
-  GOD       -- Modify certain parameters of other players
-  LIST      -- List things such as USERS
-  REPORT    -- Various Game reports
-  LIGHTNING -- Force lightning to strike a user
-  GOTO      -- Teleport yourself to named locations
-  RELOAD    -- Reload settings from wccmmud.ini
+[package text]
+  [package text]
+  [package text]
+  [package text]
+  [package text]
+  [package text]
+  [package text]
+  [package text]
+  [package text]
+  [package text]
 [HP=40]:

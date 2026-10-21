@@ -1,9 +1,9 @@
 ---
 source: crates/silvermere-engine/tests/sysop.rs
-expression: "h.line(s, \"sysop tweak\")"
+expression: "crate::common::redact(&h.line(dev, \"sysop tweak\"))"
 ---
-Valid edits: HP, Intellect, Wisdom, Strength, Health, Agility, Charm,
-             Experience, Light, Level, Mana, Gold, UserDefined, Evil
-             Class, Race, Lives, Copper, revision
-OR sysop edit clear
+[package text]
+             [package text]
+             [package text]
+[package text]
 [HP=40]:

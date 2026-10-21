@@ -1,10 +1,8 @@
 //! Leaving: `x` in the realm and its meditation, `X` at the menu, the hang-up and the
 //! inactivity hang-up.
 
-use std::sync::OnceLock;
-
 use silvermere_rules::hangup::{HangupSituation, penalty, punishes};
-use silvermere_text::catalogue::{self, Catalogue, WCCMMUD_TOML};
+use silvermere_text::package::{self, NOT_INSTALLED};
 use silvermere_text::{Msg, cp437, finish};
 use silvermere_types::enums::{Ability, InGame, RoomType, SessionState};
 use silvermere_types::flags::{PlayerFlags, PlayerStatus, RoomFlags, SessionFlags};
@@ -18,12 +16,12 @@ use crate::world::{RoomState, World};
 /// The delay `cmd_quit` adds: the fast cycles of meditation before the exit.
 pub const EXIT_DELAY: u8 = 6;
 
-/// A `WCCMMUD.MSG` text block (T-011's `wccmmud.toml`) as the player receives it.
+/// A `WCCMMUD.MSG` text block (of the installed package text, T-138) as the player receives
+/// it; the not-installed notice without it.
 fn wccmmud(key: &str) -> Vec<u8> {
-    static CATALOGUE: OnceLock<Catalogue> = OnceLock::new();
-    let cat = CATALOGUE
-        .get_or_init(|| catalogue::parse(WCCMMUD_TOML).expect("wccmmud.toml is a catalogue"));
-    let text = &cat.messages.get(key).expect("a WCCMMUD.MSG block").text;
+    let text = package::installed()
+        .and_then(|p| p.wccmmud().messages.get(key))
+        .map_or(NOT_INSTALLED, |e| e.text.as_str());
     finish(&cp437::encode(text), None)
 }
 

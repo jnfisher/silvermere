@@ -30,6 +30,19 @@ impl Msg {
     /// line ends, CP437, wrap) and without colour rows. For logs and tests.
     pub fn text(&self) -> String {
         let mut out = String::new();
+        if let Some(pieces) = crate::render::moved_pieces(self) {
+            for piece in pieces {
+                match piece {
+                    crate::catalogue::TemplatePiece::Text(t) => out.push_str(t),
+                    crate::catalogue::TemplatePiece::Ansi(name) => out.push_str(
+                        std::str::from_utf8(crate::ansi::by_name(name).unwrap_or_default())
+                            .expect("ANSI strings are ASCII"),
+                    ),
+                    _ => {}
+                }
+            }
+            return out;
+        }
         for piece in self.pieces() {
             match piece {
                 Piece::Text(t) => out.push_str(t),

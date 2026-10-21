@@ -250,21 +250,22 @@ impl Entry {
 /// Parses and validates a catalogue.
 pub fn parse(toml_text: &str) -> Result<Catalogue, CatalogueError> {
     let catalogue: Catalogue = toml::from_str(toml_text)?;
-    for (key, entry) in &catalogue.messages {
-        if !is_identifier(key) {
-            return Err(entry_error(key, "keys are snake_case identifiers"));
-        }
-        entry.validate(key)?;
-    }
+    catalogue.validate()?;
     Ok(catalogue)
 }
 
-/// `messages/wccmmud.toml`: the text blocks of `WCCMMUD.MSG` (T-011).
-pub const WCCMMUD_TOML: &str = include_str!("../messages/wccmmud.toml");
-/// `messages/wcctext.toml`: the text blocks of `WCCTEXT.MSG` (T-011).
-pub const WCCTEXT_TOML: &str = include_str!("../messages/wcctext.toml");
-/// `messages/help_topics.toml`: the help topics of `WCCMMHLP.MSG` (T-011).
-pub const HELP_TOPICS_TOML: &str = include_str!("../messages/help_topics.toml");
+impl Catalogue {
+    /// Checks every key and entry, as [`parse`] does.
+    pub fn validate(&self) -> Result<(), CatalogueError> {
+        for (key, entry) in &self.messages {
+            if !is_identifier(key) {
+                return Err(entry_error(key, "keys are snake_case identifiers"));
+            }
+            entry.validate(key)?;
+        }
+        Ok(())
+    }
+}
 
 /// The words of the last help topic, the end marker.
 pub const HELP_END_MARK: &str = "Help ?";
@@ -273,20 +274,17 @@ pub const HELP_END_MARK: &str = "Help ?";
 /// help texts.
 const HELP_ARGS: [&str; 2] = ["talk_char", "yell_char"];
 
-/// The help topics, `messages/help_topics.toml`.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
+/// The help topics of `WCCMMHLP.MSG` (read by [`crate::package`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HelpTopics {
     /// `HL1B0`, the overview `HELP` alone prints.
     pub overview: String,
     /// The topics in file order; the last is the `Help ?` end marker.
-    #[serde(rename = "topic")]
     pub topics: Vec<HelpTopic>,
 }
 
 /// One help topic: the topic string and the text printed for it.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HelpTopic {
     /// The message name of the topic string, `HL1T..`.
     pub key: String,
@@ -298,12 +296,12 @@ pub struct HelpTopic {
     pub text: String,
 }
 
-impl Catalogue {
-    /// Parses and validates `help_topics.toml`: every text is a valid template using
-    /// only `talk_char` and `yell_char`, every topic has words, the keys are unique and
-    /// the last topic is the `Help ?` end marker.
-    pub fn help_topics(toml_text: &str) -> Result<HelpTopics, CatalogueError> {
-        let help: HelpTopics = toml::from_str(toml_text)?;
+impl HelpTopics {
+    /// Checks the topics: every text is a valid template using only `talk_char` and
+    /// `yell_char`, every topic has words, the keys are unique and the last topic is the
+    /// `Help ?` end marker.
+    pub fn validated(self) -> Result<HelpTopics, CatalogueError> {
+        let help = self;
         let check = |key: &str, text: &str| -> Result<(), CatalogueError> {
             for piece in parse_template(key, text)? {
                 match piece {

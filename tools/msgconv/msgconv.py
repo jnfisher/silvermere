@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""msgconv: convert the MajorMUD .MSG files into silvermere's checked-in data.
+"""msgconv: write docs/config-defaults.md from the options of WCCMMUD.MSG.
 
 A development tool, not shipped; standard library only. Run it with `python3 -I`:
 
     msgconv.py --selftest
-    msgconv.py --msg WCCMMUD.MSG --catalogue crates/silvermere-text/messages/wccmmud.toml \
-               --options docs/config-defaults.md
-    msgconv.py --msg WCCTEXT.MSG --catalogue crates/silvermere-text/messages/wcctext.toml \
-               --assets crates/silvermere-text/messages/assets
-    msgconv.py --msg WCCMMHLP.MSG --help-topics crates/silvermere-text/messages/help_topics.toml
+    msgconv.py --msg WCCMMUD.MSG --options docs/config-defaults.md
+
+The game's text in the .MSG files is not converted into the repository: the server reads the
+files from the assets directory (crates/silvermere-text/src/package.rs, the same parsing).
 
 The .MSG format (one entry per `KEY {value} TYPE ...`; `~}` is a literal `}` and `~~` a
 literal `~`; the prose between entries describes the next one) is the MajorBBS message
@@ -180,183 +179,6 @@ def toml_str(s):
             out.append(c)
     out.append('"')
     return "".join(out)
-
-
-# What each entry becomes in wccmmud.toml / wcctext.toml: key -> (pattern, args placeholders
-# in printf order, example, note)
-WCCMMUD_TEXTS = {
-    "USRLOGIN": (
-        "login_greeting",
-        ["version"],
-        {"version": "1.11p-WG"},
-        "The logon greeting. The one argument is the bare version (`1.11p-WG`).",
-    ),
-    "USRLOGOF": (
-        None,
-        [],
-        {},
-        "Disabled in the original (the file's own comment: it 'has been disabled and will be "
-        "removed in a future version'); kept for completeness, unused.",
-    ),
-    "USRFOLED": (
-        "enter_banner",
-        [],
-        {},
-        "Clear screen, the `MajorMUD - ROL` banner and the 77-character `=-` rule.",
-    ),
-    "USREXIT": (
-        None,
-        [],
-        {},
-        "Shown when the player leaves the game.",
-    ),
-    "LEAVEMNU": (
-        None,
-        [],
-        {},
-        "Sub-board hook: the original sends these characters to disconnect from a sub-board. "
-        "A single space and a line end; unused in silvermere.",
-    ),
-    "INACHUP": (
-        "inactive_hangup",
-        [],
-        {},
-        "Three spaces before `Bye!` are in the original.",
-    ),
-}
-
-WCCTEXT_TEXTS = {
-    "GOODTEXT": (
-        None,
-        [],
-        {},
-        "The Lawful explanation. The game prints it before GOODPMPT.",
-    ),
-    "GOODPMPT": (
-        None,
-        [],
-        {},
-        "Two spaces before `[Yes/No]` are in the original; a space follows it.",
-    ),
-    "CHSRACE": (
-        None,
-        [],
-        {},
-        None,
-    ),
-    "CHSCLASS": (
-        None,
-        [],
-        {},
-        None,
-    ),
-    "MENUTEXT": (
-        "mud_title",
-        ["version"],
-        {"version": "1.11p-WG (Dec 30 2005 14:20:05)"},
-        "The main menu. The one argument is the full version string; `{Realm Of Legends}` is literal text "
-        "(the file writes it `{Realm Of Legends~}`).",
-    ),
-    "MENUPMPT": (
-        "mud_menu_prompt",
-        [],
-        {},
-        "The `[MAJORMUD]: ` prompt; no line end follows.",
-    ),
-}
-
-# The two full-screen-display templates of character creation: kept as
-# assets for T-063 (character creation), not catalogue entries.
-FSD_TEMPLATES = ("EDITCHA1", "EDTCHAN2")
-
-HELP_ARGS = ["talk_char", "yell_char"]
-
-
-def sources_header(msg_name, script_note):
-    return (
-        f"# Generated from {msg_name} by tools/msgconv/msgconv.py{script_note}; do not edit by hand.\n"
-        "# Format: crates/silvermere-text/src/catalogue.rs. Line ends are `\\r`; `{{` and `}}` are\n"
-        "# literal braces; ESC is \\u001B.\n"
-    )
-
-
-def write_catalogue(entries, texts, msg_name, drop=()):
-    by_key = {e.key: e for e in entries}
-    out = [sources_header(msg_name, " --catalogue"), ""]
-    count = 0
-    for key, (pattern, args, example, note) in texts.items():
-        e = by_key[key]
-        if e.kind != "T":
-            raise ValueError(f"{key} is not a text block")
-        out.append(f"[messages.{key.lower()}]")
-        out.append(f"text = {toml_str(to_template(e.value, args))}")
-        if pattern:
-            out.append(f"pattern = {toml_str(pattern)}")
-        if example:
-            items = ", ".join(f"{k} = {toml_str(v)}" for k, v in example.items())
-            out.append(f"example = {{ {items} }}")
-        if note:
-            out.append(f"note = {toml_str(note)}")
-        out.append("")
-        count += 1
-    return "\n".join(out), count
-
-
-def write_assets(entries, outdir):
-    os.makedirs(outdir, exist_ok=True)
-    written = []
-    for e in entries:
-        if e.key in FSD_TEMPLATES:
-            lines = [
-                f"# Generated from WCCTEXT.MSG:{e.key} by tools/msgconv/msgconv.py; do not edit by hand.",
-                "# The full-screen-display template for character creation (T-063): `$$$$` and",
-                "# `????` are the field placeholders of the full-screen display.",
-                "# Text is the CP437 file text decoded to Unicode; lines end with `\\r`.",
-                "",
-                f"text = {toml_str(e.value.replace(chr(10), chr(13)))}",
-                "",
-            ]
-            path = os.path.join(outdir, f"{e.key.lower()}.toml")
-            with open(path, "w", newline="\n") as f:
-                f.write("\n".join(lines))
-            written.append(path)
-    return written
-
-
-def write_help_topics(entries):
-    """The help file is pairs of messages: `HL1Tn` (the topic words) and the message that
-    follows it (`HL1Bn`), by position, which is how the game pairs them. Names may
-    disagree: HL1T60 is followed by HL1B61."""
-    heads = [e for e in entries if re.fullmatch(r"HL1[TB]\w+", e.key)]
-    if not heads or heads[0].key != "HL1B0":
-        raise ValueError("HL1B0 (the overview) must come first")
-    out = [
-        "# Generated from WCCMMHLP.MSG by tools/msgconv/msgconv.py --help-topics; do not edit by hand.",
-        "# `overview` is HL1B0; each [[topic]] is an HL1Tn message and the message after it in file",
-        "# order. `words` is the topic string the HELP command matches; `text` is the body, a catalogue template whose `{talk_char}` and",
-        "# `{yell_char}` are the say and yell characters (the file's two `%c`). `body_key` is the",
-        "# message the text came from. The last row, `Help ?`, is the end marker.",
-        "",
-        f"overview = {toml_str(to_template(heads[0].value))}",
-        "",
-    ]
-    rest = heads[1:]
-    if len(rest) % 2:
-        raise ValueError("topic and body messages do not pair up")
-    count = 0
-    for t, b in zip(rest[0::2], rest[1::2]):
-        if not t.key.startswith("HL1T") or not b.key.startswith("HL1B"):
-            raise ValueError(f"{t.key}/{b.key} is not a topic/body pair")
-        if b.value.count("%c") > len(HELP_ARGS):
-            raise ValueError(f"{b.key} has too many %c")
-        out.append("[[topic]]")
-        out.append(f"key = {toml_str(t.key)}")
-        out.append(f"body_key = {toml_str(b.key)}")
-        out.append(f"words = {toml_str(t.value)}")
-        out.append(f"text = {toml_str(to_template(b.value, HELP_ARGS))}")
-        out.append("")
-        count += 1
-    return "\n".join(out), count
 
 
 # ------------------------------------------------------------- option documentation
@@ -637,10 +459,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--selftest", action="store_true")
     ap.add_argument("--msg", help="the .MSG file to read")
-    ap.add_argument("--catalogue", help="write the catalogue TOML (WCCMMUD.MSG or WCCTEXT.MSG)")
-    ap.add_argument("--help-topics", help="write help_topics.toml (WCCMMHLP.MSG)")
     ap.add_argument("--options", help="write docs/config-defaults.md (WCCMMUD.MSG)")
-    ap.add_argument("--assets", help="directory for the FSD templates (WCCTEXT.MSG)")
     args = ap.parse_args(argv)
     if args.selftest:
         selftest()
@@ -649,22 +468,7 @@ def main(argv=None):
         ap.error("--msg is required (or --selftest)")
     with open(args.msg, "rb") as f:
         entries = parse_msg(f.read())
-    name = os.path.basename(args.msg).upper()
     here = os.path.dirname(os.path.abspath(__file__))
-    if args.catalogue:
-        texts = {"WCCMMUD.MSG": WCCMMUD_TEXTS, "WCCTEXT.MSG": WCCTEXT_TEXTS}.get(name)
-        if texts is None:
-            ap.error("--catalogue needs WCCMMUD.MSG or WCCTEXT.MSG")
-        text, count = write_catalogue(entries, texts, name)
-        write(args.catalogue, text)
-        print(f"{args.catalogue}: {count} entries")
-    if args.assets:
-        for p in write_assets(entries, args.assets):
-            print(p)
-    if args.help_topics:
-        text, count = write_help_topics(entries)
-        write(args.help_topics, text)
-        print(f"{args.help_topics}: {count} topics")
     if args.options:
         with open(os.path.join(here, "config-defaults.md.in"), encoding="utf-8") as f:
             template = f.read()

@@ -117,8 +117,57 @@ pub fn test_config() -> GameConfig {
     }
 }
 
-/// The tiny world, loaded, with room for `max_sessions` sessions.
+/// The game's long text (help, the creation forms, the long screens) from the stock
+/// package, installed for this process as `serve` installs it (T-138). Returns it, for tests
+/// that compare against it.
+pub fn install_text() -> &'static silvermere_text::package::PackageText {
+    silvermere_text::package::load_and_install(&crate::stock::assets_dir())
+        .unwrap_or_else(|e| panic!("the stock package's text: {e}"))
+}
+
+/// `text` with the package's long text replaced by `[package text]`: snapshots keep their
+/// layout and the rest of the output, and hold none of the game's long text (T-138; its bytes
+/// are pinned by silvermere-text's package_text tests).
+pub fn redact(text: &str) -> String {
+    install_text().redact(text)
+}
+
+/// The bytes the player receives for the moved catalogue entry `key` (the package's text).
+pub fn moved_bytes(key: &str) -> Vec<u8> {
+    install_text();
+    let msg = silvermere_text::Msg::examples()
+        .into_iter()
+        .find(|m| m.key() == key)
+        .unwrap_or_else(|| panic!("no Msg {key}"));
+    silvermere_text::render(&msg, silvermere_text::Palette::default()).bytes
+}
+
+/// The non-blank lines of the moved catalogue entry `key` as the player sees them: ANSI
+/// removed, trailing blanks trimmed.
+pub fn moved_lines(key: &str) -> Vec<String> {
+    let bytes = silvermere_text::strip_ansi(&moved_bytes(key));
+    silvermere_text::cp437::decode(&bytes)
+        .split("\r\n")
+        .map(|l| l.trim_end().to_string())
+        .filter(|l| !l.trim().is_empty())
+        .collect()
+}
+
+/// Whether `out` holds every non-blank line of the moved entry `key`, in order.
+pub fn holds_moved(out: &str, key: &str) -> bool {
+    let mut rest = out;
+    for line in moved_lines(key) {
+        match rest.find(line.as_str()) {
+            Some(i) => rest = &rest[i + line.len()..],
+            None => return false,
+        }
+    }
+    true
+}
+
+/// The tiny world, loaded, with room for `max_sessions` sessions; the stock text installed.
 pub fn tiny_world(max_sessions: u16) -> World {
+    install_text();
     World::load(test_config(), max_sessions, tiny_snapshot()).expect("tiny world loads")
 }
 

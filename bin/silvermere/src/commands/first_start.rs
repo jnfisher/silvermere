@@ -32,6 +32,7 @@ pub fn setup(cfg: &Config) -> anyhow::Result<ExitCode> {
         &mut std::io::stdout(),
         hide,
     )?;
+    crate::stock::ensure_text_assets(&cfg.data_dir);
     println!("Ready. Start it with: silvermere serve");
     println!("{}", next_steps(made.as_deref(), &cfg.server.telnet_bind));
     Ok(ExitCode::SUCCESS)

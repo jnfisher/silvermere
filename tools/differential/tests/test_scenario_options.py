@@ -107,8 +107,8 @@ class ScenarioOptions(unittest.TestCase):
 
     def test_divergences_drop_a_decided_line_in_both_layers(self):
         line = b"  INITIALIZE-- Re-initialize MajorMUD buffers\r\n"
-        orig = b"x\r\nAvailable SYSOP sub-commands (all preceded by SYSOP):\r\n" + line + b"[HP=10]:"
-        new = b"x\r\nAvailable SYSOP sub-commands (all preceded by SYSOP):\r\n[HP=10]:"
+        orig = b"x\r\nSysop sub-commands:\r\n" + line + b"[HP=10]:"
+        new = b"x\r\nSysop sub-commands:\r\n[HP=10]:"
         sc = self._sc(deterministic=["x"])
         self.assertEqual(self._run(sc, orig, new)["status"], "fail")
         sc["divergences"] = [{"card": "T-055", "side": "orig",
@@ -145,8 +145,8 @@ class ScenarioOptions(unittest.TestCase):
     def test_byte_gaps_are_counted_and_shown(self):
         import report
         line = b"  INITIALIZE-- Re-initialize MajorMUD buffers\r\n"
-        orig = b"x\r\nAvailable SYSOP sub-commands (all preceded by SYSOP):\r\n" + line + b"[HP=10]:"
-        new = b"x\r\nAvailable SYSOP sub-commands (all preceded by SYSOP):\r\n[HP=10]:"
+        orig = b"x\r\nSysop sub-commands:\r\n" + line + b"[HP=10]:"
+        new = b"x\r\nSysop sub-commands:\r\n[HP=10]:"
         sc = self._sc(deterministic=["x"], divergences=[{
             "card": "T-055", "side": "orig",
             "unknown_lines": [r"^\s*INITIALIZE-- Re-initialize MajorMUD buffers\s*$"],

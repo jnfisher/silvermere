@@ -36,6 +36,7 @@ struct Harness {
 
 impl Harness {
     fn new(config: GameConfig, max_sessions: u16, edit: impl FnOnce(&mut World)) -> Self {
+        crate::common::install_text();
         let (tx, rx) = std::sync::mpsc::channel();
         let clock = TestClock::new();
         let mut world = World::load(config, max_sessions, snapshot()).expect("world loads");

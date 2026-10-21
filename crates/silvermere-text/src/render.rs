@@ -6,7 +6,8 @@
 //! module's part (template, arguments, colour rows) and [`finish`] the host's, minus the
 //! `0xFF` doubling, which is the transport's (T-012).
 
-use crate::ansi::resolve_if_ansi;
+use crate::ansi::{self, resolve_if_ansi};
+use crate::catalogue::TemplatePiece;
 use crate::colour::{Colour, Palette};
 use crate::cp437;
 use crate::msg::{Msg, Piece};
@@ -43,9 +44,26 @@ pub fn render_into(out: &mut Vec<u8>, msg: &Msg, palette: Palette) {
 
 /// The module's part: the template with its arguments, ANSI strings and colour rows,
 /// as the module built it (CP437, `\r` line ends as written). Resolving if-ANSI, line ends
-/// and wrapping are [`finish`]'s.
+/// and wrapping are [`finish`]'s. A moved entry ([`crate::package::MOVED_KEYS`]) takes its
+/// template from the installed package text.
 pub fn prf(msg: &Msg, palette: Palette) -> Vec<u8> {
     let mut out = Vec::new();
+    if let Some(pieces) = moved_pieces(msg) {
+        for piece in pieces {
+            match piece {
+                TemplatePiece::Text(t) => cp437::encode_into(&mut out, t),
+                TemplatePiece::Ansi(name) => {
+                    out.extend_from_slice(ansi::by_name(name).unwrap_or_default())
+                }
+                TemplatePiece::Colour(row) => {
+                    out.extend_from_slice(Colour::new(*row, palette).prefix())
+                }
+                // the package's templates take no argument (checked when loaded)
+                TemplatePiece::Arg(_) => {}
+            }
+        }
+        return out;
+    }
     let mut arg = String::new();
     for piece in msg.pieces() {
         match piece {
@@ -60,6 +78,11 @@ pub fn prf(msg: &Msg, palette: Palette) -> Vec<u8> {
         }
     }
     out
+}
+
+/// The installed package text's pieces for a moved entry.
+pub(crate) fn moved_pieces(msg: &Msg) -> Option<&'static [TemplatePiece]> {
+    crate::package::installed()?.catalogue_pieces(msg.key())
 }
 
 /// The host's part for the module's text: if-ANSI strings resolved to their ANSI half, every

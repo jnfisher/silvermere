@@ -581,7 +581,8 @@ fn import_stock_with_no_from() {
         "rooms [WCCMP001.VIR]: 26720 records read, 26720 written, 0 skipped",
         "patches [WCCUPDAT.DAT]: 38754 records",
         "assets [WCCHSE.ZIP]: 47 files, 47 written, 0 kept",
-        "assets [text files]: 5 files, 5 written, 0 kept",
+        "assets [text files]: 8 files, 8 written, 0 kept",
+        "assets [WCCMMUD.DLL]: 1 files, 1 written, 0 kept",
     ] {
         assert!(t.contains(line), "missing {line:?} in\n{t}");
     }
@@ -590,6 +591,8 @@ fn import_stock_with_no_from() {
         "assets/WCCMAP01.ANS",
         "assets/WCC85015.HSE",
         "assets/WCCMMSYS.NOT",
+        "assets/WCCMMHLP.MSG",
+        "assets/DLLTEXT.TXT",
     ] {
         assert!(d.join("data").join(f).is_file(), "{f}");
     }

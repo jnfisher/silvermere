@@ -22,12 +22,7 @@
 //! Row and column numbers live in this module only: the fields' come from the template,
 //! the CP display's and the exit position are the constants below.
 
-use std::sync::OnceLock;
-
 use crate::cp437;
-
-/// The vendored template (`tools/msgconv` output, checked by `tests/msg_catalogue.rs`).
-pub const EDITCHA1_TOML: &str = include_str!("../messages/assets/editcha1.toml");
 
 /// The CP display: row 20, column 33.
 const CP_LEFT_POS: (u16, u16) = (20, 33);
@@ -79,21 +74,15 @@ pub struct EditorScreen {
 /// Why a template did not parse.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ScreenError {
-    #[error("the template is not valid TOML with a `text` string: {0}")]
-    Toml(String),
     #[error("the template has no `!` error line")]
     NoMessageLine,
 }
 
 impl EditorScreen {
-    /// The `EDITCHA1` form, parsed once.
-    pub fn editcha1() -> &'static EditorScreen {
-        static SCREEN: OnceLock<EditorScreen> = OnceLock::new();
-        SCREEN.get_or_init(|| {
-            let table: toml::Table = toml::from_str(EDITCHA1_TOML).expect("editcha1.toml");
-            let text = table["text"].as_str().expect("editcha1.toml text");
-            EditorScreen::parse(text).expect("EDITCHA1 parses")
-        })
+    /// The `EDITCHA1` form of the installed package text ([`crate::package`]), or `None`
+    /// while the text is not installed.
+    pub fn editcha1() -> Option<&'static EditorScreen> {
+        crate::package::installed().map(|p| p.editcha1_screen())
     }
 
     /// Parses a template given as text (`\r` line ends, ANSI sequences inline).
@@ -252,66 +241,4 @@ fn blanks(out: &mut Vec<u8>, width: u16) {
 
 fn fit(value: &str, width: u16) -> String {
     value.chars().take(usize::from(width)).collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // 26 fields, then the error line
-    #[test]
-    fn editcha1_has_the_26_fields_and_the_error_line() {
-        let s = EditorScreen::editcha1();
-        assert_eq!(s.field_count(), 26);
-        let m = s.message_field();
-        assert_eq!((m.row, m.col, m.width), (23, 1, 61));
-        assert_eq!(m.attr, b"\x1b[1;31m");
-        let kinds: Vec<CellKind> = (0..26).map(|n| s.field(n).kind).collect();
-        assert!(kinds[..4].iter().all(|k| *k == CellKind::Text));
-        assert!(kinds[4..22].iter().all(|k| *k == CellKind::Numeric));
-        assert!(kinds[22..].iter().all(|k| *k == CellKind::Text));
-    }
-
-    // the observed cursor positions of character creation; the capture
-    // (tests/captures/creation-fsd/script.json until_cursor) agrees
-    #[test]
-    fn positions_match_the_observed_cursor() {
-        let s = EditorScreen::editcha1();
-        assert_eq!(s.field_pos(0), (4, 20));
-        assert_eq!(s.field_pos(1), (5, 20));
-        for (i, row) in (9..=14).enumerate() {
-            assert_eq!(s.field_pos(6 + 3 * i), (row, 34), "stat {i}");
-            assert_eq!(s.field_pos(4 + 3 * i), (row, 19));
-            assert_eq!(s.field_pos(5 + 3 * i), (row, 27));
-        }
-        assert_eq!(s.field_pos(22), (16, 22));
-        assert_eq!(s.field_pos(23), (17, 22));
-        assert_eq!(s.field_pos(24), (18, 22));
-        assert_eq!(s.field_pos(25), (20, 14));
-        assert_eq!(s.field(0).width, 18);
-        assert_eq!(s.field(6).width, 4);
-        assert_eq!(s.field(22).width, 15);
-        assert_eq!(s.field(25).width, 4);
-    }
-
-    #[test]
-    fn field_bytes_match_the_capture() {
-        let s = EditorScreen::editcha1();
-        assert_eq!(
-            s.draw(6, "50"),
-            b"\x1b[0;1m\x1b[9;34f\x1b[1m    \x1b[9;34f50".to_vec()
-        );
-        assert_eq!(
-            s.draw(5, "100"),
-            b"\x1b[0;1m\x1b[9;27f    \x1b[9;27f100".to_vec()
-        );
-        assert_eq!(
-            s.focus(22, "SHORT"),
-            b"\x1b[16;22f\x1b[0;1;7m               \x1b[16;22fSHORT\x1b[16;22f".to_vec()
-        );
-        let mut clear = b"\x1b[0;1m\x1b[23;1f\x1b[1;31m".to_vec();
-        clear.extend([b' '; 61]);
-        assert_eq!(s.message(""), clear);
-        assert_eq!(s.cp_left(90), b"\x1b[20;33f\x1b[0m  90".to_vec());
-    }
 }

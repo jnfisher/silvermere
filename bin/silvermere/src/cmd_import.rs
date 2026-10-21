@@ -211,7 +211,9 @@ pub fn run(cfg: &Config, cmd: &ImportCmd) -> anyhow::Result<ExitCode> {
                 return Ok(ExitCode::from(1));
             }
         };
-        let opts = cmd.options(&from, cfg.data_dir.join("assets"));
+        let mut opts = cmd.options(&from, cfg.data_dir.join("assets"));
+        // the stock package's own DLL must give the long screens (T-138)
+        opts.stock_package = cmd.source.is_none() && cmd.from.is_none();
         let result = Importer::new(opts, db.as_ref()).run().await;
         if let Some(db) = &db {
             db.close().await;
@@ -223,6 +225,11 @@ pub fn run(cfg: &Config, cmd: &ImportCmd) -> anyhow::Result<ExitCode> {
                     "read and decoded in {:.1?}, written in {:.1?}",
                     report.read_time, report.write_time
                 );
+                // T-138: the text files whole (a realm's DLL or .MSG may not give them),
+                // from the cached package, without downloading
+                if !cmd.dry_run {
+                    crate::stock::complete_text_assets(&cfg.data_dir, false);
+                }
                 Ok(ExitCode::SUCCESS)
             }
             Err(e) => {

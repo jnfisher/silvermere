@@ -6,7 +6,8 @@
 //! `~/.cache/silvermere/stock`) and checked against the sha256 pinned in silvermere-import's
 //! `stock` module, which this module includes rather than copies. [`dir`] is the package
 //! unpacked once beside it: its files flat, as `silvermere import FILE.zip` unpacks them,
-//! `assets/` holding what the import writes into `<data_dir>/assets/`, and `vir/` holding the
+//! `assets/` holding what the import writes into `<data_dir>/assets/` (the long text too:
+//! the three message files and the DLL's screens), and `vir/` holding the
 //! sixteen `.VIR` files alone ([`vir_dir`]), from which an import applies no patches.
 //!
 //! With no cached copy and no network, a test fails here with a message saying what to fetch;
@@ -15,6 +16,9 @@
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
+#[path = "../../silvermere-import/src/dll_text.rs"]
+#[allow(dead_code)]
+mod dll_text;
 #[path = "../../silvermere-import/src/stock.rs"]
 #[allow(dead_code)]
 mod fetch;
@@ -31,6 +35,9 @@ pub const CACHE_ENV: &str = "SILVERMERE_STOCK_CACHE";
 /// The extensions of the loose package files the import puts in the assets directory (the
 /// members of the nested archives all go there).
 const LOOSE_ASSETS: &[&str] = &["ANS", "NOT", "REL", "RLN"];
+
+/// The message files the import copies as they are (the game's long text, T-138).
+const TEXT_FILES: &[&str] = &["WCCMMUD.MSG", "WCCMMHLP.MSG", "WCCTEXT.MSG"];
 
 /// The cache directory (see the module docs).
 pub fn cache_dir() -> PathBuf {
@@ -70,9 +77,9 @@ pub fn dir() -> PathBuf {
     DIR.get_or_init(|| {
         let zip = zip();
         let root = cache_dir();
-        // the layout's version (3: files read-only), then the package's: a change to what
+        // the layout's version (4: the long text in assets/), then the package's: a change to what
         // is unpacked starts afresh
-        let dir = root.join(format!("unpacked-3-{}", &SHA256[..12]));
+        let dir = root.join(format!("unpacked-4-{}", &SHA256[..12]));
         let done = dir.join(".complete");
         if done.exists() {
             return dir;
@@ -148,8 +155,13 @@ fn unpack(zip: &Path, dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         } else if ext == "VIR" {
             std::fs::hard_link(dir.join(e.file_name()), vir.join(&name))
                 .or_else(|_| std::fs::copy(dir.join(e.file_name()), vir.join(&name)).map(drop))?;
-        } else if LOOSE_ASSETS.contains(&ext) && !name.starts_with("WCCMMPLS.") {
+        } else if LOOSE_ASSETS.contains(&ext) && !name.starts_with("WCCMMPLS.")
+            || TEXT_FILES.contains(&name.as_str())
+        {
             std::fs::write(assets.join(&name), archive.read(e)?)?;
+        } else if name == dll_text::DLL_NAME {
+            let text = dll_text::extract(&archive.read(e)?).map_err(|e| e.to_string())?;
+            std::fs::write(assets.join(dll_text::OUTPUT_NAME), text)?;
         }
     }
     Ok(())

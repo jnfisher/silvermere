@@ -85,6 +85,7 @@ fn class(n: u16, name: &str, hplevel: i16) -> silvermere_types::records::Class {
 
 /// The tiny world with the stock-like races, classes and two monsters.
 fn snapshot() -> silvermere_engine::WorldSnapshot {
+    crate::common::install_text();
     let mut s = common::tiny_snapshot();
     s.races = vec![
         race(1, "Human"),
@@ -310,7 +311,7 @@ fn race_and_class_lists() {
     let text = plain(&lawful);
     assert!(text.contains("You must now choose if you want to be a truly 'lawful' citizen"));
     assert!(text.ends_with("Do you want to be Lawful?  [Yes/No] "));
-    insta::assert_snapshot!("lawful_prompt", escape(&lawful));
+    insta::assert_snapshot!("lawful_prompt", crate::common::redact(&escape(&lawful)));
     assert_eq!(
         state(&engine, id),
         SessionState::NewChar(NewCharStep::Lawful)
@@ -391,7 +392,10 @@ fn no_lawful_question_when_disabled() {
     let (id, _) = start(&mut engine, &rx, "KASIMIR");
     line(&mut engine, &rx, id, "11");
     let out = line(&mut engine, &rx, id, "2");
-    assert!(plain(&out).contains("Character Generator"));
+    assert!(crate::common::holds_moved(
+        &plain(&out),
+        "stat_editor_preamble"
+    ));
     assert_eq!(
         state(&engine, id),
         SessionState::NewChar(NewCharStep::Stats)
@@ -407,15 +411,14 @@ fn editor_preamble() {
     line(&mut engine, &rx, id, "2");
     let out = line(&mut engine, &rx, id, "y");
     let text = plain(&out);
-    assert!(text.starts_with("\r\n     M A J O R   M U D\r\n\r\n     Character Generator\r\n\r\n+-    Point Cost Chart    -+\r\n"));
-    assert!(text.contains("| 3rd 10 points: 3 CP each |\r\n"));
-    assert!(text.contains("| +10 to base stat:  10 CP |\r\n"));
-    assert!(text.contains("| +40 to base stat: 100 CP |\r\n"));
+    // the point-cost chart, the package's text, comes first
+    let chart = plain(&crate::common::moved_bytes("stat_editor_preamble"));
+    assert!(text.starts_with(&chart), "{text}");
     // (sic) the maximum prints as 0, as in the original
     assert!(text.contains("Strength  55 - 0\r\nIntellect 30 - 0\r\nWillpower 45 - 0\r\nAgility   30 - 0\r\nHealth    50 - 0\r\nCharm     30 - 0\r\n"));
     assert!(text.contains("\r\nYou have 100 CP to distribute.\r\n"));
     assert!(text.ends_with("Given name [KASIMIR]: "));
-    insta::assert_snapshot!("editor_preamble", escape(&out));
+    insta::assert_snapshot!("editor_preamble", crate::common::redact(&escape(&out)));
     // roll_stats: the stats start at the race minimums, cp = totalcp = basecp
     let plr = engine.world.session(id).unwrap().player().unwrap().clone();
     assert_eq!(
@@ -497,9 +500,13 @@ fn happy_path_creates_a_kang_witchunter() {
     let text = plain(&writes(&outs, id));
     assert_eq!(
         text,
-        "\r\nTo prevent accidental suicide or reroll, these commands\r\nhave been password protected.  You have not yet entered\r\nyour suicide password, so please do so soon using the\r\nSET SUICIDE command.\r\nPlease wait - Validating your name.\r\n "
+        plain(&crate::common::moved_bytes("suicide_pw_notice"))
+            + "Please wait - Validating your name.\r\n "
     );
-    insta::assert_snapshot!("save_suicide_notice_validating", escape(&writes(&outs, id)));
+    insta::assert_snapshot!(
+        "save_suicide_notice_validating",
+        crate::common::redact(&escape(&writes(&outs, id)))
+    );
     assert_eq!(
         state(&engine, id),
         SessionState::NewChar(NewCharStep::Validating)

@@ -132,12 +132,10 @@ the game.
 | `COINSWP` | not read | WCCMMUD.MSG:523 | Has no effect on the game. Not carried. |
 | `GCOINSW` | not read | WCCMMUD.MSG:528 | Has no effect on the game. Not carried. |
 
-The text blocks of `WCCMMUD.MSG` (`USRLOGIN`, `USRLOGOF`, `USRFOLED`, `USREXIT`, `LEAVEMNU`, `INACHUP`) are
-in `crates/silvermere-text/messages/wccmmud.toml`; `USRLOGOF` (disabled in the original) and `LEAVEMNU` (a
-sub-board hook) are kept there as unused entries. The text blocks of `WCCTEXT.MSG` are in `wcctext.toml`,
-without the two full-screen-display templates `EDITCHA1` and `EDTCHAN2`, which are kept as assets for
-character creation (T-063) in `crates/silvermere-text/messages/assets/`. The help topics of `WCCMMHLP.MSG`
-are in `help_topics.toml`.
+The text blocks of `WCCMMUD.MSG` (`USRLOGIN`, `USRLOGOF`, `USRFOLED`, `USREXIT`, `LEAVEMNU`, `INACHUP`),
+those of `WCCTEXT.MSG` with its two full-screen forms `EDITCHA1` and `EDTCHAN2`, and the help topics of
+`WCCMMHLP.MSG` are not in the repository: the server reads them from the package's files in the assets
+directory when it starts (docs/text.md, "The game's long text, from the package").
 
 ## `WCCMMUD.INI` options
 

@@ -1,6 +1,6 @@
 ---
 source: crates/silvermere-engine/tests/train_stats.rs
-expression: out
+expression: "crate::common::redact(&out)"
 ---
 > changerace
 \r\n
@@ -33,6 +33,6 @@ You must choose a race. [ ? for help ]
 > 
 \x1b[1;37mYou must choose a class. [ ? for help ]
 > 12
-\x1b[1;37mYou have now completed your class change.\r\n
-Don't forget that there is a time limit after which you cannot change again.\r\n
-Press <enter> to continue.\r\n
+\x1b[1;37m[package text]\r\n
+[package text]\r\n
+[package text]\r\n

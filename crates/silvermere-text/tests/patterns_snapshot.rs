@@ -65,6 +65,8 @@ fn screen_lines(msg: &Msg) -> Vec<String> {
 
 #[test]
 fn every_seeded_message_matches_its_registry_pattern() {
+    // the moved entries render the package's text
+    crate::package();
     let registry = registry();
     let mut by_pattern: BTreeMap<&str, Vec<&Msg>> = BTreeMap::new();
     let examples = Msg::examples();
@@ -140,11 +142,15 @@ fn examples_cover_every_key_and_render_without_panics() {
     }
 }
 
-/// The rendered bytes of every example in every palette, as escaped text.
+/// The rendered bytes of every example in every palette, as escaped text. The entries whose
+/// text is the package's are left out (tests/package_text.rs pins their bytes by hash).
 #[test]
 fn rendered_examples_snapshot() {
     let mut out = String::new();
     for msg in Msg::examples() {
+        if silvermere_text::package::MOVED_KEYS.contains(&msg.key()) {
+            continue;
+        }
         out.push_str(&format!("{}\n", msg.key()));
         for p in 0..Palette::COUNT {
             let r = render(&msg, Palette::new(p).unwrap());

@@ -1,4 +1,5 @@
-//! Message catalogue (from WCC*.MSG), prompt/statline rendering, ANSI.
+//! Message catalogue (from WCC*.MSG), prompt/statline rendering, ANSI, and the game's long
+//! text read from the package at start-up ([`package`]).
 //!
 //! Owns the game's text: the message catalogue and its constructors, rendering with the
 //! a/b/c alternative picker, the colour table and palettes, ANSI sequences, the prompt and
@@ -19,6 +20,7 @@ pub mod cp437;
 pub mod editor_screen;
 pub mod menu;
 pub mod msg;
+pub mod package;
 pub mod prompt;
 pub mod render;
 pub mod statline;
