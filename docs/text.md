@@ -117,6 +117,10 @@ every entry with its example arguments, strips ANSI and checks it against the pa
 registry's regex and literal example, and pins the bytes in an `insta` snapshot; entries
 later cards add are covered as soon as they name a `pattern`.
 
+The help, `WCCMMUD.MSG` and `WCCTEXT.MSG` texts are read from the assets directory at run time.
+In them `%s`/`%c` take their argument and `%%` is a percent sign; any other `%` is kept as
+written (`185% ` prints `185% `), and the load logs one warning per file with the count.
+
 ## Prompt and statline
 
 `prompt::render_prompt` builds the prompt. It always starts with `ESC[79D ESC[K` and

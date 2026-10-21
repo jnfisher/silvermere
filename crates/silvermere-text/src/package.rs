@@ -277,9 +277,16 @@ pub fn parse_msg(file: &str, data: &[u8]) -> Result<Vec<MsgEntry>, PackageError>
 }
 
 /// A `.MSG` value as a catalogue template: LF to `\r`, braces doubled, `%s`/`%c` to the
-/// next of `args`, `%%` to `%`. Any other `%` conversion is an error.
+/// next of `args`, `%%` to `%`. Any other `%` is kept as written.
 pub fn to_template(value: &str, args: &[&str]) -> Result<String, String> {
+    to_template_counting(value, args).map(|(text, _)| text)
+}
+
+/// [`to_template`], also counting the `%` kept as written because no supported directive
+/// follows it.
+fn to_template_counting(value: &str, args: &[&str]) -> Result<(String, usize), String> {
     let mut args = args.iter();
+    let mut kept = 0;
     let mut out = String::with_capacity(value.len());
     let mut chars = value.chars().peekable();
     while let Some(c) = chars.next() {
@@ -287,27 +294,44 @@ pub fn to_template(value: &str, args: &[&str]) -> Result<String, String> {
             '\n' => out.push('\r'),
             '{' => out.push_str("{{"),
             '}' => out.push_str("}}"),
-            '%' => match chars.next() {
-                Some('%') => out.push('%'),
-                Some(d @ ('s' | 'c')) => match args.next() {
-                    Some(name) => {
-                        out.push('{');
-                        out.push_str(name);
-                        out.push('}');
+            '%' => match chars.peek().copied() {
+                Some('%') => {
+                    chars.next();
+                    out.push('%');
+                }
+                Some(d @ ('s' | 'c')) => {
+                    chars.next();
+                    match args.next() {
+                        Some(name) => {
+                            out.push('{');
+                            out.push_str(name);
+                            out.push('}');
+                        }
+                        None => return Err(format!("`%{d}` with no argument left")),
                     }
-                    None => return Err(format!("`%{d}` with no argument left")),
-                },
-                other => {
-                    return Err(format!(
-                        "unhandled printf directive `%{}`",
-                        other.unwrap_or(' ')
-                    ));
+                }
+                _ => {
+                    kept += 1;
+                    out.push('%');
                 }
             },
             _ => out.push(c),
         }
     }
-    Ok(out)
+    Ok((out, kept))
+}
+
+/// Warns once for `file` of the messages that held a `%` kept as written.
+fn warn_kept_percents(file: &str, kept: &[(String, usize)]) {
+    if kept.is_empty() {
+        return;
+    }
+    let total: usize = kept.iter().map(|(_, n)| n).sum();
+    let names: Vec<String> = kept.iter().map(|(k, n)| format!("{k} ({n})")).collect();
+    tracing::warn!(
+        "{file}: kept {total} `%` that begin no supported directive as written, in {}",
+        names.join(", ")
+    );
 }
 
 /// The help topics of `WCCMMHLP.MSG`: `HL1B0` the overview, then pairs of a topic string
@@ -328,7 +352,16 @@ pub fn help_topics(entries: &[MsgEntry]) -> Result<HelpTopics, PackageError> {
     if rest.len() % 2 != 0 {
         return Err(fail("topic and text messages do not pair up".into()));
     }
-    let overview = to_template(&first.value, &[]).map_err(|p| fail(format!("HL1B0: {p}")))?;
+    let mut kept = Vec::new();
+    let mut convert = |key: &str, value: &str, args: &[&str]| {
+        let (text, n) =
+            to_template_counting(value, args).map_err(|p| fail(format!("{key}: {p}")))?;
+        if n > 0 {
+            kept.push((key.to_string(), n));
+        }
+        Ok::<String, PackageError>(text)
+    };
+    let overview = convert("HL1B0", &first.value, &[])?;
     let mut topics = Vec::with_capacity(rest.len() / 2);
     for pair in rest.chunks(2) {
         let (t, b) = (pair[0], pair[1]);
@@ -345,9 +378,10 @@ pub fn help_topics(entries: &[MsgEntry]) -> Result<HelpTopics, PackageError> {
             key: t.key.clone(),
             body_key: b.key.clone(),
             words: t.value.clone(),
-            text: to_template(&b.value, &HELP_ARGS).map_err(|p| fail(format!("{}: {p}", b.key)))?,
+            text: convert(&b.key, &b.value, &HELP_ARGS)?,
         });
     }
+    warn_kept_percents(HELP_FILE, &kept);
     HelpTopics { overview, topics }
         .validated()
         .map_err(|e| fail(e.to_string()))
@@ -360,6 +394,7 @@ pub fn text_blocks(
     blocks: &[TextBlock],
 ) -> Result<Catalogue, PackageError> {
     let mut messages = BTreeMap::new();
+    let mut kept = Vec::new();
     for block in blocks {
         let e = entries
             .iter()
@@ -368,8 +403,11 @@ pub fn text_blocks(
         if e.kind != "T" {
             return Err(error(file, format!("{} is not a text block", block.key)));
         }
-        let text = to_template(&e.value, block.args)
+        let (text, n) = to_template_counting(&e.value, block.args)
             .map_err(|p| error(file, format!("{}: {p}", block.key)))?;
+        if n > 0 {
+            kept.push((block.key.to_string(), n));
+        }
         messages.insert(
             block.key.to_ascii_lowercase(),
             Entry {
@@ -386,6 +424,7 @@ pub fn text_blocks(
             },
         );
     }
+    warn_kept_percents(file, &kept);
     let catalogue = Catalogue { messages };
     catalogue
         .validate()
@@ -698,7 +737,9 @@ mod tests {
             "v{version} {{w}}\rx"
         );
         assert_eq!(to_template("100%%", &[]).unwrap(), "100%");
-        assert!(to_template("%d", &[]).is_err());
+        assert_eq!(to_template("185% \x1b[0m", &[]).unwrap(), "185% \x1b[0m");
+        assert_eq!(to_template("50%d 100%", &[]).unwrap(), "50%d 100%");
+        assert_eq!(to_template_counting("a% b%% c%", &[]).unwrap().1, 2);
         assert!(to_template("%s", &[]).is_err());
     }
 

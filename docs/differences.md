@@ -143,3 +143,4 @@ and drops behave alike over time, but a given seed does not give the original's 
 | `NEWLIMITED` looks the item name up by the ownership record id (sic) | by the item number | the record ids are database ids here |
 | `GOD user INFO` shows the bank books first | not yet | `display_users_bankbooks` writes to its own player; TODO(T-042) |
 | `LIST EVIL`'s evil timers | not listed | the timers are T-038's |
+| a stray `%` in sysop-edited help or message text (`185% ` in a custom race table) | printed as written | the original used the text as a printf format, so `% ` began a conversion and the player saw something else; only `%s`, `%c` and `%%` mean anything in these files, and a realm's own file no longer fails to load over one (a warning at load counts them) |

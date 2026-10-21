@@ -347,6 +347,58 @@ fn missing_or_damaged_files_are_errors() {
     assert_eq!(err.file, package::DLL_TEXT_FILE);
     let _ = std::fs::remove_dir_all(&dir);
 }
+/// The stock files with `edit` applied to the help file, loaded from a scratch directory.
+fn load_with_help(tag: &str, edit: impl Fn(&[u8]) -> Vec<u8>) -> PackageText {
+    let dir = std::env::temp_dir().join(format!("package-pct-{tag}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    for name in [
+        package::HELP_FILE,
+        package::WCCMMUD_FILE,
+        package::WCCTEXT_FILE,
+        package::DLL_TEXT_FILE,
+    ] {
+        let bytes = std::fs::read(crate::stock::assets_dir().join(name)).unwrap();
+        let bytes = if name == package::HELP_FILE {
+            edit(&bytes)
+        } else {
+            bytes
+        };
+        std::fs::write(dir.join(name), bytes).unwrap();
+    }
+    let text = PackageText::load(&dir).unwrap_or_else(|e| panic!("{e}"));
+    let _ = std::fs::remove_dir_all(&dir);
+    text
+}
+
+fn help_body(text: &PackageText, key: &str) -> String {
+    text.help()
+        .topics
+        .iter()
+        .find(|t| t.body_key == key)
+        .unwrap()
+        .text
+        .clone()
+}
+
+#[test]
+fn a_stray_percent_in_a_realms_help_prints_as_written() {
+    let edited = load_with_help("stray", |h| {
+        let (from, to) = (b"Northwest, Sneak", b"Northwest 185% \x1b[1mSneak 50%%");
+        let at = h.windows(from.len()).position(|w| w == from).unwrap();
+        [&h[..at], &to[..], &h[at + from.len()..]].concat()
+    });
+    let body = help_body(&edited, "HL1B1");
+    assert!(body.contains("Northwest 185% \x1b[1mSneak 50%"));
+    // a supported directive still takes its argument, and the rest is as the stock gives it
+    let stock = help_body(crate::package(), "HL1B1");
+    assert!(stock.contains("{talk_char}"));
+    assert_eq!(
+        body.replace("Northwest 185% \x1b[1mSneak 50%", "Northwest, Sneak"),
+        stock
+    );
+}
+
 // ---- the EDITCHA1 form --------------------------------------------------------------
 
 fn editcha1() -> &'static EditorScreen {
