@@ -33,11 +33,11 @@ pub use merge_race::{merge_class, merge_race};
 pub use merge_room::merge_room;
 pub use merge_shop::{SHOP_GANG, merge_shop};
 pub use merge_spell::merge_spell;
-pub use merge_text::{merge_action, merge_message, merge_text};
-pub use updrec::{Patch, PatchKind, PatchRecord, read_patches};
+pub use merge_text::{merge_action, merge_message, merge_text, merge_text_as};
+pub use updrec::{Patch, PatchKind, PatchRecord, read_patches, read_patches_as};
 
 use crate::decode::{ItemRecord, TextblkRecord};
-use crate::importer::{Content, Decoded, ImportError, UPDATE_FILE};
+use crate::importer::{Content, Decoded, ImportError, UPDATE_FILE, update_file};
 
 /// Text equality on two NUL-terminated byte spans: equal up to and including the first NUL.
 pub(crate) fn c_str_eq(a: &[u8], b: &[u8]) -> bool {
@@ -68,6 +68,8 @@ pub struct PatchReport {
     pub first_seq: Option<i32>,
     /// See `first_seq`.
     pub last_seq: Option<i32>,
+    /// The patch file's name (empty: `WCCUPDAT.DAT`).
+    pub file: String,
 }
 
 impl PatchReport {
@@ -83,6 +85,11 @@ impl PatchReport {
 
 impl fmt::Display for PatchReport {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let file = if self.file.is_empty() {
+            UPDATE_FILE
+        } else {
+            &self.file
+        };
         for kind in PatchKind::ALL {
             let applied = Self::get(&self.applied_by_kind, kind);
             let inserted = Self::get(&self.inserted_by_kind, kind);
@@ -91,7 +98,7 @@ impl fmt::Display for PatchReport {
             }
             writeln!(
                 f,
-                "patches [{UPDATE_FILE}] {:<11} {applied} applied ({} rewritten), {inserted} inserted",
+                "patches [{file}] {:<11} {applied} applied ({} rewritten), {inserted} inserted",
                 kind.name(),
                 Self::get(&self.rewritten_by_kind, kind),
             )?;
@@ -100,7 +107,7 @@ impl fmt::Display for PatchReport {
             (Some(a), Some(b)) => format!(", seqnum {a}..{b}"),
             _ => String::new(),
         };
-        write!(f, "patches [{UPDATE_FILE}]: {} records{seqs}", self.total())?;
+        write!(f, "patches [{file}]: {} records{seqs}", self.total())?;
         if self.gang_shops_skipped > 0 {
             write!(f, ", {} gang shops left alone", self.gang_shops_skipped)?;
         }
@@ -114,7 +121,7 @@ impl fmt::Display for PatchReport {
 /// Applies `WCCUPDAT.DAT` at `path` to `content` (the game's update polling, run to the
 /// end).
 pub fn apply_patches(content: &mut Content, path: &Path) -> Result<PatchReport, ImportError> {
-    let (patches, not_reached) = read_patches(path)?;
+    let (patches, not_reached) = read_patches_as(path, content.set)?;
     let mut report = apply_patch_list(content, &patches)?;
     report.not_reached += not_reached;
     Ok(report)
@@ -153,7 +160,11 @@ pub fn apply_patch_list(
 ) -> Result<PatchReport, ImportError> {
     let mut order: Vec<&Patch> = patches.iter().collect();
     order.sort_by_key(|p| p.seq);
-    let mut report = PatchReport::default();
+    let mut report = PatchReport {
+        file: update_file(content.set),
+        ..PatchReport::default()
+    };
+    let file = report.file.clone();
 
     let mut races = index(&content.races, |r| r.number);
     let mut classes = index(&content.classes, |r| r.number);
@@ -182,7 +193,7 @@ pub fn apply_patch_list(
                 None => {
                     $idx.insert(key, content.$table.len());
                     content.$table.push(Decoded {
-                        file: UPDATE_FILE.to_string(),
+                        file: file.clone(),
                         ordinal: $p.seq as u32,
                         record: new,
                     });
@@ -198,7 +209,7 @@ pub fn apply_patch_list(
             continue;
         }
         let record = p.decode().map_err(|source| ImportError::Decode {
-            file: format!("{UPDATE_FILE} seqnum {}", p.seq),
+            file: format!("{file} seqnum {}", p.seq),
             ordinal: p.seq as u32,
             source,
         })?;
@@ -245,7 +256,7 @@ pub fn apply_patch_list(
                         // A new room goes into WCCMP001.
                         rooms.insert(key, content.rooms.len());
                         content.rooms.push(Decoded {
-                            file: UPDATE_FILE.to_string(),
+                            file: file.clone(),
                             ordinal: p.seq as u32,
                             record: new,
                         });
@@ -309,8 +320,8 @@ pub fn apply_patch_list(
                         texts,
                         |r: &TextblkRecord| (r.number, r.part),
                         new,
-                        |old: &mut TextblkRecord, new: &TextblkRecord| merge_text(
-                            old, new, p.carried
+                        |old: &mut TextblkRecord, new: &TextblkRecord| merge_text_as(
+                            old, new, p.carried, p.set
                         )
                     )
                 } else {
@@ -320,8 +331,8 @@ pub fn apply_patch_list(
                         texts,
                         |r: &TextblkRecord| (r.number, r.part),
                         as_inserted_text(new),
-                        |old: &mut TextblkRecord, new: &TextblkRecord| merge_text(
-                            old, new, p.carried
+                        |old: &mut TextblkRecord, new: &TextblkRecord| merge_text_as(
+                            old, new, p.carried, p.set
                         )
                     )
                 }

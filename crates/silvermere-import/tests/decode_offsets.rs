@@ -11,7 +11,7 @@
 use proptest::prelude::*;
 use serde_json::Value;
 use silvermere_import::decode::{self, Record, textblk};
-use silvermere_types::records::Layout;
+use silvermere_types::records::{Field, Layout, LayoutSet};
 
 /// A byte for offset `o` that is printable, not a space and never NUL, and differs
 /// between neighbouring offsets, so every member's image is distinct and text members
@@ -20,11 +20,17 @@ fn pattern(o: usize) -> u8 {
     0x21 + ((o * 31 + 7) % 94) as u8
 }
 
-/// An image where only the members in `which` (layout indices) hold the pattern.
+/// Alignment padding (Worldgroup 3.x layouts): no member reads it.
+fn is_pad(f: &Field) -> bool {
+    f.name.starts_with("pad_")
+}
+
+/// An image where only the members in `which` (layout indices) hold the pattern; padding
+/// stays zero.
 fn image(layout: &Layout, which: impl Fn(usize) -> bool) -> Vec<u8> {
     let mut out = vec![0u8; layout.len];
     for (i, f) in layout.fields.iter().enumerate() {
-        if which(i) {
+        if which(i) && !is_pad(f) {
             for (o, b) in out[f.offset..f.offset + f.size].iter_mut().enumerate() {
                 *b = pattern(f.offset + o);
             }
@@ -34,26 +40,37 @@ fn image(layout: &Layout, which: impl Fn(usize) -> bool) -> Vec<u8> {
 }
 
 fn check<R: Record>() {
-    let layout = R::LAYOUT;
+    check_as::<R>(LayoutSet::Dos);
+    check_as::<R>(LayoutSet::Worldgroup);
+}
+
+fn check_as<R: Record>(set: LayoutSet) {
+    let layout = R::layout(set);
+    let members: Vec<&Field> = layout.fields.iter().filter(|f| !is_pad(f)).collect();
     let names: Vec<&str> = R::FIELDS.iter().map(|f| f.0).collect();
-    let expected: Vec<&str> = layout.fields.iter().map(|f| f.name).collect();
+    let expected: Vec<&str> = members.iter().map(|f| f.name).collect();
     assert_eq!(names, expected, "struct {}: member list", layout.decoder);
-    for (&(name, size), f) in R::FIELDS.iter().zip(layout.fields) {
+    for (&(name, size), f) in R::FIELDS.iter().zip(&members) {
         assert_eq!(size, f.size, "struct {}.{name}: size", layout.decoder);
     }
 
     let full = image(layout, |_| true);
-    let decoded = R::decode(&full).unwrap();
+    let decoded = R::decode_as(&full, set).unwrap();
     assert_eq!(
-        decoded.encode(),
+        decoded.encode_as(set),
         full,
         "struct {}: round trip",
         layout.decoder
     );
     let json = decoded.to_json();
-    let zero = R::decode(&vec![0; layout.len]).unwrap().to_json();
+    let zero = R::decode_as(&vec![0; layout.len], set).unwrap().to_json();
     for (i, f) in layout.fields.iter().enumerate() {
-        let alone = R::decode(&image(layout, |j| j == i)).unwrap().to_json();
+        if is_pad(f) {
+            continue;
+        }
+        let alone = R::decode_as(&image(layout, |j| j == i), set)
+            .unwrap()
+            .to_json();
         for (name, value) in &alone {
             let want = if name == f.name {
                 &json[name]
@@ -73,12 +90,12 @@ fn check<R: Record>() {
         );
     }
     assert!(matches!(
-        R::decode(&full[..layout.len - 1]),
+        R::decode_as(&full[..layout.len - 1], set),
         Err(decode::DecodeError::Length { .. })
     ));
 }
 
-// `player` .. `textblk`: the 15 record types (updrec is T-009).
+// `player` .. `textblk`: the 15 record types (updrec is T-009), in both layout sets.
 #[test]
 fn every_member_decodes_from_its_own_bytes() {
     check::<decode::PlayerRecord>();

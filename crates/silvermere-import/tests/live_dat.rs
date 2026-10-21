@@ -22,16 +22,16 @@ use crate::support::btrieve_v5::{with_record_length, write_v5};
 
 use crate::stock as stock_data;
 
-fn stock() -> PathBuf {
+pub(crate) fn stock() -> PathBuf {
     stock_data::vir_dir()
 }
 
-fn template(name: &str) -> Vec<u8> {
+pub(crate) fn template(name: &str) -> Vec<u8> {
     std::fs::read(stock().join(name)).unwrap()
 }
 
 /// A fresh directory for one test.
-fn dir(name: &str) -> PathBuf {
+pub(crate) fn dir(name: &str) -> PathBuf {
     let d =
         Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("live-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&d);
@@ -110,7 +110,7 @@ fn stock_rooms(n: usize) -> Vec<Vec<u8>> {
 }
 
 /// The realm described at the top.
-fn realm(name: &str) -> PathBuf {
+pub(crate) fn realm(name: &str) -> PathBuf {
     let d = dir(name);
     link_stock(&d);
     let mut rooms = stock_rooms(3);

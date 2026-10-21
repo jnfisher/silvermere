@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 use jiff::tz::TimeZone;
 use silvermere_db::Db;
 use silvermere_db::repo::{Account, StateWrite};
-use silvermere_types::records::{BankBook, Character};
+use silvermere_types::records::{BankBook, Character, LayoutSet};
 
 use crate::assets::{AssetCount, unpack_assets};
 use crate::btrieve::{BtrieveError, BtrieveFile, OpenOptions, Version};
@@ -33,6 +33,150 @@ pub const DEFAULT_MAP_FILES: &[&str] = &["WCCMP001.VIR", "NEWMP001.VIR"];
 
 /// The patch file (`--patches` overrides `DIR/WCCUPDAT.DAT`).
 pub const UPDATE_FILE: &str = "WCCUPDAT.DAT";
+
+/// The data files of the two builds, by stem: the DOS 1.11p name and the Worldgroup 3.x
+/// one. `NEWMP001` keeps its name in both.
+pub const DATA_FILES: [(&str, &str); 17] = [
+    ("WCCACMSR", "WCCACMS2"),
+    ("WCCACTS", "WCCACTS2"),
+    ("WCCBANKS", "WCCBANK2"),
+    ("WCCCLASS", "WCCCLAS2"),
+    ("WCCGANGS", "WCCGANG2"),
+    ("WCCITEMS", "WCCITEM2"),
+    ("WCCITOWN", "WCCITOW2"),
+    ("WCCKNMSR", "WCCKNMS2"),
+    ("WCCMP001", "WCCMP002"),
+    ("WCCMSG", "WCCMSG2"),
+    ("WCCRACE", "WCCRACE2"),
+    ("WCCSHOPS", "WCCSHOP2"),
+    ("WCCSPELS", "WCCSPEL2"),
+    ("WCCTEXT", "WCCTEXT2"),
+    ("WCCUPDAT", "WCCUPDA2"),
+    ("WCCUSERS", "WCCUSER2"),
+    ("WCCVACN", "WCCVACN2"),
+];
+
+/// `name` (a DOS file name such as `WCCITEMS.VIR`) as `set` names it: the Worldgroup 3.x
+/// build's data files end in `2` (`WCCITEM2.VIR`, `WCCMP002.VIR`). Other names are kept.
+pub fn set_file_name(name: &str, set: LayoutSet) -> String {
+    let (stem, ext) = name.split_once('.').unwrap_or((name, ""));
+    let wg = DATA_FILES
+        .iter()
+        .find(|(dos, _)| dos.eq_ignore_ascii_case(stem))
+        .map(|(_, wg)| *wg);
+    match (set, wg) {
+        (LayoutSet::Worldgroup, Some(wg)) if ext.is_empty() => wg.to_string(),
+        (LayoutSet::Worldgroup, Some(wg)) => format!("{wg}.{ext}"),
+        _ => name.to_string(),
+    }
+}
+
+/// The patch file of `set`: `WCCUPDAT.DAT`, or `WCCUPDA2.DAT` for Worldgroup 3.x.
+pub fn update_file(set: LayoutSet) -> String {
+    set_file_name(UPDATE_FILE, set)
+}
+
+/// Why a data file of the other build is not read.
+pub fn stray_reason(set: LayoutSet) -> &'static str {
+    match set {
+        LayoutSet::Dos => "a Worldgroup 3.x data file beside the DOS 1.11p set",
+        LayoutSet::Worldgroup => "a DOS 1.11p data file beside the Worldgroup 3.x set",
+    }
+}
+
+/// Which build's set `dir` holds, decided by its table files (the room files of
+/// `opts.map_files` and [`TABLE_FILES`], any case, as `.DAT` or `.VIR`), and the data files
+/// of the other build beside it, which are not read. The set whose table files are all there
+/// wins (John, 2026-10-21: a complete set wins over strays of the other build). The vacation
+/// file (`WCCVACN`) and the patch file (`WCCUPDAT`, `WCCUPDA2`) are not table files: they
+/// never decide the set, and follow it. Both complete is [`ImportError::MixedSets`]; neither complete is
+/// [`ImportError::PartialSet`] for the set with more of its table files there, except that a
+/// directory with no Worldgroup table file is taken as DOS (whose missing files are then
+/// reported one at a time, as they are read).
+pub fn detect_set(
+    dir: &Path,
+    opts: &ImportOptions,
+) -> Result<(LayoutSet, Vec<String>), ImportError> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .map(|rd| {
+            rd.flatten()
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .collect()
+        })
+        .unwrap_or_default();
+    names.sort();
+    // the data files of each build, and the stems present
+    let (mut dos, mut wg) = (Vec::new(), Vec::new());
+    for name in &names {
+        let Some((stem, ext)) = name.split_once('.') else {
+            continue;
+        };
+        if !(ext.eq_ignore_ascii_case("DAT") || ext.eq_ignore_ascii_case("VIR")) {
+            continue;
+        }
+        for (d, w) in DATA_FILES {
+            if stem.eq_ignore_ascii_case(d) {
+                dos.push((d, name.clone()));
+            } else if stem.eq_ignore_ascii_case(w) {
+                wg.push((d, name.clone()));
+            }
+        }
+    }
+    let wanted: Vec<String> = {
+        let mut v = Vec::new();
+        for vir in opts.map_files.iter().map(String::as_str).chain(TABLE_FILES) {
+            let stem = vir.split('.').next().unwrap_or(vir).to_ascii_uppercase();
+            if !v.contains(&stem) {
+                v.push(stem);
+            }
+        }
+        v
+    };
+    // for each build: the wanted stems missing, and how many of its table files are there
+    let present = |set: LayoutSet| -> (Vec<String>, usize) {
+        let mut missing = Vec::new();
+        let mut tables = 0;
+        for stem in &wanted {
+            let name = set_file_name(stem, set);
+            let there = ["DAT", "VIR"]
+                .iter()
+                .any(|ext| find_file(dir, &format!("{name}.{ext}")).is_ok());
+            let is_table = DATA_FILES.iter().any(|(d, _)| d == stem);
+            if there {
+                tables += usize::from(is_table);
+            } else {
+                missing.push(name);
+            }
+        }
+        (missing, tables)
+    };
+    let (dos_missing, dos_tables) = present(LayoutSet::Dos);
+    let (wg_missing, wg_tables) = present(LayoutSet::Worldgroup);
+    let files = |v: &[(&str, String)]| v.iter().map(|(_, n)| n.clone()).collect::<Vec<_>>();
+    match (dos_missing.is_empty(), wg_missing.is_empty()) {
+        (true, true) => Err(ImportError::MixedSets {
+            dir: dir.to_path_buf(),
+            dos: files(&dos),
+            worldgroup: files(&wg),
+        }),
+        (true, false) => Ok((LayoutSet::Dos, files(&wg))),
+        (false, true) => Ok((LayoutSet::Worldgroup, files(&dos))),
+        (false, false) if wg_tables == 0 => Ok((LayoutSet::Dos, files(&wg))),
+        (false, false) => {
+            let (set, found, missing) = if wg_tables >= dos_tables {
+                (LayoutSet::Worldgroup, files(&wg), wg_missing)
+            } else {
+                (LayoutSet::Dos, files(&dos), dos_missing)
+            };
+            Err(ImportError::PartialSet {
+                dir: dir.to_path_buf(),
+                set: set.name(),
+                found,
+                missing,
+            })
+        }
+    }
+}
 
 /// What to import and how.
 #[derive(Debug, Clone)]
@@ -124,6 +268,39 @@ pub enum ImportError {
     /// A legacy file is not in `--from`.
     #[error("{0}: not found")]
     Missing(PathBuf),
+    /// `--from` holds a complete set of each build.
+    #[error(
+        "{}: holds a complete DOS 1.11p set ({}) and a complete Worldgroup 3.x set ({}); \
+         import one set at a time, from a directory holding only it",
+        dir.display(),
+        dos.join(", "),
+        worldgroup.join(", ")
+    )]
+    MixedSets {
+        /// The directory.
+        dir: PathBuf,
+        /// The DOS-named data files found.
+        dos: Vec<String>,
+        /// The Worldgroup-named data files found.
+        worldgroup: Vec<String>,
+    },
+    /// A set without some of its table files.
+    #[error(
+        "{}: a {set} set (found {}), but {} missing (neither .DAT nor .VIR)",
+        dir.display(),
+        found.join(", "),
+        missing.join(", ")
+    )]
+    PartialSet {
+        /// The directory.
+        dir: PathBuf,
+        /// The build the set was taken for (`LayoutSet::name`).
+        set: &'static str,
+        /// The data files found.
+        found: Vec<String>,
+        /// The files missing, by stem.
+        missing: Vec<String>,
+    },
     /// The Btrieve reader failed.
     #[error(transparent)]
     Btrieve(#[from] BtrieveError),
@@ -236,6 +413,10 @@ pub struct Content {
     pub files: std::collections::HashMap<String, String>,
     /// Records read that the schema has no table for (`WCCVACN.DAT`).
     pub uncarried: Vec<Note>,
+    /// The build whose layouts the files hold.
+    pub set: LayoutSet,
+    /// Data files of the other build beside the set: not read.
+    pub ignored: Vec<String>,
 }
 
 impl Content {
@@ -332,6 +513,12 @@ pub struct Report {
     /// After an import that created players' accounts (`--with-users`, `--live`): how
     /// many accounts in the store have no password, so nobody can log in to them yet.
     pub accounts_without_password: Option<u32>,
+    /// A dry run's value checks ([`crate::checks`]), one line each.
+    pub checks: Vec<String>,
+    /// Data files of the other build beside the set, not read.
+    pub ignored: Vec<String>,
+    /// The build of the set read.
+    pub set: LayoutSet,
 }
 
 /// The command that gives every account without a password a random one.
@@ -360,12 +547,18 @@ impl fmt::Display for Report {
         for n in &self.uncarried {
             writeln!(f, "{n}")?;
         }
+        for file in &self.ignored {
+            writeln!(f, "not read [{file}]: {}", stray_reason(self.set))?;
+        }
         if let Some(n) = self.accounts_without_password.filter(|&n| n > 0) {
             writeln!(
                 f,
                 "{n} account(s) have no password and cannot log in yet; give each a random \
                  one with `{SET_MISSING_PASSWORDS}`"
             )?;
+        }
+        for line in &self.checks {
+            writeln!(f, "{line}")?;
         }
         if self.dry_run {
             writeln!(f, "dry run: nothing written")?;
@@ -394,19 +587,29 @@ pub fn find_file(dir: &Path, name: &str) -> Result<PathBuf, ImportError> {
     Err(ImportError::Missing(exact))
 }
 
-/// Opens `name` in `dir` and decodes every record with `decode`.
+/// Opens `name` in `dir` and decodes every record with `decode` (byte-packed records).
 pub fn read_file<R: Record>(
     dir: &Path,
     name: &str,
     decode: impl Fn(&[u8]) -> Result<R, DecodeError>,
 ) -> Result<Vec<Decoded<R>>, ImportError> {
+    read_file_as(dir, name, LayoutSet::Dos, decode)
+}
+
+/// [`read_file`] for a file of `set`'s layout: the record length is checked against it.
+pub fn read_file_as<R: Record>(
+    dir: &Path,
+    name: &str,
+    set: LayoutSet,
+    decode: impl Fn(&[u8]) -> Result<R, DecodeError>,
+) -> Result<Vec<Decoded<R>>, ImportError> {
     let path = find_file(dir, name)?;
-    let variable =
-        name.eq_ignore_ascii_case("WCCTEXT.VIR") || name.eq_ignore_ascii_case("WCCTEXT.DAT");
+    let stem = name.split('.').next().unwrap_or(name);
+    let variable = stem.eq_ignore_ascii_case("WCCTEXT") || stem.eq_ignore_ascii_case("WCCTEXT2");
     preflight_siblings(&path)?;
     let mut file: BtrieveFile = OpenOptions::new().variable_length(variable).open(&path)?;
     preflight_pages(&file)?;
-    if let Err(e) = file.expect_record_len(R::LAYOUT.len) {
+    if let Err(e) = file.expect_record_len(R::layout(set).len) {
         // An empty file decodes to nothing whatever its record length: the stock
         // NEWMP001.VIR is a v6 file of 1544-byte records with none in it (T-007).
         if file.header.record_count != 0 {
@@ -504,12 +707,36 @@ pub fn table_file(dir: &Path, vir: &str, live: bool) -> String {
 /// the developers' own systems, so silvermere has no table for it.
 pub const VACATION_FILE: &str = "WCCVACN.DAT";
 
-/// Reads and decodes every file of the set.
+/// The tables' files, by their DOS `.VIR` names, in reading order after the room files.
+pub const TABLE_FILES: [&str; 14] = [
+    "WCCITEMS.VIR",
+    "WCCKNMSR.VIR",
+    "WCCACMSR.VIR",
+    "WCCSPELS.VIR",
+    "WCCCLASS.VIR",
+    "WCCRACE.VIR",
+    "WCCSHOPS.VIR",
+    "WCCMSG.VIR",
+    "WCCTEXT.VIR",
+    "WCCACTS.VIR",
+    "WCCGANGS.VIR",
+    "WCCBANKS.VIR",
+    "WCCITOWN.VIR",
+    "WCCUSERS.VIR",
+];
+
+/// Reads and decodes every file of the set. The set's build ([`detect_set`]) gives the file
+/// names and record layouts: `opts.map_files` and the table files are given by their DOS
+/// names (`WCCMP001.VIR`) and read under the build's (`WCCMP002.VIR`).
 pub fn read_content(opts: &ImportOptions) -> Result<Content, ImportError> {
     let dir = opts.from.as_path();
+    let (set, ignored) = detect_set(dir, opts)?;
+    for file in &ignored {
+        tracing::warn!(file, "{}; not read", stray_reason(set));
+    }
     let mut files = std::collections::HashMap::new();
     let mut name = |vir: &str| {
-        let actual = table_file(dir, vir, opts.live);
+        let actual = table_file(dir, &set_file_name(vir, set), opts.live);
         if actual != vir {
             files.insert(vir.to_string(), actual.clone());
         }
@@ -517,29 +744,41 @@ pub fn read_content(opts: &ImportOptions) -> Result<Content, ImportError> {
     };
     let mut rooms = Vec::new();
     for map in &opts.map_files {
-        rooms.extend(read_file(dir, &name(map), decode::RoomRecord::decode)?);
+        rooms.extend(read_file_as(dir, &name(map), set, |b| {
+            decode::RoomRecord::decode_as(b, set)
+        })?);
+    }
+    macro_rules! read {
+        ($vir:literal, $r:ty) => {
+            read_file_as(dir, &name($vir), set, |b| <$r>::decode_as(b, set))?
+        };
     }
     let mut content = Content {
         rooms,
-        items: read_file(dir, &name("WCCITEMS.VIR"), decode::ItemRecord::decode)?,
-        monsters: read_file(dir, &name("WCCKNMSR.VIR"), decode::MonsterRecord::decode)?,
-        active_monsters: read_file(dir, &name("WCCACMSR.VIR"), decode::ActmonRecord::decode)?,
-        spells: read_file(dir, &name("WCCSPELS.VIR"), decode::SpellRecord::decode)?,
-        classes: read_file(dir, &name("WCCCLASS.VIR"), decode::ClassRecord::decode)?,
-        races: read_file(dir, &name("WCCRACE.VIR"), decode::RaceRecord::decode)?,
-        shops: read_file(dir, &name("WCCSHOPS.VIR"), decode::ShopRecord::decode)?,
-        messages: read_file(dir, &name("WCCMSG.VIR"), decode::MudmsgRecord::decode)?,
-        text_blocks: read_file(dir, &name("WCCTEXT.VIR"), decode::decode_textblk)?,
-        actions: read_file(dir, &name("WCCACTS.VIR"), decode::ActionRecord::decode)?,
-        gangs: read_file(dir, &name("WCCGANGS.VIR"), decode::GangRecord::decode)?,
-        bank_books: read_file(dir, &name("WCCBANKS.VIR"), decode::BankbookRecord::decode)?,
-        item_ownership: read_file(dir, &name("WCCITOWN.VIR"), decode::ItemownRecord::decode)?,
-        users: read_file(dir, &name("WCCUSERS.VIR"), decode::PlayerRecord::decode)?,
+        items: read!("WCCITEMS.VIR", decode::ItemRecord),
+        monsters: read!("WCCKNMSR.VIR", decode::MonsterRecord),
+        active_monsters: read!("WCCACMSR.VIR", decode::ActmonRecord),
+        spells: read!("WCCSPELS.VIR", decode::SpellRecord),
+        classes: read!("WCCCLASS.VIR", decode::ClassRecord),
+        races: read!("WCCRACE.VIR", decode::RaceRecord),
+        shops: read!("WCCSHOPS.VIR", decode::ShopRecord),
+        messages: read!("WCCMSG.VIR", decode::MudmsgRecord),
+        text_blocks: read_file_as(dir, &name("WCCTEXT.VIR"), set, |b| {
+            decode::decode_textblk_as(b, set)
+        })?,
+        actions: read!("WCCACTS.VIR", decode::ActionRecord),
+        gangs: read!("WCCGANGS.VIR", decode::GangRecord),
+        bank_books: read!("WCCBANKS.VIR", decode::BankbookRecord),
+        item_ownership: read!("WCCITOWN.VIR", decode::ItemownRecord),
+        users: read!("WCCUSERS.VIR", decode::PlayerRecord),
+        set,
+        ignored,
         ..Content::default()
     };
     content.files = files;
+    let vacation = set_file_name(VACATION_FILE, set);
     if opts.live
-        && let Ok(path) = find_file(dir, VACATION_FILE)
+        && let Ok(path) = find_file(dir, &vacation)
     {
         preflight_siblings(&path)?;
         let mut file = BtrieveFile::open(&path)?;
@@ -547,7 +786,7 @@ pub fn read_content(opts: &ImportOptions) -> Result<Content, ImportError> {
         while let Some(record) = records.next_record() {
             let record = record?;
             content.uncarried.push(Note {
-                file: VACATION_FILE.to_string(),
+                file: vacation.clone(),
                 ordinal: record.ordinal,
                 key: String::new(),
                 reason: "silvermere has no vacation table (the feature is a stub)".to_string(),
@@ -558,8 +797,10 @@ pub fn read_content(opts: &ImportOptions) -> Result<Content, ImportError> {
 }
 
 /// Writes `--json OUT`: one file per Btrieve file.
+/// The tables keep their DOS names (`WCCITEMS.jsonl`) whichever build's set was read; the room
+/// files keep the names read.
 pub fn write_json(content: &Content, out: &Path) -> Result<(), ImportError> {
-    let w = JsonWriter::new(out)?;
+    let w = JsonWriter::for_set(out, content.set)?;
     fn rows<'a, R>(v: &'a [Decoded<R>], file: &'a str) -> impl Iterator<Item = (u32, &'a R)> {
         v.iter()
             .filter(move |d| d.file.eq_ignore_ascii_case(file))
@@ -688,7 +929,7 @@ impl<'a> Importer<'a> {
                 tracing::warn!("{}: not found; no patches applied", path.display());
                 return Ok(None);
             }
-            None => match find_file(&self.opts.from, UPDATE_FILE) {
+            None => match find_file(&self.opts.from, &update_file(content.set)) {
                 Ok(path) => path,
                 Err(e) => {
                     tracing::warn!("{e}; no patches applied");
@@ -776,6 +1017,13 @@ impl<'a> Importer<'a> {
             assets: Vec::new(),
             uncarried,
             accounts_without_password,
+            ignored: content.ignored.clone(),
+            set: content.set,
+            checks: if self.opts.dry_run {
+                crate::checks::checks(content)
+            } else {
+                Vec::new()
+            },
         })
     }
 }

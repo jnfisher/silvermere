@@ -59,3 +59,80 @@ pub fn with_record_length(template: &[u8], len: u16) -> Vec<u8> {
     out[0x16..0x18].copy_from_slice(&len.to_le_bytes());
     out
 }
+
+/// A template for a file of `record_length`-byte records built from a stock `.VIR`: its
+/// pages before the first data page (no records, no deleted chain), the record and physical
+/// lengths (+0x16, +0x18) changed by the same amount, and every page widened to the next
+/// multiple of 512 when a slot no longer fits (Worldgroup 3.x records are longer).
+pub fn template_for(vir: &[u8], record_length: usize) -> Vec<u8> {
+    let page = usize::from(u16_at(vir, 0x08));
+    let first_data = (1..vir.len() / page)
+        .find(|p| vir[p * page + 5] & 0x80 != 0)
+        .unwrap_or(vir.len() / page);
+    let mut t = vir[..first_data * page].to_vec();
+    t[0x10..0x14].copy_from_slice(&[0xFF; 4]);
+    put_hi_lo(&mut t, 0x1A, 0);
+    put_hi_lo(&mut t, 0x26, first_data as u32);
+    let overhead = usize::from(u16_at(vir, 0x18)) - usize::from(u16_at(vir, 0x16));
+    let physical = record_length + overhead;
+    t[0x16..0x18].copy_from_slice(&(record_length as u16).to_le_bytes());
+    t[0x18..0x1A].copy_from_slice(&(physical as u16).to_le_bytes());
+    if page - 6 >= physical {
+        return t;
+    }
+    let wide = (physical + 6).next_multiple_of(512);
+    let mut out = Vec::with_capacity(first_data * wide);
+    for p in t.chunks(page) {
+        out.extend_from_slice(p);
+        out.resize(out.len() + wide - page, 0);
+    }
+    out[0x08..0x0A].copy_from_slice(&(wide as u16).to_le_bytes());
+    out
+}
+
+/// A variable-length file: the template (whose physical length is the fixed part plus a
+/// 4-byte pointer) with `records` appended, each its fixed part in a data slot and the rest
+/// as the one fragment of its own variable page (a page that is not a data page, ending in
+/// its fragment offsets: the start, then the end).
+pub fn write_v5_variable(template: &[u8], records: &[Vec<u8>]) -> Vec<u8> {
+    let page_length = usize::from(u16_at(template, 0x08));
+    let fixed = usize::from(u16_at(template, 0x16));
+    let physical = usize::from(u16_at(template, 0x18));
+    assert_eq!(physical, fixed + 4, "fixed part plus a variable pointer");
+    let per_page = (page_length - 6) / physical;
+    let first = (template.len() / page_length) as u32;
+    let data_pages = records.len().div_ceil(per_page) as u32;
+    let mut out = template.to_vec();
+    for (p, chunk) in records.chunks(per_page).enumerate() {
+        let mut page = vec![0u8; page_length];
+        put_hi_lo(&mut page, 0, first + p as u32);
+        page[4..6].copy_from_slice(&0x8001u16.to_le_bytes());
+        for (slot, r) in chunk.iter().enumerate() {
+            let at = 6 + slot * physical;
+            page[at..at + fixed].copy_from_slice(&r[..fixed]);
+            let var = first + data_pages + (p * per_page + slot) as u32;
+            page[at + fixed..at + physical].copy_from_slice(&[
+                (var >> 16) as u8,
+                var as u8,
+                (var >> 8) as u8,
+                0,
+            ]);
+        }
+        out.extend_from_slice(&page);
+    }
+    for (i, r) in records.iter().enumerate() {
+        let tail = &r[fixed..];
+        assert!(6 + tail.len() + 4 <= page_length, "a fragment that fits");
+        let mut page = vec![0u8; page_length];
+        put_hi_lo(&mut page, 0, first + data_pages + i as u32);
+        page[6..6 + tail.len()].copy_from_slice(tail);
+        page[page_length - 2..].copy_from_slice(&6u16.to_le_bytes());
+        page[page_length - 4..page_length - 2]
+            .copy_from_slice(&((6 + tail.len()) as u16).to_le_bytes());
+        out.extend_from_slice(&page);
+    }
+    put_hi_lo(&mut out, 0x1A, records.len() as u32);
+    let pages = (out.len() / page_length) as u32;
+    put_hi_lo(&mut out, 0x26, pages);
+    out
+}

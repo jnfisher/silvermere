@@ -12,6 +12,7 @@ use silvermere_import::patch::{
     Patch, PatchKind, apply_patch_list, merge_action, merge_class, merge_item, merge_message,
     merge_monster, merge_race, merge_room, merge_shop, merge_spell, merge_text,
 };
+use silvermere_types::records::LayoutSet;
 
 /// A record of zeroes.
 fn zero<R: Record>() -> R {
@@ -39,6 +40,7 @@ fn patch<R: Record>(seq: i32, kind: PatchKind, record: &R) -> Patch {
         kind,
         image,
         carried: 2022,
+        set: LayoutSet::Dos,
     }
 }
 

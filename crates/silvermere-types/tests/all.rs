@@ -9,3 +9,4 @@ mod fixed_str;
 mod names_match_facts;
 mod record_sizes;
 mod smoke;
+mod worldgroup_layouts;

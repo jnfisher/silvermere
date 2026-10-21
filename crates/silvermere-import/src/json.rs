@@ -26,6 +26,7 @@ use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 
 use serde_json::{Map, Value};
+use silvermere_types::records::LayoutSet;
 
 use crate::decode::{MonsterRecord, Record, TextblkRecord, textblk};
 
@@ -36,11 +37,16 @@ pub const CASH_COPPER_FIRST: &str = "cash_copper_first";
 
 /// A record type as the export writes it: the members plus this table's extra keys.
 pub trait ExportRecord: Record {
-    /// The object for record `id` (the reader ordinal).
+    /// The object for record `id` (the reader ordinal) of a byte-packed (DOS) file.
     fn export(&self, id: u32) -> Map<String, Value> {
+        self.export_as(id, LayoutSet::Dos)
+    }
+
+    /// The object for record `id` of a file of `set`'s layout (`_raw_len` is its length).
+    fn export_as(&self, id: u32, set: LayoutSet) -> Map<String, Value> {
         let mut map = Map::new();
         map.insert("_id".to_string(), Value::from(id));
-        map.insert("_raw_len".to_string(), Value::from(Self::LAYOUT.len));
+        map.insert("_raw_len".to_string(), Value::from(Self::layout(set).len));
         map.extend(self.to_json());
         self.extra(&mut map);
         map
@@ -96,14 +102,21 @@ impl ExportRecord for TextblkRecord {
 #[derive(Debug)]
 pub struct JsonWriter {
     dir: PathBuf,
+    set: LayoutSet,
 }
 
 impl JsonWriter {
-    /// Creates `dir` if needed.
+    /// Creates `dir` if needed, for records of byte-packed (DOS) files.
     pub fn new(dir: &Path) -> std::io::Result<Self> {
+        Self::for_set(dir, LayoutSet::Dos)
+    }
+
+    /// [`JsonWriter::new`] for records of `set`'s files.
+    pub fn for_set(dir: &Path, set: LayoutSet) -> std::io::Result<Self> {
         std::fs::create_dir_all(dir)?;
         Ok(Self {
             dir: dir.to_path_buf(),
+            set,
         })
     }
 
@@ -116,7 +129,7 @@ impl JsonWriter {
         let path = self.dir.join(format!("{table}.jsonl"));
         let mut out = BufWriter::new(File::create(&path)?);
         for (id, r) in records {
-            serde_json::to_writer(&mut out, &Value::Object(r.export(id)))?;
+            serde_json::to_writer(&mut out, &Value::Object(r.export_as(id, self.set)))?;
             out.write_all(b"\n")?;
         }
         out.flush()?;

@@ -1,5 +1,7 @@
 //! The database update's message, social action and text block merges.
 
+use silvermere_types::records::LayoutSet;
+
 use crate::decode::{ActionRecord, MudmsgRecord, Record, TextblkRecord};
 
 /// `AT_KEEP`: an action the database update does not replace.
@@ -34,10 +36,21 @@ pub fn merge_action(old: &mut ActionRecord, new: &ActionRecord) -> bool {
 /// leaves the 110 long stock blocks unshortened, as T-006's export holds them (decided
 /// as option (b) of silvermere#25). Returns whether the block changed.
 pub fn merge_text(old: &mut TextblkRecord, new: &TextblkRecord, carried: usize) -> bool {
-    let mut bytes = old.encode();
+    merge_text_as(old, new, carried, LayoutSet::Dos)
+}
+
+/// [`merge_text`] with `carried` counting bytes of a `set`-layout image (a Worldgroup 3.x
+/// text block's text starts at +0x018).
+pub fn merge_text_as(
+    old: &mut TextblkRecord,
+    new: &TextblkRecord,
+    carried: usize,
+    set: LayoutSet,
+) -> bool {
+    let mut bytes = old.encode_as(set);
     let n = carried.min(bytes.len());
-    bytes[..n].copy_from_slice(&new.encode()[..n]);
-    let merged = TextblkRecord::decode(&bytes).expect("a textblk image is 2022 bytes");
+    bytes[..n].copy_from_slice(&new.encode_as(set)[..n]);
+    let merged = TextblkRecord::decode_as(&bytes, set).expect("a whole textblk image");
     if merged == *old {
         return false;
     }

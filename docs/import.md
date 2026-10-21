@@ -46,8 +46,8 @@ silvermere import [ZIP|DIR | --from DIR|ZIP | --download] [--live] [--map-files 
 | `--from DIR\|ZIP` | Directory (or zip) with the `.VIR` files (names matched case-insensitively). Default: the stock distribution, downloaded once into `<data_dir>/cache/` and checked. |
 | `--download` | Download the stock distribution again, replacing the cached copy, and import it. |
 | `--live` | Read a running realm's `.DAT` set and its players (see "Live import"). Needs `--from`. |
-| `--map-files A,B` | Room files, in order. Default `WCCMP001.VIR,NEWMP001.VIR`; with `--live`, `WCCMP001` alone. |
-| `--dry-run` | Read, decode and count; no database is opened. |
+| `--map-files A,B` | Room files, in order. Default `WCCMP001.VIR,NEWMP001.VIR`; with `--live`, `WCCMP001` alone. A Worldgroup 3.x set reads `WCCMP002` for `WCCMP001` (see "Worldgroup 3.x"). |
+| `--dry-run` | Read, decode and count; no database is opened. Ends with the value checks (see "Checking a realm"). |
 | `--json OUT` | Also write every decoded record to `OUT/<TABLE>.jsonl` (see "JSON export"). |
 | `--content-only` | Write content tables only; state is neither created nor changed. |
 | `--reset-state` | Rewrite state from the records (excludes `--content-only`). |
@@ -217,6 +217,141 @@ item, three rooms with floor state, an orphaned bank book, a vacation record) an
 round trip and each refusal. Its `.DAT` files are written at test time by
 `tests/support/btrieve_v5.rs` from the stock `.VIR` files' own pages (FCR, keys, ACS) plus data
 pages holding the records; the index pages are not rebuilt (the reader never reads them).
+
+## Worldgroup 3.x
+
+A realm run on Worldgroup 3.x (the 32-bit Windows module of the same version, `1.11p-WG3NT`)
+imports as a DOS one does: `silvermere import --live --from DIR` (or a zip of the folder). The
+set is told apart by its file names; no flag is needed.
+
+**Names.** Every data file ends in `2`, and the room file is `WCCMP002`:
+
+| DOS 1.11p | Worldgroup 3.x |
+|---|---|
+| `WCCACMSR` | `WCCACMS2` |
+| `WCCACTS` | `WCCACTS2` |
+| `WCCBANKS` | `WCCBANK2` |
+| `WCCCLASS` | `WCCCLAS2` |
+| `WCCGANGS` | `WCCGANG2` |
+| `WCCITEMS` | `WCCITEM2` |
+| `WCCITOWN` | `WCCITOW2` |
+| `WCCKNMSR` | `WCCKNMS2` |
+| `WCCMP001` | `WCCMP002` |
+| `WCCMSG` | `WCCMSG2` |
+| `WCCRACE` | `WCCRACE2` |
+| `WCCSHOPS` | `WCCSHOP2` |
+| `WCCSPELS` | `WCCSPEL2` |
+| `WCCTEXT` | `WCCTEXT2` |
+| `WCCUPDAT` | `WCCUPDA2` (often lower case, `wccupda2.dat`) |
+| `WCCUSERS` | `WCCUSER2` |
+| `WCCVACN` | `WCCVACN2` |
+
+Names match in any case, with `.DAT` and `.VIR` as for DOS (`--live` reads the `.DAT` where
+there is one). `NEWMP001` keeps its name (its records are already the 1544-byte aligned room).
+The table files decide the set: the room files the import reads and the fourteen table
+files (`WCCITEMS`/`WCCITEM2` ... `WCCUSERS`/`WCCUSER2`), each as `.DAT` or `.VIR`. The set
+whose table files are all there is read, and the other build's data files beside it are
+not: the report names each on a line such as `not read [WCCMSG.VIR]: a DOS 1.11p data file
+beside the Worldgroup 3.x set` or `not read [WCCVACN2.DAT]: a Worldgroup 3.x data file
+beside the DOS 1.11p set` (John, 2026-10-21). The vacation file (`WCCVACN`, `WCCVACN2`) and
+the patch file (`WCCUPDAT`, `WCCUPDA2`) never decide the set: they follow it. A directory
+holding a complete set of each build is an error naming both; one whose table files make a
+complete set of neither is an error naming what was found and what is missing (for the set
+with more of its table files there; with no Worldgroup table file at all it is read as DOS,
+and each missing file is reported as it is read). Other files beside the set (`NEWMP001`,
+`NEWUSER.VIR`, ...) are not data files of either build and are left alone. `--map-files` and `--patches` take the names as given;
+the default patch file is `WCCUPDA2.DAT`. The count lines and `not carried` lines name the
+files read (`items [WCCITEM2.VIR]`, `patches [WCCUPDA2.DAT]`); `--json` keeps the DOS table
+names (`WCCITEMS.jsonl`), with `_raw_len` the aligned length. Not read, as in a DOS realm:
+the `*.NU1` files (`NEWMP001.NU1`, `WCCTEXT2.NU1`: leftovers the module never opens). The
+description archives, `.MSG`, `.RLN`, `.REL`, `.NOT` and `.HSE`/`.STO` files are as in DOS.
+
+**Layouts.** The records hold the same members as DOS 1.11p, of the same sizes (16-bit words
+stay 16-bit), laid out with 4-byte alignment: each member starts at a multiple of its
+element size up to 4, and the record is padded to a multiple of its largest alignment. The
+`WG_*` layouts in `silvermere-types` (`records/layout.rs`, `LayoutSet`) are the DOS ones
+with that rule applied, each gap a named `pad_*` member, and the decoders take the set to
+use, so both builds go through one decoding path:
+
+| Record | DOS | Worldgroup |
+|---|---|---|
+| player (`WCCUSER2`) | 1998 | 2028 |
+| room (`WCCMP002`, `NEWMP001`) | 1528 | 1544 |
+| item | 1061 | 1072 |
+| shop | 500 | 504 |
+| bankbook | 72 | 76 |
+| itemown | 65 | 72 |
+| monster (`WCCKNMS2`) | 732 | 756 |
+| actmon (`WCCACMS2`) | 386 | 400 |
+| spell | 253 | 260 |
+| class | 153 | 156 |
+| race | 126 | 126 |
+| mudmsg | 253 | 256 |
+| gang | 253 | 256 |
+| action | 1010 | 1010 |
+| textblk (`WCCTEXT2`) | 2022 (fixed part 22) | 2024 (fixed part 24) |
+| updrec (`WCCUPDA2`) | 2027 | 2032 |
+
+- **textblk**: `part` (+0x00), `unk_0x002[12]`, 2 bytes of padding, `number` +0x10, `link`
+  +0x14, the text from +0x18: a fixed part of 24 bytes, then up to 2000 text bytes in the
+  variable part, as in DOS.
+- **updrec**: `seqnum` +0x00, `type` +0x04, 3 bytes of padding, then the image at +0x08,
+  2024 bytes (the largest aligned record, the text block). The image is a Worldgroup-layout
+  record and is decoded with the aligned layouts; the patches apply as `WCCUPDAT.DAT`'s do.
+- **actmon**: the rule gives 396 bytes, the files hold 400. `inactive` (1 byte in DOS, a
+  small count) is a 4-byte member in this build, at +0x124: its upper bytes are `pad_0x125`,
+  `flags` is at +0x128 and `unk_0x122` at +0x12A (2 bytes past the rule), `montype` at
+  +0x12C and `unk_0x131` at +0x13C (4 past). A realm's 25,385 active monsters placed it: read
+  this way, every member the game copies from the known monster agrees with it in every
+  record, and `flags` holds the combat bits (fought this round, targeted) in the few records
+  saved mid-fight, where the rule's offset reads zero.
+- **item**: no correction. A converted or edited realm may hold `level` (+0x004, the detect
+  power needed to see the hidden description) as 0 in every item; the record really holds 0,
+  since every other member decodes and matches DOS. `limit` (+0x006) decodes as in DOS.
+
+`tests/worldgroup.rs` re-packs every record of every stock `.VIR` file member by member into
+the aligned layouts and checks each decodes to the same values; writes the state records
+(player, gang, bank book, item ownership, active monster) with known values and reads them at
+their aligned offsets; and builds the live realm of `tests/live_dat.rs` (plus two active
+monsters and the stock patch file) a second time in the aligned layouts under the `*2`
+names, then imports both and compares every table's rows. The re-pack and twin-realm tests
+show that the decoders honour the layout set: both sides are built from the same layouts, so
+they cannot show that an offset is right. The offsets themselves rest on
+`silvermere-types/tests/worldgroup_layouts.rs` (every layout against the alignment rule and
+the realm's record lengths, the `actmon` correction asserted member by member), the
+known-offset checks of the state records, and the dry-run checks on a real Worldgroup realm.
+
+### Live import of a Worldgroup realm
+
+1. Stop the BBS cleanly (no `.PRE` file beside any data file).
+2. Copy the realm's folder (the one holding `WCCUSER2.DAT`, `WCCMP002.DAT`, `wccupda2.dat`,
+   ...), or zip it.
+3. Check it: `silvermere import --live --dry-run --from DIR` (see "Checking a realm").
+4. Import: `silvermere import --live --from DIR`, then `silvermere account passwd --missing`
+   to give the players' accounts passwords.
+
+### Checking a realm
+
+A record decoded with the wrong layout still decodes; its values give it away. A dry run
+ends with value checks over what it decoded (after the patches), one line each:
+
+```
+check layouts: Worldgroup 3.x
+check names: 0 of 1950 items unreadable
+...
+check rooms: 68 of 62352 exits lead to no room of their map
+check characters: 0 of 1 with an unknown race or class, a level outside 1..=9999, a base stat outside 1..=999, or hit points above their maximum
+check item ownership: 0 of 1 name no item
+check bank books: 0 of 2 with an unreadable owner
+check active monsters: 0 of 2 name no known monster or no room
+check active monsters: of 2 with a known monster, equal to it: level 2, unk_0x08C 2, name 2, ...
+```
+
+A name is unreadable when it is empty or holds a control character. The last line compares
+each active monster's members copied from its known monster when it was generated, in record
+order: if a layout's offsets go wrong from some member on, the counts drop from that member
+on. The stock DOS set gives 1 monster, 1 spell and 140 room names unreadable (unused slots)
+and 68 exits to another map's room; a realm should be close to that.
 
 ## Decoding
 

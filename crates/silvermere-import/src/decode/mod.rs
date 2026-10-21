@@ -7,12 +7,14 @@
 //! [`Record::decode`], [`Record::encode`] and [`Record::to_json`]. The offsets are not
 //! written here: every member is looked up by its member name in the `silvermere-types`
 //! [`Layout`] (the `FIELD_OFFSETS` contract from T-002) and its size checked against the
-//! Rust type, once per type; `tests/decode_offsets.rs` checks that every layout member is
-//! covered. The flat struct is what `--json` writes ([`crate::json`]); the `split_*` /
+//! Rust type, once per type and layout set; `tests/decode_offsets.rs` checks that every
+//! layout member is covered. One struct serves both builds: [`Record::decode_as`] and
+//! [`Record::encode_as`] take the [`LayoutSet`] (the DOS build's byte-packed records or the
+//! Worldgroup 3.x build's aligned ones), and `decode`/`encode` are the DOS set. The flat struct is what `--json` writes ([`crate::json`]); the `split_*` /
 //! `to_*` function beside each one maps it to the schema types the writers take.
 //!
 //! Member widths: unsigned bytes are [`u8`], signed bytes [`i8`], 16-bit words [`i16`] or
-//! [`u16`], 32-bit words [`i32`] or [`u32`] by signedness; little-endian, byte packed. A
+//! [`u16`], 32-bit words [`i32`] or [`u32`] by signedness; little-endian. A
 //! text member (`N` bytes) is
 //! [`Text`], an `unk_*` byte span [`Raw`], a 2-D text member an array of [`Text`].
 
@@ -21,7 +23,7 @@ use jiff::tz::TimeZone;
 use serde_json::{Map, Value};
 use silvermere_types::enums::Ability;
 use silvermere_types::fixed::{FixedStr, cp437_to_char};
-use silvermere_types::records::{AbilitySlot, Coins, Layout};
+use silvermere_types::records::{AbilitySlot, Coins, Layout, LayoutSet};
 
 use crate::dos_time::{DosTimeError, dos_to_unix};
 
@@ -55,7 +57,7 @@ pub use race::{RaceRecord, to_race};
 pub use room::{RoomRecord, split_room};
 pub use shop::{ShopRecord, split_shop};
 pub use spell::{SpellRecord, to_spell};
-pub use textblk::{TextblkRecord, decode_textblk, to_text_block};
+pub use textblk::{TextblkRecord, decode_textblk, decode_textblk_as, to_text_block};
 
 /// A record that does not fit its layout, or holds a date that is not one.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -280,13 +282,13 @@ pub fn coins_named(runic: u32, platinum: u32, gold: u32, silver: u32, copper: u3
 
 /// A flat record: a record's members in record order.
 pub trait Record: Sized {
-    /// The record's layout in `silvermere-types`.
+    /// The record's byte-packed (DOS) layout in `silvermere-types`.
     const LAYOUT: &'static Layout;
     /// Every member: name and size in bytes, in record order.
     const FIELDS: &'static [(&'static str, usize)];
 
-    /// Each member's offset, resolved by name in [`Record::LAYOUT`] (cached per type).
-    fn offsets() -> &'static [usize];
+    /// Each member's offset, resolved by name in the set's layout (cached per type and set).
+    fn offsets(set: LayoutSet) -> &'static [usize];
     /// Reads every member; `raw` is exactly the record length.
     fn read_fields(raw: &[u8], offs: &[usize]) -> Self;
     /// Writes every member into `out` (the record length).
@@ -294,23 +296,40 @@ pub trait Record: Sized {
     /// Appends every member to `map` under its member name.
     fn json_fields(&self, map: &mut Map<String, Value>);
 
-    /// Decodes one record image. The length is checked once here, so the member reads
-    /// cannot run out of bytes.
+    /// The record's layout in `set`.
+    fn layout(set: LayoutSet) -> &'static Layout {
+        set.layout(Self::LAYOUT)
+    }
+
+    /// Decodes one byte-packed (DOS) record image.
     fn decode(raw: &[u8]) -> Result<Self, DecodeError> {
-        if raw.len() != Self::LAYOUT.len {
+        Self::decode_as(raw, LayoutSet::Dos)
+    }
+
+    /// Decodes one record image in `set`'s layout. The length is checked once here, so the
+    /// member reads cannot run out of bytes.
+    fn decode_as(raw: &[u8], set: LayoutSet) -> Result<Self, DecodeError> {
+        let layout = Self::layout(set);
+        if raw.len() != layout.len {
             return Err(DecodeError::Length {
-                record: Self::LAYOUT.decoder,
-                expected: Self::LAYOUT.len,
+                record: layout.decoder,
+                expected: layout.len,
                 found: raw.len(),
             });
         }
-        Ok(Self::read_fields(raw, Self::offsets()))
+        Ok(Self::read_fields(raw, Self::offsets(set)))
     }
 
-    /// The record image: every member at its offset, the bytes no member covers zero.
+    /// The byte-packed (DOS) record image.
     fn encode(&self) -> Vec<u8> {
-        let mut out = vec![0; Self::LAYOUT.len];
-        self.write_fields(&mut out, Self::offsets());
+        self.encode_as(LayoutSet::Dos)
+    }
+
+    /// The record image in `set`'s layout: every member at its offset, the bytes no member
+    /// covers (`pad_*` included) zero.
+    fn encode_as(&self, set: LayoutSet) -> Vec<u8> {
+        let mut out = vec![0; Self::layout(set).len];
+        self.write_fields(&mut out, Self::offsets(set));
         out
     }
 
@@ -376,10 +395,16 @@ macro_rules! record {
                 $( ($crate::decode::field_name!($field $($c)?), <$ty as $crate::decode::Wire>::SIZE), )*
             ];
 
-            fn offsets() -> &'static [usize] {
-                static OFFSETS: std::sync::OnceLock<Vec<usize>> = std::sync::OnceLock::new();
-                OFFSETS.get_or_init(|| {
-                    $crate::decode::resolve_offsets(Self::LAYOUT, Self::FIELDS)
+            fn offsets(set: silvermere_types::records::LayoutSet) -> &'static [usize] {
+                use silvermere_types::records::LayoutSet;
+                static DOS: std::sync::OnceLock<Vec<usize>> = std::sync::OnceLock::new();
+                static WORLDGROUP: std::sync::OnceLock<Vec<usize>> = std::sync::OnceLock::new();
+                let cell = match set {
+                    LayoutSet::Dos => &DOS,
+                    LayoutSet::Worldgroup => &WORLDGROUP,
+                };
+                cell.get_or_init(|| {
+                    $crate::decode::resolve_offsets(Self::layout(set), Self::FIELDS)
                 })
             }
 

@@ -11,7 +11,7 @@
 //! `unk_0x002` (inside key 0, the same in every record) is not carried.
 
 use silvermere_types::ids::TextBlockNo;
-use silvermere_types::records::{TextBlock, layout};
+use silvermere_types::records::{LayoutSet, TextBlock, layout};
 
 use super::{DecodeError, Raw, Record, cp437, record};
 
@@ -32,13 +32,19 @@ record! {
 /// Decodes one WCCTEXT record, zero-filling a short variable-length image to the
 /// 2022-byte record buffer first.
 pub fn decode_textblk(raw: &[u8]) -> Result<TextblkRecord, DecodeError> {
-    let len = TextblkRecord::LAYOUT.len;
+    decode_textblk_as(raw, LayoutSet::Dos)
+}
+
+/// [`decode_textblk`] in `set`'s layout: a Worldgroup 3.x record (WCCTEXT2) is the 24-byte
+/// aligned fixed part plus the text, zero-filled to 2024 bytes.
+pub fn decode_textblk_as(raw: &[u8], set: LayoutSet) -> Result<TextblkRecord, DecodeError> {
+    let len = TextblkRecord::layout(set).len;
     if raw.len() < len {
         let mut full = raw.to_vec();
         full.resize(len, 0);
-        TextblkRecord::decode(&full)
+        TextblkRecord::decode_as(&full, set)
     } else {
-        TextblkRecord::decode(raw)
+        TextblkRecord::decode_as(raw, set)
     }
 }
 

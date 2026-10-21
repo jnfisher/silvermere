@@ -8,8 +8,15 @@
 //! except text blocks fits in 2010 bytes (the room, the largest, is 1528); a text block's
 //! image loses its last 12 bytes (`text[1988..2000]`), which the text merge keeps from the
 //! stored block ([`Patch::carried`], `merge_text`).
+//!
+//! The Worldgroup 3.x build's `WCCUPDA2` record is 2032 bytes: `seqnum` and `type` as above,
+//! 3 bytes of padding, then `data[2024]` at +0x008, the image of a Worldgroup-layout record
+//! (the largest is the aligned text block's 2024 bytes). [`Patch::parse_as`] takes the
+//! layout set and [`Patch::decode`] decodes the image with it.
 
 use std::path::Path;
+
+use silvermere_types::records::LayoutSet;
 
 use crate::btrieve::BtrieveFile;
 use crate::decode::{
@@ -24,6 +31,14 @@ pub const UPDREC_LEN: usize = 2027;
 pub const DATA_LEN: usize = 2022;
 /// `seqnum` and `type` before the image.
 const HEADER_LEN: usize = 5;
+
+/// The record length, the bytes before the image and the image's length in `set`.
+pub fn updrec_shape(set: LayoutSet) -> (usize, usize, usize) {
+    match set {
+        LayoutSet::Dos => (UPDREC_LEN, HEADER_LEN, DATA_LEN),
+        LayoutSet::Worldgroup => (2032, 8, 2024),
+    }
+}
 
 /// The record's `type` byte.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -114,6 +129,8 @@ pub struct Patch {
     pub image: Vec<u8>,
     /// How many bytes of `data` the record carried (2010 in the stock file).
     pub carried: usize,
+    /// The layouts the image is in.
+    pub set: LayoutSet,
 }
 
 /// An image decoded with the T-008 decoder for its kind.
@@ -146,9 +163,16 @@ impl Patch {
     /// stock file, at most [`UPDREC_LEN`]). A type byte outside 1..10 is an error naming
     /// the record's `seqnum`.
     pub fn parse(raw: &[u8]) -> Result<Self, ImportError> {
-        if raw.len() < HEADER_LEN || raw.len() > UPDREC_LEN {
+        Self::parse_as(raw, LayoutSet::Dos)
+    }
+
+    /// [`Patch::parse`] for a record of `set`'s layout (a Worldgroup 3.x record is at most
+    /// 2032 bytes, its image at +0x008).
+    pub fn parse_as(raw: &[u8], set: LayoutSet) -> Result<Self, ImportError> {
+        let (record_len, header_len, data_len) = updrec_shape(set);
+        if raw.len() < header_len || raw.len() > record_len {
             return Err(ImportError::Patch(format!(
-                "record of {} bytes (struct updrec is {UPDREC_LEN})",
+                "record of {} bytes (struct updrec is {record_len})",
                 raw.len()
             )));
         }
@@ -156,35 +180,37 @@ impl Patch {
         let kind = PatchKind::from_code(raw[4]).ok_or_else(|| {
             ImportError::Patch(format!("seqnum {seq}: type {} is not 1..10", raw[4]))
         })?;
-        let mut image = raw[HEADER_LEN..].to_vec();
+        let mut image = raw[header_len..].to_vec();
         let carried = image.len();
-        image.resize(DATA_LEN, 0);
+        image.resize(data_len, 0);
         Ok(Self {
             seq,
             kind,
             image,
             carried,
+            set,
         })
     }
 
     /// The image decoded as its kind's record (the leading bytes of `data`; the rest of
     /// the 2022 is ignored, as the game ignores it).
     pub fn decode(&self) -> Result<PatchRecord, DecodeError> {
-        fn head<R: Record>(image: &[u8]) -> Result<R, DecodeError> {
-            R::decode(&image[..R::LAYOUT.len])
+        fn head<R: Record>(image: &[u8], set: LayoutSet) -> Result<R, DecodeError> {
+            R::decode_as(&image[..R::layout(set).len], set)
         }
         let i = self.image.as_slice();
+        let s = self.set;
         Ok(match self.kind {
-            PatchKind::Race => PatchRecord::Race(head(i)?),
-            PatchKind::Class => PatchRecord::Class(head(i)?),
-            PatchKind::Room => PatchRecord::Room(Box::new(head(i)?)),
-            PatchKind::Shop => PatchRecord::Shop(Box::new(head(i)?)),
-            PatchKind::Item => PatchRecord::Item(Box::new(head(i)?)),
-            PatchKind::Spell => PatchRecord::Spell(Box::new(head(i)?)),
-            PatchKind::Monster => PatchRecord::Monster(Box::new(head(i)?)),
-            PatchKind::Message => PatchRecord::Message(Box::new(head(i)?)),
-            PatchKind::Text => PatchRecord::Text(Box::new(head(i)?)),
-            PatchKind::Action => PatchRecord::Action(Box::new(head(i)?)),
+            PatchKind::Race => PatchRecord::Race(head(i, s)?),
+            PatchKind::Class => PatchRecord::Class(head(i, s)?),
+            PatchKind::Room => PatchRecord::Room(Box::new(head(i, s)?)),
+            PatchKind::Shop => PatchRecord::Shop(Box::new(head(i, s)?)),
+            PatchKind::Item => PatchRecord::Item(Box::new(head(i, s)?)),
+            PatchKind::Spell => PatchRecord::Spell(Box::new(head(i, s)?)),
+            PatchKind::Monster => PatchRecord::Monster(Box::new(head(i, s)?)),
+            PatchKind::Message => PatchRecord::Message(Box::new(head(i, s)?)),
+            PatchKind::Text => PatchRecord::Text(Box::new(head(i, s)?)),
+            PatchKind::Action => PatchRecord::Action(Box::new(head(i, s)?)),
         })
     }
 }
@@ -195,11 +221,16 @@ impl Patch {
 /// applied. The second
 /// value is how many were left out for that.
 pub fn read_patches(path: &Path) -> Result<(Vec<Patch>, u32), ImportError> {
+    read_patches_as(path, LayoutSet::Dos)
+}
+
+/// [`read_patches`] for a file of `set`'s layout (`WCCUPDA2.DAT`).
+pub fn read_patches_as(path: &Path, set: LayoutSet) -> Result<(Vec<Patch>, u32), ImportError> {
     let mut file = BtrieveFile::open(path)?;
     let mut patches = Vec::with_capacity(file.header.record_count as usize);
     let mut records = file.records();
     while let Some(record) = records.next_record() {
-        patches.push(Patch::parse(record?.data)?);
+        patches.push(Patch::parse_as(record?.data, set)?);
     }
     let before = patches.len();
     patches.retain(|p| p.seq > 0);

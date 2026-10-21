@@ -38,7 +38,7 @@ pub use class::Class;
 pub use gang::Gang;
 pub use item::Item;
 pub use item_ownership::ItemOwnership;
-pub use layout::{Field, Layout};
+pub use layout::{Field, Layout, LayoutSet};
 pub use message::Message;
 pub use monster::{
     ActiveMonster, ActiveSpell, KnownMonster, MonsterAttack, MonsterItem, MonsterSpell,
