@@ -887,16 +887,26 @@ impl<'a> Characters<'a> {
     }
 
     /// The `n` characters with the most experience, descending (the top
-    /// list; `NTOPLIST` 100).
+    /// list; `NTOPLIST` 100), leaving out the ones taken off it (`PS_NOTOPTEN`)
+    /// before the `n` are counted, so the list is full while there are enough.
+    /// Of two with equal experience the later by user-id comes first, as in the
+    /// start-up build and the daily cleanup's rebuild.
     pub async fn top_by_exp(&self, n: usize) -> Result<Vec<CharacterRow>> {
         let mut conn = self.db.pool().acquire().await?;
+        let order = format!(
+            "ORDER BY exp DESC, {} DESC",
+            self.db.dialect().ci_column("userid")
+        );
         let mut a = Args::new();
         a.add(limit(n)?);
         let scope = Scope::In(
-            "SELECT id FROM characters ORDER BY exp DESC, id LIMIT $1".to_string(),
+            format!(
+                "SELECT id FROM characters WHERE (settings & {}) = 0 {order} LIMIT $1",
+                PlayerSettings::NOTOPTEN.bits()
+            ),
             a,
         );
-        load(&mut conn, &scope, "ORDER BY exp DESC, id").await
+        load(&mut conn, &scope, &order).await
     }
 
     /// Every character in id order (the slobtv/snxbtv walks), passed to `f` one by one.

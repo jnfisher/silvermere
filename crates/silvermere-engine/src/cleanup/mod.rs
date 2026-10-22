@@ -16,6 +16,17 @@
 //! | 2 rooms | `sweep_rooms` |
 //! | 3 users | `users` |
 //! | 4 gangs | `delete_gangs` |
+//! | the restart | [`crate::monsters::cold_reset`], [`crate::shops::restock_untimed_all`], [`crate::monsters::refill_shops`], `rebuild_top_list` |
+//!
+//! The original's BBS went down at its cleanup hour and came back up, so its start-up
+//! cycle's cold-start room reset ran every night after the passes: the rooms' recent-kill
+//! and found-hidden-item markers cleared, the placed items put back, the exits locked,
+//! re-armed and hidden again, and its shops' slots with no restock interval got their one
+//! roll. Here the server stays up, so the run ends with that reset and that roll, then the
+//! start-up cycle's Shop-room fill (the specific monster, then the room's pool up to its
+//! cap) and the start-up build of the top list. The other rooms' specific monsters and the
+//! lair fills are not run here: a specific monster that is not alive is made when a player
+//! enters its room, and lairs fill on entry and in the spawn pass.
 //!
 //! A character in a session goes through the passes with its live record (`sesstime`
 //! from the session so far; a house that closes under it moves it at once, with the
@@ -40,6 +51,7 @@ use crate::display::{RoomMode, display_room};
 use crate::event_loop::{AuditValue, EngineOutput, GameEvent, PersistRequest};
 use crate::items::inventory::remove_item_from_record;
 use crate::items::room_items::{mark_changed, remove_item_from_room};
+use crate::progression::TopTen;
 use crate::world::World;
 
 /// The last gang house number.
@@ -104,6 +116,16 @@ pub struct CleanupReport {
     pub evil_forgiven: i32,
     /// Gangs deleted in pass 4.
     pub gangs_deleted: u32,
+    /// Placed items put back by the room reset.
+    pub placed_items: u32,
+    /// Exits locked, re-armed or hidden again by the room reset.
+    pub exits_reset: u32,
+    /// Shop slots with no restock interval topped up by the restart's restock.
+    pub shop_slots_restocked: u32,
+    /// Monsters placed in Shop rooms by the refill after the room reset.
+    pub shop_monsters: u32,
+    /// Entries on the top list as rebuilt at the end of the run.
+    pub top_list: u32,
     /// The gang houses, `GH_NONE..=GH_WHITE` (index 0 is never held).
     pub houses: [HouseLedger; GH_WHITE + 1],
 }
@@ -295,7 +317,7 @@ fn int(v: impl Into<i64>) -> AuditValue {
 }
 
 /// The cleanup: the four passes in order over the characters in sessions and `offline`,
-/// and every room and gang.
+/// and every room and gang, then the cold-start room reset.
 pub fn run_cleanup(world: &mut World, offline: &mut [Offline]) -> CleanupReport {
     let mut report = CleanupReport::default();
     // the original's console notice "Starting Cleanup"
@@ -314,14 +336,57 @@ pub fn run_cleanup(world: &mut World, offline: &mut [Offline]) -> CleanupReport 
     log_houses(&report.houses);
     users(world, offline, &recs, &mut report);
     report.gangs_deleted = delete_gangs(world);
+    // the room reset the original's restart after the cleanup gave
+    let reset = crate::monsters::cold_reset(world);
+    report.placed_items = reset.placed;
+    report.exits_reset = reset.exits;
+    // the restart's restock of the shop slots with no interval
+    let mut rng = world.rng.clone();
+    report.shop_slots_restocked = crate::shops::restock_untimed_all(world, &mut rng);
+    world.rng = rng;
+    // the Shop rooms' monsters and the top list, which the restart also rebuilt. The fill
+    // comes after the reset clears the recent kills: at the restart a kill's minute stamp,
+    // counted from the old start-up's day, lay ahead of the new start-up's minute and so
+    // held no monster back, though the start-up fills a room before clearing its kill
+    report.shop_monsters = crate::monsters::refill_shops(world).monsters;
+    report.top_list = rebuild_top_list(world, offline);
     // the original's console notice "Cleanup Complete"
     audit(
         world,
         "cleanup.complete",
-        vec![("gangs_deleted", int(report.gangs_deleted))],
+        vec![
+            ("gangs_deleted", int(report.gangs_deleted)),
+            ("placed_items", int(report.placed_items)),
+            ("exits_reset", int(report.exits_reset)),
+            ("shop_slots_restocked", int(report.shop_slots_restocked)),
+            ("shop_monsters", int(report.shop_monsters)),
+            ("top_list", int(report.top_list)),
+        ],
+    );
+    tracing::info!(
+        target: "mmlog",
+        "Cleanup complete: {} placed items put back, {} exits reset, {} shop slots restocked, {} shop monsters placed, top list rebuilt ({} entries)",
+        report.placed_items,
+        report.exits_reset,
+        report.shop_slots_restocked,
+        report.shop_monsters,
+        report.top_list
     );
     world.cleanup.last = Some(report.clone());
     report
+}
+
+/// The top list built again as at start-up ([`TopTen::rebuild`]), over every character,
+/// online ones in their live state, leaving out the ones taken off it. They come in
+/// descending user-id order, so of two with equal experience the later by user-id lists
+/// above the earlier, as in the start-up build. Returns the entries on it.
+fn rebuild_top_list(world: &mut World, offline: &[Offline]) -> u32 {
+    let mut recs = records(world, offline);
+    recs.reverse();
+    let list = TopTen::rebuild(recs.iter().filter_map(|r| character_of(world, offline, *r)));
+    let n = list.len() as u32;
+    world.topten = list;
+    n
 }
 
 /// Pass 1a: every character in a gang holding a Gang House Deed in its inventory holds

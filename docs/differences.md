@@ -62,7 +62,21 @@ Stated here so they are not read as differences from a stock install.
   forgiveness and the session minutes, empty gangs) in the process at `game.cleanup.at` (default
   `"03:00"` local): nobody is logged off, refused or told. A player standing in a house that closes
   sees the notice and the new room at once instead of at the next login
-  ([cleanup code](../crates/silvermere-engine/src/cleanup/mod.rs)).
+  ([cleanup code](../crates/silvermere-engine/src/cleanup/mod.rs)). Because the original came back
+  up after its cleanup, its start-up reset of the rooms also ran every night; silvermere's
+  cleanup ends with that same reset, so the server never needs a restart for it: each room's
+  recent-kill and found-hidden-item markers are cleared, its placed items that are gone are put
+  back (the alder chest of the Hidden Keep Treasure Room, for example), Doors, Gates and Key exits
+  lock, disarmed traps re-arm, found hidden exits hide again and Timed exits restart their timer.
+  Players standing in a room are not told; a door that locks under them is simply locked. Shop
+  slots with no restock interval also get start-up's one roll (topped up, or cut back to their
+  ceiling); timed slots keep their own queued restocks. The start-up's Shop-room fill and top list
+  build follow: each Shop room gets its keeper back and its pool's monsters up to its cap, and
+  players there see them arrive. A Shop room whose monsters were killed shortly before the cleanup
+  is refilled too, as it was after the original's restart. The top list is rebuilt, so a character
+  taken off it or a sysop's experience edit shows the next day. The report and the `cleanup.complete` audit line count the
+  placed items put back, the exits reset, the shop slots topped up, the monsters placed in Shop
+  rooms and the top list's entries.
 - **Groups, following and dragging are not saved.** They live in the session only.
 - **Name validation finishes at once** instead of over several polling passes, with the same message.
 - **`set utf8 on`.** A player can switch a session to UTF-8 output; the default stays CP437

@@ -5,6 +5,7 @@ use crate::common;
 
 use common::*;
 use silvermere_db::DbError;
+use silvermere_types::flags::PlayerSettings;
 use silvermere_types::ids::TextBlockNo;
 use silvermere_types::records::TextBlock;
 
@@ -60,6 +61,64 @@ async fn duplicate_first_name_in_another_case_is_refused() {
     db.close().await;
 }
 
+/// A character taken off the top list is left out before the top `n` are taken, so the
+/// list is still full.
+#[tokio::test]
+async fn top_by_exp_leaves_out_notopten_first() {
+    let db = db().await;
+    let mut seq = Seq::new(23);
+    for (i, (name, exp, off)) in [
+        ("Low", 10u32, false),
+        ("High", 1000, true),
+        ("Mid", 500, false),
+        ("Top", 2000, false),
+    ]
+    .iter()
+    .enumerate()
+    {
+        let acct = new_account(&db, &mut seq, &format!("u{i}")).await;
+        let mut c = character(&mut seq, &format!("u{i}"), name);
+        c.exp = *exp;
+        c.settings.set(PlayerSettings::NOTOPTEN, *off);
+        db.characters().insert(acct, &c).await.unwrap();
+    }
+    let top: Vec<String> = db
+        .characters()
+        .top_by_exp(3)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|r| r.character.firstname)
+        .collect();
+    assert_eq!(top, ["Top", "Mid", "Low"]);
+    db.close().await;
+}
+
+/// Of two characters with equal experience the later by user-id comes first, whatever
+/// order they were stored in.
+#[tokio::test]
+async fn top_by_exp_ties_later_userid_first() {
+    let db = db().await;
+    let mut seq = Seq::new(24);
+    for (userid, name) in [("ABLE", "Able"), ("ZED", "Zed"), ("mid", "Mid")] {
+        let acct = new_account(&db, &mut seq, userid).await;
+        let mut c = character(&mut seq, userid, name);
+        c.exp = 700;
+        c.settings.remove(PlayerSettings::NOTOPTEN);
+        db.characters().insert(acct, &c).await.unwrap();
+    }
+    let top: Vec<String> = db
+        .characters()
+        .top_by_exp(3)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|r| r.character.firstname)
+        .collect();
+    assert_eq!(top, ["Zed", "Mid", "Able"]);
+    db.close().await;
+}
+
 /// The top list orders by key 2 `exp` descending.
 #[tokio::test]
 async fn top_by_exp_is_descending() {
@@ -78,6 +137,8 @@ async fn top_by_exp_is_descending() {
         let acct = new_account(&db, &mut seq, &format!("u{i}")).await;
         let mut c = character(&mut seq, &format!("u{i}"), name);
         c.exp = *exp;
+        // on the list (the filled record may have any settings)
+        c.settings.remove(PlayerSettings::NOTOPTEN);
         db.characters().insert(acct, &c).await.unwrap();
     }
     let top: Vec<(String, u32)> = db

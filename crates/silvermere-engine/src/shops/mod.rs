@@ -9,7 +9,8 @@
 //! The restock queue is [`World::restock`]: one [`RestockNode`] per timed slot, due at a
 //! fast-tick count (one tick a second). `check_initiate_restocking` runs once for shops 0
 //! to [`NRESTOCK`]-1 when the world loads and [`restock_items`] on every 21st slow cycle
-//! (the scheduler's count).
+//! (the scheduler's count). The daily cleanup runs the untimed part again
+//! ([`restock_untimed_all`]), as the original's nightly restart did.
 
 use silvermere_rules::Rng;
 use silvermere_types::enums::{Currency, ShopType};
@@ -263,6 +264,72 @@ fn due_in(now: u64, minutes: i16) -> u64 {
         .max(now)
 }
 
+/// What [`restock_untimed_slot`] did to a slot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Untimed {
+    /// Below the ceiling and the roll failed, or at the ceiling.
+    Unchanged,
+    /// Below the ceiling and the roll won: `regennum` added, never past `maxqty`.
+    ToppedUp,
+    /// Above the ceiling: cut back to `maxqty`.
+    CutBack,
+}
+
+/// A slot with no interval (`regentime` 0): below `maxqty`, a 1-99 roll (the top of 100
+/// excluded) below `regenpct` adds `regennum` copies, never past `maxqty`; above it, the
+/// stock is cut back to `maxqty`. Rolls only when below the ceiling.
+pub fn restock_untimed_slot(s: &mut ShopSlot, rng: &mut dyn Rng) -> Untimed {
+    if s.qty < s.maxqty {
+        // Roll 1-99 (the top, PCTMAX, excluded), below regenpct wins
+        if rng.range(1, PCTMAX) < i32::from(s.regenpct) {
+            s.qty = s.qty.wrapping_add_signed(s.regennum);
+            if s.qty > s.maxqty {
+                s.qty = s.maxqty;
+            }
+            return Untimed::ToppedUp;
+        }
+    } else if s.qty > s.maxqty {
+        s.qty = s.maxqty;
+        return Untimed::CutBack;
+    }
+    Untimed::Unchanged
+}
+
+/// The untimed slots of every shop in `0..NRESTOCK` that is not a gang shop, as start-up
+/// gives them ([`restock_untimed_slot`], same rolls in the same order); timed slots are not
+/// touched and nothing is queued. A changed shop's stock is persisted. Returns the number
+/// of slots topped up.
+pub fn restock_untimed_all(world: &mut World, rng: &mut dyn Rng) -> u32 {
+    let mut topped = 0;
+    for k in 0..NRESTOCK {
+        let shop = ShopNo(k);
+        let Some(shp) = world.shops.get_mut(&shop) else {
+            continue;
+        };
+        if shp.shop_type == ShopType::GangShop {
+            continue;
+        }
+        let mut dirty = false;
+        for s in shp.stock.iter_mut() {
+            if s.item == ItemNo(0) || s.regentime != 0 {
+                continue;
+            }
+            match restock_untimed_slot(s, rng) {
+                Untimed::Unchanged => {}
+                Untimed::ToppedUp => {
+                    topped += 1;
+                    dirty = true;
+                }
+                Untimed::CutBack => dirty = true,
+            }
+        }
+        if dirty {
+            persist_stock(world, shop);
+        }
+    }
+    topped
+}
+
 /// A slot with no interval is topped up once now (by `regennum` when a 1-99 roll, the top
 /// of 100 excluded, is below `regenpct`, never past `maxqty`) or cut back to `maxqty`; a
 /// timed slot is cut back to `maxqty` and queued, its first restock due a random
@@ -282,17 +349,7 @@ pub fn check_initiate_restocking(world: &mut World, shop: ShopNo, rng: &mut dyn 
             continue;
         }
         if s.regentime == 0 {
-            if s.qty < s.maxqty {
-                // Roll 1-99 (the top, PCTMAX, excluded), below regenpct wins
-                if rng.range(1, PCTMAX) < i32::from(s.regenpct) {
-                    s.qty = s.qty.wrapping_add_signed(s.regennum);
-                    if s.qty > s.maxqty {
-                        s.qty = s.maxqty;
-                    }
-                    dirty = true;
-                }
-            } else if s.qty > s.maxqty {
-                s.qty = s.maxqty;
+            if restock_untimed_slot(s, rng) != Untimed::Unchanged {
                 dirty = true;
             }
         } else {

@@ -25,6 +25,7 @@ mod raw_to_lines;
 mod scripted;
 mod startup_stock;
 mod stock_ab_sheets;
+mod stock_cleanup_reset;
 mod stock_item_use;
 mod stock_scripts;
 mod stock_shops;

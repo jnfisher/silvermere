@@ -1336,3 +1336,457 @@ mod account_delete {
         assert_eq!(h.engine.world.gangs["WOLVES"].members, 2);
     }
 }
+
+// The cold-start room reset the original's nightly restart gave, run after the passes
+mod room_reset {
+    use super::*;
+    use silvermere_engine::Routine;
+    use silvermere_engine::monsters::{StartUp, preload_cycle};
+    use silvermere_engine::movement::exits::{
+        LOCK_LOCKED, LOCK_OPEN, live_exit, set_par1, set_par2,
+    };
+    use silvermere_types::enums::{Direction, ExitType};
+    use silvermere_types::flags::ExitFlags;
+    use silvermere_types::records::Exit;
+
+    /// A placed item that cannot be picked up: it goes back hidden.
+    const IDOL: ItemNo = ItemNo(112);
+
+    fn exit(target: u32, kind: ExitType, par1: u32, par2: i16) -> Exit {
+        Exit {
+            target: RoomId(target),
+            kind,
+            par1,
+            par2,
+            par3: 0,
+            par4: 0,
+        }
+    }
+
+    /// The square with a placed idol, a locked door north, a locked key exit south, an
+    /// armed trap east, a hidden exit west and a timed exit up.
+    fn harness() -> Harness {
+        let mut h = Harness::new(config(), |w| {
+            let mut idol = blank::clear_item(IDOL);
+            idol.name = "idol".into();
+            w.items.insert(IDOL, idol);
+            let r = w.rooms.get_mut(&key(START)).unwrap();
+            r.placed[1] = IDOL;
+            r.exits[0] = exit(REINC, ExitType::Door, LOCK_LOCKED, 0);
+            r.exits[1] = exit(EVIL_REINC, ExitType::Key, 0, 2);
+            r.exits[2] = exit(JAIL, ExitType::Trap, 0, 0);
+            r.exits[3] = exit(CLEAN, ExitType::Hidden, ExitFlags::NEEDSEARCH.bits(), 0);
+            r.exits[8] = exit(HOUSE, ExitType::Timed, 0, 3);
+            // the start-up cycle again, over the edited content
+            preload_cycle(w, StartUp::Cold);
+        });
+        h.stored.insert(LARS, lars());
+        h
+    }
+
+    fn lying(w: &World, item: ItemNo) -> (usize, usize) {
+        let s = &w.room_state[&key(START)];
+        (
+            s.items.iter().filter(|i| i.item == item).count(),
+            s.hiditems.iter().filter(|i| i.item == item).count(),
+        )
+    }
+
+    fn timers(w: &World, dir: Direction) -> usize {
+        w.scheduler
+            .pending()
+            .filter(|k| {
+                k.routine
+                    == Routine::ExitRevert {
+                        room: key(START),
+                        dir: dir.code() as u8,
+                    }
+            })
+            .count()
+    }
+
+    // what the players left behind: the idol gone, the door open, the key exit unlocked,
+    // the trap disarmed, the hidden exit found, a kill and a search marked
+    fn play(w: &mut World) {
+        let s = w.room_state.get_mut(&key(START)).unwrap();
+        s.hiditems
+            .iter_mut()
+            .filter(|i| i.item == IDOL)
+            .for_each(|i| {
+                i.item = ItemNo(0);
+            });
+        s.lastkill = 30;
+        s.foundmask = 1;
+        s.searchers = 2;
+        set_par1(w, key(START), Direction::North, LOCK_OPEN);
+        set_par2(w, key(START), Direction::South, 0);
+        set_par2(w, key(START), Direction::East, 1);
+        set_par1(
+            w,
+            key(START),
+            Direction::West,
+            ExitFlags::VISSEARCHED.bits(),
+        );
+    }
+
+    #[test]
+    fn the_rooms_are_reset_after_the_passes() {
+        let mut h = harness();
+        // the start-up put the idol back hidden
+        assert_eq!(lying(&h.engine.world, IDOL), (0, 1));
+        play(h.w());
+        assert_eq!(lying(&h.engine.world, IDOL), (0, 0));
+        let mark = h.log.len();
+        let report = h.run_cleanup();
+        let w = &h.engine.world;
+        assert_eq!(lying(w, IDOL), (0, 1), "the idol is back, hidden");
+        let s = &w.room_state[&key(START)];
+        assert_eq!((s.lastkill, s.foundmask, s.searchers), (0, 0, 0));
+        let at = |d| live_exit(w, key(START), d).unwrap();
+        assert_eq!(at(Direction::North).par1, LOCK_LOCKED);
+        assert_eq!(at(Direction::South).par2, 2);
+        assert_eq!(at(Direction::East).par2, 0);
+        assert_eq!(at(Direction::West).par1, ExitFlags::NEEDSEARCH.bits());
+        assert_eq!(timers(w, Direction::Up), 1);
+        assert_eq!((report.placed_items, report.exits_reset), (1, 4));
+        let audits = h.audits_since(mark);
+        let (kind, fields) = audits.last().unwrap();
+        assert_eq!(*kind, "cleanup.complete");
+        assert!(fields.contains(&("placed_items", AuditValue::Int(1))));
+        assert!(fields.contains(&("exits_reset", AuditValue::Int(4))));
+        // the room went to the persistence worker with its markers cleared
+        assert!(h.log[mark..].iter().any(|o| matches!(
+            o,
+            EngineOutput::Persist(PersistRequest::RoomState(s))
+                if s.key == key(START) && s.lastkill == 0 && s.foundmask == 0
+        )));
+    }
+
+    #[test]
+    fn a_placed_item_still_lying_there_is_not_doubled() {
+        let mut h = harness();
+        // the sign (placed, item 108) lies on the floor; the sweep hides it
+        let report = h.run_cleanup();
+        assert_eq!(report.placed_items, 0);
+        let w = &h.engine.world;
+        let (seen, hidden) = lying(w, ItemNo(108));
+        assert_eq!(seen + hidden, 1);
+        assert_eq!(lying(w, IDOL), (0, 1));
+        // and a second night puts nothing back
+        assert_eq!(h.run_cleanup().placed_items, 0);
+        assert_eq!(lying(&h.engine.world, IDOL), (0, 1));
+    }
+
+    // a restart dropped the pending exit changes: the timed exit keeps one timer, night
+    // after night
+    #[test]
+    fn a_timed_exit_keeps_one_timer() {
+        let mut h = harness();
+        assert_eq!(timers(&h.engine.world, Direction::Up), 1);
+        h.run_cleanup();
+        h.run_cleanup();
+        assert_eq!(timers(&h.engine.world, Direction::Up), 1);
+    }
+
+    // a player standing in the room is not told, stays on, and finds the door locked
+    // under her as a door that was never opened
+    #[test]
+    fn a_player_in_the_room_finds_the_door_locked() {
+        let mut fresh = harness();
+        let ann = fresh.playing(character("Ann", START));
+        let m = fresh.log.len();
+        fresh.line(ann, "n");
+        fresh.ticks(20);
+        let never_opened = fresh.text_since(m, ann);
+        assert!(never_opened.contains("closed"), "{never_opened:?}");
+
+        let mut h = harness();
+        let ann = h.playing(character("Ann", START));
+        play(h.w());
+        let mark = h.log.len();
+        h.run_cleanup();
+        assert_eq!(h.text_since(mark, ann), "");
+        assert!(!h.log[mark..].iter().any(|o| matches!(
+            o,
+            EngineOutput::Close { .. } | EngineOutput::ReturnToLogin { .. }
+        )));
+        assert_eq!(h.state(ann), Some(SessionState::Playing));
+        let m = h.log.len();
+        h.line(ann, "n");
+        h.ticks(20);
+        assert_eq!(h.text_since(m, ann), never_opened);
+        assert_eq!(h.plr(ann).room, RoomId(START));
+    }
+}
+
+/// T-143: the top list is built again at the end of the run, as the start-up builds it.
+mod top_list {
+    use super::*;
+    use silvermere_engine::progression::TopTen;
+
+    fn exp(mut c: Character, exp: u32) -> Character {
+        c.exprem = exp;
+        c
+    }
+
+    fn listed(w: &World) -> Vec<(String, u32)> {
+        w.topten
+            .iter()
+            .map(|e| (e.userid.clone(), e.explo))
+            .collect()
+    }
+
+    // a character taken off the top list since the start-up is gone from it after the run
+    #[test]
+    fn a_character_taken_off_is_gone() {
+        let (lars, evan) = (exp(lars(), 900), exp(evan(), 500));
+        let start = [lars.clone(), evan.clone()];
+        let mut h = Harness::new(config(), |w| w.topten = TopTen::rebuild(&start));
+        let mut lars = lars;
+        lars.settings |= PlayerSettings::NOTOPTEN;
+        h.stored.insert(LARS, lars);
+        h.stored.insert(EVAN, evan);
+        assert_eq!(listed(h.w()), [("LARS".into(), 900), ("EVAN".into(), 500)]);
+        let report = h.run_cleanup();
+        assert_eq!(listed(h.w()), [("EVAN".into(), 500)]);
+        assert_eq!(report.top_list, 1);
+    }
+
+    // a sysop's experience edit of a player on line shows after the run, from the live
+    // record, and the `top` list a player asks for shows it
+    #[test]
+    fn an_experience_edit_shows() {
+        let mut h = Harness::new(config(), |_| {});
+        h.stored.insert(EVAN, exp(evan(), 500));
+        let ann = h.playing(exp(character("Ann", START), 100));
+        h.w().topten = TopTen::rebuild(&[exp(evan(), 500), exp(character("Ann", START), 100)]);
+        // the edit changes the record only
+        h.w()
+            .sessions
+            .get_mut(&ann)
+            .unwrap()
+            .character
+            .as_mut()
+            .unwrap()
+            .exprem = 2000;
+        assert_eq!(listed(h.w())[0], ("EVAN".into(), 500));
+        h.run_cleanup();
+        assert_eq!(listed(h.w()), [("ANN".into(), 2000), ("EVAN".into(), 500)]);
+        let m = h.log.len();
+        h.line(ann, "top");
+        h.ticks(5);
+        let out = h.text_since(m, ann);
+        let (a, e) = (out.find("Ann").expect(&out), out.find("Evan").expect(&out));
+        assert!(a < e, "{out}");
+        assert_eq!(h.state(ann), Some(SessionState::Playing));
+    }
+
+    // of two characters with equal experience the later by user-id lists first
+    #[test]
+    fn equal_experience_later_user_id_first() {
+        let mut h = Harness::new(config(), |_| {});
+        h.stored.insert(LARS, exp(lars(), 700));
+        h.stored.insert(EVAN, exp(evan(), 700));
+        h.run_cleanup();
+        assert_eq!(listed(h.w()), [("LARS".into(), 700), ("EVAN".into(), 700)]);
+    }
+}
+
+// T-142: the run ends with the restart's roll for the shop slots with no restock interval
+mod untimed_restock {
+    use super::*;
+    use silvermere_engine::shops::{self, RestockNode};
+    use silvermere_types::enums::ShopType;
+    use silvermere_types::records::{Shop, ShopSlot};
+
+    const STORE: ShopNo = ShopNo(10);
+    const GANG_STORE: ShopNo = ShopNo(11);
+    const HIGH_STORE: ShopNo = ShopNo(200);
+    const GOODS: ItemNo = ItemNo(112);
+
+    fn slot(qty: u16, maxqty: u16, regentime: u16, regennum: i16, regenpct: u8) -> ShopSlot {
+        ShopSlot {
+            item: GOODS,
+            maxqty,
+            qty,
+            regentime,
+            regennum,
+            regenpct,
+        }
+    }
+
+    fn shop(number: ShopNo, shop_type: ShopType, slots: &[ShopSlot]) -> Shop {
+        let mut stock = [ShopSlot {
+            item: ItemNo(0),
+            maxqty: 0,
+            qty: 0,
+            regentime: 0,
+            regennum: 0,
+            regenpct: 0,
+        }; silvermere_types::sizes::NSHOPITEMS];
+        stock[..slots.len()].copy_from_slice(slots);
+        Shop {
+            number,
+            name: format!("Store {}", number.0),
+            desc: Default::default(),
+            shop_type,
+            minlevel: 0,
+            maxlevel: 0,
+            markup: 0,
+            ownable: 0,
+            expandable: 0,
+            trainclass: ClassNo(0),
+            stock,
+        }
+    }
+
+    /// The fixture world with `shops` added after the load (so after the start-up pass).
+    fn with_shops(shops: Vec<Shop>) -> Harness {
+        Harness::new(config(), move |w| {
+            for s in shops {
+                w.shops.insert(s.number, s);
+            }
+        })
+    }
+
+    fn qty(h: &mut Harness, shop: ShopNo) -> Vec<u16> {
+        h.w().shops[&shop].stock[..4]
+            .iter()
+            .map(|s| s.qty)
+            .collect()
+    }
+
+    fn stock_saves_since(h: &Harness, from: usize) -> Vec<ShopNo> {
+        h.log[from..]
+            .iter()
+            .filter_map(|o| match o {
+                EngineOutput::Persist(PersistRequest::ShopStock { shop, .. }) => Some(*shop),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn nodes(h: &mut Harness, shop: ShopNo) -> Vec<RestockNode> {
+        shops::pending_restocks(h.w(), Some(shop))
+    }
+
+    // A roll of 1-99 is always below 100 and never below 1
+    #[test]
+    fn a_sold_out_slot_is_topped_up_once_never_past_its_ceiling() {
+        let mut h = with_shops(vec![shop(
+            STORE,
+            ShopType::General,
+            &[
+                slot(0, 5, 0, 3, 100),
+                slot(0, 4, 0, 10, 100),
+                slot(1, 4, 0, 2, 100),
+            ],
+        )]);
+        assert_eq!(qty(&mut h, STORE), [0, 0, 1, 0]);
+        let mark = h.log.len();
+        let report = h.run_cleanup();
+        assert_eq!(qty(&mut h, STORE), [3, 4, 3, 0]);
+        assert_eq!(report.shop_slots_restocked, 3);
+        assert_eq!(stock_saves_since(&h, mark), [STORE]);
+        let complete = h
+            .audits_since(mark)
+            .into_iter()
+            .find(|(k, _)| *k == "cleanup.complete")
+            .unwrap();
+        assert!(
+            complete
+                .1
+                .contains(&("shop_slots_restocked", AuditValue::Int(3))),
+            "{complete:?}"
+        );
+    }
+
+    #[test]
+    fn a_failing_roll_leaves_the_slot_alone() {
+        let mut h = with_shops(vec![shop(STORE, ShopType::General, &[slot(0, 5, 0, 3, 1)])]);
+        assert_eq!(qty(&mut h, STORE)[0], 0);
+        let mark = h.log.len();
+        let report = h.run_cleanup();
+        assert_eq!(qty(&mut h, STORE)[0], 0);
+        assert_eq!(report.shop_slots_restocked, 0);
+        assert!(stock_saves_since(&h, mark).is_empty());
+    }
+
+    #[test]
+    fn a_slot_above_its_ceiling_is_cut_back() {
+        let mut h = with_shops(vec![shop(STORE, ShopType::General, &[slot(0, 5, 0, 3, 1)])]);
+        h.w().shops.get_mut(&STORE).unwrap().stock[0].qty = 9;
+        let mark = h.log.len();
+        let report = h.run_cleanup();
+        assert_eq!(qty(&mut h, STORE)[0], 5);
+        assert_eq!(report.shop_slots_restocked, 0, "a cut-back is not a top-up");
+        assert_eq!(stock_saves_since(&h, mark), [STORE]);
+    }
+
+    // A timed slot keeps its one queued restock and is not cut back
+    #[test]
+    fn timed_slots_are_not_queued_again_or_cut_back() {
+        let mut h = with_shops(vec![shop(
+            STORE,
+            ShopType::General,
+            &[slot(0, 5, 30, 1, 100), slot(0, 5, 0, 3, 100)],
+        )]);
+        // the start-up pass for the added shop
+        let mut rng = SeededRng::new(3);
+        shops::check_initiate_restocking(h.w(), STORE, &mut rng);
+        let before = nodes(&mut h, STORE);
+        assert_eq!(before.len(), 1);
+        h.w().shops.get_mut(&STORE).unwrap().stock[0].qty = 9;
+        h.run_cleanup();
+        h.run_cleanup();
+        assert_eq!(nodes(&mut h, STORE), before);
+        assert_eq!(qty(&mut h, STORE)[0], 9);
+    }
+
+    #[test]
+    fn gang_shops_and_shops_from_200_are_untouched() {
+        let mut h = with_shops(vec![
+            shop(GANG_STORE, ShopType::GangShop, &[slot(0, 5, 0, 3, 100)]),
+            shop(HIGH_STORE, ShopType::General, &[slot(0, 5, 0, 3, 100)]),
+        ]);
+        h.w().shops.get_mut(&GANG_STORE).unwrap().stock[1] = slot(9, 5, 0, 3, 100);
+        h.w().shops.get_mut(&HIGH_STORE).unwrap().stock[1] = slot(9, 5, 0, 3, 100);
+        let mark = h.log.len();
+        let report = h.run_cleanup();
+        assert_eq!(qty(&mut h, GANG_STORE)[..2], [0, 9]);
+        assert_eq!(qty(&mut h, HIGH_STORE)[..2], [0, 9]);
+        assert_eq!(report.shop_slots_restocked, 0);
+        assert!(stock_saves_since(&h, mark).is_empty());
+    }
+
+    // The cleanup's untimed rolls are start-up's, drawn in the same order
+    #[test]
+    fn the_rolls_match_start_up_slot_for_slot() {
+        let slots = [
+            slot(0, 9, 0, 2, 50),
+            slot(0, 9, 0, 3, 40),
+            slot(9, 9, 0, 3, 40),
+            slot(0, 9, 0, 1, 70),
+            slot(12, 9, 0, 1, 70),
+        ];
+        let mut h = with_shops(vec![shop(STORE, ShopType::General, &slots)]);
+        let fresh = shop(STORE, ShopType::General, &slots);
+        let mut run = |f: &dyn Fn(&mut World, &mut SeededRng)| {
+            let w = h.w();
+            w.shops.insert(STORE, fresh.clone());
+            let mut rng = SeededRng::new(99);
+            f(w, &mut rng);
+            w.shops[&STORE].stock[..5]
+                .iter()
+                .map(|s| s.qty)
+                .collect::<Vec<_>>()
+        };
+        let start_up = run(&|w, rng| shops::check_initiate_restocking(w, STORE, rng));
+        let cleanup = run(&|w, rng| {
+            shops::restock_untimed_all(w, rng);
+        });
+        assert_eq!(cleanup, start_up);
+        assert_eq!(start_up[2], 9);
+        assert_eq!(start_up[4], 9);
+    }
+}

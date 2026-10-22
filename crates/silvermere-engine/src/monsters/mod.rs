@@ -37,13 +37,14 @@ pub use active::{ActiveMonsters, FreeList};
 
 use silvermere_types::enums::{Ability, Direction, ExitType, RoomType};
 use silvermere_types::flags::ExitFlags;
-use silvermere_types::ids::{ActiveMonsterId, RoomKey};
+use silvermere_types::ids::{ActiveMonsterId, MonsterNo, RoomKey};
 use silvermere_types::records::ActiveMonster;
 use silvermere_types::sizes::NDIRS;
 
-use crate::movement::exits::{LOCK_LOCKED, set_par1, set_par2};
+use crate::movement::exits::{LOCK_LOCKED, live_exits, set_par1, set_par2};
 use crate::movement::timed_exits::{add_exit_to_list, blocked_upto};
 use crate::movement::{GenerateSpec, MonsterHooks};
+use crate::scheduler::Routine;
 use crate::world::World;
 
 /// The statics of the spawn pass and the monster passes.
@@ -354,8 +355,6 @@ fn preload_room(world: &mut World, key: RoomKey, kind: StartUp, maxactive: i32) 
         return;
     };
     let (specmon, room_type) = (rm.specmon, rm.room_type);
-    let (mongroup, genmonster, minlevel, maxlevel) =
-        (rm.mongroup, rm.genmonster, rm.minlevel, rm.maxlevel);
     let mut changed = false;
     let Some(s) = world.room_state.get_mut(&key) else {
         return;
@@ -370,73 +369,12 @@ fn preload_room(world: &mut World, key: RoomKey, kind: StartUp, maxactive: i32) 
         s.specalive = false;
         changed = true;
     }
-    if specmon.0 != 0 {
-        if s.specalive {
-            // look for it among the active monsters 1..=maxactive (that known monster,
-            // generated in this room of this map); the search stops at the first copy.
-            // (sic) The number is cut to 16 bits, so a monster numbered above 32767 is
-            // never found.
-            let found = world.active_monsters.values().any(|m| {
-                m.number.0 >= 1
-                    && m.number.0 <= maxactive
-                    && m.number.0 <= i32::from(i16::MAX)
-                    && m.knownnum == specmon
-                    && m.map == key.map
-                    && m.genroom == key.room
-            });
-            // not found: it is not alive after all
-            if !found && let Some(s) = world.room_state.get_mut(&key) {
-                s.specalive = false;
-                changed = true;
-            }
-        }
-        // not alive: generate it (type 0, any level 0..0x7FFF, nobody's, not an
-        // ally, spawn rules not forced)
-        if world.room_state.get(&key).is_some_and(|s| !s.specalive) {
-            let req = generate::Request {
-                areatype: 0,
-                monnum: specmon,
-                minlevel: 0,
-                maxlevel: 0x7FFF,
-                owner: None,
-                ally: false,
-                force: false,
-            };
-            generate::generate_monster(world, key, req);
-        }
-    }
-    // lairs and shops: until generation fails, at most 16 (the call comes before the count
-    // test). A room lists at most NROOMMONS (15) monsters, so in practice the fill ends at
-    // a full list or the room's `maxmonsters`.
+    changed |= specific_monster(world, key, specmon, maxactive).0;
     if matches!(room_type, RoomType::Lair | RoomType::Shop) {
-        let req = generate::Request {
-            areatype: mongroup,
-            monnum: genmonster,
-            minlevel,
-            maxlevel,
-            owner: None,
-            ally: false,
-            force: false,
-        };
-        let mut made = 0;
-        while generate::generate_monster(world, key, req).is_some() && made < LAIRFILL {
-            made += 1;
-        }
+        fill_room(world, key);
     }
     if kind == StartUp::Cold {
-        // no recent kill (`lastkill`, a minute stamp relative to the start-up
-        // day, starts at 0), no hidden item found yet
-        if let Some(s) = world.room_state.get_mut(&key) {
-            if s.lastkill != 0 {
-                s.lastkill = 0;
-                changed = true;
-            }
-            if s.foundmask != 0 || s.searchers != 0 {
-                s.foundmask = 0;
-                s.searchers = 0;
-                changed = true;
-            }
-        }
+        changed |= clear_markers(world, key);
     }
     if changed {
         active::save_room(world, key);
@@ -447,15 +385,172 @@ fn preload_room(world: &mut World, key: RoomKey, kind: StartUp, maxactive: i32) 
     }
 }
 
+/// Step 2 of [`preload_cycle`] for one room: its specific monster made sure of, generated
+/// when it is not alive. Returns whether the room changed and whether a monster was made.
+fn specific_monster(
+    world: &mut World,
+    key: RoomKey,
+    specmon: MonsterNo,
+    maxactive: i32,
+) -> (bool, bool) {
+    let mut changed = false;
+    if specmon.0 == 0 {
+        return (false, false);
+    }
+    if world.room_state.get(&key).is_some_and(|s| s.specalive) {
+        // look for it among the active monsters 1..=maxactive (that known monster,
+        // generated in this room of this map); the search stops at the first copy.
+        // (sic) The number is cut to 16 bits, so a monster numbered above 32767 is
+        // never found.
+        let found = world.active_monsters.values().any(|m| {
+            m.number.0 >= 1
+                && m.number.0 <= maxactive
+                && m.number.0 <= i32::from(i16::MAX)
+                && m.knownnum == specmon
+                && m.map == key.map
+                && m.genroom == key.room
+        });
+        // not found: it is not alive after all
+        if !found && let Some(s) = world.room_state.get_mut(&key) {
+            s.specalive = false;
+            changed = true;
+        }
+    }
+    // not alive: generate it (type 0, any level 0..0x7FFF, nobody's, not an
+    // ally, spawn rules not forced)
+    let mut made = false;
+    if world.room_state.get(&key).is_some_and(|s| !s.specalive) {
+        let req = generate::Request {
+            areatype: 0,
+            monnum: specmon,
+            minlevel: 0,
+            maxlevel: 0x7FFF,
+            owner: None,
+            ally: false,
+            force: false,
+        };
+        made = generate::generate_monster(world, key, req).is_some();
+    }
+    (changed, made)
+}
+
+/// Step 3 of [`preload_cycle`] for one Lair or Shop room: until generation fails, at most
+/// 16 (the call comes before the count test). A room lists at most NROOMMONS (15)
+/// monsters, so in practice the fill ends at a full list or the room's `maxmonsters`.
+/// Returns the monsters made.
+fn fill_room(world: &mut World, key: RoomKey) -> u32 {
+    let Some(rm) = world.room(key) else {
+        return 0;
+    };
+    let req = generate::Request {
+        areatype: rm.mongroup,
+        monnum: rm.genmonster,
+        minlevel: rm.minlevel,
+        maxlevel: rm.maxlevel,
+        owner: None,
+        ally: false,
+        force: false,
+    };
+    let mut made = 0;
+    let mut tries = 0;
+    while generate::generate_monster(world, key, req).is_some() {
+        made += 1;
+        if tries >= LAIRFILL {
+            break;
+        }
+        tries += 1;
+    }
+    made
+}
+
+/// What [`refill_shops`] did, all Shop rooms together.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ShopFill {
+    /// Monsters placed: specific monsters and the fill.
+    pub monsters: u32,
+}
+
+/// Steps 2 and 3 of [`preload_cycle`] for every Shop room, in [`room_walk`] order: the
+/// specific monster made sure of, then the fill from the room's pool and level range up to
+/// its cap. A monster still alive in the room counts against the cap. The daily cleanup
+/// runs it after [`cold_reset`], as the original's nightly restart refilled them; on a
+/// running server only Lairs are refilled (on entry and by the spawn pass), so Lairs are
+/// not included. Players in a room see each arrival as at start-up.
+pub fn refill_shops(world: &mut World) -> ShopFill {
+    let mut done = ShopFill::default();
+    let maxactive = highest_active(world);
+    for key in room_walk(world) {
+        let Some(rm) = world.room(key) else {
+            continue;
+        };
+        if rm.room_type != RoomType::Shop {
+            continue;
+        }
+        let specmon = rm.specmon;
+        let (changed, made) = specific_monster(world, key, specmon, maxactive);
+        if changed {
+            active::save_room(world, key);
+        }
+        done.monsters += u32::from(made);
+        done.monsters += fill_room(world, key);
+    }
+    done
+}
+
+/// What [`cold_reset`] did, all rooms together.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ColdReset {
+    /// Placed items put back.
+    pub placed: u32,
+    /// Exits locked, re-armed or hidden again.
+    pub exits: u32,
+}
+
+/// The cold-start room reset of the start-up cycle (step 4 of [`preload_cycle`]) on its own,
+/// for every room in [`room_walk`] order: no recent kill, no hidden item found, the placed
+/// items put back and the exits reset. The daily cleanup runs it after its passes, as the
+/// original's nightly restart did. Nobody in a room is told.
+pub fn cold_reset(world: &mut World) -> ColdReset {
+    let mut done = ColdReset::default();
+    for key in room_walk(world) {
+        if clear_markers(world, key) {
+            active::save_room(world, key);
+        }
+        done.placed += preload_placed_items(world, key);
+        done.exits += preload_exits(world, key);
+    }
+    done
+}
+
+/// No recent kill (`lastkill`, a minute stamp relative to the start-up day, starts at 0),
+/// no hidden item found yet. True when the room changed.
+fn clear_markers(world: &mut World, key: RoomKey) -> bool {
+    let Some(s) = world.room_state.get_mut(&key) else {
+        return false;
+    };
+    let mut changed = false;
+    if s.lastkill != 0 {
+        s.lastkill = 0;
+        changed = true;
+    }
+    if s.foundmask != 0 || s.searchers != 0 {
+        s.foundmask = 0;
+        s.searchers = 0;
+        changed = true;
+    }
+    changed
+}
+
 /// The placed items of the start-up cycle, for one room: each placed item no longer lying
 /// in the room, visible or hidden, gets a new copy with the item's own charges, in view
 /// when it has "Visible Placed Item" or can be picked up, hidden otherwise. (The stock
 /// Large Tombs place the class weapons this way, e.g. the mithril cutlass, item 342, in
-/// room 1:2236.)
-pub fn preload_placed_items(world: &mut World, key: RoomKey) {
+/// room 1:2236.) Returns the copies put back.
+pub fn preload_placed_items(world: &mut World, key: RoomKey) -> u32 {
     let Some(placed) = world.room(key).map(|r| r.placed) else {
-        return;
+        return 0;
     };
+    let mut put = 0;
     for item in placed.into_iter().filter(|n| n.0 != 0) {
         let lying = world.room_state.get(&key).is_some_and(|s| {
             s.items.iter().any(|i| i.item == item) || s.hiditems.iter().any(|i| i.item == item)
@@ -468,47 +563,76 @@ pub fn preload_placed_items(world: &mut World, key: RoomKey) {
         };
         let hidden = !(crate::combat::item_has(itm, Ability::VisiblePlaced) || itm.gettable != 0);
         let charges = itm.charges;
-        crate::items::room_items::add_item_to_room(world, key, item, hidden, charges);
+        if crate::items::room_items::add_item_to_room(world, key, item, hidden, charges).is_some() {
+            put += 1;
+        }
     }
+    put
 }
 
-/// The exit reset of the start-up cycle, for one room: a Key exit locks (`par2` 2), a
-/// disarmed trap re-arms (1 to 0, 4 to 3), a Timed exit's first swap is armed after `par2`
-/// steps ([`add_exit_to_list`]), a found hidden exit hides again (or a visible-but-blockable
-/// one gets all its blocks back), a Door or Gate locks (`par1` 2). The changes are laid
-/// over the content as exit overrides.
-pub fn preload_exits(world: &mut World, key: RoomKey) {
-    let Some(exits) = world.room(key).map(|r| r.exits) else {
-        return;
+/// The exit reset of the start-up cycle, for one room, from the exits as they stand: a Key
+/// exit locks (`par2` 2), a disarmed trap re-arms (1 to 0, 4 to 3), a Timed exit's first
+/// swap is armed after `par2` steps ([`add_exit_to_list`]), a found hidden exit hides again
+/// (or a visible-but-blockable one gets all its blocks back), a Door or Gate locks (`par1`
+/// 2). The changes are laid over the content as exit overrides. A change already waiting
+/// for one of the room's exits is dropped first, as a restart dropped them all, so a Timed
+/// exit keeps one timer. Returns the exits locked, re-armed or hidden again (not the Timed
+/// ones).
+pub fn preload_exits(world: &mut World, key: RoomKey) -> u32 {
+    let Some(exits) = live_exits(world, key) else {
+        return 0;
     };
+    let mut reset = 0;
     for (i, exit) in exits.iter().enumerate().take(NDIRS) {
         if exit.target.0 == 0 {
             continue;
         }
         let dir = Direction::COMPASS[i];
-        match exit.kind {
-            ExitType::Key if exit.par2 != 2 => set_par2(world, key, dir, 2),
+        world.scheduler.disarm(Routine::ExitRevert {
+            room: key,
+            dir: dir.code() as u8,
+        });
+        let par1 = |v: u32| (exit.par1 != v).then_some(v);
+        let (p1, p2) = match exit.kind {
+            ExitType::Key if exit.par2 != 2 => (None, Some(2)),
             ExitType::Trap | ExitType::SpellTrap => match exit.par2 {
-                1 => set_par2(world, key, dir, 0),
-                4 => set_par2(world, key, dir, 3),
-                _ => {}
+                1 => (None, Some(0)),
+                4 => (None, Some(3)),
+                _ => (None, None),
             },
-            ExitType::Timed => add_exit_to_list(world, key, dir, i32::from(exit.par2)),
+            ExitType::Timed => {
+                add_exit_to_list(world, key, dir, i32::from(exit.par2));
+                (None, None)
+            }
             ExitType::Hidden => {
                 let f = ExitFlags::from_bits_retain(exit.par1);
                 if f.contains(ExitFlags::VISSEARCHED) {
-                    set_par1(world, key, dir, ExitFlags::NEEDSEARCH.bits());
+                    (par1(ExitFlags::NEEDSEARCH.bits()), None)
                 } else if f.contains(ExitFlags::VISBLOCKED) {
                     let n = exit.par2.unsigned_abs();
                     if (1..=10).contains(&n) {
-                        set_par1(world, key, dir, blocked_upto(u32::from(n)));
+                        (par1(blocked_upto(u32::from(n))), None)
+                    } else {
+                        (None, None)
                     }
+                } else {
+                    (None, None)
                 }
             }
             ExitType::Door | ExitType::Gate if exit.par1 != LOCK_LOCKED => {
-                set_par1(world, key, dir, LOCK_LOCKED);
+                (Some(LOCK_LOCKED), None)
             }
-            _ => {}
+            _ => (None, None),
+        };
+        if let Some(v) = p1 {
+            set_par1(world, key, dir, v);
+        }
+        if let Some(v) = p2 {
+            set_par2(world, key, dir, v);
+        }
+        if p1.is_some() || p2.is_some() {
+            reset += 1;
         }
     }
+    reset
 }
