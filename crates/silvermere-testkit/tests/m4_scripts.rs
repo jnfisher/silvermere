@@ -2,7 +2,8 @@
 //! skiff (a Text exit), GREET and ASK of the boatman, and the level-10 crypt quest
 //! walked by a Witchunter made level 10 with
 //! `sysop tweak level 10`, with the mummy and the troll fought for real, their keys picked
-//! up and used, and the mithril cutlass taken from the Large Tomb.
+//! up and used, and the mithril cutlass taken from the Large Tomb; and the dread mystic's
+//! death pause (T-140).
 //!
 //! Stock records: rooms 1:2140 Village Entrance, 1:1813 Pier (specific monster 61, the
 //! boatman), 1:834 Graveyard, Tomb Entrance, 1:1309 Crypt, Sealed Tomb (specific monster
@@ -547,4 +548,94 @@ async fn cmd_with_no_reply_returns_through_continuous_prompt_redraws() {
         "{:?}",
         t0.elapsed()
     );
+}
+
+/// Public issue #3: the four phoenix feather quest bosses (dread mystic 490, flesh golem 491,
+/// smuggler boss 478, necromancer 494) each cast a "… temp" death spell on the room: one
+/// round of Confusion 100 whose Confuse Message is record 66 (all texts empty), then the
+/// "… text" spell that gives the quest item. The party's lost action prints the record's
+/// blank lines, never the stock "looks around stupidly"; then the note. A monster's spell
+/// takes a character's last free slot, so the death spell sits in slot 9 on both.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_dread_mystics_death_pause_is_blank() {
+    const ROOM: (u32, u32) = (1, 2150);
+    const DREAD_MYSTIC: u16 = 490;
+    let db = stock_db();
+    let r = start(&db.url, 33).await;
+    let mut a = new_character(&r, &db.url, "Aldric", WARRIOR, &[]).await;
+    let mut b = new_character(&r, &db.url, "Bob", WARRIOR, &[]).await;
+    for name in ["Aldric", "Bob"] {
+        place(&r, name, ROOM.0, ROOM.1).await;
+        edit_player(&r, name, |p| {
+            p.maxhp = 400;
+            p.hp = 400;
+        })
+        .await;
+    }
+    // the quest stage the text spell checks (ability 133 at 1); it gives item 989
+    edit_player(&r, "Aldric", |p| {
+        p.abils[0] = (silvermere_types::enums::Ability::from_code(133), 1);
+    })
+    .await;
+    let m = spawn(&r, ROOM.0, ROOM.1, DREAD_MYSTIC).await;
+    pump(&mut a, 200).await;
+    pump(&mut b, 200).await;
+    let (at_a, at_b) = (a.position(), b.position());
+    let (slots, blank, lost) = on_world(&r, move |w| {
+        use silvermere_engine::combat::{check_confusion, check_kill_monster};
+        let killer = session_of(w, "Aldric");
+        w.active_monsters.by_number_mut(m).unwrap().hp = 0;
+        assert!(check_kill_monster(w, m, Some(killer)));
+        let ids = [killer, session_of(w, "Bob")];
+        let slots: Vec<Option<usize>> = ids
+            .iter()
+            .map(|&id| {
+                let p = w.session(id).unwrap().character.as_ref().unwrap();
+                p.spells.iter().position(|s| s.0 == 603)
+            })
+            .collect();
+        let blank = w
+            .messages
+            .get(&silvermere_types::ids::MessageNo(66))
+            .map(|m| m.msgs.iter().all(String::is_empty));
+        // Confusion 100 against a roll of 0-100: lost but for the one roll of 100
+        let lost: Vec<bool> = ids
+            .iter()
+            .map(|&id| (0..5).any(|_| check_confusion(w, id)))
+            .collect();
+        (slots, blank, lost)
+    })
+    .await;
+    assert_eq!(slots, [Some(9), Some(9)], "where the death spell landed");
+    assert_eq!(
+        blank,
+        Some(true),
+        "record 66 reaches the world, its texts empty"
+    );
+    assert_eq!(lost, [true, true], "both lose the action");
+    pump(&mut a, 300).await;
+    pump(&mut b, 300).await;
+    let (pause_a, pause_b) = (a.plain_from(at_a), b.plain_from(at_b));
+    let prompt = regex::Regex::new(PROMPT).unwrap();
+    for (who, out) in [("Aldric", &pause_a), ("Bob", &pause_b)] {
+        assert!(!out.contains("stupidly"), "{who}:\n{out}");
+        // after the death message, only the two blank lines (his own and the other's)
+        let after = out
+            .split_once("steps into the shadows!")
+            .unwrap_or_else(|| panic!("{who}: no death message:\n{out}"))
+            .1;
+        let bare = prompt.replace_all(after, "");
+        assert!(bare.trim().is_empty(), "{who}:\n{out}");
+        assert!(bare.matches('\n').count() >= 3, "{who}: {after:?}");
+    }
+    // the spell runs out and its End Cast gives the note
+    let t = ticker(&r, TICK);
+    a.until("A yellowed note falls out", Duration::from_secs(60))
+        .await
+        .unwrap_or_else(|e| panic!("no note: {e}\n{}", a.plain_from(at_a)));
+    t.abort();
+    assert_eq!(carried(&r, "Aldric", 989).await, 1, "the note is carried");
+    let all = a.plain_from(at_a) + &b.plain_from(at_b);
+    assert!(!all.contains("stupidly"), "{all}");
+    r.stop().await.unwrap();
 }

@@ -8,7 +8,7 @@
 //! the knock-out, the chain cast, the recomputed stats).
 
 use silvermere_rules::Rng as _;
-use silvermere_rules::abilities::spell_ability_value;
+use silvermere_rules::abilities::{AbilityLookup as _, CharacterAbilities, spell_ability_value};
 use silvermere_rules::spells::apply::{apply_monster_round, apply_monster_termination};
 use silvermere_rules::spells::{SpellEffects, apply_round_slot, apply_termination};
 use silvermere_text::Msg;
@@ -19,7 +19,7 @@ use silvermere_types::records::Spell;
 use silvermere_types::sizes::{NMONSPELLS, NSPELLCAST};
 
 use super::cast::{CastMode, CastOpts, cast_no_target};
-use crate::combat::{self, room_of, user_ability, user_has};
+use crate::combat::{self, room_of};
 use crate::monsters::move_monster::{move_monster, pick_valid_random_direction};
 use crate::movement::exits::{Arg, fmt_msg};
 use crate::tell::{Noise, TellBlind, tell_room, tell_user};
@@ -259,13 +259,20 @@ pub fn check_confusion(world: &mut World, id: SessionId) -> bool {
     let Some(plr) = combat::player(world, id) else {
         return false;
     };
-    let chance = user_ability(world, plr, Ability::Confusion);
-    // the message number is read as the Confusion Message total, from the same sources as
-    // the Confusion value.
-    let msgnum = if user_has(world, plr, Ability::ConfuseMsg) {
-        user_ability(world, plr, Ability::ConfuseMsg)
-    } else {
-        0
+    // the chance and the message number are totalled together, in one pass over the same
+    // sources; no separate "has it" test, whose spell-slot slip would miss a spell cast
+    // into the character's fifth slot or later
+    let (chance, msgnum) = {
+        let spells = |n| world.spells.get(&n);
+        let items = |n| world.items.get(&n);
+        CharacterAbilities {
+            character: plr,
+            race: world.races.get(&plr.race),
+            class: world.classes.get(&plr.class),
+            spells: &spells,
+            items: &items,
+        }
+        .pair(Ability::Confusion, Ability::ConfuseMsg)
     };
     let who = plr.firstname.clone();
     let room = room_of(plr);
@@ -347,3 +354,6 @@ pub fn check_monster_confusion(world: &mut World, mon: ActiveMonsterId) -> bool 
     );
     true
 }
+
+#[cfg(test)]
+mod tests;
