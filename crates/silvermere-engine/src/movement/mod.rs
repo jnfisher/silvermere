@@ -90,6 +90,12 @@ pub struct GenerateSpec {
     /// The level range.
     pub minlevel: i16,
     pub maxlevel: i16,
+    /// A friend of its owner. The hook's monsters have no owner, so this changes nothing
+    /// on the monster; it is carried as the caller gives it.
+    pub ally: bool,
+    /// Ignore the room's spawn rules: the cap, the regeneration delay after a kill and the
+    /// area limit.
+    pub force: bool,
 }
 
 /// One use off the item in inventory slot `slot`, the item dropped when used up. T-030.

@@ -503,6 +503,7 @@ impl World {
             .iter()
             .map(|t| ((t.part, t.number), t.clone()))
             .collect();
+        crate::stock_faults::apply(&mut self.text_blocks);
         self.action_order = s
             .actions
             .iter()

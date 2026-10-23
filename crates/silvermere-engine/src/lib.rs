@@ -55,6 +55,7 @@ pub mod shops;
 pub mod shutdown;
 pub mod spells;
 pub mod state;
+pub mod stock_faults;
 pub mod tell;
 pub mod world;
 

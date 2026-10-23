@@ -528,11 +528,24 @@ mod scripts {
         assert_eq!(t.out(), "No.\r\n");
     }
 
-    // Generating the monster is T-035's; with none made the line stops
+    // Forced, as the original: the room's cap (0 in a cleared room) and its regeneration
+    // delay after a kill do not stop it; with none made (no such monster) the line stops
     #[test]
     fn kw_summon() {
         let mut t = world();
-        assert_eq!(t.run("summon 1:message 900"), Stop);
+        let key = RoomKey::new(1, HERE);
+        let now = t.w.minute_stamp().max(1);
+        t.w.room_state.get_mut(&key).unwrap().lastkill = now;
+        assert_eq!(t.w.room(key).unwrap().maxmonsters, 0);
+        assert_eq!(t.run(&format!("summon 1:message {MSG_DO}")), OK);
+        let here = t.w.room_state[&key]
+            .monsters
+            .iter()
+            .filter(|m| m.0 != 0)
+            .count();
+        assert_eq!(here, 1);
+        assert!(t.out().ends_with("You do it.\r\n"));
+        assert_eq!(t.run(&format!("summon 999:message {MSG_DO}")), Stop);
         assert_eq!(t.out(), "");
     }
 

@@ -74,8 +74,8 @@ impl MonsterHooks for Monsters {
             minlevel: spec.minlevel,
             maxlevel: spec.maxlevel,
             owner: None,
-            ally: false,
-            force: false,
+            ally: spec.ally,
+            force: spec.force,
         };
         generate::generate_monster(world, room, req).is_some()
     }

@@ -296,13 +296,17 @@ fn run_clause(
             });
             if here { OK } else { fail(world, id, Some(msg)) }
         }
-        // One monster generated in the player's room
+        // One monster generated in the player's room, nobody's, as an ally and forced:
+        // the room's cap, its regeneration delay after a kill and its area limit do not
+        // apply (the monster's own `maxalive` and a killed unique's wait still do)
         Clause::Summon { monster } => {
             let spec = GenerateSpec {
                 group: 0,
                 monster: MonsterNo(monster),
                 minlevel: 0,
                 maxlevel: 0x7FFF,
+                ally: true,
+                force: true,
             };
             if movement::HOOKS.monsters.generate_monster(world, key, spec) {
                 OK

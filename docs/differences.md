@@ -53,6 +53,11 @@ Stated here so they are not read as differences from a stock install.
   [signup code](../crates/silvermere-auth/src/signup.rs). Set it to `false` and only a sysop can.
 - **Inactive timeout 3600 seconds.** `game.inactive_secs = 3600`. The login dialogue has its own
   timeout, `net.login_timeout_secs = 300`.
+- **`go nightblack portal` moves the player.** In the Negative Power Plane (8/984) the long phrase
+  `go nightblack portal` now teleports to 1/2683 like `go portal`, `enter portal` and
+  `enter nightblack portal`. In the original that line lacked its `teleport`, so it showed the
+  portal messages and did nothing. The fix is applied as content loads, only to the exact stock
+  line ([code](../crates/silvermere-engine/src/stock_faults.rs)).
 - **Add-ons are on by default.** `game.addons = ["all"]` replaces the add-on codes and DLL hooks.
 - **The BBS menu is a shim.** `compat.bbs_menu = true` shows the `Make your selection (X to exit):`
   menu that legacy login scripts expect; `M` enters MajorMUD, `X` logs off

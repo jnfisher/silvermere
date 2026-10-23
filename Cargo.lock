@@ -504,9 +504,9 @@ dependencies = [
 
 [[package]]
 name = "ctutils"
-version = "0.4.3"
+version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574"
+checksum = "38d28fb6aa7dd680b3ffd1a3e64e115c177bdba63c0ae7f9cd48129ff05c4fa0"
 dependencies = [
  "cmov",
 ]
@@ -2077,7 +2077,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "clap",
@@ -2112,7 +2112,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-api"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "axum",
  "metrics",
@@ -2133,7 +2133,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-auth"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "argon2",
  "jiff",
@@ -2151,7 +2151,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-db"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "jiff",
  "metrics",
@@ -2168,7 +2168,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-engine"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "fancy-regex",
  "insta",
@@ -2191,7 +2191,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-import"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "jiff",
  "miniz_oxide",
@@ -2209,7 +2209,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-net"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "proptest",
  "silvermere-engine",
@@ -2220,7 +2220,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-rules"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "jiff",
  "proptest",
@@ -2232,7 +2232,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-testkit"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "fancy-regex",
  "insta",
@@ -2262,7 +2262,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-text"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "insta",
  "miniz_oxide",
@@ -2282,7 +2282,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-types"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "bitflags 2.13.2",
  "jiff",

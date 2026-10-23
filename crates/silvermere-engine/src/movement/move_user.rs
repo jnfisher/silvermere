@@ -633,6 +633,8 @@ pub fn user_allowed_in_room(
                 monster: rm.specmon,
                 minlevel: 0,
                 maxlevel: 0x7FFF,
+                ally: false,
+                force: false,
             },
         );
     }
@@ -650,6 +652,8 @@ pub fn user_allowed_in_room(
                 monster: rm.genmonster,
                 minlevel: rm.minlevel,
                 maxlevel: rm.maxlevel,
+                ally: false,
+                force: false,
             };
             let mut j = 0;
             while HOOKS.monsters.generate_monster(world, room, spec) && j < 15 {
