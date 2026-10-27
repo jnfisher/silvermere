@@ -27,7 +27,16 @@ use silvermere_types::flags::PlayerStatus;
 fn tmp(name: &str) -> PathBuf {
     let d = std::env::temp_dir().join(format!("sm-shutdown-{}-{name}", std::process::id()));
     let _ = std::fs::remove_dir_all(&d);
-    std::fs::create_dir_all(&d).unwrap();
+    // `serve` completes the game's text from the package in `data/cache/`, downloading it
+    // when it is not there: the test's copy comes from the shared cache, so no start waits on
+    // the network
+    let cache = d.join("data/cache");
+    std::fs::create_dir_all(&cache).unwrap();
+    std::fs::copy(
+        silvermere_testkit::stock::zip(),
+        cache.join(silvermere_testkit::stock::FILE_NAME),
+    )
+    .unwrap();
     d
 }
 

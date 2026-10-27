@@ -25,14 +25,18 @@ fn capture(name: &str) -> Capture {
 async fn shop_capture_replays_byte_equal() {
     let (_dir, url) = aldric_db();
     let cap = capture("shop");
-    let r = start(&url).await;
+    // the walk's ticks come from the test (`walker_ticker`, as the m1 walks), not a second
+    // of the server's own per move
+    let r = common::stock::start_ticked_by_test(&url).await;
     let mut c = TelnetClient::connect(r.telnet_addr).await.unwrap();
     login_to_menu(&mut c, "Aldric", "aldric1").await;
     c.send_line("E").await.unwrap();
     c.until(PROMPT, WAIT).await.unwrap();
+    let ticker = common::stock::walker_ticker(&r);
     // Shop quantities depend on how often the original's start-up fill ran (the capture's
     // own mask list masks them in the gang scenario too); the item names and prices stay.
     let reports = replay_steps(&mut c, &cap, 5..41, &[QTY], WAIT).await;
+    ticker.abort();
     assert_clean("shop", &reports);
     r.stop().await.unwrap();
 }

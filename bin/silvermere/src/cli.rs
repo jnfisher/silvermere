@@ -71,8 +71,9 @@ pub enum Command {
         action: SysopCmd,
     },
     /// The first start without serving: builds the stock world into an empty database and
-    /// asks for a sysop account if there is none (install.sh runs it).
-    Setup,
+    /// asks for a sysop account if there is none, and on a first install how to back up
+    /// (install.sh runs it).
+    Setup(SetupArgs),
     /// Show and change the settings file (silvermere.toml).
     #[command(name = "config")]
     Settings {
@@ -115,15 +116,27 @@ pub struct ServeArgs {
     pub set: Vec<String>,
 }
 
+/// `setup` flags.
+#[derive(Debug, Default, Args)]
+pub struct SetupArgs {
+    /// Ask nothing about backups: the defaults (daily at 04:30, keeping 30) stand.
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+}
+
 /// `backup` flags.
 #[derive(Debug, Args)]
 pub struct BackupArgs {
     /// Where to write (default <data dir>/backups/silvermere-YYYYMMDD-HHMMSS.db, UTC).
     #[arg(long)]
     pub to: Option<PathBuf>,
-    /// Delete the oldest backups beyond N in the destination folder.
-    #[arg(long, value_name = "N")]
+    /// Delete the oldest backups beyond N in the destination folder (default backup.keep
+    /// when writing to the backups folder).
+    #[arg(long, value_name = "N", value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..))]
     pub keep: Option<usize>,
+    /// Show the backups, their sizes, the schedule and its last run; makes none.
+    #[arg(long, conflicts_with_all = ["to", "keep"])]
+    pub list: bool,
 }
 
 /// `restore` flags.

@@ -4,6 +4,7 @@
 #![forbid(unsafe_code)]
 
 pub mod admin;
+pub mod backups;
 pub mod bridge;
 pub mod cli;
 pub mod cmd_import;
@@ -22,7 +23,7 @@ use anyhow::Context;
 use clap::Parser;
 use config::{Config, LogFormat};
 use silvermere_db::Db;
-use silvermere_engine::{Clock, EngineControl, EngineInput, Rng, World};
+use silvermere_engine::{Clock, EngineControl, EngineInput, Rng, World, WorldSnapshot};
 use tokio::sync::{mpsc as tmpsc, watch};
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::{Layer, SubscriberExt as _};
@@ -38,6 +39,9 @@ pub struct Running {
     pub shutdown: watch::Sender<bool>,
     /// The engine's input channel (the admin API and tests feed it).
     pub to_engine: mpsc::Sender<EngineInput>,
+    /// The scheduled backup's state, which `/v1/backup` shows; `serve` runs the schedule
+    /// with it ([`backups::schedule::run`], T-150).
+    pub backups: backups::Shared,
     engine: Option<std::thread::JoinHandle<World>>,
     /// The admin listener and the event writer; aborted on stop (an open SSE connection
     /// would otherwise keep the runtime alive).
@@ -267,11 +271,26 @@ pub async fn serve_in_process(
     clock: impl Clock + Send + 'static,
     rng: impl Rng + Send + 'static,
 ) -> anyhow::Result<Running> {
+    serve_snapshot_in_process(cfg, None, clock, rng).await
+}
+
+/// [`serve_in_process`] with the world already read from `cfg.database.url`
+/// ([`bridge::load_snapshot`]); `None` reads it. Tests that start many servers on copies of
+/// one database read its world once.
+pub async fn serve_snapshot_in_process(
+    cfg: Config,
+    snapshot: Option<WorldSnapshot>,
+    clock: impl Clock + Send + 'static,
+    rng: impl Rng + Send + 'static,
+) -> anyhow::Result<Running> {
     commands::ensure_sqlite_dir(&cfg)?;
     let db = Db::connect_and_migrate(&cfg.database.url)
         .await
         .with_context(|| format!("opening {}", cfg.database_shown()))?;
-    let snapshot = bridge::load_snapshot(&db).await?;
+    let snapshot = match snapshot {
+        Some(s) => s,
+        None => bridge::load_snapshot(&db).await?,
+    };
     let max_sessions = u16::try_from(cfg.server.max_sessions).unwrap_or(u16::MAX);
     let mut world = World::load(cfg.game.clone(), max_sessions, snapshot)?;
     // The `FILE DESCRIPTION` room files (T-025); without them those rooms show no title.
@@ -381,7 +400,14 @@ pub async fn serve_world_with_db(
         silvermere_db::Persist::spawn(events_db.clone(), silvermere_db::PersistConfig::default());
     let progress = persist.progress();
     let vitals = admin::Vitals::with_persist(persist.watch());
-    let state = admin::api_state(&cfg, events_db.clone(), to_engine.clone(), vitals.clone());
+    let backups = backups::Shared::load(&cfg);
+    let state = admin::api_state(
+        &cfg,
+        events_db.clone(),
+        to_engine.clone(),
+        vitals.clone(),
+        std::sync::Arc::new(backups.clone()),
+    );
     silvermere_engine::metrics::describe_all();
     metrics::gauge!(
         silvermere_engine::metrics::BUILD_INFO,
@@ -488,6 +514,7 @@ pub async fn serve_world_with_db(
         admin_addr: Some(admin_addr),
         shutdown,
         to_engine,
+        backups,
         engine: Some(engine),
         admin_tasks,
         events_task: Some(events_task),
@@ -637,7 +664,10 @@ pub fn run(args: impl IntoIterator<Item = std::ffi::OsString>) -> anyhow::Result
                 &cfg,
                 std::fs::create_dir_all(cfg.data_dir.join("logs")).is_ok(),
             );
-            commands::first_start::run(&cfg)
+            commands::first_start::run(
+                &cfg,
+                &config::config_target(cli.data_dir.as_deref(), &cli.overrides()),
+            )
         });
         return Ok(commands::first_start::finish(
             result,
@@ -671,7 +701,11 @@ pub fn run(args: impl IntoIterator<Item = std::ffi::OsString>) -> anyhow::Result
         Account { action } => commands::account::run(&cfg, action),
         Admin { action } => commands::admin::run(&cfg, action),
         Sysop { action } => commands::sysop::run(&cfg, action),
-        Setup => commands::first_start::setup(&cfg),
+        Setup(a) => commands::first_start::setup(
+            &cfg,
+            a.yes,
+            &config::config_target(cli.data_dir.as_deref(), &cli.overrides()),
+        ),
         Healthcheck(a) => Ok(commands::healthcheck::run(a)),
         Service { .. } | Settings { .. } => unreachable!("dispatched above"),
     }

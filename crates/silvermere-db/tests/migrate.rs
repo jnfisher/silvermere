@@ -7,7 +7,8 @@ use silvermere_db::{Db, Dialect, TestDb};
 
 #[tokio::test]
 async fn migrations_apply_and_are_idempotent() {
-    let test = common::db().await;
+    // migrated by this call, not cloned from the template the other tests copy
+    let test = TestDb::from_env_migrating().await.expect("test database");
     // a second run is a no-op
     test.migrate().await.unwrap();
     let dialect = test.dialect();

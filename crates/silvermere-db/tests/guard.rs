@@ -134,8 +134,14 @@ async fn a_missing_schema_is_named() {
     let Some(url) = postgres(&t) else {
         return t.close().await;
     };
+    // the test database's URL with any `options` it has replaced
     let base = url.split("options=").next().unwrap();
-    let bad = format!("{base}options=-c%20search_path%3Dno_such_schema_t073");
+    let sep = match base.chars().last() {
+        Some('?' | '&') => "",
+        _ if base.contains('?') => "&",
+        _ => "?",
+    };
+    let bad = format!("{base}{sep}options=-c%20search_path%3Dno_such_schema_t073");
     let err = WriterGuard::try_acquire(&bad)
         .await
         .unwrap_err()

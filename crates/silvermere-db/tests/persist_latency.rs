@@ -9,11 +9,19 @@ use std::time::{Duration, Instant};
 
 use common::*;
 use silvermere_db::repo::{MonsterState, RoomState};
-use silvermere_db::{Persist, PersistConfig, TestDb, Write};
+use silvermere_db::{Db, Persist, PersistConfig, TestDb, Write};
 use silvermere_types::ids::{ItemNo, MonsterNo, RoomKey};
 use silvermere_types::records::Coins;
 
 const ONE_WAY: Duration = Duration::from_millis(15);
+
+/// The URL of the database behind `proxy`, reached directly.
+fn direct_url(test: &TestDb, proxy: &silvermere_db::latency::LatencyProxy) -> String {
+    let base = std::env::var("SILVERMERE_DATABASE_URL").unwrap();
+    let (_, upstream) = silvermere_db::latency::redirect_url(&base, 0).unwrap();
+    test.url()
+        .replace(&format!("127.0.0.1:{}", proxy.port()), &upstream)
+}
 
 async fn slow_db() -> Option<(TestDb, silvermere_db::latency::LatencyProxy)> {
     let found = TestDb::postgres_with_latency(ONE_WAY)
@@ -137,17 +145,20 @@ async fn after_an_outage_the_queue_flushes_in_a_few_batches() {
     const ACTIVE: i32 = 7_400;
     const PLAYERS: usize = 5;
     let state = silvermere_db::repo::StateWrite::Reset;
+    // the world is seeded past the proxy: only the flush after the outage is measured
+    let seed = Db::connect(&direct_url(&test, &proxy)).await.unwrap();
     let rooms: Vec<_> = (1..=ROOMS).map(|n| room(&mut seq, 1, n)).collect();
-    test.rooms().put_many(&rooms, state).await.unwrap();
+    seed.rooms().put_many(&rooms, state).await.unwrap();
     let monsters: Vec<_> = (1..=KNOWN).map(|n| monster(&mut seq, n)).collect();
-    test.monsters().put_many(&monsters, state).await.unwrap();
+    seed.monsters().put_many(&monsters, state).await.unwrap();
     let mut players = Vec::new();
     for i in 0..PLAYERS {
         let name = format!("p{i}");
-        let acct = new_account(&test, &mut seq, &name).await;
+        let acct = new_account(&seed, &mut seq, &name).await;
         let c = character(&mut seq, &name, &format!("P{i}"));
-        players.push((test.characters().insert(acct, &c).await.unwrap(), c));
+        players.push((seed.characters().insert(acct, &c).await.unwrap(), c));
     }
+    seed.close().await;
 
     let (persist, worker) = Persist::spawn(Arc::clone(test.db()), PersistConfig::default());
     let progress = persist.progress();
@@ -186,11 +197,14 @@ async fn after_an_outage_the_queue_flushes_in_a_few_batches() {
             .await
             .unwrap();
     }
-    tokio::time::sleep(Duration::from_secs(3)).await;
-    assert!(
-        persist.status() != silvermere_db::PersistStatus::Healthy,
-        "the outage was seen"
-    );
+    let mut status = persist.watch();
+    let seen = tokio::time::timeout(
+        Duration::from_secs(30),
+        status.wait_for(|s| *s != silvermere_db::PersistStatus::Healthy),
+    )
+    .await
+    .is_ok_and(|r| r.is_ok());
+    assert!(seen, "the outage was seen");
     let unsaved_at_outage = progress.unsaved();
     eprintln!("queued during the outage: {unsaved_at_outage:?}");
     proxy.set_blocked(false);

@@ -63,6 +63,7 @@ pub fn team_db() -> (Scratch, String) {
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("test.db");
     std::fs::copy(&t, &path).unwrap();
+    silvermere_testkit::world_cache::remember_template(&t);
     (Scratch(dir), format!("sqlite://{}", path.display()))
 }
 

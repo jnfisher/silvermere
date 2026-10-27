@@ -11,7 +11,7 @@ bitflags! {
     /// Room flags (a 32-bit word in the room record).
     ///
     /// `RF_` bits.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
     pub struct RoomFlags: u32 {
         /// `RF_PROTECTED`: protected room
         const PROTECTED = 0x0001;
@@ -34,7 +34,7 @@ bitflags! {
     /// Gang flags (a 32-bit word in the gang record).
     ///
     /// `GF_` bits.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
     pub struct GangFlags: u32 {
         /// `GF_DISBANDED`: disbanded
         const DISBANDED = 0x0001;
@@ -51,7 +51,7 @@ bitflags! {
     /// What a social action can target.
     ///
     /// `AT_` bits.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
     pub struct ActionTargets: u16 {
         /// `AT_SINGLE`: no target
         const SINGLE = 0x0001;
@@ -72,7 +72,7 @@ bitflags! {
     /// Active monster flags.
     ///
     /// `AMF_` bits.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
     pub struct ActiveMonsterFlags: u16 {
         /// `AMF_CHARMED`: charmed
         const CHARMED = 0x0001;
@@ -91,7 +91,7 @@ bitflags! {
     /// Per-session state flags.
     ///
     /// `USF_` bits.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
     pub struct SessionFlags: u32 {
         /// `USF_TOPTEN`: TOPTEN list paging
         const TOPTEN = 0x0001;
@@ -114,7 +114,7 @@ bitflags! {
     /// Player status flags: the state of the moment.
     ///
     /// `ST_` bits.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
     pub struct PlayerStatus: u16 {
         /// `ST_SUICIDE`: SUICIDE confirmed; the character is deleted
         const SUICIDE = 0x0001;
@@ -156,7 +156,7 @@ bitflags! {
     /// More player status flags.
     ///
     /// `ST2_` bits.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
     pub struct PlayerStatus2: u16 {
         /// `ST2_NAMECHECK`: name check of a new character in progress
         const NAMECHECK = 0x0001;
@@ -190,7 +190,7 @@ bitflags! {
     /// Player settings and account state.
     ///
     /// `PS_` bits.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
     pub struct PlayerSettings: u16 {
         /// `PS_BLINDFOLLOW`: follow mode Blind
         const BLINDFOLLOW = 0x0001;
@@ -229,7 +229,7 @@ bitflags! {
     /// Player options and pending notices.
     ///
     /// `PF_` bits.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
     pub struct PlayerFlags: u16 {
         /// `PF_NOENTRYMSG`: block entrance message
         const NOENTRYMSG = 0x0001;
@@ -270,7 +270,7 @@ bitflags! {
     /// Flags of a Hidden exit, held in the exit's first parameter (a 32-bit word).
     ///
     /// `EXF_` bits.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
     pub struct ExitFlags: u32 {
         /// `EXF_PASSABLE`: passable
         const PASSABLE = 0x0001;
@@ -307,7 +307,7 @@ bitflags! {
     /// Spell flags.
     ///
     /// `SPF_` bits.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
     pub struct SpellFlags: u8 {
         /// `SPF_ALTMSG`: alternate messaging
         const ALTMSG = 0x01;

@@ -1,6 +1,6 @@
 //! The `shop` record (WCCSHOPS).
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::enums::ShopType;
 use crate::ids::{ClassNo, ItemNo, ShopNo};
@@ -13,7 +13,7 @@ use crate::sizes::NSHOPITEMS;
 /// In a gang shop (`SHOP_GANG`) the original reuses the arrays: `maxqty` holds the owner's
 /// user-id as a string, `regentime` the asking price and `regennum` its currency.
 /// The decoder keeps the raw numbers; the gang shop code reads them.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShopSlot {
     /// +0x0D7 item number sold.
     pub item: ItemNo,
@@ -30,7 +30,7 @@ pub struct ShopSlot {
 }
 
 /// A shop: the `shop` record.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Shop {
     /// +0x000 shop number (key 0).
     pub number: ShopNo,

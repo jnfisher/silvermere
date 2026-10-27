@@ -19,11 +19,12 @@ use silvermere_engine::{AdminRequest, EngineInput};
 
 use crate::auth::Scope;
 use crate::auth::{Token, authenticate};
+use crate::backup::BackupProbe;
 use crate::events::{EVENT_BUFFER, EventLog, EventRecord, NewEvent};
 use crate::health::HealthProbe;
 use crate::reload::WorldLoader;
 use crate::{
-    accounts, broadcast as broadcast_route, events, health, metrics, reload, reserved, who,
+    accounts, backup, broadcast as broadcast_route, events, health, metrics, reload, reserved, who,
 };
 
 /// How long a request waits for the engine thread to answer.
@@ -46,6 +47,8 @@ pub struct ApiState {
     pub tokens: Arc<Vec<Token>>,
     /// Reads the static world tables for `/v1/reload-world`.
     pub world: Arc<dyn WorldLoader>,
+    /// The scheduled backup's state for `/v1/backup` and `/healthz` (T-150).
+    pub backup: Arc<dyn BackupProbe>,
 }
 
 impl ApiState {
@@ -121,6 +124,7 @@ pub fn routes() -> Vec<RouteSpec> {
         r("GET", "/metrics", None, true),
         r("GET", "/v1/who", Some(Scope::Read), true),
         r("GET", "/v1/events", Some(Scope::Read), true),
+        r("GET", "/v1/backup", Some(Scope::Read), true),
         r("POST", "/v1/broadcast", Some(Scope::Write), true),
         r("POST", "/v1/reload-world", Some(Scope::Write), true),
         r("DELETE", "/v1/accounts/{id}", Some(Scope::Admin), true),
@@ -176,6 +180,7 @@ pub fn router(state: ApiState) -> Router {
         .route("/v1/who", get(who::who))
         .route("/v1/broadcast", post(broadcast_route::broadcast))
         .route("/v1/events", get(events::stream))
+        .route("/v1/backup", get(backup::status))
         .route("/v1/reload-world", post(reload::reload_world))
         .route("/v1/accounts/{id}", delete(accounts::delete));
     let v1 = reserved::register(v1).layer(middleware::from_fn_with_state(state.clone(), guard));

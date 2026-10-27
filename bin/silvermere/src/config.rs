@@ -26,6 +26,8 @@ pub struct Config {
     pub game: GameConfig,
     /// `[logging]`.
     pub logging: LoggingCfg,
+    /// `[backup]`: the scheduled backup and the after-backup command (T-150).
+    pub backup: BackupCfg,
     /// `[admin]`: the admin API's tokens (`[[admin.tokens]]`).
     pub admin: AdminCfg,
 }
@@ -200,6 +202,36 @@ pub struct LoggingCfg {
     pub level: String,
 }
 
+/// `[backup]` (T-150): a daily `silvermere backup` in the server, and an optional command
+/// run after each backup.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct BackupCfg {
+    /// Whether the server backs up daily at `at`.
+    pub enabled: bool,
+    /// Local wall-clock time of the daily backup, `"HH:MM"` (24-hour), in `game.cleanup.tz`.
+    pub at: String,
+    /// The backups kept in `data/backups/`: older ones are deleted after each backup there.
+    pub keep: u32,
+    /// A command run after each successful backup, without a shell: `{file}` is the backup's
+    /// path, `{dir}` the backups folder. Empty: none.
+    pub after: String,
+    /// Seconds `after` may run before it is killed.
+    pub after_timeout_secs: u32,
+}
+
+impl Default for BackupCfg {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            at: "04:30".into(),
+            keep: 30,
+            after: String::new(),
+            after_timeout_secs: 1800,
+        }
+    }
+}
+
 /// Log output format.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -220,6 +252,7 @@ impl Default for Config {
             compat: CompatCfg::default(),
             game: GameConfig::default(),
             logging: LoggingCfg::default(),
+            backup: BackupCfg::default(),
             admin: AdminCfg::default(),
         }
     }
@@ -444,6 +477,28 @@ impl Config {
                 self.server.max_sessions
             ));
         }
+        let b = &self.backup;
+        if silvermere_types::config::hour_minute(&b.at).is_none() {
+            return Err(format!(
+                "backup.at = {:?} is not a time; allowed \"HH:MM\", 00:00..=23:59",
+                b.at
+            ));
+        }
+        if !(1..=10_000).contains(&b.keep) {
+            return Err(format!(
+                "backup.keep = {} is out of range; allowed 1..=10000",
+                b.keep
+            ));
+        }
+        if !(1..=86_400).contains(&b.after_timeout_secs) {
+            return Err(format!(
+                "backup.after_timeout_secs = {} is out of range; allowed 1..=86400",
+                b.after_timeout_secs
+            ));
+        }
+        if let Err(e) = crate::backups::hook::split(&b.after) {
+            return Err(format!("backup.after: {e}"));
+        }
         for (i, t) in self.admin.tokens.iter().enumerate() {
             if t.name.trim().is_empty() || t.scopes.is_empty() {
                 return Err(format!(
@@ -565,5 +620,40 @@ mod tests {
             !msg.contains("98765") && msg.contains("admin.tokens"),
             "{msg}"
         );
+    }
+
+    /// T-150: a settings file from before `[backup]` existed (an upgraded install) gets the
+    /// defaults: backups on, daily at 04:30, keeping 30, no command.
+    #[test]
+    fn an_older_settings_file_gets_the_backup_defaults() {
+        let cfg =
+            Config::check_file_text("[game]\nmax_top = 20\n[server]\nmax_sessions = 10\n").unwrap();
+        assert_eq!(cfg.backup, BackupCfg::default());
+        assert!(cfg.backup.enabled);
+        assert_eq!((cfg.backup.at.as_str(), cfg.backup.keep), ("04:30", 30));
+        assert_eq!(
+            (cfg.backup.after.as_str(), cfg.backup.after_timeout_secs),
+            ("", 1800)
+        );
+    }
+
+    #[test]
+    fn backup_settings_are_checked() {
+        for (text, want) in [
+            ("[backup]\nat = \"4:3\"\n", "backup.at"),
+            ("[backup]\nkeep = 0\n", "backup.keep"),
+            (
+                "[backup]\nafter_timeout_secs = 0\n",
+                "backup.after_timeout_secs",
+            ),
+            (
+                "[backup]\nafter = \"rclone copy '{file}\"\n",
+                "backup.after",
+            ),
+        ] {
+            let e = format!("{:#}", Config::check_file_text(text).unwrap_err());
+            assert!(e.contains(want), "{text}: {e}");
+        }
+        assert!(Config::check_file_text("[backup]\nat = \"23:59\"\nkeep = 1\n").is_ok());
     }
 }

@@ -71,12 +71,24 @@ async fn the_stock_import_over_a_slow_link_is_quick_and_writes_the_same_rows() {
         eprintln!("SILVERMERE_DATABASE_URL names no PostgreSQL: nothing to measure");
         return;
     };
-    let started = Instant::now();
-    Importer::new(ImportOptions::new(stock()), Some(&slow))
-        .run()
-        .await
-        .expect("import");
-    let took = started.elapsed();
+    // the same import into SQLite, the rows to compare with, runs alongside: the slow
+    // import spends its time waiting on the link
+    let local = TestDb::sqlite_temp().await.expect("sqlite");
+    let local_import = async {
+        Importer::new(ImportOptions::new(stock()), Some(&local))
+            .run()
+            .await
+            .expect("import")
+    };
+    let slow_import = async {
+        let started = Instant::now();
+        Importer::new(ImportOptions::new(stock()), Some(&slow))
+            .run()
+            .await
+            .expect("import");
+        started.elapsed()
+    };
+    let (took, _) = tokio::join!(slow_import, local_import);
     let trips = proxy.round_trips();
     eprintln!("stock import over a 30 ms round trip: {took:?}, {trips} round trips");
     // the target is a minute at 25-35 ms; one statement per row took 7m38s. The round
@@ -84,11 +96,6 @@ async fn the_stock_import_over_a_slow_link_is_quick_and_writes_the_same_rows() {
     assert!(trips <= 600, "{trips} round trips");
     assert!(took < Duration::from_secs(90), "{took:?}");
 
-    let local = TestDb::sqlite_temp().await.expect("sqlite");
-    Importer::new(ImportOptions::new(stock()), Some(&local))
-        .run()
-        .await
-        .expect("import");
     assert_eq!(counts(&slow).await, counts(&local).await);
     slow.close().await;
     local.close().await;

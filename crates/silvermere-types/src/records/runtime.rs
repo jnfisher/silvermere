@@ -3,28 +3,28 @@
 //! Linked lists become owned values (the queued command and forget lists become `Vec`s); the channel
 //! numbers and `unk_*` members are not carried.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::enums::{DebugLevel, EscState, InGame};
 use crate::flags::SessionFlags;
 use crate::ids::ClassNo;
 
 /// A queued command line. The original queues at most 40 per session.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PendingCommand {
     /// +0x000 command text (at most 254 bytes).
     pub text: String,
 }
 
 /// A forget-list entry.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ForgetEntry {
     /// +0x00 forgotten first name.
     pub name: String,
 }
 
 /// Per-session state.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UserState {
     /// +0x00 session flags.
     pub flags: SessionFlags,
@@ -84,7 +84,7 @@ impl Default for UserState {
 }
 
 /// Per-session flags.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UserFlags {
     /// +0x00 sysop debug level.
     pub debug: DebugLevel,
@@ -103,7 +103,7 @@ pub struct UserFlags {
 }
 
 /// A top-list entry; the list holds `NTOPLIST`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TopEntry {
     /// +0x00 user-id.
     pub userid: String,
@@ -126,7 +126,7 @@ pub struct TopEntry {
 }
 
 /// Experience split at a billion, printed as the billions then nine digits of remainder.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct BigExp {
     /// +0x00 billions.
     pub expbil: u32,

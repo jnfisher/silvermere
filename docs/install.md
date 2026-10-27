@@ -128,16 +128,19 @@ It says what it is about to do and asks before doing it. Then it:
 1. picks the archive for this machine (`x86_64` or `aarch64`, Linux only);
 2. downloads it and checks its SHA-256 against the release's `SHA256SUMS` (a mismatch stops it
    with nothing installed);
-3. installs `silvermere` in `~/silvermere` (or `--prefix`), keeping `data/` and any
-   `silvermere.toml` already there, so a re-run upgrades;
+3. installs `silvermere` in `~/silvermere` (or `--prefix`), keeping any `silvermere.toml`
+   already there;
 4. downloads the stock game data with curl (or wget) into `data/cache/` and checks its SHA-256
    against the one pinned in the script; a mismatch stops it and keeps nothing (a copy already
    there that matches is kept; `SILVERMERE_STOCK_URL` names a mirror);
 5. asks whether the server uses SQLite (in `data/`) or a hosted PostgreSQL (`--hosted` answers
    it up front);
 6. on SQLite, runs `silvermere setup`: builds the stock world if the database is empty and asks
-   for a sysop name and password if there is no sysop (an empty name skips it). On a hosted
-   database it runs nothing on SQLite: the service install does the first start there;
+   for a sysop name and password if there is no sysop (an empty name skips it), then asks how
+   to back up: every day at 04:30 keeping the last 30, or another time and count, or off, and
+   an optional [after-backup command](#off-site-copies-the-after-backup-command); the answer goes
+   in `silvermere.toml`. On a hosted database it runs nothing on SQLite: the service install
+   does the first start there, with the same questions;
 7. offers `silvermere service install` ([below](#silvermere-service-install)), with
    `--database-url-from-stdin` for a hosted database, so it asks for the URL.
 
@@ -150,6 +153,10 @@ It refuses to run as root. For a system service run by its own `silvermere` user
 root with `--system` (`curl ... | sudo sh -s -- --system`): it installs in `/opt/silvermere`
 and runs `service install --system`. With no terminal to answer on (or `--yes`), it installs
 the binary and prints the remaining commands.
+
+Run again over an install (`silvermere` and a world already in the folder), it upgrades
+instead: a backup, the old binary kept as `silvermere.previous`, the new one in place and the
+service restarted, with no first start. [Upgrading](#upgrading) has the steps.
 
 ### silvermere service install
 
@@ -176,7 +183,7 @@ cd ~/silvermere && ./silvermere service install
 - Before starting, it does what `setup` does against the database the unit will use: the
   world if it is empty, the sysop if there is none.
 - Then `daemon-reload`, `enable`, `restart`, and it waits for `telnet listening on`. It prints
-  the status, the `journalctl` command and the nightly backup line for your crontab.
+  the status, the `journalctl` command and how to list the backups the server takes daily.
 
 A re-run rewrites the unit and keeps the data and the env file (`--database-url-from-stdin`
 again replaces the URL). `silvermere service uninstall` stops the service and removes the
@@ -323,8 +330,8 @@ sudo ss -ltnp | grep silvermere             # 0.0.0.0:2323 and 127.0.0.1:8080, n
 
 For a system unit under its own `silvermere` user in `/opt/silvermere` instead:
 `curl -fsSL .../install.sh | sudo sh -s -- --system`. [Release binary](#release-binary) has what
-each step does. An upgrade is the same `curl ... | sh` (it keeps the data), a
-[backup](#4-backups), then `systemctl --user restart silvermere`.
+each step does. An upgrade is the same `curl ... | sh` again: it backs up, replaces the
+binary and restarts the service ([Upgrading](#upgrading)).
 
 #### By hand: build from source, write the unit yourself
 
@@ -443,10 +450,11 @@ and `serve` saves every character on it. A user unit cannot wait for the system'
 `network-online.target`, so at boot `serve` may start before a hosted database is reachable.
 `Restart=on-failure` then tries again every 5 s. `cargo build --release` replaces the binary
 the unit runs, so an upgrade is `git pull --ff-only`, the build, a backup, then
-`systemctl --user restart silvermere`. The nightly backup goes in your own crontab
-(`crontab -e`): `0 4 * * * cd ~/silvermere && set -a && . ~/.config/silvermere/env && set +a && ./target/release/silvermere backup --keep 14`. cron does not read the unit's `EnvironmentFile`, so the line
-loads it; without that, on a hosted database the backup would quietly be of the SQLite
-default in `data/`. (Drop the `set -a ... set +a` part on SQLite.)
+`systemctl --user restart silvermere`. The server backs up daily on its own
+([Backup and restore](#backup-and-restore)). A backup by hand needs the unit's database URL:
+`cd ~/silvermere && set -a && . ~/.config/silvermere/env && set +a && ./target/release/silvermere backup`;
+without it, on a hosted database the backup would be of the SQLite default in `data/`. (Drop
+the `set -a ... set +a` part on SQLite.)
 
 ### 2b. Run it: Docker compose
 
@@ -478,20 +486,17 @@ from outside ([tools/smoke/README.md](../tools/smoke/README.md)).
 
 ### 4. Backups
 
-A nightly backup, kept 14 days, from the silvermere user's crontab
-(`sudo crontab -u silvermere -e`):
-
-```
-0 4 * * * cd /opt/silvermere && ./silvermere backup --keep 14
-```
-
-Copy them off the box now and then, from your own machine:
-`rsync -a you@HOST:/opt/silvermere/data/backups/ ./silvermere-backups/`.
+The server backs up on its own every day at 04:30 (`America/Detroit` time; set
+`game.cleanup.tz` for yours), keeping 30, in `/opt/silvermere/data/backups/`.
+`cd /opt/silvermere && sudo -u silvermere ./silvermere backup --list` shows them and the last
+run. To copy each one off the box, set an after-backup command
+([Off-site copies](#off-site-copies-the-after-backup-command)); or pull them from your own
+machine now and then: `rsync -a you@HOST:/opt/silvermere/data/backups/ ./silvermere-backups/`.
 
 A backup is two things side by side: the database copy (`silvermere-YYYYMMDD-HHMMSS.db` on
 SQLite, `.dump` on PostgreSQL, a `pg_dump` archive) and `<that name>.assets/`, a copy of the
 room description, map and menu text files in `data/assets/`. Restore puts both back, so a
-new box needs no fresh `import`. `--keep` removes the two together.
+new box needs no fresh `import`. Pruning (`backup.keep`) removes the two together.
 
 To restore:
 
@@ -501,17 +506,26 @@ cd /opt/silvermere && sudo -u silvermere ./silvermere restore data/backups/silve
 sudo systemctl start silvermere
 ```
 
-### 5. Upgrade to a new commit
+### 5. Upgrade
+
+Installed with install.sh (2a): run the same `curl ... | sh` again (`| sudo sh -s -- --system`
+for the system unit). It backs up, keeps the old binary as `silvermere.previous`, puts the new
+one in place, restarts the service and waits for it.
+
+From a clone, build first, then back up, replace the binary and restart:
 
 ```sh
 cd ~/silvermere && git pull --ff-only && cargo build --release --locked
 cd /opt/silvermere && sudo -u silvermere ./silvermere backup
+sudo cp -p /opt/silvermere/silvermere /opt/silvermere/silvermere.previous
 sudo install -m 0755 ~/silvermere/target/release/silvermere /opt/silvermere/silvermere
 sudo systemctl restart silvermere           # migrations apply on start
 ```
 
 With compose: `git pull --ff-only`, `docker compose -f docker/compose.yaml build`, the
 backup, then `docker compose -f docker/compose.yaml up -d --wait`.
+
+[Upgrading](#upgrading) has every platform, and [Rollback](#rollback) the way back.
 
 ## Hosted PostgreSQL
 
@@ -792,26 +806,172 @@ More on old clients: `docs/legacy-clients.md` (TODO(T-062)).
 
 ## Backup and restore
 
+The server backs itself up. Out of the box, while it runs, it writes a backup every day at
+04:30 (in `game.cleanup.tz`, `America/Detroit` unless you set it; after the 03:00 cleanup) into
+`data/backups/` and keeps the last 30. The first install asks whether you want that, and when;
+an install upgraded from a version without it gets the same defaults, so backups come on after
+the upgrade. A stopped server takes no backups. The backup runs alongside the game, with the
+players on: nobody is logged off and the game keeps answering.
+
 ```bash
-silvermere backup --keep 14
+silvermere backup --list                   # the backups, the schedule, the last run and its result
+silvermere config set backup.at 02:15      # another time (restart the server to apply)
+silvermere config set backup.keep 14       # keep fewer
+silvermere config set backup.enabled false # off: back up with your own tooling
+```
+
+The settings are in [config.md](config.md#backup). A failed backup is logged at error level (in
+the journal under systemd) and shown by `backup --list`, by `/healthz` as `"backup":"failed"` and
+by `GET /v1/backup` ([admin-api.md](admin-api.md#get-v1backup)); the server keeps running and
+tries again the next day.
+
+By hand, any time (safe while the server runs):
+
+```bash
+silvermere backup
 silvermere backup --to /srv/backups/silvermere.db
 ```
 
-`backup` is safe while the server runs. Without `--to` it writes
-`<data dir>/backups/silvermere-YYYYMMDD-HHMMSS.db` (UTC; `.dump` on PostgreSQL, a `pg_dump`
-archive), with the asset files of `data/assets/` in `<that file>.assets/` beside it.
-`--keep N` deletes the oldest beyond N, each with its `.assets`, and any `.assets` whose
-backup file was removed. The assets are copied first and the database last, so a database
-copy always has its assets beside it; a failed copy leaves neither. An existing destination
-is refused.
+Without `--to` it writes `<data dir>/backups/silvermere-YYYYMMDD-HHMMSS.db` (UTC; `.dump` on
+PostgreSQL, a `pg_dump` archive) and then keeps `backup.keep` there; `--keep N` keeps N instead.
+**Changed:** before scheduled backups, a `silvermere backup` with neither `--to` nor `--keep`
+deleted nothing; now it prunes `data/backups/` to `backup.keep` (30).
+The asset files of `data/assets/` go in `<that file>.assets/` beside it. Pruning deletes the
+oldest beyond the count, each with its `.assets`, and any `.assets` whose backup file was
+removed. The assets are copied first and the database last, so a database copy always has its
+assets beside it; a failed copy leaves neither. An existing destination is refused.
 
-A nightly cron line:
+If you had a cron line for `silvermere backup` from an earlier version, remove it: the server
+does it now, and both would run.
 
+### Off-site copies: the after-backup command
+
+A backup on the same disk does not survive the disk. `backup.after` names a command that runs
+after each successful backup, scheduled or by hand, to copy it somewhere else. silvermere has no
+cloud account or credentials of its own: the command is a tool you choose and set up.
+
+- It runs without a shell. `{file}` is the new backup's path and `{dir}` the backups folder
+  (also in the variables `SILVERMERE_BACKUP_FILE` and `SILVERMERE_BACKUP_DIR`). Quote a word
+  with spaces as `'...'` or `"..."`. For pipes, `&&` or `$VARIABLES`, use `sh -c '...'` or a
+  script.
+- It runs as the user the server runs as (`silvermere` for the `--system` service), in the
+  server's folder, with the server's environment less the variables that carry the database
+  URL, its password or an admin token. They are not given to it, in its environment or its
+  arguments. That is not the same as unable to read them: as the server's user it can read
+  what the server can, `silvermere.toml` and the service's env file among them, so set only a
+  command you trust.
+- It is killed after `backup.after_timeout_secs` (30 minutes), with what it started (on
+  Windows, only the command itself).
+- Its exit status and its last 20 lines of output (up to 1 KiB each; a progress meter's `\r`
+  redraws count as lines) are logged, and `backup --list` shows them.
+  If it fails, the local backup stays, and the server carries on.
+
+Test it by hand before relying on it: `silvermere backup` runs the command and prints how it
+ended, with its output when it fails. For the `--system` service run it as the service's user:
+`cd /opt/silvermere && sudo -u silvermere -H ./silvermere backup`. Then check the copy is where
+you expect it, and restore from it once (below), so you know the way back works.
+
+Each recipe sets the command with `silvermere config set backup.after '...'` (single quotes
+around the whole command for your own shell) and takes effect at the next server restart.
+
+#### rclone to Backblaze B2, or any S3
+
+[rclone](https://rclone.org) talks to B2, S3 (AWS, Cloudflare R2, Wasabi, MinIO...) and many
+more. Install it, then make a remote once, as the server's user (`rclone config`; for the
+system service `sudo -u silvermere -H rclone config`). Name it `offsite`: for B2 choose
+"Backblaze B2" and give the application key; for S3 choose "Amazon S3 Compliant" and the
+provider, keys and endpoint. Then:
+
+```bash
+silvermere config set backup.after 'rclone copy {dir} offsite:my-bucket/silvermere/'
 ```
-0 4 * * * cd /opt/silvermere && ./silvermere backup --keep 14
+
+`rclone copy` sends what the bucket does not have yet (the new backup and its `.assets`) and
+deletes nothing there, so the bucket keeps every backup: set a lifecycle rule on the bucket
+(B2: "Keep only the last version" plus a day count; S3: an expiration rule) to drop old ones.
+
+Test: `silvermere backup`, then `rclone ls offsite:my-bucket/silvermere/`.
+
+Restore from it: copy one backup back, with its `.assets`, then restore as usual:
+
+```bash
+rclone copy offsite:my-bucket/silvermere/ ./restore/ --include 'silvermere-20261027-083000.db*/**' --include 'silvermere-20261027-083000.db'
+silvermere restore ./restore/silvermere-20261027-083000.db
 ```
 
-For compose: `0 4 * * * docker compose -f /opt/silvermere/docker/compose.yaml exec -T silvermere /silvermere backup --keep 14`.
+#### rsync to another machine, over SSH or Tailscale
+
+Another machine you can SSH to (on [Tailscale](https://tailscale.com), its name works from
+anywhere) keeps a copy. As the server's user (`sudo -u silvermere -H` for the system service,
+whose home is `/opt/silvermere`), make a key with no passphrase, put its public half in the other
+machine's `~/.ssh/authorized_keys`, and name the machine in `~/.ssh/config`:
+
+```bash
+ssh-keygen -t ed25519 -N '' -f ~/.ssh/silvermere-backup
+ssh-copy-id -i ~/.ssh/silvermere-backup.pub you@backup-box
+printf 'Host backup-box\n  User you\n  IdentityFile ~/.ssh/silvermere-backup\n  BatchMode yes\n' >> ~/.ssh/config
+ssh backup-box true            # once, to accept its host key
+silvermere config set backup.after 'rsync -a {dir}/ backup-box:silvermere-backups/'
+```
+
+`rsync -a` sends what is new and deletes nothing on the other side; add `--delete` to make it a
+mirror that keeps the same 30, knowing that it also mirrors a folder that was emptied.
+
+Test: `silvermere backup`, then `ssh backup-box ls silvermere-backups`.
+
+Restore from it: `rsync -a 'backup-box:silvermere-backups/silvermere-YYYYMMDD-HHMMSS.db*' ./restore/`,
+then `silvermere restore ./restore/silvermere-YYYYMMDD-HHMMSS.db`.
+
+#### restic: encrypted, with retention
+
+[restic](https://restic.net) encrypts on your machine and keeps snapshots with a retention
+policy; it stores to SFTP, B2, S3, a folder and others. Here it goes over SFTP to the
+`backup-box` of the rsync recipe (restic's `ssh` uses that `~/.ssh/config` block). Make the
+repository once, as the server's user, with its password in a file only that user reads:
+
+```bash
+mkdir -p ~/.config/silvermere && head -c 32 /dev/urandom | base64 > ~/.config/silvermere/restic-password
+chmod 600 ~/.config/silvermere/restic-password
+restic -r sftp:backup-box:/srv/restic/silvermere --password-file ~/.config/silvermere/restic-password init
+```
+
+Keep a copy of that password somewhere else: without it the snapshots cannot be read. Then a
+small script in the server's folder, `offsite.sh`:
+
+```sh
+#!/bin/sh
+# offsite.sh FILE DIR: the backup and its .assets into restic, then the retention policy
+set -eu
+export RESTIC_REPOSITORY=sftp:backup-box:/srv/restic/silvermere
+export RESTIC_PASSWORD_FILE="$HOME/.config/silvermere/restic-password"
+cd "$2"
+name=$(basename "$1")
+if [ -d "$name.assets" ]; then restic backup --tag silvermere "$name" "$name.assets"; else restic backup --tag silvermere "$name"; fi
+restic forget --tag silvermere --keep-daily 30 --keep-monthly 12 --prune
+```
+
+```bash
+silvermere config set backup.after 'sh offsite.sh {file} {dir}'
+```
+
+Test: `silvermere backup`, then
+`restic -r sftp:backup-box:/srv/restic/silvermere --password-file ~/.config/silvermere/restic-password snapshots`.
+
+Restore from it: `restic -r ... --password-file ... restore latest --target ./restore`, then
+`silvermere restore ./restore/silvermere-YYYYMMDD-HHMMSS.db` (the `.assets` folder comes back
+beside it).
+
+#### Your own tool
+
+Leave `backup.after` empty and point your own backup tool (Borg, Time Machine, a NAS's backup
+job, Windows File History, a cloud drive's sync folder) at `data/backups/`. Every file there is
+complete when it appears (it is written under another name and renamed), so a tool copying the
+folder at any time sees whole backups. Under Docker the image has no shell and none of these
+tools: back up the volume's `backups/` folder from the host. The image has no `pg_dump` either,
+so on PostgreSQL the scheduled backup fails each day with `pg_dump not found`: turn it off
+(`SILVERMERE_BACKUP__ENABLED=false`) and use the provider's backups, or `pg_dump` from the host.
+
+### Restore
 
 To restore, stop the server first:
 
@@ -831,9 +991,129 @@ satisfied.
 
 ## Upgrading
 
-1. `silvermere backup`.
-2. Replace the binary, or pull the new image (`docker compose -f docker/compose.yaml pull`).
-3. Start it. `serve` applies migrations itself; `silvermere migrate` does the same by hand.
+`serve` applies the new version's migrations itself on its first start (`silvermere migrate`
+does the same by hand). Take a backup first: `silvermere backup` is safe while the server runs.
+Your `data/` and `silvermere.toml` stay as they are.
+
+From a version without scheduled backups: after the upgrade the server backs itself up every
+day at 04:30 and keeps the last 30, since a `silvermere.toml` with no `backup.*` settings takes
+the defaults ([Backup and restore](#backup-and-restore)). Remove a cron line you added for
+`silvermere backup`: with it there are two backups a day, and its `--keep` deletes backups the
+server keeps.
+
+### Linux, installed with install.sh
+
+1. Run the same one-liner again, as the same user:
+
+   ```sh
+   curl -fsSL https://raw.githubusercontent.com/jnfisher/silvermere/main/packaging/install.sh | sh
+   # a system service in /opt/silvermere:
+   curl -fsSL https://raw.githubusercontent.com/jnfisher/silvermere/main/packaging/install.sh | sudo sh -s -- --system
+   ```
+
+   Add `--version 0.7.0` for a given release and `--prefix DIR` if you installed elsewhere.
+
+When the folder already holds `silvermere` and a world, the script upgrades instead of
+installing. A world means one of three things: a unit that runs from the folder, a PostgreSQL
+URL in its settings, or a non-empty SQLite database where its settings put it. An install that
+stopped before the first start (`--yes`, or an interrupted `setup`) has no world, so a re-run
+installs again and runs the first start. The upgrade:
+
+1. prints the installed version and the new one, and stops with nothing done when they are
+   the same (`--force` reinstalls). An older `--version` is a downgrade: it stops, with nothing
+   done, unless `--force` is given, since the older binary may refuse a database the newer one
+   migrated. With `--force` it goes ahead and names the backups to restore if that happens
+   ([Rollback](#rollback));
+2. downloads the new archive and checks its SHA-256;
+3. runs `silvermere backup` with the installed binary, as the user the server runs as and with
+   the database URL `service install` saved, so a hosted database is the one backed up. If the
+   backup fails it stops, with nothing changed;
+4. keeps the old binary as `silvermere.previous` and puts the new one in its place;
+5. if a silvermere unit runs from this folder (`~/.config/systemd/user/silvermere.service`, or
+   `/etc/systemd/system/silvermere.service` with `--system`), restarts it, waits for the
+   `telnet listening on` line in the journal and prints its status. If it does not come back,
+   it prints the journal command and the way back ([Rollback](#rollback)). With no unit, it
+   says to restart the server yourself;
+6. when the new version backs up on its own, says so, and if a crontab (yours, or with
+   `--system` the `silvermere` user's) still runs `silvermere backup`, shows the line and says
+   to remove it.
+
+It does not run the first start, `setup` or `service install` again: the world, the sysop and
+the service are already there. Apart from the one "Go ahead?", it asks nothing; with `--yes`
+or no terminal, not even that.
+
+### Linux by hand, or the VPS runbook
+
+1. Back up: `cd /opt/silvermere && sudo -u silvermere ./silvermere backup`.
+2. Stop it: `sudo systemctl stop silvermere`.
+3. Keep the old binary and put the new one in place (from the release archive, or
+   `target/release/silvermere` after a build):
+
+   ```sh
+   sudo cp -p /opt/silvermere/silvermere /opt/silvermere/silvermere.previous
+   sudo install -m 0755 silvermere-VERSION-x86_64-unknown-linux-musl/silvermere /opt/silvermere/silvermere
+   ```
+
+4. Start it: `sudo systemctl start silvermere`, then `journalctl -u silvermere -e` shows
+   `telnet listening on`.
+
+For a user unit, drop the `sudo`s and add `--user` to `systemctl` and `journalctl`.
+
+### Docker compose
+
+1. Back up: `docker compose -f docker/compose.yaml exec -T silvermere /silvermere backup`.
+2. Pull the new image: `docker compose -f docker/compose.yaml pull` (or, from a clone,
+   `git pull --ff-only` and `docker compose -f docker/compose.yaml build`).
+3. Start it: `docker compose -f docker/compose.yaml up -d --wait`.
+
+### macOS
+
+The release archive holds a folder with `silvermere`, `README.md` and a `silvermere.toml`
+template. Copy only the program, so your own `silvermere.toml` and `data/` stay.
+
+1. Stop the server: Ctrl-C in its window. It saves every character before it exits.
+2. Back up, in the folder you run it from: `./silvermere backup`.
+3. Unpack the new archive anywhere and copy the program over the old one:
+
+   ```sh
+   tar xzf silvermere-VERSION-universal-apple-darwin.tar.gz
+   cp -p ~/silvermere/silvermere ~/silvermere/silvermere.previous
+   cp silvermere-VERSION-universal-apple-darwin/silvermere ~/silvermere/silvermere
+   ```
+
+4. Start it: `./silvermere`.
+
+### Windows
+
+1. Close the server's window (or press Ctrl-C in it). It saves every character before it exits.
+2. Back up: open a Command Prompt in the folder and run `silvermere.exe backup`.
+3. Rename `silvermere.exe` to `silvermere.previous.exe`, the way back.
+4. Unzip the new release somewhere else and copy only its `silvermere.exe` into your folder.
+   Do not copy its `silvermere.toml` over yours; `data\` stays as it is.
+5. Double-click `silvermere.exe`. SmartScreen asks again for a new version: **More info**, then
+   **Run anyway**.
+
+[windows.md](windows.md#stopping-backing-up-updating) has the same, with the backup details.
+
+### Rollback
+
+The previous binary is `silvermere.previous` (one generation: the next upgrade replaces it).
+To go back, stop the server, put it back and start it:
+
+```sh
+cd ~/silvermere && systemctl --user stop silvermere
+mv -f silvermere.previous silvermere
+systemctl --user start silvermere
+```
+
+(For a system service: `sudo systemctl`, in `/opt/silvermere`.) The new version may already
+have migrated the database, and an older binary refuses a database with migrations it does
+not know. Then restore the backup taken before the upgrade, with the old binary, before
+starting it:
+`./silvermere restore data/backups/silvermere-YYYYMMDD-HHMMSS.db` (as `sudo -u silvermere`
+for a system service; on PostgreSQL, `restore --force` with `SILVERMERE_DATABASE_URL` set).
+That puts the world back as it was at the backup: whatever players did on the new version is
+lost.
 
 A database created before the first release has to be recreated: its migrations were recorded under earlier checksums, and `serve` refuses to start on it.
 

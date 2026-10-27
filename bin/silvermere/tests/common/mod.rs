@@ -211,12 +211,22 @@ pub async fn run_metrics_script() -> silvermere::Running {
             })
             .await
             .unwrap();
-        tokio::time::sleep(Duration::from_millis(400)).await;
+        // the batch has failed once (and been counted) before the pool comes back
+        let mut status = persist.watch();
+        let failed = tokio::time::timeout(
+            WAIT,
+            status.wait_for(|s| *s != silvermere_db::PersistStatus::Healthy),
+        )
+        .await
+        .is_ok_and(|r| r.is_ok());
+        assert!(failed, "the write on the closed pool failed");
         db.reconnect().await.unwrap();
         persist.flush().await.unwrap();
         db.close().await;
     }
-    tokio::time::sleep(Duration::from_millis(600)).await;
+    // the tick, the panic and the save above are handled, and the save committed, before the
+    // metrics are read
+    assert!(r.settle(WAIT).await, "the scripted inputs handled");
     drop(client);
     r
 }

@@ -93,6 +93,13 @@ pub fn run_with(cfg: &Config, args: &ServeArgs, first_start: bool) -> anyhow::Re
         if let Some(a) = running.admin_addr {
             eprintln!("silvermere: admin listening on {a}");
         }
+        // T-150: the daily backup, until the shutdown starts
+        let (stop_backups, backups_stop) = tokio::sync::watch::channel(false);
+        tokio::spawn(crate::backups::schedule::run(
+            running.backups.clone(),
+            crate::backups::schedule::SystemWall,
+            backups_stop,
+        ));
         if first_start {
             println!(
                 "\n{}\n",
@@ -117,6 +124,7 @@ pub fn run_with(cfg: &Config, args: &ServeArgs, first_start: bool) -> anyhow::Re
         // every line from here on is on disk when it is logged: Windows may end the process
         // at any moment of the shutdown (T-111)
         crate::flush_log();
+        let _ = stop_backups.send(true);
         tracing::info!("shutting down");
         eprintln!("silvermere: shutting down");
         let grace = std::time::Duration::from_secs(SHUTDOWN_GRACE_SECS);

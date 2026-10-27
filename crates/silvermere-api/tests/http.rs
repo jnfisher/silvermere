@@ -86,6 +86,7 @@ async fn server() -> Server {
         }),
         metrics: handle,
         world: world.clone(),
+        backup: Arc::new(silvermere_api::NoBackups),
         tokens: Arc::new(
             TOKENS
                 .iter()

@@ -9,7 +9,7 @@
 //! DOS packed dates and times are not kept: they are Unix seconds UTC (`i64`, 0 = never),
 //! converted by the importer, and the monster's `killdate`/`killtime` pair is one `killed_at`.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::enums::Ability;
 
@@ -56,7 +56,7 @@ pub use update::UpdateRecord;
 /// The records order coins two ways: the player and room records hold them as five named
 /// fields `runic..copper`, and the `cash[5]` arrays of items, known monsters and active
 /// monsters are runic first (`cash[0]` is runic). The decoder maps both to this struct.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Coins {
     /// Copper farthings (`CUR_COPPER`).
     pub copper: u32,

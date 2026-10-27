@@ -234,6 +234,16 @@ mod items {
 
         /// The stock records, a plain room, the made-up items and a rat to fight.
         fn world() -> World {
+            // built once per test process: the property tests load a world per case
+            static SNAPSHOT: std::sync::OnceLock<silvermere_engine::WorldSnapshot> =
+                std::sync::OnceLock::new();
+            let s = SNAPSHOT.get_or_init(snapshot).clone();
+            let mut w = World::load(test_config(), 8, s).expect("world loads");
+            w.rng = SeededRng::new(7);
+            w
+        }
+
+        fn snapshot() -> silvermere_engine::WorldSnapshot {
             let fx = fixture();
             let mut s = tiny_snapshot();
             s.items
@@ -351,9 +361,7 @@ mod items {
             rat.alignment = Alignment::Neutral;
             rat.montype = MonsterType::Lair;
             s.monsters[0] = rat;
-            let mut w = World::load(test_config(), 8, s).expect("world loads");
-            w.rng = SeededRng::new(7);
-            w
+            s
         }
 
         fn plr(w: &mut World, id: SessionId) -> &mut Character {

@@ -15,6 +15,7 @@
 
 pub mod accounts;
 pub mod auth;
+pub mod backup;
 pub mod broadcast;
 pub mod events;
 pub mod health;
@@ -25,6 +26,7 @@ pub mod router;
 pub mod who;
 
 pub use auth::{Scope, Token};
+pub use backup::{BackupProbe, NoBackups};
 pub use events::{EventKind, EventLog, EventRecord, NewEvent};
 pub use health::HealthProbe;
 pub use reload::WorldLoader;

@@ -138,8 +138,34 @@ fn copy_of(t: &Path) -> (TempDir, String) {
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("test.db");
     std::fs::copy(&t, &path).unwrap();
+    silvermere_testkit::world_cache::remember_template(&t);
     let url = format!("sqlite://{}", path.display());
     (TempDir(dir), url)
+}
+
+/// The world in the database at `url`, read once for every copy of a template
+/// ([`silvermere_testkit::world_cache`]).
+pub async fn world_of(url: &str) -> silvermere_engine::WorldSnapshot {
+    let url = url.to_owned();
+    tokio::task::spawn_blocking(move || {
+        let base = Path::new(env!("CARGO_TARGET_TMPDIR"));
+        let sources = template_sources();
+        let inputs: Vec<&Path> = sources.iter().map(PathBuf::as_path).collect();
+        silvermere_testkit::world_cache::snapshot(&url, base, &inputs, || {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(async {
+                    let db = Db::connect(&url).await.unwrap();
+                    let s = silvermere::bridge::load_snapshot(&db).await.unwrap();
+                    db.close().await;
+                    s
+                })
+        })
+    })
+    .await
+    .unwrap()
 }
 
 pub async fn start(url: &str) -> silvermere::Running {
@@ -157,9 +183,11 @@ pub async fn start_with(url: &str, edit: impl FnOnce(&mut Config)) -> silvermere
     // the game's long text, as a server with imported assets installs it (T-138)
     silvermere_text::package::load_and_install(&silvermere_testkit::stock::assets_dir())
         .expect("the stock package's text");
-    let running = silvermere::serve_in_process(cfg, SystemClock, SeededRng::new(7))
-        .await
-        .expect("starts");
+    let world = world_of(url).await;
+    let running =
+        silvermere::serve_snapshot_in_process(cfg, Some(world), SystemClock, SeededRng::new(7))
+            .await
+            .expect("starts");
     // The M1 walks are about rooms, exits and screens, not about monsters (T-035 spawns them,
     // T-040 compares their rate): an empty quick reference means nothing is generated, so no
     // wanderer attacks the walker or adds "You hear movement" lines the captures do not have.
@@ -181,6 +209,49 @@ pub async fn start_with(url: &str, edit: impl FnOnce(&mut Config)) -> silvermere
         "start-up writes committed"
     );
     running
+}
+
+/// Runs the engine's fast ticks from the test, every 5 ms, instead of waiting for the move
+/// delay, and tops the walkers up to full health after each: the walks are about rooms, exits
+/// and screens, and at this speed a river room (or any other room effect) would kill the
+/// walker within a few steps.
+///
+/// Each tick, the heal and a reset of the dice happen in one engine turn, so no command can run
+/// between the tick and the reset: whatever a command draws (a room script's `random` clause
+/// such as the arena's "A cheer of many voices ...", a wanderer's noise) it draws from the same
+/// state at every step and on every run. The server must have no tick of its own
+/// ([`start_ticked_by_test`]); with the wall clock supplying some of them, the draws a command
+/// saw depended on how many had run, and a line the captures do not have landed in a room
+/// screen now and then.
+pub fn walker_ticker(r: &silvermere::Running) -> tokio::task::JoinHandle<()> {
+    use silvermere_engine::EngineInput;
+    let tx = r.to_engine.clone();
+    tokio::spawn(async move {
+        loop {
+            let tick = EngineInput::Custom {
+                session: None,
+                run: Box::new(|w| {
+                    silvermere_engine::scheduler::on_fast_tick(w);
+                    for id in w.session_ids() {
+                        if let Some(p) = w.session_mut(id).and_then(|s| s.character.as_mut()) {
+                            p.hp = p.maxhp;
+                        }
+                    }
+                    w.rng = silvermere_engine::SeededRng::new(7);
+                }),
+            };
+            if tx.send(tick).is_err() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+    })
+}
+
+/// [`start`] with the server's own fast tick pushed out of reach (a day), for the tests whose
+/// ticks come from [`walker_ticker`] alone.
+pub async fn start_ticked_by_test(url: &str) -> silvermere::Running {
+    start_with(url, |cfg| cfg.game.sec_fast = 86_400).await
 }
 
 /// Creates the account `user`/`password` in the database.

@@ -61,13 +61,18 @@ Only one server may run on a store: a second `serve` refuses.
 ## `silvermere setup`
 
 The first start without serving: builds the stock world into an empty database and asks for a
-sysop account if there is none. `install.sh` runs it. It prints how to connect and where the
-sysop commands are when it finishes. Details: [install.md](install.md). It takes only the
-global flags.
+sysop account if there is none. When it has just built the world and a person answers on a
+terminal, it asks how to back up (daily at 04:30, keeping 30, by default) and writes the answer
+to `silvermere.toml`. `install.sh` runs it. It prints how to connect and where the sysop
+commands are when it finishes. Details: [install.md](install.md).
 
 ```
-silvermere setup [OPTIONS]
+silvermere setup [--yes]
 ```
+
+| Flag | Meaning |
+|---|---|
+| `--yes`, `-y` | ask nothing about backups: the defaults stand (on, daily at 04:30, keeping 30) |
 
 Refuses while a server runs on the store (it writes the world).
 
@@ -186,12 +191,18 @@ Write a consistent copy of the database; safe while the server runs. Details:
 
 ```
 silvermere backup [--to <TO>] [--keep <N>]
+silvermere backup --list
 ```
 
 | Flag | Meaning |
 |---|---|
 | `--to <TO>` | where to write (default `<data dir>/backups/silvermere-YYYYMMDD-HHMMSS.db`, UTC) |
-| `--keep <N>` | delete the oldest backups beyond N in the destination folder |
+| `--keep <N>` | delete the oldest backups beyond N (at least 1) in the destination folder; without `--to` it defaults to `backup.keep` (30) |
+| `--list` | show the backups with their sizes, the schedule, and the last scheduled run with the after-backup command's result; makes no backup |
+
+After a backup it runs the after-backup command (`backup.after`), if one is set, and says how
+it ended. A failing command leaves the backup in place and the exit status 0. The server also
+backs up on its own, daily at `backup.at` ([config.md](config.md#backup)).
 
 ## `silvermere restore`
 

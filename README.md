@@ -215,10 +215,23 @@ port `8080` closed.
 
 </details>
 
-Back up nightly with `silvermere backup --keep 14`, run from `/opt/silvermere` as the
-`silvermere` user; it is safe while the server runs. The full runbook, with upgrades, TLS
+The server backs itself up every day at 04:30 and keeps the last 30 (`silvermere backup --list`
+shows them; an after-backup command can copy each one off the box, with rclone, restic or rsync
+recipes in [docs/install.md](docs/install.md#backup-and-restore)). The full runbook, with upgrades, TLS
 for PostgreSQL and troubleshooting: [docs/install.md](docs/install.md) and
 [docs/deploy-checklist.md](docs/deploy-checklist.md).
+
+### Upgrading
+
+On Linux, installed with install.sh: run the same one-liner again, as you did the first time
+(`curl -fsSL …/install.sh | sudo sh -s -- --system`, or `| sh` for your own user). Over an
+install it upgrades: it backs up the database, keeps the old binary as `silvermere.previous`,
+installs the new one, keeps `data/` and `silvermere.toml`, and restarts the service. At the
+version already installed it does nothing (`--force` reinstalls).
+
+Elsewhere (by hand, Docker compose, macOS, Windows) the steps are the same idea: back up, stop,
+replace the program, start. The new version migrates the database on its first start.
+[docs/install.md](docs/install.md#upgrading) has them per platform, and the way back.
 
 ## Settings
 

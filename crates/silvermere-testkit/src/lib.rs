@@ -16,6 +16,7 @@
 //! - [`stats`]: chi-square and z-tests for the A/B comparisons (`tools/differential/stats.py`).
 //! - [`server::TestServer`]: an in-process server to point a client at.
 //! - [`stock`]: the stock distribution, downloaded once, checked and unpacked (T-120).
+//! - [`world_cache`]: the world a server reads from a template database, read once (T-147).
 
 #![forbid(unsafe_code)]
 
@@ -35,6 +36,7 @@ pub mod server;
 pub mod shared_template;
 pub mod stats;
 pub mod stock;
+pub mod world_cache;
 
 pub use captures::{Capture, plain, raw_to_lines};
 pub use client::{Captured, TelnetClient};

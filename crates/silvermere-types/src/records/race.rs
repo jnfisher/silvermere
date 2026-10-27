@@ -1,6 +1,6 @@
 //! The `race` record (WCCRACE).
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::ids::RaceNo;
 use crate::records::AbilitySlot;
@@ -8,7 +8,7 @@ use crate::records::layout::{self, Layout};
 use crate::sizes::NRECABILS;
 
 /// A race: the `race` record.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Race {
     /// +0x000 race number (key 0).
     pub number: RaceNo,

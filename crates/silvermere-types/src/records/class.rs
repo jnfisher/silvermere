@@ -1,6 +1,6 @@
 //! The `class` record (WCCCLASS).
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::enums::{ArmourType, Magery, WeaponClass};
 use crate::ids::{ClassNo, TextBlockNo};
@@ -9,7 +9,7 @@ use crate::records::layout::{self, Layout};
 use crate::sizes::NRECABILS;
 
 /// A class: the `class` record.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Class {
     /// +0x000 class number (key 0).
     pub number: ClassNo,

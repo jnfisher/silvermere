@@ -1,6 +1,6 @@
 //! The `room` record (WCCMP001) and the `roomkey` record.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::enums::{ExitType, GangHouse, RoomType};
 use crate::flags::RoomFlags;
@@ -13,7 +13,7 @@ use crate::sizes::{NDIRS, NHIDITEMS, NPLACED, NROOMITEMS, NROOMMONS};
 ///
 /// The parameters mean different things per [`ExitType`]; a Hidden exit keeps
 /// [`crate::flags::ExitFlags`] in `par1`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Exit {
     /// +0x338 destination room on the same map, 0 = no exit.
     pub target: RoomId,
@@ -30,7 +30,7 @@ pub struct Exit {
 }
 
 /// An item slot of a room: `items[i]`, `itemuses[i]`, `itemcounts[i]` (or the hidden ones).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RoomItem {
     /// The item number, 0 = empty.
     pub item: ItemNo,
@@ -41,7 +41,7 @@ pub struct RoomItem {
 }
 
 /// A room: the `room` record.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Room {
     /// +0x000 map number and +0x004 room number (key 0).
     pub key: RoomKey,

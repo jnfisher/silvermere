@@ -7,7 +7,10 @@ use crate::common;
 
 use std::time::Duration;
 
-use common::stock::{WAIT, aldric_db, fresh_db, login_to_menu, on_world, start, start_with};
+use common::stock::{
+    WAIT, aldric_db, fresh_db, login_to_menu, on_world, start, start_ticked_by_test, start_with,
+    walker_ticker,
+};
 use silvermere_testkit::capture_compare::{assert_clean, assert_matches_capture, replay_steps};
 use silvermere_testkit::{Capture, TelnetClient, captures};
 
@@ -101,61 +104,6 @@ async fn status_exp_inventory_set_match_captures() {
     r.stop().await.unwrap();
 }
 
-/// Aldric on the Newhaven Narrow Road, where `room-walk` and `flood-and-refusals` begin
-/// (two steps west of the Village Entrance).
-async fn on_narrow_road(url: &str) -> (TelnetClient, silvermere::Running) {
-    let (mut c, r) = in_realm(url).await;
-    for _ in 0..2 {
-        c.send_line("w").await.unwrap();
-        c.until(r"\[HP=-?\d+[^\]\n]*\]:", WAIT).await.unwrap();
-    }
-    assert!(c.plain().contains("Newhaven, Narrow Road"));
-    (c, r)
-}
-
-/// Runs the engine's fast ticks from the test, every 5 ms, instead of waiting for the move
-/// delay, and tops the walkers up to full health after each: the walks are about rooms, exits
-/// and screens, and at this speed a river room (or any other room effect) would kill the
-/// walker within a few steps.
-///
-/// Each tick, the heal and a reset of the dice happen in one engine turn, so no command can run
-/// between the tick and the reset: whatever a command draws (a room script's `random` clause
-/// such as the arena's "A cheer of many voices ...", a wanderer's noise) it draws from the same
-/// state at every step and on every run. The server must have no tick of its own
-/// ([`start_ticked_by_test`]); with the wall clock supplying some of them, the draws a command
-/// saw depended on how many had run, and a line the captures do not have landed in a room
-/// screen now and then.
-fn walker_ticker(r: &silvermere::Running) -> tokio::task::JoinHandle<()> {
-    use silvermere_engine::EngineInput;
-    let tx = r.to_engine.clone();
-    tokio::spawn(async move {
-        loop {
-            let tick = EngineInput::Custom {
-                session: None,
-                run: Box::new(|w| {
-                    silvermere_engine::scheduler::on_fast_tick(w);
-                    for id in w.session_ids() {
-                        if let Some(p) = w.session_mut(id).and_then(|s| s.character.as_mut()) {
-                            p.hp = p.maxhp;
-                        }
-                    }
-                    w.rng = silvermere_engine::SeededRng::new(7);
-                }),
-            };
-            if tx.send(tick).is_err() {
-                break;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
-        }
-    })
-}
-
-/// [`start`] with the server's own fast tick pushed out of reach (a day), for the tests whose
-/// ticks come from [`walker_ticker`] alone.
-async fn start_ticked_by_test(url: &str) -> silvermere::Running {
-    start_with(url, |cfg| cfg.game.sec_fast = 86_400).await
-}
-
 /// Movement (`move_user`) and the Enter redisplay: every room screen of the
 /// `room-walk` capture (Newhaven Arena, dark slum rooms, `NONE!!!`, trap door, locked door,
 /// the skiff, duplicate titles) is byte-equal to the original after masking.
@@ -182,7 +130,15 @@ async fn room_screens_match_captures() {
 async fn text_exit_borrow_skiff() {
     let (_dir, url) = aldric_db();
     let cap = capture("room-walk");
-    let (mut c, r) = on_narrow_road(&url).await;
+    // the moves' ticks come from the test, as in `room_screens_match_captures`, instead of
+    // waiting a second of the server's own for each
+    let (mut c, r) = in_realm_ticked_by_test(&url).await;
+    let ticker = walker_ticker(&r);
+    for _ in 0..2 {
+        c.send_line("w").await.unwrap();
+        c.until(PROMPT, WAIT).await.unwrap();
+    }
+    assert!(c.plain().contains("Newhaven, Narrow Road"));
     // steps 5-22 reach the docks and cross (the capture goes on south at step 23); from step 29 on the capture holds a wandering
     // guardsman's line that splits the output, and monsters do not exist before T-035
     let reports = replay_steps(&mut c, &cap, 5..23, &[], WAIT).await;
@@ -198,6 +154,7 @@ async fn text_exit_borrow_skiff() {
     let back = c.plain_from(at);
     assert!(back.contains("You hop in one of the skiffs"), "{back}");
     assert!(back.contains("Newhaven, Docks"), "{back}");
+    ticker.abort();
     r.stop().await.unwrap();
 }
 
@@ -1090,7 +1047,15 @@ async fn persistence_round_trip_after_the_walk() {
 #[tokio::test]
 async fn a_move_typed_after_the_prompt_is_always_echoed() {
     let (_dir, url) = aldric_db();
-    let (mut c, r) = on_narrow_road(&url).await;
+    // the moves' ticks come from the test: each move is still typed the moment its
+    // prompt arrives, without a second's wait for the server's own tick
+    let (mut c, r) = in_realm_ticked_by_test(&url).await;
+    let ticker = walker_ticker(&r);
+    for _ in 0..2 {
+        c.send_line("w").await.unwrap();
+        c.until(PROMPT, WAIT).await.unwrap();
+    }
+    assert!(c.plain().contains("Newhaven, Narrow Road"));
     for n in 0..12 {
         let dir = if n % 2 == 0 { "e" } else { "w" };
         let at = c.position();
@@ -1099,6 +1064,7 @@ async fn a_move_typed_after_the_prompt_is_always_echoed() {
         let got = c.plain_from(at);
         assert!(got.starts_with(&format!("{dir}\n")), "move {n}: {got:?}");
     }
+    ticker.abort();
     r.stop().await.unwrap();
 }
 

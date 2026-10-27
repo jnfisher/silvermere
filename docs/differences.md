@@ -128,6 +128,11 @@ These match the original and are checked against it.
   ([hang-up code](../crates/silvermere-rules/src/hangup.rs)).
 - The MajorMUD menu, all `set` options, the in-game sysop commands (minus licensing), help topics,
   and the world data: rooms, items, monsters, spells, shops, texts, actions ([import.md](import.md)).
+- The Crystal Lake and the Ancient Galleon (map 17), as the stock data has them
+  ([galleon tests](../crates/silvermere-testkit/tests/stock_galleon.rs)). At level 50 and above,
+  a third of the lake never sweeps a player aboard the galleon and another third almost never
+  does: row to the waters near the Arlysia docks to be found by it. Every lake room has a way
+  there by ordinary moves.
 
 ## Not the same numbers
 

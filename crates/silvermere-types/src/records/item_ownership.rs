@@ -1,13 +1,13 @@
 //! The `itemown` record (WCCITOWN).
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::enums::OwnerKind;
 use crate::ids::{ActiveMonsterId, ItemNo, MapId, RoomId};
 use crate::records::layout::{self, Layout};
 
 /// Where one copy of a limited item is: the `itemown` record.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemOwnership {
     /// +0x00 record id (key 0).
     pub id: i32,

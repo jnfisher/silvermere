@@ -1,13 +1,13 @@
 //! The `updrec` record (WCCUPDAT).
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::enums::UpdateRecordType;
 use crate::records::layout::{self, Layout};
 
 /// A database update record: the `updrec` record. `data` is the raw image of
 /// the record that follows, decoded by T-009 according to `kind`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UpdateRecord {
     /// +0x000 sequence number (key 0).
     pub seqnum: i32,

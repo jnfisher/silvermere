@@ -98,3 +98,10 @@ monsbuf = 300   # MONSBUF: the active-monster cache holds monsbuf + 1 slots
 [logging]
 format = "pretty"   # "pretty" or "json"
 level = "info"   # tracing filter
+
+[backup]
+enabled = true   # a daily backup into data/backups while the server runs
+at = "04:30"   # local time, in game.cleanup.tz
+keep = 30   # backups kept in data/backups; older ones are deleted
+after = ""   # command run after each backup, e.g. "rclone copy {dir} offsite:bucket/silvermere/"
+after_timeout_secs = 1800   # seconds before that command is killed

@@ -28,6 +28,7 @@ fn serve(url: &str) -> Command {
 }
 
 fn silvermere(url: &str, args: &[&str]) -> Command {
+    stock_package();
     let mut c = Command::new(env!("CARGO_BIN_EXE_silvermere"));
     c.current_dir(env!("CARGO_TARGET_TMPDIR"))
         .args(args)
@@ -38,6 +39,21 @@ fn silvermere(url: &str, args: &[&str]) -> Command {
     }
     c.env("SILVERMERE_DATABASE__URL", url);
     c
+}
+
+/// `serve` completes the game's text from the package in `data/cache/` of its directory,
+/// downloading it when it is not there: the copy comes from the shared cache instead (whole,
+/// by a rename, since the tests run side by side).
+fn stock_package() {
+    let cache = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("data/cache");
+    let file = cache.join(silvermere_testkit::stock::FILE_NAME);
+    if file.exists() {
+        return;
+    }
+    std::fs::create_dir_all(&cache).unwrap();
+    let tmp = cache.join(format!("package.tmp{}", std::process::id()));
+    std::fs::copy(silvermere_testkit::stock::zip(), &tmp).unwrap();
+    std::fs::rename(&tmp, &file).unwrap();
 }
 
 /// Waits for the "telnet listening" line; the rest of stderr is drained in the background

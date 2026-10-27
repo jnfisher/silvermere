@@ -1,6 +1,6 @@
 //! The `player` record (WCCUSERS) and the two genbb records that outlive a character.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::enums::{MessageLevel, StatlineMode};
 use crate::flags::{PlayerFlags, PlayerSettings, PlayerStatus, PlayerStatus2};
@@ -15,7 +15,7 @@ use crate::sizes::{NABILITY, NSPELLCAST, NTRAIL, NWORN};
 /// `dragging`, `scanpos`. `userid` is kept for lookups by user id but is not the
 /// identity; the database key is [`crate::ids::CharacterId`]. The `unk_*` members are not
 /// carried. Every other field keeps its record member name.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Character {
     /// +0x000 BBS user-id (key 0).
     pub userid: String,
@@ -305,7 +305,7 @@ impl Character {
 
 /// The settings kept across deaths: genbb `"WCC PERMANENT USER"`, the `permrec` record.
 /// `statfmt` keeps the custom statline template.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PermanentRecord {
     /// +0x00 user-id (key part 1).
     pub userid: String,
@@ -361,7 +361,7 @@ impl PermanentRecord {
 }
 
 /// Evil points kept over a death: genbb `"WCC MAJOR MUD EVIL"`, the `evilrec` record.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvilRecord {
     /// +0x00 user-id (key part 1).
     pub userid: String,

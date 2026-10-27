@@ -92,10 +92,35 @@ pub fn by_number(table_name: &str, n: i64) -> &'static Row {
 
 /// The map 1 room `n`.
 pub fn room(n: i64) -> &'static Row {
-    table("WCCMP001")
+    map1_room(&format!("room {n}"), |r| i64::from(r.roomnum) == n)
+}
+
+/// The first map 1 room of shop `n`.
+pub fn shop_room(n: i64) -> &'static Row {
+    map1_room(&format!("shop {n}"), |r| i64::from(r.shopnum) == n)
+}
+
+/// The first room of `WCCMP001` on map 1 that `is` picks, exported once per `what`. Only
+/// the rooms asked for are exported: the whole table is 26,720 rows, a second's work.
+fn map1_room(
+    what: &str,
+    is: impl Fn(&silvermere_import::decode::RoomRecord) -> bool,
+) -> &'static Row {
+    static ROOMS: OnceLock<Mutex<HashMap<String, &'static Row>>> = OnceLock::new();
+    let mut rooms = ROOMS.get_or_init(Default::default).lock().unwrap();
+    if let Some(row) = rooms.get(what) {
+        return row;
+    }
+    let d = content()
+        .rooms
         .iter()
-        .find(|r| int(r, "mapnum") == 1 && int(r, "roomnum") == n)
-        .unwrap_or_else(|| panic!("map 1 has no room {n}"))
+        .find(|d| {
+            d.file.eq_ignore_ascii_case("WCCMP001.VIR") && d.record.mapnum == 1 && is(&d.record)
+        })
+        .unwrap_or_else(|| panic!("map 1 has no {what}"));
+    let row: &'static Row = Box::leak(Box::new(d.record.export(d.ordinal)));
+    rooms.insert(what.to_string(), row);
+    row
 }
 
 /// The `[ability, value]` pairs of a record whose ability number is set, in slot order.

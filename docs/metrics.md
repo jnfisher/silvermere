@@ -35,5 +35,5 @@ code 130. Exit code 1 means the database could not be reached in time and charac
 not be saved.
 
 `silvermere backup [--to PATH] [--keep N]` writes a consistent copy while the server runs
-(default `<data dir>/backups/silvermere-YYYYMMDD-HHMMSS.db`, UTC); run it from `cron` or a
-compose sidecar. `silvermere restore FILE` needs the server stopped.
+(default `<data dir>/backups/silvermere-YYYYMMDD-HHMMSS.db`, UTC); the server also runs it daily
+at `backup.at` ([config.md](config.md#backup)). `silvermere restore FILE` needs the server stopped.

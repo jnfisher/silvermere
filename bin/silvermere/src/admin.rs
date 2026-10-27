@@ -172,12 +172,13 @@ fn metrics_handle() -> PrometheusHandle {
 }
 
 /// Builds the API state: the engine sender, the event bus, the table, the probe, the
-/// metrics handle and the configured tokens.
+/// metrics handle, the configured tokens and the backup schedule's state.
 pub fn api_state(
     cfg: &Config,
     db: Arc<Db>,
     engine: std::sync::mpsc::Sender<EngineInput>,
     vitals: Arc<Vitals>,
+    backup: Arc<dyn silvermere_api::BackupProbe>,
 ) -> ApiState {
     if cfg.admin.legacy_env_token
         && matches!(
@@ -198,6 +199,7 @@ pub fn api_state(
         health: vitals,
         metrics: metrics_handle(),
         tokens: Arc::new(cfg.admin.tokens.iter().map(|t| t.to_token()).collect()),
+        backup,
     }
 }
 

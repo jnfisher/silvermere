@@ -212,12 +212,14 @@ fn setup(data_dir: Option<&Path>, ov: &Overrides, url: Option<&str>) -> anyhow::
             &mut std::io::BufReader::new(tty),
             &mut std::io::stdout(),
             true,
+            Some(&crate::config::config_target(data_dir, &ov)),
         ),
         Err(_) => crate::commands::first_start::prepare(
             &cfg,
             &mut std::io::stdin().lock(),
             &mut std::io::stdout(),
             false,
+            None,
         ),
     }?;
     Ok(crate::commands::first_start::next_steps(
@@ -305,14 +307,17 @@ pub fn install(
     let sudo = if mode == Mode::User { "" } else { "sudo " };
     writeln!(out, "Logs:      {sudo}journalctl{u} -u {UNIT} -f")?;
     writeln!(out, "Restart:   {sudo}systemctl{u} restart {UNIT}")?;
-    let crontab = match mode {
-        Mode::User => "crontab -e".to_string(),
-        Mode::System => format!("sudo crontab -u {SYSTEM_USER} -e"),
+    // T-150: the server backs up on its own; a cron line as well would back up twice
+    let as_user = if mode == Mode::User {
+        String::new()
+    } else {
+        format!("sudo -u {SYSTEM_USER} ")
     };
     writeln!(
         out,
-        "Backups:   add this line with `{crontab}` (nightly at 04:00, keeps 14):\n  {}",
-        cron_line(&plan)
+        "Backups:   the server takes one daily (backup.at, backup.keep); list them with\n  \
+         cd {} && {as_user}./silvermere backup --list",
+        plan.workdir.display()
     )?;
     Ok(())
 }
@@ -507,36 +512,6 @@ fn write_file(path: &Path, text: &str, mode: u32) -> anyhow::Result<()> {
     f.sync_all()?;
     std::fs::rename(&tmp, path).with_context(|| format!("writing {}", path.display()))?;
     Ok(())
-}
-
-/// The nightly backup line for the crontab of whoever runs the server. cron does not read
-/// the unit's `EnvironmentFile`, so the line loads it.
-pub fn cron_line(plan: &Plan) -> String {
-    let q = |p: &Path| sh_quote(&p.to_string_lossy());
-    let mut line = format!("0 4 * * * cd {} && ", q(&plan.workdir));
-    if let Some(e) = &plan.env_file {
-        line += &format!("set -a && . {} && set +a && ", q(e));
-    }
-    line += &q(&plan.exe);
-    if let Some(c) = &plan.config {
-        line += &format!(" --config {}", q(c));
-    }
-    if let Some(d) = &plan.data_dir {
-        line += &format!(" --data-dir {}", q(d));
-    }
-    line + " backup --keep 14"
-}
-
-/// `s` as one shell word; a crontab line also treats `%` as a line break, so it is escaped.
-fn sh_quote(s: &str) -> String {
-    let s = s.replace('%', "\\%");
-    if s.chars()
-        .all(|c| c.is_ascii_alphanumeric() || "/._-+:@,\\%".contains(c))
-    {
-        s
-    } else {
-        format!("'{}'", s.replace('\'', "'\\''"))
-    }
 }
 
 /// Creates the `silvermere` system user when missing.
@@ -774,17 +749,6 @@ mod tests {
         assert!(e.contains("pooler"), "{e}");
     }
 
-    #[test]
-    fn cron_line_loads_the_env_file() {
-        let mut p = plan(Mode::User);
-        p.data_dir = None;
-        assert_eq!(
-            cron_line(&p),
-            "0 4 * * * cd '/opt/silver mere' && set -a && . /etc/silvermere/env && set +a && \
-             '/opt/silver mere/silvermere' backup --keep 14"
-        );
-    }
-
     fn tmp(name: &str) -> PathBuf {
         let d =
             std::env::temp_dir().join(format!("silvermere-service-{name}-{}", std::process::id()));
@@ -872,7 +836,8 @@ mod tests {
         assert_eq!(seen.as_deref(), Some(url));
         let out = String::from_utf8(out).unwrap();
         assert!(out.contains("telnet listening on 0.0.0.0:2323"), "{out}");
-        assert!(out.contains("backup --keep 14"), "{out}");
+        assert!(out.contains("./silvermere backup --list"), "{out}");
+        assert!(!out.contains("crontab"), "{out}");
 
         let calls = std::fs::read_to_string(&log).unwrap();
         let calls: Vec<&str> = calls

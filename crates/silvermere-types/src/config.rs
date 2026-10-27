@@ -199,14 +199,20 @@ impl Default for CleanupConfig {
 impl CleanupConfig {
     /// `at` as `(hour, minute)`, `None` when it is not a valid `"HH:MM"`.
     pub fn hour_minute(&self) -> Option<(u8, u8)> {
-        let (h, m) = self.at.split_once(':')?;
-        if h.is_empty() || h.len() > 2 || m.len() != 2 {
-            return None;
-        }
-        let h: u8 = h.parse().ok()?;
-        let m: u8 = m.parse().ok()?;
-        (h < 24 && m < 60).then_some((h, m))
+        hour_minute(&self.at)
     }
+}
+
+/// A `"HH:MM"` (24-hour) time of day as `(hour, minute)`, `None` when it is not one. The
+/// daily cleanup's `at` and the scheduled backup's `backup.at` are read with it.
+pub fn hour_minute(at: &str) -> Option<(u8, u8)> {
+    let (h, m) = at.split_once(':')?;
+    if h.is_empty() || h.len() > 2 || m.len() != 2 {
+        return None;
+    }
+    let h: u8 = h.parse().ok()?;
+    let m: u8 = m.parse().ok()?;
+    (h < 24 && m < 60).then_some((h, m))
 }
 
 impl Default for GameConfig {

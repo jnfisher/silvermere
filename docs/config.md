@@ -208,6 +208,19 @@ Defaults are the values the original distribution shipped. `inactive_secs = 3600
 | `logging.format` | `SILVERMERE_LOGGING__FORMAT` | `"pretty"` | `"pretty"` or `"json"`. | — |
 | `logging.level` | `SILVERMERE_LOGGING__LEVEL` | `"info"` | A `tracing` filter, e.g. `info` or `silvermere=debug`. Under `serve` it sets the log file in `data/logs/`; stderr (the journal under systemd) always gets warnings and errors and the writer guard's and persistence's info lines, whatever this says. | — |
 
+### [backup]
+
+The daily backup the server takes, and the command run after each backup
+([install.md](install.md#backup-and-restore) has the recipes).
+
+| Key | Environment variable | Default | Meaning | Original name |
+|---|---|---|---|---|
+| `backup.enabled` | `SILVERMERE_BACKUP__ENABLED` | `true` | Back up daily at `backup.at` while the server runs, into `data/backups/`. A stopped server takes none. | — |
+| `backup.at` | `SILVERMERE_BACKUP__AT` | `"04:30"` | Local time (`"HH:MM"`, 24-hour) of the daily backup, in `game.cleanup.tz` (after the 03:00 cleanup by default). | — |
+| `backup.keep` | `SILVERMERE_BACKUP__KEEP` | `30` | Backups kept in `data/backups/`: after each one there (scheduled, by hand, or before an upgrade) the oldest beyond this are deleted. 1..=10000. | — |
+| `backup.after` | `SILVERMERE_BACKUP__AFTER` | `""` | A command run after each successful backup, without a shell: `{file}` is the backup's path, `{dir}` the backups folder (also in `SILVERMERE_BACKUP_FILE` and `SILVERMERE_BACKUP_DIR`). Quote with `'...'` or `"..."`; for a shell, `sh -c '...'`. It is not given the database URL, its password or the admin tokens (it can still read what the server's user can). Its failure is logged and shown; the backup stays. Empty: none. | — |
+| `backup.after_timeout_secs` | `SILVERMERE_BACKUP__AFTER_TIMEOUT_SECS` | `1800` | Seconds `backup.after` may run before it is killed, with what it started. 1..=86400. | — |
+
 ## Original options with no key
 
 | Original | What happened |

@@ -63,12 +63,16 @@ download.mbbsemu.com), checks it and keeps it in data\cache.
 
 5. BACK UP
 
-   While the server runs, open a Command Prompt in this folder (type cmd in
-   Explorer's address bar and press Enter) and run:
+   While the window is open, the server backs up on its own every day at
+   04:30 and keeps the last 30, in data\backups (the first start asks; no
+   Task Scheduler task is needed). "silvermere backup --list" shows them.
 
-     silvermere backup --keep 14
+   To back up by hand, while the server runs, open a Command Prompt in this
+   folder (type cmd in Explorer's address bar and press Enter) and run:
 
-   That writes data\backups\silvermere-<date>-<time>.db and keeps the 14
+     silvermere backup
+
+   That writes data\backups\silvermere-<date>-<time>.db and keeps the 30
    newest. To put one back, stop the server first, then:
 
      silvermere restore data\backups\silvermere-<date>-<time>.db
@@ -86,9 +90,27 @@ download.mbbsemu.com), checks it and keeps it in data\cache.
    To start again, double-click silvermere.exe. It goes straight to serving.
 
 
-7. MORE
+7. UPGRADING
 
-   Updating, running as a Windows service, opening the firewall for friends,
+   1. Close the window (it saves every character).
+   2. Back up: in a Command Prompt in this folder, run
+        silvermere.exe backup
+   3. Rename silvermere.exe to silvermere.previous.exe: that is the way back.
+   4. Unzip the new release somewhere else and copy only its silvermere.exe
+      into this folder. Keep your data folder and your silvermere.toml: do
+      not copy the new silvermere.toml over yours.
+   5. Double-click silvermere.exe. It updates the world's database on its
+      first start. SmartScreen asks again for a new version: "More info",
+      then "Run anyway".
+
+   To go back, close it, put silvermere.previous.exe back as silvermere.exe
+   and start it. If the old version then refuses the database, restore the
+   backup from step 2 first (see 5. BACK UP).
+
+
+8. MORE
+
+   Running as a Windows service, opening the firewall for friends,
    and fixing problems: docs/windows.md in the Silvermere repository.
    If something fails, the window stays open with the error: read it, then
    press Enter to close.

@@ -190,6 +190,7 @@ pub fn stock_db() -> StockDb {
             std::fs::create_dir_all(&dir).unwrap();
             let path = dir.join("test.db");
             std::fs::copy(t, &path).unwrap();
+            silvermere_testkit::world_cache::remember_template(t);
             StockDb {
                 url: format!("sqlite://{}", path.display()),
                 dir: Some(dir),
@@ -234,9 +235,11 @@ pub async fn start_with(
     cfg.database.url = url.to_owned();
     cfg.data_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
     edit(&mut cfg);
-    let running = silvermere::serve_in_process(cfg, SystemClock, SeededRng::new(seed))
-        .await
-        .expect("starts");
+    let world = world_of(url).await;
+    let running =
+        silvermere::serve_snapshot_in_process(cfg, Some(world), SystemClock, SeededRng::new(seed))
+            .await
+            .expect("starts");
     on_world(&running, |w| {
         w.monqref.clear();
         for n in w.active_monsters.numbers_in_use() {
@@ -253,6 +256,29 @@ pub async fn start_with(
         "start-up writes committed"
     );
     running
+}
+
+/// The world in the database at `url`, read once for every copy of the template
+/// ([`silvermere_testkit::world_cache`]; the test executable and the stock files are what it
+/// depends on).
+pub async fn world_of(url: &str) -> silvermere_engine::WorldSnapshot {
+    let url = url.to_owned();
+    tokio::task::spawn_blocking(move || {
+        let base = Path::new(env!("CARGO_TARGET_TMPDIR"));
+        let exe = std::env::current_exe().expect("the test executable");
+        let vir = silvermere_testkit::stock::vir_dir();
+        let read = url.clone();
+        silvermere_testkit::world_cache::snapshot(&url, base, &[&exe, &vir], move || {
+            block_on(async move {
+                let db = Db::connect(&read).await.unwrap();
+                let s = silvermere::bridge::load_snapshot(&db).await.unwrap();
+                db.close().await;
+                s
+            })
+        })
+    })
+    .await
+    .unwrap()
 }
 
 /// The server on `url` as `silvermere serve` starts it: the start-up pass's monsters left in
@@ -618,9 +644,31 @@ pub async fn monster_hp(
 /// nor a WCCMSG text or room title of the stock world classifies: the Rust side of
 /// `Registry.load_world` (the generated families such as `spell_cast_you`, 209 of them,
 /// come from the same WCCMSG texts).
+/// A message as a regex (`^text$`, each `%` field standing for anything). Compiled the
+/// first time a line starts and ends with its fixed text, which any line it matches does:
+/// a world holds thousands, and a test classifies a few lines.
+struct MessageTemplate {
+    prefix: String,
+    suffix: String,
+    pattern: String,
+    re: OnceLock<Option<regex::Regex>>,
+}
+
+impl MessageTemplate {
+    fn is_match(&self, line: &str) -> bool {
+        line.starts_with(&self.prefix)
+            && line.ends_with(&self.suffix)
+            && self
+                .re
+                .get_or_init(|| regex::Regex::new(&self.pattern).ok())
+                .as_ref()
+                .is_some_and(|re| re.is_match(line))
+    }
+}
+
 pub struct Classifier {
     set: silvermere_testkit::PatternSet,
-    templates: Vec<regex::Regex>,
+    templates: Vec<MessageTemplate>,
     /// The text blocks (talk, room command texts) with their whitespace collapsed: shown
     /// word-wrapped, so a line of one is a piece of it.
     blocks: Vec<String>,
@@ -678,7 +726,9 @@ impl Classifier {
             // `%s`, `%d`, `%c` and friends stand for anything
             let mut rx = String::from("^");
             let mut rest = t;
+            let mut prefix = None;
             while let Some(i) = rest.find('%') {
+                prefix.get_or_insert_with(|| rest[..i].to_owned());
                 rx += &regex::escape(&rest[..i]);
                 let tail = &rest[i + 1..];
                 let skip = tail
@@ -689,9 +739,12 @@ impl Classifier {
             }
             rx += &regex::escape(rest);
             rx += "$";
-            if let Ok(re) = regex::Regex::new(&rx) {
-                templates.push(re);
-            }
+            templates.push(MessageTemplate {
+                prefix: prefix.unwrap_or_else(|| rest.to_owned()),
+                suffix: rest.to_owned(),
+                pattern: rx,
+                re: OnceLock::new(),
+            });
         }
         Self {
             set,
@@ -714,7 +767,7 @@ impl Classifier {
                 !l.is_empty()
                     && !sent.iter().any(|c| c == l)
                     && !self.echo_then_known(l, &sent)
-                    && !self.templates.iter().any(|re| re.is_match(l))
+                    && !self.templates.iter().any(|t| t.is_match(l))
                     && !(l.len() >= 3 && {
                         let c = collapse(l);
                         self.blocks.iter().any(|b| b.contains(&c))

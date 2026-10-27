@@ -1,6 +1,6 @@
 //! The `item` record (WCCITEMS).
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::enums::{ArmourType, Currency, ItemType, WeaponType, WornLocation};
 use crate::ids::{ClassNo, ItemNo, MessageNo, RaceNo, SpellNo, TextBlockNo};
@@ -9,7 +9,7 @@ use crate::records::{AbilitySlot, Coins};
 use crate::sizes::NITEMABILS;
 
 /// An item: the `item` record.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Item {
     /// +0x000 item number (key 0).
     pub number: ItemNo,

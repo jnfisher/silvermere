@@ -1,6 +1,6 @@
 //! The `monster` record (WCCKNMSR, known monsters) and the `actmon` record (WCCACMSR, active ones).
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::enums::{Alignment, Gender, GroupRole, MonsterAttackType, MonsterType};
 use crate::flags::ActiveMonsterFlags;
@@ -12,7 +12,7 @@ use crate::records::{AbilitySlot, Coins};
 use crate::sizes::{NAMTRAIL, NMONATTACKS, NMONITEMS, NMONSPELLS, NRECABILS};
 
 /// An item a known monster may carry: `items[i]`, `itemuses[i]`, `itempcts[i]`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MonsterItem {
     /// +0x0BA item carried.
     pub item: ItemNo,
@@ -23,7 +23,7 @@ pub struct MonsterItem {
 }
 
 /// One attack slot of a known monster: the `atk*`, `*msgs` and `hitspells` arrays at one index.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MonsterAttack {
     /// +0x11E attack type.
     pub kind: MonsterAttackType,
@@ -48,7 +48,7 @@ pub struct MonsterAttack {
 }
 
 /// A spell a known monster casts after combat rounds: `spells`, `spellpcts`, `spelllvls`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MonsterSpell {
     /// +0x1AB spell number.
     pub spell: SpellNo,
@@ -59,7 +59,7 @@ pub struct MonsterSpell {
 }
 
 /// A known monster: the `monster` record.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KnownMonster {
     /// +0x000 known-monster number (key 0).
     pub number: MonsterNo,
@@ -154,7 +154,7 @@ impl KnownMonster {
 }
 
 /// A spell in effect on an active monster: `spells`, `spellvals`, `spelldurs` at one index.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ActiveSpell {
     /// +0x13C spell number.
     pub spell: SpellNo,
@@ -165,7 +165,7 @@ pub struct ActiveSpell {
 }
 
 /// An active monster: the `actmon` record.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ActiveMonster {
     /// +0x000 active number (key 0).
     pub number: ActiveMonsterId,

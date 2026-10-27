@@ -1,6 +1,6 @@
 //! The `textblk` record (WCCTEXT).
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::ids::TextBlockNo;
 use crate::records::layout::{self, Layout};
@@ -9,7 +9,7 @@ use crate::records::layout::{self, Layout};
 ///
 /// The record stores each text byte plus 0x20; `text` holds it decoded (the importer
 /// subtracts 0x20 at the boundary).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TextBlock {
     /// +0x000 continuation number, 0 first.
     pub part: i16,

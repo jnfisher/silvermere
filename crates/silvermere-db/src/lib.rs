@@ -17,7 +17,8 @@
 //!   SQLite and an advisory lock on PostgreSQL.
 //! - [`Events`]: the append-only `events` table with `append` and `prune`.
 //! - [`TestDb`]: a throwaway database for tests (a temp SQLite file by default, a
-//!   private schema on the PostgreSQL named by `SILVERMERE_DATABASE_URL`).
+//!   private database cloned from a migrated template on the PostgreSQL named by
+//!   `SILVERMERE_DATABASE_URL`).
 //!
 //! Queries are runtime-checked (`sqlx::query`, bound by position) on the `Any` driver
 //! so one query text serves both backends; there is no `sqlx prepare` offline data.

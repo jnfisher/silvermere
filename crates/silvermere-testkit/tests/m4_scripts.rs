@@ -561,7 +561,9 @@ async fn the_dread_mystics_death_pause_is_blank() {
     const ROOM: (u32, u32) = (1, 2150);
     const DREAD_MYSTIC: u16 = 490;
     let db = stock_db();
-    let r = start(&db.url, 33).await;
+    // every tick comes from the test (`ticker` below): no tick of the server's own adds a line
+    // to the pause this test reads
+    let r = start_with(&db.url, 33, |cfg| cfg.game.sec_fast = 86_400).await;
     let mut a = new_character(&r, &db.url, "Aldric", WARRIOR, &[]).await;
     let mut b = new_character(&r, &db.url, "Bob", WARRIOR, &[]).await;
     for name in ["Aldric", "Bob"] {
@@ -613,8 +615,16 @@ async fn the_dread_mystics_death_pause_is_blank() {
         "record 66 reaches the world, its texts empty"
     );
     assert_eq!(lost, [true, true], "both lose the action");
-    pump(&mut a, 300).await;
-    pump(&mut b, 300).await;
+    // the death message and the pause's blank lines (his own and the other's), however long
+    // they take to arrive
+    let pause = regex::Regex::new(r"steps into the shadows!(?:[^\n]*\n){3}").unwrap();
+    for (c, at) in [(&mut a, at_a), (&mut b, at_b)] {
+        let t0 = tokio::time::Instant::now();
+        while !pause.is_match(&c.plain_from(at)) && t0.elapsed() < WAIT {
+            pump(c, 20).await;
+        }
+        pump(c, 100).await;
+    }
     let (pause_a, pause_b) = (a.plain_from(at_a), b.plain_from(at_b));
     let prompt = regex::Regex::new(PROMPT).unwrap();
     for (who, out) in [("Aldric", &pause_a), ("Bob", &pause_b)] {

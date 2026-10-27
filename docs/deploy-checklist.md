@@ -262,10 +262,9 @@ addresses. Keep `data.before-restore`
 until you are happy, then remove it: `rm -r $D/data.before-restore` (with `sudo` for the
 system unit).
 
-Also add the nightly backup: the line `service install` printed at A5 (`Backups:`), with
-`crontab -e` for the user unit or `sudo crontab -u silvermere -e` for the system unit. Run
-`service install` again after B3 to get the line that loads the env file (cron does not
-read the unit's).
+The server backs up daily on its own (04:30, keeping 30): no cron line. Remove one an earlier
+version had you add (`crontab -e`, or `sudo crontab -u silvermere -e`), or both would run.
+`./silvermere backup --list` shows the backups and the last scheduled run.
 
 ### A12. Logs (VPS)
 

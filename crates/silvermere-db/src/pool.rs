@@ -255,10 +255,11 @@ async fn open_pool_from(options: AnyPoolOptions, dialect: Dialect, url: &str) ->
 
 static TEST_SEQ: AtomicU64 = AtomicU64::new(0);
 
-/// A throwaway database for tests: a temp SQLite file by default, or a private schema
-/// on the PostgreSQL named by `SILVERMERE_DATABASE_URL`. Migrated and empty when
-/// returned. The SQLite directory is removed on drop; a PostgreSQL schema is removed by
-/// [`TestDb::close`] (CI's database is discarded with the job).
+/// A throwaway database for tests: a temp SQLite file by default, or a private database
+/// on the PostgreSQL server named by `SILVERMERE_DATABASE_URL`, cloned from a template
+/// database migrated once per set of migrations (T-147). Migrated and empty when
+/// returned. The SQLite directory is removed on drop; a PostgreSQL database (or schema)
+/// is removed by [`TestDb::close`] (CI's server is discarded with the job).
 #[derive(Debug)]
 pub struct TestDb {
     db: Arc<Db>,
@@ -268,7 +269,16 @@ pub struct TestDb {
 #[derive(Debug)]
 enum Cleanup {
     Dir(PathBuf),
-    PgSchema { base_url: String, schema: String },
+    PgSchema {
+        base_url: String,
+        schema: String,
+    },
+    PgDatabase {
+        base_url: String,
+        name: String,
+    },
+    /// Handed to another `TestDb` ([`TestDb::into_cleanup`]).
+    Handed,
 }
 
 impl TestDb {
@@ -328,17 +338,10 @@ impl TestDb {
         if !matches!(Dialect::from_url(&base_url), Ok(Dialect::Postgres)) {
             return Ok(None);
         }
-        let n = TEST_SEQ.fetch_add(1, Ordering::Relaxed);
-        let schema = format!("t_{}_{}", std::process::id(), n);
-        sqlx::any::install_default_drivers();
-        let mut admin = sqlx::AnyConnection::connect(&base_url).await?;
-        admin
-            .execute(sqlx::AssertSqlSafe(format!("CREATE SCHEMA {schema}")))
-            .await?;
-        admin.close().await?;
-        let direct = schema_url(&base_url, &schema);
-        // the schema migrated directly: only what the test measures pays the delay
-        Db::connect_and_migrate(&direct).await?.close().await;
+        // the database is made directly: only what the test measures pays the delay
+        let direct_db = Self::postgres_clone(&base_url).await?;
+        let direct = direct_db.url().to_string();
+        let cleanup = direct_db.into_cleanup().await;
         let (_, upstream) = crate::latency::redirect_url(&base_url, 0)
             .ok_or_else(|| DbError::UnsupportedUrl(base_url.clone()))?;
         let proxy = crate::latency::LatencyProxy::start(&upstream, one_way)
@@ -350,7 +353,7 @@ impl TestDb {
         Ok(Some((
             Self {
                 db: Arc::new(db),
-                cleanup: Cleanup::PgSchema { base_url, schema },
+                cleanup,
             },
             proxy,
         )))
@@ -361,10 +364,59 @@ impl TestDb {
     pub async fn from_env() -> Result<Self> {
         match std::env::var("SILVERMERE_DATABASE_URL") {
             Ok(url) if matches!(Dialect::from_url(&url), Ok(Dialect::Postgres)) => {
+                Self::postgres_clone(&url).await
+            }
+            _ => Self::sqlite_temp().await,
+        }
+    }
+
+    /// [`TestDb::from_env`], but on PostgreSQL a fresh schema that this call migrates
+    /// instead of a clone of the migrated template: for the tests of the migrations
+    /// themselves.
+    pub async fn from_env_migrating() -> Result<Self> {
+        match std::env::var("SILVERMERE_DATABASE_URL") {
+            Ok(url) if matches!(Dialect::from_url(&url), Ok(Dialect::Postgres)) => {
                 Self::postgres_schema(&url).await
             }
             _ => Self::sqlite_temp().await,
         }
+    }
+
+    /// A fresh database on the PostgreSQL server at `base_url`, cloned from the template
+    /// [`pg_template`] keeps: a file copy on the server instead of running the migrations
+    /// (and waiting for sqlx's migration lock, one per database, which every test held in
+    /// turn). Falls back to [`TestDb::postgres_schema`] when the role may not create
+    /// databases.
+    pub async fn postgres_clone(base_url: &str) -> Result<Self> {
+        match Self::try_postgres_clone(base_url).await {
+            Ok(t) => Ok(t),
+            Err(e) => {
+                tracing::warn!(%e, "no template clone; migrating a schema instead");
+                Self::postgres_schema(base_url).await
+            }
+        }
+    }
+
+    async fn try_postgres_clone(base_url: &str) -> Result<Self> {
+        let template = pg_template(base_url).await?;
+        let name = pg_test_name();
+        sqlx::any::install_default_drivers();
+        let mut admin = sqlx::AnyConnection::connect(base_url).await?;
+        let created = admin
+            .execute(sqlx::AssertSqlSafe(format!(
+                "CREATE DATABASE {name} TEMPLATE {template}"
+            )))
+            .await;
+        admin.close().await?;
+        created?;
+        let db = Db::connect(&database_url(base_url, &name)).await?;
+        Ok(Self {
+            db: Arc::new(db),
+            cleanup: Cleanup::PgDatabase {
+                base_url: base_url.to_string(),
+                name,
+            },
+        })
     }
 
     /// The database.
@@ -375,16 +427,26 @@ impl TestDb {
     /// Closes the pool and removes the database (file or schema).
     pub async fn close(self) {
         self.db.close().await;
-        if let Cleanup::PgSchema { base_url, schema } = &self.cleanup
-            && let Ok(mut admin) = sqlx::AnyConnection::connect(base_url).await
-        {
-            let _ = admin
-                .execute(sqlx::AssertSqlSafe(format!(
-                    "DROP SCHEMA IF EXISTS {schema} CASCADE"
-                )))
-                .await;
+        let (base_url, drop) = match &self.cleanup {
+            Cleanup::Dir(_) | Cleanup::Handed => return,
+            Cleanup::PgSchema { base_url, schema } => {
+                (base_url, format!("DROP SCHEMA IF EXISTS {schema} CASCADE"))
+            }
+            Cleanup::PgDatabase { base_url, name } => (
+                base_url,
+                format!("DROP DATABASE IF EXISTS {name} WITH (FORCE)"),
+            ),
+        };
+        if let Ok(mut admin) = sqlx::AnyConnection::connect(base_url).await {
+            let _ = admin.execute(sqlx::AssertSqlSafe(drop)).await;
             let _ = admin.close().await;
         }
+    }
+
+    /// Closes this handle's pool and hands over what removes the database, which stays.
+    async fn into_cleanup(mut self) -> Cleanup {
+        self.db.close().await;
+        std::mem::replace(&mut self.cleanup, Cleanup::Handed)
     }
 }
 
@@ -410,6 +472,89 @@ fn schema_url(base_url: &str, schema: &str) -> String {
     format!("{base_url}{sep}options=-c%20search_path%3D{schema}")
 }
 
+/// The template database [`TestDb::postgres_clone`] copies: migrated once for each set of
+/// migrations (the name carries their versions and checksums), by whichever test process
+/// gets there first while the others wait on an advisory lock. Built under another name
+/// and renamed when complete, so a builder that dies leaves no half-migrated template.
+async fn pg_template(base_url: &str) -> Result<String> {
+    let mut h = 0xcbf2_9ce4_8422_2325_u64;
+    for m in Dialect::Postgres.migrator().iter() {
+        for b in m.version.to_le_bytes().iter().chain(m.checksum.iter()) {
+            h ^= u64::from(*b);
+            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+    let template = format!("silvermere_template_{h:016x}");
+    sqlx::any::install_default_drivers();
+    let mut admin = sqlx::AnyConnection::connect(base_url).await?;
+    let exists = format!("SELECT 1 AS one FROM pg_database WHERE datname = '{template}'");
+    if sqlx::query(sqlx::AssertSqlSafe(exists.clone()))
+        .fetch_optional(&mut admin)
+        .await?
+        .is_none()
+    {
+        // one key for every template build on the server
+        admin.execute("SELECT pg_advisory_lock(7147147147)").await?;
+        let built = async {
+            if sqlx::query(sqlx::AssertSqlSafe(exists))
+                .fetch_optional(&mut admin)
+                .await?
+                .is_none()
+            {
+                let building = format!("{template}_b{}", std::process::id());
+                admin
+                    .execute(sqlx::AssertSqlSafe(format!(
+                        "DROP DATABASE IF EXISTS {building} WITH (FORCE)"
+                    )))
+                    .await?;
+                admin
+                    .execute(sqlx::AssertSqlSafe(format!("CREATE DATABASE {building}")))
+                    .await?;
+                Db::connect_and_migrate(&database_url(base_url, &building))
+                    .await?
+                    .close()
+                    .await;
+                admin
+                    .execute(sqlx::AssertSqlSafe(format!(
+                        "ALTER DATABASE {building} RENAME TO {template}"
+                    )))
+                    .await?;
+            }
+            Ok::<_, DbError>(())
+        }
+        .await;
+        let _ = admin.execute("SELECT pg_advisory_unlock(7147147147)").await;
+        built?;
+    }
+    admin.close().await?;
+    Ok(template)
+}
+
+/// A database name no other test process or earlier run uses.
+fn pg_test_name() -> String {
+    let n = TEST_SEQ.fetch_add(1, Ordering::Relaxed);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.subsec_nanos());
+    format!("t_{}_{n}_{nanos}", std::process::id())
+}
+
+/// `base_url` naming the database `name` instead of its own.
+fn database_url(base_url: &str, name: &str) -> String {
+    let (scheme, rest) = base_url.split_once("://").unwrap_or(("postgres", base_url));
+    let (before_query, query) = match rest.split_once('?') {
+        Some((b, q)) => (b, Some(q)),
+        None => (rest, None),
+    };
+    let authority = before_query
+        .split_once('/')
+        .map_or(before_query, |(a, _)| a);
+    match query {
+        Some(q) => format!("{scheme}://{authority}/{name}?{q}"),
+        None => format!("{scheme}://{authority}/{name}"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -429,6 +574,19 @@ mod tests {
             normalise_url(Dialect::Postgres, "postgres://u@h/d"),
             "postgres://u@h/d"
         );
+    }
+
+    #[test]
+    fn database_url_names_the_database() {
+        assert_eq!(
+            database_url("postgres://u:p@h/d", "t_1"),
+            "postgres://u:p@h/t_1"
+        );
+        assert_eq!(
+            database_url("postgres://u:p@h:5432/d?sslmode=disable", "t_1"),
+            "postgres://u:p@h:5432/t_1?sslmode=disable"
+        );
+        assert_eq!(database_url("postgres://u@h", "t_1"), "postgres://u@h/t_1");
     }
 
     #[test]

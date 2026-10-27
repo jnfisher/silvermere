@@ -430,27 +430,35 @@ async fn import(db: &Db, f: impl FnOnce(&mut ImportOptions)) -> silvermere_impor
     Importer::new(opts, Some(db)).run().await.expect("import")
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn content_only_patching_equals_a_patched_import() {
-    // `--no-patches`, then `--content-only` with the patches.
-    let two_step = TestDb::from_env().await.unwrap();
-    let report = import(&two_step, |o| o.no_patches = true).await;
-    assert!(report.patches.is_none());
-    let unpatched = content_checksums(&two_step).await;
-    let report = import(&two_step, |o| o.content_only = true).await;
-    assert_eq!(report.patches.map(|p| p.total()), Some(38_754));
-    let patched_later = content_checksums(&two_step).await;
-    two_step.close().await;
-
-    // One patched import.
-    let one_step = TestDb::from_env().await.unwrap();
-    let report = import(&one_step, |_| {}).await;
-    print!("{report}");
-    let patched = content_checksums(&one_step).await;
-    // And the pass again on patched content changes nothing.
-    import(&one_step, |o| o.content_only = true).await;
-    let again = content_checksums(&one_step).await;
-    one_step.close().await;
+    // The two databases are independent: they are imported side by side.
+    let two_step = async {
+        // `--no-patches`, then `--content-only` with the patches.
+        let two_step = TestDb::from_env().await.unwrap();
+        let report = import(&two_step, |o| o.no_patches = true).await;
+        assert!(report.patches.is_none());
+        let unpatched = content_checksums(&two_step).await;
+        let report = import(&two_step, |o| o.content_only = true).await;
+        assert_eq!(report.patches.map(|p| p.total()), Some(38_754));
+        let patched_later = content_checksums(&two_step).await;
+        two_step.close().await;
+        (unpatched, patched_later)
+    };
+    let one_step = async {
+        // One patched import.
+        let one_step = TestDb::from_env().await.unwrap();
+        let report = import(&one_step, |_| {}).await;
+        print!("{report}");
+        let patched = content_checksums(&one_step).await;
+        // And the pass again on patched content changes nothing.
+        import(&one_step, |o| o.content_only = true).await;
+        let again = content_checksums(&one_step).await;
+        one_step.close().await;
+        (patched, again)
+    };
+    let (two_step, one_step) = tokio::join!(tokio::spawn(two_step), tokio::spawn(one_step));
+    let ((unpatched, patched_later), (patched, again)) = (two_step.unwrap(), one_step.unwrap());
 
     assert_eq!(patched_later, patched);
     assert_eq!(again, patched);

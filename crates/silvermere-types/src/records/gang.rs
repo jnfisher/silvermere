@@ -1,12 +1,12 @@
 //! The `gang` record (WCCGANGS).
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::flags::GangFlags;
 use crate::records::layout::{self, Layout};
 
 /// A gang: the `gang` record.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Gang {
     /// +0x000 name in upper case (key 0).
     pub key: String,

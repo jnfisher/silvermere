@@ -4,12 +4,12 @@
 //! 32-bit unsigned is `u32`, 16-bit signed is `i16`, 16-bit unsigned is `u16`); account and
 //! character ids are database keys.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 macro_rules! id {
     ($(#[$meta:meta])* $name:ident($inner:ty)) => {
         $(#[$meta])*
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Serialize)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Serialize, Deserialize)]
         #[serde(transparent)]
         pub struct $name(pub $inner);
 
@@ -91,7 +91,9 @@ id!(
 );
 
 /// A room's key: map and room number (the room file's key).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Serialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Serialize, Deserialize,
+)]
 pub struct RoomKey {
     /// Map number.
     pub map: MapId,

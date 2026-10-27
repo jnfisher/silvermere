@@ -6,7 +6,7 @@
 //! constant's name (`OWN_ROOM`); `tests/enum_codes.rs` checks every value against the committed
 //! facts.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// A code that does not fit the 16-bit field it came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -21,7 +21,7 @@ macro_rules! c_enum {
         }
     ) => {
         $(#[$meta])*
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
         #[repr(u16)]
         pub enum $name {
             $( $(#[$vmeta])* $var = $val, )*
@@ -1862,7 +1862,7 @@ pub type AbilityNo = Ability;
 /// `SUBST_ADDON_NUMBER` 25 and `SUBST_ADDON_CODE` 26 (add-on licence codes),
 /// `SUBST_VACATION` 59 and `SUBST_CLIENT_INFO` 60 (developer client).
 /// [`SessionState::substt`] gives the original number for log lines.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SessionState {
     /// `SUBST_START` 0: first call after selecting the game.
     Start,
@@ -1892,7 +1892,7 @@ pub enum SessionState {
 }
 
 /// The steps of character creation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum NewCharStep {
     /// `SUBST_NEW_RACE` 51: choose a race. `SUBST_NEW_CHAR` 54 (show the race list, never set
     /// in 1.11p) decodes to this.
@@ -1911,7 +1911,7 @@ pub enum NewCharStep {
 }
 
 /// The steps of the one-time race change.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RaceChangeStep {
     /// `SUBST_CHG_READHELP` 70: read the help files?
     ReadHelp,
@@ -1926,7 +1926,7 @@ pub enum RaceChangeStep {
 }
 
 /// The sysop menu and its prompts.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SysopStep {
     /// `SUBST_SYSOP_MENU` 11: the `[MAJORMUD Sysop]` prompt.
     Menu,
@@ -1955,7 +1955,7 @@ pub enum SysopStep {
 }
 
 /// The suicide password prompts.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SuicideStep {
     /// `SUBST_SUICIDE_OLDPW` 132: SET SUICIDE, current password.
     OldPw,

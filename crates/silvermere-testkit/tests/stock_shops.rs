@@ -61,16 +61,13 @@ mod shop {
     /// regennum, regenpct]`), and `items` with their abilities as `[number, value]` pairs and the classes and
     /// races they are limited to.
     fn fixture() -> Value {
-        use super::stock_records::{by_number, int, ints, table, with_ability_pairs};
+        use super::stock_records::{by_number, ints, shop_room, with_ability_pairs};
         let mut items = std::collections::BTreeSet::from([QUARTERSTAFF.0 as i64, RAPIER.0 as i64]);
         let shops: Vec<Value> = [SWORD_SHOP, WEAPON_SHOP, ARMOUR_SHOP, GENERAL_STORE]
             .iter()
             .map(|n| {
                 let r = by_number("WCCSHOPS", i64::from(n.0));
-                let room = table("WCCMP001")
-                    .iter()
-                    .find(|m| int(m, "mapnum") == 1 && int(m, "shopnum") == i64::from(n.0))
-                    .expect("the shop's room");
+                let room = shop_room(i64::from(n.0));
                 let cols = [
                     "items",
                     "maxqty",

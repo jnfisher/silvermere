@@ -1,12 +1,12 @@
 //! The `bankbook` record (WCCBANKS).
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::ids::ShopNo;
 use crate::records::layout::{self, Layout};
 
 /// A bank account: the `bankbook` record.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BankBook {
     /// +0x000 owner (key 0 part 1).
     pub userid: String,

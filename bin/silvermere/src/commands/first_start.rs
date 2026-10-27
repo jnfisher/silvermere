@@ -5,6 +5,7 @@
 //! stays on screen long enough to read.
 
 use std::io::{BufRead, Write};
+use std::path::Path;
 use std::process::ExitCode;
 
 use anyhow::Context;
@@ -22,8 +23,10 @@ pub fn running_line(port: u16) -> String {
     )
 }
 
-/// `silvermere setup`: [`prepare`] on the console, without serving (T-116).
-pub fn setup(cfg: &Config) -> anyhow::Result<ExitCode> {
+/// `silvermere setup`: [`prepare`] on the console, without serving (T-116). The backup
+/// question is asked on a terminal without `--yes` (T-150), its answer written to
+/// `settings`.
+pub fn setup(cfg: &Config, yes: bool, settings: &Path) -> anyhow::Result<ExitCode> {
     use std::io::IsTerminal as _;
     let hide = std::io::stdin().is_terminal();
     let made = prepare(
@@ -31,6 +34,7 @@ pub fn setup(cfg: &Config) -> anyhow::Result<ExitCode> {
         &mut std::io::stdin().lock(),
         &mut std::io::stdout(),
         hide,
+        (hide && !yes).then_some(settings),
     )?;
     crate::stock::ensure_text_assets(&cfg.data_dir);
     println!("Ready. Start it with: silvermere serve");
@@ -61,8 +65,9 @@ pub fn next_steps(sysop: Option<&str>, telnet_bind: &str) -> String {
     )
 }
 
-/// The whole first start: [`prepare`] on the console, then `serve`.
-pub fn run(cfg: &Config) -> anyhow::Result<ExitCode> {
+/// The whole first start: [`prepare`] on the console (the backup answer written to
+/// `settings`), then `serve`.
+pub fn run(cfg: &Config, settings: &Path) -> anyhow::Result<ExitCode> {
     use std::io::IsTerminal as _;
     let hide = std::io::stdin().is_terminal();
     prepare(
@@ -70,6 +75,7 @@ pub fn run(cfg: &Config) -> anyhow::Result<ExitCode> {
         &mut std::io::stdin().lock(),
         &mut std::io::stdout(),
         hide,
+        hide.then_some(settings),
     )?;
     println!(
         "The world, the accounts and the logs are kept in {}.",
@@ -81,12 +87,16 @@ pub fn run(cfg: &Config) -> anyhow::Result<ExitCode> {
 /// Builds the stock world when the database has no rooms, or finishes it when the last
 /// import was cut off and `input` says so (Enter); then asks for a sysop account on `input`
 /// when there is none. An empty name or the end of `input` skips the account. `hide` reads
-/// the password on the console without echo instead of from `input`.
+/// the password on the console without echo instead of from `input`. When the world was just
+/// built and `backup_to` is given (a person answers), the backup question follows
+/// ([`ask_backup`], T-150), its answer written there; otherwise the backup defaults stand and
+/// a line says what they are.
 pub fn prepare(
     cfg: &Config,
     input: &mut impl BufRead,
     out: &mut impl Write,
     hide: bool,
+    backup_to: Option<&Path>,
 ) -> anyhow::Result<Option<String>> {
     let (rooms, import) = with_db(cfg, async |db| {
         let rooms: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM rooms")
@@ -134,10 +144,206 @@ pub fn prepare(
             .iter()
             .any(|a| has_role(a, Role::Sysop)))
     })?;
-    if sysop {
-        return Ok(None);
+    let made = if sysop {
+        None
+    } else {
+        create_sysop(cfg, input, out, hide)?
+    };
+    if build {
+        // the release archives' silvermere.toml lists every key, `backup.*` too: the answer
+        // replaces those values in place
+        match backup_to {
+            Some(target) => {
+                let answer = ask_backup(cfg, input, out)?;
+                answer.write(target, &cfg.data_dir)?;
+                writeln!(out, "{}", answer.wrote(target))?;
+            }
+            None => writeln!(out, "{}", BackupAnswer::of(cfg).defaults_line())?,
+        }
     }
-    create_sysop(cfg, input, out, hide)
+    Ok(made)
+}
+
+/// The first start's answer to the backup question (T-150).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BackupAnswer {
+    pub enabled: bool,
+    pub at: String,
+    pub keep: u32,
+    pub after: String,
+    /// `game.cleanup.tz`, the zone `at` is read in (not asked).
+    pub tz: String,
+}
+
+impl BackupAnswer {
+    /// The settings in force.
+    pub fn of(cfg: &Config) -> Self {
+        Self {
+            enabled: cfg.backup.enabled,
+            at: cfg.backup.at.clone(),
+            keep: cfg.backup.keep,
+            after: cfg.backup.after.clone(),
+            tz: cfg.game.cleanup.tz.clone(),
+        }
+    }
+
+    /// The `backup.*` settings it writes.
+    pub fn pairs(&self) -> Vec<(&'static str, String)> {
+        let q = |s: &str| toml::Value::String(s.to_owned()).to_string();
+        let mut v = vec![("backup.enabled", self.enabled.to_string())];
+        if self.enabled {
+            v.push(("backup.at", q(&self.at)));
+            v.push(("backup.keep", self.keep.to_string()));
+            if !self.after.is_empty() {
+                v.push(("backup.after", q(&self.after)));
+            }
+        }
+        v
+    }
+
+    /// Writes [`Self::pairs`] into the settings file at `target`.
+    pub fn write(&self, target: &Path, data_dir: &Path) -> anyhow::Result<()> {
+        let pairs = self.pairs();
+        let pairs: Vec<(&str, String)> = pairs.iter().map(|(k, v)| (*k, v.clone())).collect();
+        super::config::write_settings(target, data_dir, &pairs)
+    }
+
+    fn schedule(&self) -> String {
+        format!(
+            "every day at {} ({} time), keeping the last {}, in data/backups",
+            self.at, self.tz, self.keep
+        )
+    }
+
+    /// The line after the answer is written.
+    pub fn wrote(&self, target: &Path) -> String {
+        let shown = std::path::absolute(target).unwrap_or_else(|_| target.to_path_buf());
+        if self.enabled {
+            format!(
+                "Backups: {} while the server runs. Saved in {}; change them with \
+                 `silvermere config set backup.at 03:15` (or backup.keep, backup.after).",
+                self.schedule(),
+                shown.display()
+            )
+        } else {
+            format!(
+                "Backups: off. Saved in {}; turn them on with \
+                 `silvermere config set backup.enabled true`.",
+                shown.display()
+            )
+        }
+    }
+
+    /// The line when nothing was asked.
+    pub fn defaults_line(&self) -> String {
+        if self.enabled {
+            format!(
+                "Backups: {} while the server runs (backup.* in docs/config.md).",
+                self.schedule()
+            )
+        } else {
+            "Backups: off (backup.enabled = false).".to_owned()
+        }
+    }
+}
+
+#[derive(PartialEq)]
+enum Pick {
+    Take,
+    Off,
+    Change,
+}
+
+/// Asks whether to back up daily and how, on `input`: Enter (or Y) takes the schedule in
+/// force (by default 04:30, keeping 30), N turns it off, C asks for the time and the count.
+/// Then, when on, the after-backup command (empty: none). The end of `input` takes what is
+/// in force.
+pub fn ask_backup(
+    cfg: &Config,
+    input: &mut impl BufRead,
+    out: &mut impl Write,
+) -> anyhow::Result<BackupAnswer> {
+    let mut a = BackupAnswer::of(cfg);
+    a.enabled = true;
+    writeln!(out)?;
+    let first = loop {
+        let q = format!(
+            "Back up the world every day at {} ({} time) and keep the last {}? \
+             [Y/n, or C to change the time and the count]: ",
+            a.at, a.tz, a.keep
+        );
+        match ask(input, out, &q)? {
+            None => return Ok(a),
+            Some(x)
+                if x.is_empty() || x.eq_ignore_ascii_case("y") || x.eq_ignore_ascii_case("yes") =>
+            {
+                break Pick::Take;
+            }
+            Some(x) if x.eq_ignore_ascii_case("n") || x.eq_ignore_ascii_case("no") => {
+                break Pick::Off;
+            }
+            Some(x) if x.eq_ignore_ascii_case("c") => break Pick::Change,
+            Some(_) => writeln!(out, "Answer Y, N or C.")?,
+        }
+    };
+    if first == Pick::Off {
+        a.enabled = false;
+        return Ok(a);
+    }
+    if first == Pick::Change {
+        loop {
+            let Some(t) = ask(
+                input,
+                out,
+                &format!("Time of day, HH:MM (24-hour) [{}]: ", a.at),
+            )?
+            else {
+                return Ok(a);
+            };
+            if t.is_empty() {
+                break;
+            }
+            if silvermere_types::config::hour_minute(&t).is_some() {
+                a.at = t;
+                break;
+            }
+            writeln!(out, "{t:?} is not a time such as 04:30.")?;
+        }
+        loop {
+            let Some(n) = ask(input, out, &format!("Backups to keep [{}]: ", a.keep))? else {
+                return Ok(a);
+            };
+            if n.is_empty() {
+                break;
+            }
+            match n.parse::<u32>() {
+                Ok(k) if (1..=10_000).contains(&k) => {
+                    a.keep = k;
+                    break;
+                }
+                _ => writeln!(out, "{n:?} is not a number from 1 to 10000.")?,
+            }
+        }
+    }
+    loop {
+        let Some(cmd) = ask(
+            input,
+            out,
+            "Also copy each backup somewhere else? Enter a command, such as \
+             `rclone copy {file} remote:silvermere/`, or leave it empty \
+             (recipes: docs/install.md, Backup and restore): ",
+        )?
+        else {
+            return Ok(a);
+        };
+        match crate::backups::hook::split(&cmd) {
+            Ok(_) => {
+                a.after = cmd;
+                return Ok(a);
+            }
+            Err(e) => writeln!(out, "That command cannot be read: {e}.")?,
+        }
+    }
 }
 
 /// The data directory as an absolute path, for messages.
@@ -343,5 +549,118 @@ mod tests {
     fn the_stock_import_has_no_source() {
         let i = stock_import();
         assert!(i.from.is_none() && !i.dry_run && !i.live);
+    }
+
+    fn answered(lines: &str) -> (BackupAnswer, String) {
+        let mut input = std::io::Cursor::new(lines.as_bytes().to_vec());
+        let mut out = Vec::new();
+        let a = ask_backup(&Config::default(), &mut input, &mut out).unwrap();
+        (a, String::from_utf8(out).unwrap())
+    }
+
+    /// T-150: Enter takes the defaults, N turns backups off, C changes the time and the
+    /// count, and the command is asked for last; the end of input takes the defaults.
+    #[test]
+    fn the_backup_question() {
+        let (a, out) = answered("\n\n");
+        assert!(
+            out.contains("Back up the world every day at 04:30 (America/Detroit time) and keep the last 30? [Y/n"),
+            "{out}"
+        );
+        assert!(
+            out.contains("Also copy each backup somewhere else?"),
+            "{out}"
+        );
+        assert!(out.contains("docs/install.md, Backup and restore"), "{out}");
+        assert_eq!(
+            (a.enabled, a.at.as_str(), a.keep, a.after.as_str()),
+            (true, "04:30", 30, "")
+        );
+
+        let (a, out) = answered("n\n");
+        assert!(!a.enabled);
+        assert!(!out.contains("Also copy"), "{out}");
+
+        let (a, out) = answered(
+            "c\n25:00\n03:15\nzero\n14\nrclone copy {file} 'b2:sm\nrclone copy {file} b2:sm/\n",
+        );
+        assert!(out.contains("\"25:00\" is not a time"), "{out}");
+        assert!(out.contains("\"zero\" is not a number"), "{out}");
+        assert!(out.contains("cannot be read"), "{out}");
+        assert_eq!(
+            (a.enabled, a.at.as_str(), a.keep, a.after.as_str()),
+            (true, "03:15", 14, "rclone copy {file} b2:sm/")
+        );
+
+        let (a, _) = answered("");
+        assert_eq!((a.enabled, a.at.as_str(), a.keep), (true, "04:30", 30));
+        let (a, out) = answered("maybe\ny\n");
+        assert!(a.enabled && out.contains("Answer Y, N or C."), "{out}");
+    }
+
+    /// The answer goes into the settings file next to what is there, and loads back.
+    #[test]
+    fn the_backup_answer_is_written_to_the_settings_file() {
+        let dir = std::env::temp_dir().join(format!("sm-backup-answer-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("silvermere.toml");
+        std::fs::write(&target, "# mine\n[game]\nmax_top = 20\n").unwrap();
+        let (a, _) = answered("c\n03:15\n14\nrclone copy {file} \"b2:my sm/\"\n");
+        a.write(&target, &dir).unwrap();
+        let text = std::fs::read_to_string(&target).unwrap();
+        assert!(text.starts_with("# mine\n[game]\nmax_top = 20\n"), "{text}");
+        let cfg = Config::check_file_text(&text).unwrap();
+        assert!(cfg.backup.enabled);
+        assert_eq!(cfg.backup.at, "03:15");
+        assert_eq!(cfg.backup.keep, 14);
+        assert_eq!(cfg.backup.after, "rclone copy {file} \"b2:my sm/\"");
+        assert_eq!(cfg.game.max_top, 20);
+        assert!(
+            a.wrote(&target).contains("every day at 03:15"),
+            "{}",
+            a.wrote(&target)
+        );
+
+        let (off, _) = answered("n\n");
+        let target = dir.join("off.toml");
+        off.write(&target, &dir).unwrap();
+        let cfg = Config::check_file_text(&std::fs::read_to_string(&target).unwrap()).unwrap();
+        assert!(!cfg.backup.enabled);
+        assert!(off.wrote(&target).contains("Backups: off"));
+    }
+
+    /// The release archives ship the example settings file, which lists `backup.*`: the
+    /// answer replaces those values, the comments stay.
+    #[test]
+    fn the_backup_answer_replaces_the_templates_values() {
+        let dir = std::env::temp_dir().join(format!("sm-backup-template-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("silvermere.toml");
+        std::fs::write(&target, include_str!("../../../../silvermere.example.toml")).unwrap();
+        let (a, _) = answered("c\n02:10\n7\n\n");
+        a.write(&target, &dir).unwrap();
+        let text = std::fs::read_to_string(&target).unwrap();
+        assert!(
+            text.contains("at = \"02:10\"   # local time, in game.cleanup.tz"),
+            "{text}"
+        );
+        assert!(text.contains("keep = 7   # backups kept"), "{text}");
+        assert_eq!(text.matches("[backup]").count(), 1, "{text}");
+        let cfg = Config::check_file_text(&text).unwrap();
+        assert_eq!((cfg.backup.at.as_str(), cfg.backup.keep), ("02:10", 7));
+        assert_eq!(cfg.game.cleanup.at, "03:00");
+    }
+
+    /// Not asked (`--yes`, no terminal): the defaults stand, and a line says what they are.
+    #[test]
+    fn the_defaults_line() {
+        let l = BackupAnswer::of(&Config::default()).defaults_line();
+        assert_eq!(
+            l,
+            "Backups: every day at 04:30 (America/Detroit time), keeping the last 30, in \
+             data/backups while the server runs (backup.* in docs/config.md)."
+        );
     }
 }

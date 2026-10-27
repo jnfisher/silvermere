@@ -28,6 +28,12 @@ pub async fn healthz(State(state): State<ApiState>) -> (StatusCode, Json<Value>)
         "engine_tick": state.health.engine_tick(),
         "persist": if persist { "healthy" } else { "unhealthy" },
         "engine": if alive { "running" } else { "dead" },
+        // T-150: the last scheduled backup; a failed one does not make the server unhealthy
+        "backup": match state.backup.last_ok() {
+            Some(true) => "ok",
+            Some(false) => "failed",
+            None => "none",
+        },
     });
     let code = if ok {
         StatusCode::OK

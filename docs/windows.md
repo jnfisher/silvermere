@@ -119,17 +119,25 @@ At a sign-out or shutdown it waits about 20 seconds, less if you click **Sign ou
 shutdown, each log line is written to the file as it is logged, and each phase is logged as it
 starts (`shutdown phase 1/4` to `4/4`), so a log cut short shows how far the shutdown got.
 
-**Back up** while the server runs. Open a Command Prompt in the Silvermere folder (type `cmd` in
-Explorer's address bar and press Enter), then run:
+**Backups** are on by default: while the server's window is open, it writes one every day at
+04:30 into `data\backups\` and keeps the last 30. The first start asks whether you want that, and
+when. No Task Scheduler task is needed; a closed window takes no backups. The time is read in
+`game.cleanup.tz` (`America/Detroit` unless you set it): set your own zone with
+`silvermere config set game.cleanup.tz Europe/London`, for example. `silvermere backup --list`
+shows the backups and the last run. To copy each one somewhere else, set an after-backup command,
+or point File History or a cloud drive's sync folder at `data\backups\`
+([install.md](install.md#off-site-copies-the-after-backup-command)). On Windows the command's
+timeout (`backup.after_timeout_secs`) ends only the command itself, not programs it started.
+
+To back up by hand, while the server runs, open a Command Prompt in the Silvermere folder (type
+`cmd` in Explorer's address bar and press Enter), then run:
 
 ```bat
-silvermere backup --keep 14
+silvermere backup
 ```
 
-That writes `data\backups\silvermere-YYYYMMDD-HHMMSS.db` (UTC) and deletes the oldest beyond 14.
-`--to D:\Backups\silvermere.db` writes elsewhere. To run it nightly, add a Task Scheduler task with
-**Program** set to the full path of `silvermere.exe`, **Arguments** set to `backup --keep 14`, and
-**Start in** set to the Silvermere folder.
+That writes `data\backups\silvermere-YYYYMMDD-HHMMSS.db` (UTC) and deletes the oldest beyond
+`backup.keep` (30). `--to D:\Backups\silvermere.db` writes elsewhere.
 
 **Restore** with the server stopped:
 
@@ -139,9 +147,21 @@ silvermere restore data\backups\silvermere-20261017-040000.db
 
 With the server stopped, a copy of the whole `data` folder is also a complete backup.
 
-**Update** by stopping the server, taking a backup, and replacing `silvermere.exe` with the new
-one. Keep `data` and your `silvermere.toml`. The new version migrates the database on its first
-start.
+**Update** to a new release:
+
+1. Back up: `silvermere backup` in a Command Prompt in the Silvermere folder (safe while it runs).
+2. Stop the server: close its window or press Ctrl-C. If it runs as a service,
+   `nssm stop Silvermere` ([below](#running-as-a-windows-service)).
+3. Rename `silvermere.exe` to `silvermere.previous.exe`. That is the way back.
+4. Unzip the new release somewhere else and copy only its `silvermere.exe` into your folder.
+   Keep `data\` and your `silvermere.toml`: do not copy the zip's `silvermere.toml` over yours.
+5. Start it: double-click `silvermere.exe` (or `nssm start Silvermere`). The new version
+   migrates the database on its first start. SmartScreen asks again for a new version: click
+   **More info**, then **Run anyway**.
+
+To go back, stop it, put `silvermere.previous.exe` back as `silvermere.exe` and start it. An older
+version refuses a database the newer one migrated; then restore the backup from step 1 first,
+with the server stopped. [install.md](install.md#upgrading) has every platform.
 
 ## Hosting for friends
 

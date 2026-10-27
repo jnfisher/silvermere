@@ -8,7 +8,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use crate::common;
 
 fn tmp(name: &str) -> PathBuf {
-    let d = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);
+    // the process id keeps two runs of the suite (SQLite and PostgreSQL, side by side on CI)
+    // out of each other's directories
+    let d =
+        PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&d);
     std::fs::create_dir_all(&d).unwrap();
     d
@@ -430,6 +433,15 @@ fn seeded_env(dir: &std::path::Path, without: &[u32]) -> Vec<(String, String)> {
         common::seed(&db, without).await;
         db.close().await;
     });
+    // `serve` completes the game's text from the package in `data/cache/`, downloading it
+    // when it is not there: the copy comes from the shared cache instead of the network
+    let cache = dir.join("data/cache");
+    std::fs::create_dir_all(&cache).unwrap();
+    std::fs::copy(
+        silvermere_testkit::stock::zip(),
+        cache.join(silvermere_testkit::stock::FILE_NAME),
+    )
+    .unwrap();
     vec![("SILVERMERE_DATABASE__URL".to_string(), url)]
 }
 
@@ -701,7 +713,20 @@ fn database_password_never_prints() {
         out(&o)
     );
     assert!(!out(&o).contains("hunter2"));
-    // every command that opens the database, failing to reach it
+    // every command that opens the database, failing to reach it. The pool retries a
+    // refused connection until its 30 s acquire timeout, so `account create` (which opens
+    // the pool first) is pointed at a listener that hangs up instead: the same failure to
+    // open the database, at once.
+    let hangup = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let hangup_url = url.replace(
+        "127.0.0.1:1/",
+        &format!("127.0.0.1:{}/", hangup.local_addr().unwrap().port()),
+    );
+    std::thread::spawn(move || {
+        for conn in hangup.incoming() {
+            drop(conn);
+        }
+    });
     for args in [
         &["migrate"][..],
         &["import"],
@@ -709,6 +734,11 @@ fn database_password_never_prints() {
         &["serve"],
         &["backup"],
     ] {
+        let url = if args[0] == "account" {
+            &hangup_url
+        } else {
+            url
+        };
         let o = run(&d, &[("SILVERMERE_DATABASE_URL", url)], args);
         assert!(!o.status.success(), "{args:?}");
         assert!(!err(&o).contains("hunter2"), "{args:?}: {}", err(&o));

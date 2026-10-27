@@ -1,6 +1,6 @@
 //! The `spell` record (WCCSPELS).
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::enums::{Element, Magery, ResistMode, ResistStat, SpellTarget, SpellType};
 use crate::flags::SpellFlags;
@@ -10,7 +10,7 @@ use crate::records::layout::{self, Layout};
 use crate::sizes::NRECABILS;
 
 /// A spell: the `spell` record.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Spell {
     /// +0x000 spell number (key 0).
     pub number: SpellNo,

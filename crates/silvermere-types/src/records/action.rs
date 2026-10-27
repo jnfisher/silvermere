@@ -1,13 +1,13 @@
 //! The `action` record (WCCACTS).
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::flags::ActionTargets;
 use crate::records::layout::{self, Layout};
 use crate::sizes::NACTTEXTS;
 
 /// A social action: the `action` record.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Action {
     /// +0x000 verb (key 0).
     pub name: String,

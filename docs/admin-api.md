@@ -40,6 +40,7 @@ Binding anything but a loopback address with no token configured refuses to star
 | `GET` | `/metrics` | `none` | none | Prometheus text |
 | `GET` | `/v1/who` | `read` | none | `{"players":[...]}` |
 | `GET` | `/v1/events` | `read` | `?kinds=a,b`, `Last-Event-ID` | SSE stream |
+| `GET` | `/v1/backup` | `read` | none | `{"enabled":true,"next":"...","last":{...},"backups":[...]}` |
 | `POST` | `/v1/broadcast` | `write` | `{"text":"..."}` | `{"delivered":n}` |
 | `POST` | `/v1/reload-world` | `write` | none | `{"reloaded":{...},"ms":t}` |
 | `DELETE` | `/v1/accounts/{id}` | `admin` | none | `{"deleted":{"account":id,"character":"..."}}` |
@@ -59,9 +60,34 @@ curl -s -X DELETE -H "Authorization: Bearer $T" localhost:8080/v1/accounts/42
 
 ### `GET /healthz`
 
-`200 {"status":"ok","engine_tick":n,"persist":"healthy","engine":"running"}`. `503` with
-`"status":"unavailable"` when the engine thread is dead (`"engine":"dead"`) or the
+`200 {"status":"ok","engine_tick":n,"persist":"healthy","engine":"running","backup":"ok"}`.
+`503` with `"status":"unavailable"` when the engine thread is dead (`"engine":"dead"`) or the
 persistence worker is unhealthy (`"persist":"unhealthy"`). The Docker healthcheck hits it.
+`"backup"` is the last scheduled backup: `"ok"`, `"failed"` or `"none"` (none yet); a failed
+backup does not make the server unhealthy. [`GET /v1/backup`](#get-v1backup) has the details.
+
+### `GET /v1/backup`
+
+The scheduled backup (T-150), as `silvermere backup --list` shows it:
+
+```json
+{
+  "enabled": true, "at": "04:30", "tz": "America/Detroit", "keep": 30, "after": true,
+  "next": "2026-10-28T08:30:00Z",
+  "last": {
+    "at": "2026-10-27T08:30:00Z", "ok": true,
+    "file": "./data/backups/silvermere-20261027-083000.db", "bytes": 1843200,
+    "pruned": ["./data/backups/silvermere-20260927-083000.db"],
+    "hook": {"ok": false, "exit": 1, "timed_out": false, "tail": ["...403 Forbidden"]}
+  },
+  "backups": [{"name": "silvermere-20261027-083000.db", "bytes": 1843200, "assets": 412}]
+}
+```
+
+`after` says whether `backup.after` is set (the command itself is not shown). `next` is `null`
+when `backup.enabled` is false. `last` is `null` before the first scheduled run; a failed run
+has `"ok": false` and an `error`, and no `file`. `hook` is absent when there is no command;
+`tail` is the last lines of its output. `backups` lists `data/backups/`, newest first.
 
 ### `GET /metrics`
 

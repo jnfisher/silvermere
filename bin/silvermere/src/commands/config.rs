@@ -493,6 +493,59 @@ fn insert_new(
     }
 }
 
+/// Writes `key = raw` (TOML; a bare word is a string) into `doc`, keeping the comments
+/// around it; returns the value as written.
+fn put(
+    doc: &mut toml_edit::DocumentMut,
+    target: &Path,
+    key: &str,
+    raw: &str,
+) -> anyhow::Result<String> {
+    let parts: Vec<&str> = key.split('.').collect();
+    let (leaf, parents) = parts.split_last().expect("a key has a name");
+    let mut table = doc.as_table_mut() as &mut dyn toml_edit::TableLike;
+    for p in parents {
+        let entry = table.entry(p).or_insert_with(|| {
+            let mut t = toml_edit::Table::new();
+            t.set_implicit(true);
+            toml_edit::Item::Table(t)
+        });
+        table = entry
+            .as_table_like_mut()
+            .with_context(|| format!("{key}: `{p}` in {} is not a table", target.display()))?;
+    }
+    let mut new = parse_value(raw);
+    let shown = bare(&new);
+    // In place, so the key keeps the comments above it and the value the one after.
+    match table.get_mut(leaf) {
+        Some(item) => {
+            if let Some(old) = item.as_value() {
+                *new.decor_mut() = old.decor().clone();
+            }
+            *item = toml_edit::Item::Value(new);
+        }
+        None => insert_new(doc, parents, leaf, new),
+    }
+    Ok(shown)
+}
+
+/// Writes several settings into the file at `target` at once (T-150: the first start's
+/// backup answer), checked as `config set` checks one; prints nothing.
+pub fn write_settings(
+    target: &Path,
+    data_dir: &Path,
+    pairs: &[(&str, String)],
+) -> anyhow::Result<()> {
+    let (_, mut doc) = read_doc(target)?;
+    for (key, raw) in pairs {
+        anyhow::ensure!(is_known(key), "unknown key `{key}`");
+        put(&mut doc, target, key, raw)?;
+    }
+    let text = doc.to_string();
+    Config::check_file_text(&text).context("not written")?;
+    write_file(target, &text, data_dir)
+}
+
 /// `config set` (`value` given) and `config unset`.
 fn set(
     data_dir_flag: Option<&Path>,
@@ -516,32 +569,7 @@ fn set(
     let parts: Vec<&str> = key.split('.').collect();
     let (leaf, parents) = parts.split_last().expect("a key has a name");
     let new_shown = match value {
-        Some(raw) => {
-            let mut table = doc.as_table_mut() as &mut dyn toml_edit::TableLike;
-            for p in parents {
-                let entry = table.entry(p).or_insert_with(|| {
-                    let mut t = toml_edit::Table::new();
-                    t.set_implicit(true);
-                    toml_edit::Item::Table(t)
-                });
-                table = entry.as_table_like_mut().with_context(|| {
-                    format!("{key}: `{p}` in {} is not a table", target.display())
-                })?;
-            }
-            let mut new = parse_value(raw);
-            let shown = bare(&new);
-            // In place, so the key keeps the comments above it and the value the one after.
-            match table.get_mut(leaf) {
-                Some(item) => {
-                    if let Some(old) = item.as_value() {
-                        *new.decor_mut() = old.decor().clone();
-                    }
-                    *item = toml_edit::Item::Value(new);
-                }
-                None => insert_new(&mut doc, parents, leaf, new),
-            }
-            shown
-        }
+        Some(raw) => put(&mut doc, target, key, raw)?,
         None => {
             if old.is_none() {
                 println!(

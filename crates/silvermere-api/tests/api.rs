@@ -87,6 +87,7 @@ fn harness() -> Harness {
         health: health.clone(),
         metrics: handle,
         world: Arc::new(common::FakeWorld::default()),
+        backup: Arc::new(silvermere_api::NoBackups),
         tokens: Arc::new(vec![
             Token::new("reader", "read-secret", &[Scope::Read]),
             Token::new("caster", "cast-secret", &[Scope::Write]),

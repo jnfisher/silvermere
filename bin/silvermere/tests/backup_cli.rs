@@ -11,17 +11,23 @@ fn tmp(name: &str) -> PathBuf {
 }
 
 fn run(dir: &Path, args: &[&str]) -> Output {
+    run_env(dir, args, &[])
+}
+
+/// [`run`] with more variables set.
+fn run_env(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> Output {
     let mut c = Command::new(env!("CARGO_BIN_EXE_silvermere"));
     c.current_dir(dir).args(args);
     for (k, _) in std::env::vars().filter(|(k, _)| k.starts_with("SILVERMERE_")) {
         c.env_remove(k);
     }
-    c.env(
-        "SILVERMERE_DATABASE__URL",
-        format!("sqlite://{}", dir.join("data/silvermere.db").display()),
-    )
-    .output()
-    .unwrap()
+    c.envs(env.iter().copied())
+        .env(
+            "SILVERMERE_DATABASE__URL",
+            format!("sqlite://{}", dir.join("data/silvermere.db").display()),
+        )
+        .output()
+        .unwrap()
 }
 
 fn events(dir: &Path) -> i64 {
@@ -215,4 +221,157 @@ fn a_failed_assets_copy_leaves_no_half_backup() {
         std::fs::read(silvermere_db::backup::assets_dir(&dest).join("WCC1393.STO")).unwrap(),
         b"text"
     );
+}
+
+/// T-150: the after-backup command gets the new backup's path and folder and never the
+/// database URL or password; its failure leaves the backup in place and the command
+/// successful. A backup into the backups folder keeps `backup.keep`.
+#[cfg(unix)]
+#[test]
+fn the_after_backup_command_gets_the_path_and_no_secret() {
+    let d = tmp("hook");
+    assert!(run(&d, &["migrate"]).status.success());
+    let backups = d.join("data/backups");
+    std::fs::create_dir_all(&backups).unwrap();
+    std::fs::write(backups.join("silvermere-20200101-000000.db"), b"old").unwrap();
+    let hook = format!(
+        r#"sh -c 'printf "%s\n" "$@" > {0}/args; env > {0}/env' sh {{file}} {{dir}}"#,
+        d.display()
+    );
+    let o = run_env(
+        &d,
+        &["backup"],
+        &[
+            ("SILVERMERE_BACKUP__AFTER", &hook),
+            ("SILVERMERE_BACKUP__KEEP", "1"),
+            ("PGPASSWORD", "hunter2"),
+        ],
+    );
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let out = String::from_utf8_lossy(&o.stdout).into_owned();
+    assert!(
+        out.contains("after-backup command (backup.after): exit 0"),
+        "{out}"
+    );
+    assert!(
+        out.contains("removed") && out.contains("silvermere-20200101-000000.db"),
+        "{out}"
+    );
+    let left: Vec<_> = std::fs::read_dir(&backups)
+        .unwrap()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|e| e == "db"))
+        .collect();
+    assert_eq!(left.len(), 1, "{left:?}");
+    let made = std::path::absolute(&left[0]).unwrap();
+    let args = std::fs::read_to_string(d.join("args")).unwrap();
+    assert_eq!(
+        args,
+        format!("{}\n{}\n", made.display(), made.parent().unwrap().display())
+    );
+    let env = std::fs::read_to_string(d.join("env")).unwrap();
+    assert!(
+        !env.contains("hunter2") && !env.contains("SILVERMERE_DATABASE"),
+        "{env}"
+    );
+    assert!(
+        !env.contains("silvermere.db?") && !env.contains("sqlite://"),
+        "{env}"
+    );
+    assert!(
+        env.contains(&format!("SILVERMERE_BACKUP_FILE={}", made.display())),
+        "{env}"
+    );
+
+    // a failing command: reported, the backup kept, the command still succeeds
+    let o = run_env(
+        &d,
+        &[
+            "backup",
+            "--keep",
+            "5",
+            "--to",
+            backups
+                .join("silvermere-29990101-000000.db")
+                .to_str()
+                .unwrap(),
+        ],
+        &[(
+            "SILVERMERE_BACKUP__AFTER",
+            "sh -c 'echo no route to remote; exit 3'",
+        )],
+    );
+    let err = String::from_utf8_lossy(&o.stderr).into_owned();
+    assert!(o.status.success(), "{err}");
+    assert!(err.contains("failed: exit 3; the backup is kept"), "{err}");
+    assert!(err.contains("| no route to remote"), "{err}");
+    let count = std::fs::read_dir(&backups)
+        .unwrap()
+        .flatten()
+        .filter(|e| e.path().extension().is_some_and(|x| x == "db"))
+        .count();
+    assert_eq!(count, 2);
+}
+
+/// `backup --list`: the backups, the schedule and the last scheduled run.
+#[test]
+fn backup_list_shows_the_backups_and_the_last_scheduled_run() {
+    let d = tmp("list");
+    let o = run(&d, &["backup", "--list"]);
+    let out = String::from_utf8_lossy(&o.stdout).into_owned();
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    assert!(out.contains("none yet"), "{out}");
+    assert!(
+        out.contains("Schedule: daily at 04:30 (America/Detroit)"),
+        "{out}"
+    );
+    assert!(out.contains("Last scheduled run: none yet."), "{out}");
+
+    let backups = d.join("data/backups");
+    std::fs::create_dir_all(backups.join("silvermere-20261027-083000.db.assets/sub")).unwrap();
+    std::fs::write(
+        backups.join("silvermere-20261027-083000.db"),
+        vec![0u8; 2048],
+    )
+    .unwrap();
+    std::fs::write(
+        backups.join("silvermere-20261027-083000.db.assets/sub/a.txt"),
+        b"a",
+    )
+    .unwrap();
+    std::fs::write(backups.join("silvermere-20261026-083000.db"), b"x").unwrap();
+    std::fs::write(
+        backups.join("last-scheduled-run.json"),
+        r#"{"at":"2026-10-27T08:30:00Z","ok":true,"file":"data/backups/silvermere-20261027-083000.db","bytes":2048,"pruned":[],
+           "hook":{"ok":false,"exit":1,"timed_out":false,"tail":["rclone: 403 Forbidden"]}}"#,
+    )
+    .unwrap();
+    let o = run_env(
+        &d,
+        &["backup", "--list"],
+        &[("SILVERMERE_BACKUP__AFTER", "rclone copy {file} b2:sm")],
+    );
+    let out = String::from_utf8_lossy(&o.stdout).into_owned();
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let first = out.find("silvermere-20261027-083000.db  2.0 KB, .assets with 1 files");
+    let second = out.find("silvermere-20261026-083000.db  1 bytes");
+    assert!(
+        first.is_some() && second.is_some() && first < second,
+        "{out}"
+    );
+    assert!(out.contains("(2 kept, backup.keep = 30)"), "{out}");
+    assert!(
+        out.contains("After each backup: rclone copy {file} b2:sm"),
+        "{out}"
+    );
+    assert!(
+        out.contains("Last scheduled run: 2026-10-27 04:30 EDT, ok, silvermere-20261027-083000.db"),
+        "{out}"
+    );
+    assert!(
+        out.contains("after-backup command: FAILED, exit 1"),
+        "{out}"
+    );
+    assert!(out.contains("| rclone: 403 Forbidden"), "{out}");
 }
