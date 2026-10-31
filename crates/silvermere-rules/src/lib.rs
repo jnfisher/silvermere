@@ -2,7 +2,7 @@
 //!
 //! Every function here is a pure function of (state, data, rng) to an outcome: to-hit and
 //! damage, spell effects and resistance, experience and level-up gains, buy and sell prices,
-//! regeneration, light, evil and spawn maths. No I/O and no shared mutable state, so the
+//! regeneration, evil and spawn maths. No I/O and no shared mutable state, so the
 //! formulas can be tested in isolation against the original's behaviour. Randomness comes in
 //! through [`Rng`] and time through [`Clock`].
 
@@ -14,7 +14,6 @@ pub mod combat;
 pub mod economy;
 pub mod evil;
 pub mod hangup;
-pub mod light;
 pub mod monster_ai;
 pub mod progression;
 pub mod regen;

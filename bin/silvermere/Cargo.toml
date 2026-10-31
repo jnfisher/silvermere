@@ -6,6 +6,8 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 license.workspace = true
+# `cargo run` starts the server, not the `normalise` helper binary
+default-run = "silvermere"
 # one test binary for all of tests/ (tests/all.rs), not one per file (T-129)
 autotests = false
 
@@ -14,7 +16,6 @@ workspace = true
 
 [dependencies]
 silvermere-types.workspace = true
-silvermere-rules.workspace = true
 silvermere-text.workspace = true
 silvermere-engine.workspace = true
 silvermere-db.workspace = true
@@ -33,7 +34,6 @@ metrics-exporter-prometheus.workspace = true
 sqlx.workspace = true
 rand.workspace = true
 rpassword.workspace = true
-sha2.workspace = true
 toml.workspace = true
 toml_edit.workspace = true
 tokio.workspace = true

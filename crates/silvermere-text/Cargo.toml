@@ -15,7 +15,6 @@ workspace = true
 
 [dependencies]
 silvermere-types.workspace = true
-silvermere-rules.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 toml.workspace = true
