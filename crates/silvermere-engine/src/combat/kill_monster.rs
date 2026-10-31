@@ -150,7 +150,7 @@ pub fn check_kill_monster(
                 continue;
             }
             if limited::release(world, item, Holder::Monster(monnum)) {
-                super::kill_user::dispose_of_item_in_room(world, here, item, uses);
+                crate::items::room_items::dispose_of_item_in_room(world, here, item, uses);
             }
         }
         // one fewer alive
