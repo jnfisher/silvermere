@@ -503,7 +503,7 @@ pub fn move_room_contents(world: &mut World, from: RoomKey, to: RoomKey) -> bool
             }
             for _ in 0..i32::from(slot.count) + 1 {
                 limited::release(world, slot.item, Holder::Room(from));
-                crate::combat::kill_user::dispose_of_item_in_room(world, to, slot.item, slot.uses);
+                crate::items::room_items::dispose_of_item_in_room(world, to, slot.item, slot.uses);
             }
             if let Some(s) = world.room_state.get_mut(&from) {
                 let cell = if hidden {

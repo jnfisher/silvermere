@@ -9,16 +9,16 @@
 //! character is deleted and the player is back at the menu.
 
 use silvermere_text::Msg;
-use silvermere_types::enums::{Ability, ExitType, RoomType, SessionState};
+use silvermere_types::enums::{Ability, RoomType, SessionState};
 use silvermere_types::flags::PlayerStatus;
 use silvermere_types::ids::{ItemNo, MapId, RoomId, RoomKey, SessionId, SpellNo};
 use silvermere_types::records::Coins;
-use silvermere_types::sizes::{NDIRS, NWORN};
+use silvermere_types::sizes::NWORN;
 
 use super::{cleanup_when_user_leaves, item_ability, item_has, player, player_mut, room_of};
 use crate::event_loop::{EchoMode, EngineOutput};
 use crate::items::limited::{self, Holder};
-use crate::items::room_items::add_item_to_room;
+use crate::items::room_items::{dispose_of_item_in_room, dispose_of_item_in_trail};
 use crate::player::profile::{self, Retire};
 use crate::player::secondary::{CalcMode, recalculate};
 
@@ -30,8 +30,6 @@ use crate::world::World;
 const EVIL_OUTLAW: i16 = 40;
 /// The room an item goes to when there is no room for it where its owner died.
 const LOST_ITEM_ROOM: (u32, u32) = (1, 164);
-/// How deep `dispose_of_item_in_room` follows exits.
-const MAX_DISPOSE_DEPTH: u32 = 5;
 
 /// What [`check_kill_user`] found and did, for the callers (T-034, T-036, T-037).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,75 +57,6 @@ impl KillOutcome {
 /// to the ground!` in grey on red with the bell, to the whole room.
 pub fn knock_out_user(world: &mut World, id: SessionId) {
     crate::cycles::knock_out_user(world, id);
-}
-
-/// Where an item lands near a room: the room, else (depth first, at most
-/// [`MAX_DISPOSE_DEPTH`] deep) a room through one of its exits that is neither remote nor a
-/// map change. (sic) The visible slots are tried twice and the hidden ones never.
-pub(crate) fn dispose_of_item_in_room(
-    world: &mut World,
-    room: RoomKey,
-    item: ItemNo,
-    charges: i16,
-) -> bool {
-    fn go(world: &mut World, room: RoomKey, item: ItemNo, charges: i16, depth: u32) -> bool {
-        let Some(rm) = world.room(room).cloned() else {
-            return false;
-        };
-        if depth > MAX_DISPOSE_DEPTH {
-            return false;
-        }
-        if add_item_to_room(world, room, item, false, charges).is_some()
-            || add_item_to_room(world, room, item, false, charges).is_some()
-        {
-            return true;
-        }
-        for dir in 0..NDIRS {
-            let exit = &rm.exits[dir];
-            if exit.target.0 != 0
-                && !matches!(exit.kind, ExitType::RemoteAction | ExitType::MapChange)
-                && go(
-                    world,
-                    RoomKey {
-                        map: room.map,
-                        room: exit.target,
-                    },
-                    item,
-                    charges,
-                    depth + 1,
-                )
-            {
-                return true;
-            }
-        }
-        false
-    }
-    go(world, room, item, charges, 0)
-}
-
-/// Where an item lands along the player's trail: each room of the trail in turn, visible
-/// then hidden.
-fn dispose_of_item_in_trail(world: &mut World, id: SessionId, item: ItemNo, charges: i16) -> bool {
-    let Some(plr) = player(world, id) else {
-        return false;
-    };
-    let trail: Vec<RoomKey> = plr
-        .trailrooms
-        .iter()
-        .zip(&plr.trailmaps)
-        .map(|(&room, &map)| RoomKey { map, room })
-        .collect();
-    for key in trail {
-        if world.room(key).is_none() {
-            continue;
-        }
-        if add_item_to_room(world, key, item, false, charges).is_some()
-            || add_item_to_room(world, key, item, true, charges).is_some()
-        {
-            return true;
-        }
-    }
-    false
 }
 
 /// A character at 0 hit points or below: knocked out or killed.

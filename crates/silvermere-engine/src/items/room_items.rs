@@ -1,14 +1,16 @@
-//! Items lying in a room: [`add_item_to_room`] and [`remove_item_from_room`]. The visible
-//! list holds [`NROOMITEMS`] slots and the hidden list (STASH, HIDE) [`NHIDITEMS`]; a slot
-//! holds one item number, its uses and a count of extra copies. Every change marks the room
-//! changed, which here queues the room's live state for the persistence worker
-//! ([`mark_changed`]).
+//! Items lying in a room: [`add_item_to_room`] and [`remove_item_from_room`], and
+//! [`dispose_of_item_in_room`] and [`dispose_of_item_in_trail`] for an item that has to be
+//! left somewhere (a dead monster's belongings, a character's after a death or a suicide, a
+//! moved room's contents). The visible list holds [`NROOMITEMS`] slots and the hidden list
+//! (STASH, HIDE) [`NHIDITEMS`]; a slot holds one item number, its uses and a count of extra
+//! copies. Every change marks the room changed, which here queues the room's live state for
+//! the persistence worker ([`mark_changed`]).
 
 use silvermere_rules::abilities::item_has_ability;
-use silvermere_types::enums::Ability;
-use silvermere_types::ids::{ItemNo, RoomKey};
+use silvermere_types::enums::{Ability, ExitType};
+use silvermere_types::ids::{ItemNo, RoomKey, SessionId};
 use silvermere_types::records::{Item, RoomItem};
-use silvermere_types::sizes::{NHIDITEMS, NROOMITEMS};
+use silvermere_types::sizes::{NDIRS, NHIDITEMS, NROOMITEMS};
 
 use super::inventory::matches_any_word;
 use super::limited::{self, Holder};
@@ -75,6 +77,83 @@ pub fn add_item_to_room(
             None
         }
     }
+}
+
+/// How deep [`dispose_of_item_in_room`] follows exits.
+const MAX_DISPOSE_DEPTH: u32 = 5;
+
+/// Where an item lands near a room: the room, else (depth first, at most
+/// [`MAX_DISPOSE_DEPTH`] deep) a room through one of its exits that is neither remote nor a
+/// map change. (sic) The visible slots are tried twice and the hidden ones never.
+pub(crate) fn dispose_of_item_in_room(
+    world: &mut World,
+    room: RoomKey,
+    item: ItemNo,
+    charges: i16,
+) -> bool {
+    fn go(world: &mut World, room: RoomKey, item: ItemNo, charges: i16, depth: u32) -> bool {
+        let Some(rm) = world.room(room).cloned() else {
+            return false;
+        };
+        if depth > MAX_DISPOSE_DEPTH {
+            return false;
+        }
+        if add_item_to_room(world, room, item, false, charges).is_some()
+            || add_item_to_room(world, room, item, false, charges).is_some()
+        {
+            return true;
+        }
+        for dir in 0..NDIRS {
+            let exit = &rm.exits[dir];
+            if exit.target.0 != 0
+                && !matches!(exit.kind, ExitType::RemoteAction | ExitType::MapChange)
+                && go(
+                    world,
+                    RoomKey {
+                        map: room.map,
+                        room: exit.target,
+                    },
+                    item,
+                    charges,
+                    depth + 1,
+                )
+            {
+                return true;
+            }
+        }
+        false
+    }
+    go(world, room, item, charges, 0)
+}
+
+/// Where an item lands along the player's trail: each room of the trail in turn, visible
+/// then hidden.
+pub(crate) fn dispose_of_item_in_trail(
+    world: &mut World,
+    id: SessionId,
+    item: ItemNo,
+    charges: i16,
+) -> bool {
+    let Some(plr) = world.session(id).and_then(|s| s.player()) else {
+        return false;
+    };
+    let trail: Vec<RoomKey> = plr
+        .trailrooms
+        .iter()
+        .zip(&plr.trailmaps)
+        .map(|(&room, &map)| RoomKey { map, room })
+        .collect();
+    for key in trail {
+        if world.room(key).is_none() {
+            continue;
+        }
+        if add_item_to_room(world, key, item, false, charges).is_some()
+            || add_item_to_room(world, key, item, true, charges).is_some()
+        {
+            return true;
+        }
+    }
+    false
 }
 
 /// What [`remove_item_from_room`] took.

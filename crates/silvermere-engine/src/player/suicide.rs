@@ -3,34 +3,36 @@
 //! suicide password; the `SUBST_SUICIDE` arm (`state::suicide`) after the right password.
 //!
 //! Everything carried goes first: the coins onto the floor, the inventory and the keys
-//! into the room (an item set to be destroyed, or one with nowhere to go, "has returned
-//! to its rightful place"), loyal and major-cursed items kept unless the character is
-//! about to be deleted; the worn items and the weapon are cleared, the spells end and
-//! the poison goes. Then either the character is deleted ([`profile::retire`], the
-//! deleting branch, `ST_SUICIDE` or the last life) and the player is back at the menu,
-//! or one life is lost and the character wakes up in the reincarnation room.
+//! into the room, or when it is full a room near it or along the trail (an item set to be
+//! destroyed, or one with nowhere to go, "has returned to its rightful place"), loyal and
+//! major-cursed items kept unless the character is about to be deleted; the worn items and
+//! the weapon are cleared, the spells end and the poison goes. Then either the character
+//! is deleted ([`profile::retire`], the deleting branch, `ST_SUICIDE` or the last life)
+//! and the player is back at the menu, or one life is lost and the character wakes up in
+//! the reincarnation room.
 //!
-//! Parts that belong to other cards and are not done here yet: removing the player's
-//! logical items (T-041), `dispose_of_item_in_trail` (T-030: a full room means the item is
-//! lost), `unequip_apply_item_abilities` (T-030/T-032), the spells' endings (T-050: the
-//! spell slots are cleared without the ending messages), `remove_from_gang` (T-044), the
-//! bank books (T-042) and leaving the split-screen display (not carried). The death text
-//! runs through `scripts::run_text_block` (T-054).
+//! Parts that belong to other cards and are not done here yet:
+//! `unequip_apply_item_abilities` (T-030/T-032), the spells' endings (T-050: the spell
+//! slots are cleared without the ending messages), `remove_from_gang` (T-044), the bank
+//! books (T-042) and leaving the split-screen display (not carried). The death text runs
+//! through `scripts::run_text_block` (T-054).
 
 use silvermere_text::Msg;
 use silvermere_types::enums::Ability;
 use silvermere_types::flags::PlayerStatus;
 use silvermere_types::ids::{ItemNo, MapId, RoomId, RoomKey, SessionId, SpellNo};
-use silvermere_types::records::{Coins, Item, RoomItem};
+use silvermere_types::records::{Coins, Item};
 use silvermere_types::sizes::NWORN;
 
 use super::EVIL_OUTLAW;
 use super::profile::{self, Retire};
 use super::secondary::{CalcMode, recalculate};
 use crate::event_loop::{EchoMode, EngineOutput, GameEvent};
+use crate::items::limited::{self, Holder};
+use crate::items::room_items::{dispose_of_item_in_room, dispose_of_item_in_trail};
 use crate::state::login::show_menu;
 use crate::tell::{Noise, TellBlind, tell_room};
-use crate::world::{RoomState, World};
+use crate::world::World;
 
 /// `NO_CHARGES`: an empty inventory or worn slot's uses.
 const NO_CHARGES: i16 = -1;
@@ -63,24 +65,17 @@ fn ability_value(itm: &Item, abl: Ability) -> i16 {
         .map_or(0, |(_, v)| *v)
 }
 
-/// `add_item_to_room` reduced to what dropping needs: the first empty visible slot.
-/// `false` when the room is full or unknown. TODO(T-030): the stacking of equal items
-/// and `dispose_of_item_in_trail`.
-fn add_item_to_room(room: Option<&mut RoomState>, item: ItemNo, uses: i16) -> bool {
-    let Some(room) = room else {
-        return false;
-    };
-    match room.items.iter_mut().find(|slot| slot.item.0 == 0) {
-        Some(slot) => {
-            *slot = RoomItem {
-                item,
-                uses,
-                count: 0,
-            };
-            true
-        }
-        None => false,
+/// Where a dropped item goes (`commit_suicide`'s two tries): the room or one near it
+/// ([`dispose_of_item_in_room`]), else a room of the trail. `false`: it is lost. (Unlike a
+/// death, there is no third try in room 164 of map 1.) The original's developer-mode error
+/// report is a warning in the log here.
+fn dispose(world: &mut World, id: SessionId, room: RoomKey, item: ItemNo, uses: i16) -> bool {
+    let placed = dispose_of_item_in_room(world, room, item, uses)
+        || dispose_of_item_in_trail(world, id, item, uses);
+    if !placed {
+        tracing::warn!(?id, item = item.0, room = ?room, "failed to drop an item at suicide");
     }
+    placed
 }
 
 /// A suicide or reroll once cleared. `today` is the day as the database stores it
@@ -93,7 +88,6 @@ pub fn commit_suicide(world: &mut World, id: SessionId, today: i64) -> Suicide {
     crate::session::cleanup_when_user_leaves(world, id);
     let World {
         sessions,
-        items,
         rooms,
         room_state,
         config,
@@ -106,8 +100,6 @@ pub fn commit_suicide(world: &mut World, id: SessionId, today: i64) -> Suicide {
     let Some(plr) = session.character.as_mut() else {
         return Suicide::NoCharacter;
     };
-    let mut returned: Vec<String> = Vec::new();
-
     // map 1, the evil or the normal reincarnation room
     let mut newmap = MapId(1);
     let mut newroom = RoomId(if plr.evil >= EVIL_OUTLAW {
@@ -144,20 +136,25 @@ pub fn commit_suicide(world: &mut World, id: SessionId, today: i64) -> Suicide {
     plr.coins = Coins::default();
 
     let deleting = plr.status.contains(PlayerStatus::SUICIDE) || plr.lives <= 1;
-    // the inventory
+    let (lives, suicide) = (plr.lives, plr.status.contains(PlayerStatus::SUICIDE));
+    let userid = plr.userid.clone();
+    let (slots, uses) = (plr.items.clone(), plr.itemuses.clone());
+    let (keys, keyuses) = (plr.keys.clone(), plr.keyuses.clone());
+    let mut returned: Vec<String> = Vec::new();
+
+    // the inventory: in the room, else near it, else along the trail, else lost
     let mut deathtext = 0;
-    for i in 0..plr.items.len() {
-        let itemno = plr.items[i];
+    for (i, &itemno) in slots.iter().enumerate() {
         if itemno.0 == 0 {
             continue;
         }
-        match items.get(&itemno) {
+        match world.items.get(&itemno).cloned() {
             Some(itm) => {
                 // (sic) every item overwrites it: only the last one counts
-                deathtext = ability_value(itm, Ability::DeathText);
+                deathtext = ability_value(&itm, Ability::DeathText);
                 // loyal and major-cursed items stay
-                if plr.lives != 1
-                    && !plr.status.contains(PlayerStatus::SUICIDE)
+                if lives != 1
+                    && !suicide
                     && itm
                         .abilities
                         .iter()
@@ -165,38 +162,42 @@ pub fn commit_suicide(world: &mut World, id: SessionId, today: i64) -> Suicide {
                 {
                     continue;
                 }
-                if itm.destroy != 0
-                    || !add_item_to_room(room_state.get_mut(&key), itemno, plr.itemuses[i])
-                {
-                    returned.push(itm.name.clone());
+                limited::release(world, itemno, Holder::User(&userid));
+                if itm.destroy != 0 || !dispose(world, id, key, itemno, uses[i]) {
+                    returned.push(itm.name);
                 }
             }
             None => {
                 tracing::error!(?id, item = itemno.0, "Sui:Item not found");
             }
         }
-        plr.items[i] = ItemNo(0);
-        plr.itemuses[i] = NO_CHARGES;
+        if let Some(plr) = world.session_mut(id).and_then(|s| s.character.as_mut()) {
+            plr.items[i] = ItemNo(0);
+            plr.itemuses[i] = NO_CHARGES;
+        }
     }
-    // the keys, all of them
-    for i in 0..plr.keys.len() {
-        let itemno = plr.keys[i];
+    // the keys, all of them, the same way
+    for (i, &itemno) in keys.iter().enumerate() {
         if itemno.0 == 0 {
             continue;
         }
-        match items.get(&itemno) {
+        match world.items.get(&itemno).cloned() {
             Some(itm) => {
-                if itm.destroy != 0
-                    || !add_item_to_room(room_state.get_mut(&key), itemno, plr.keyuses[i])
-                {
-                    returned.push(itm.name.clone());
+                limited::release(world, itemno, Holder::User(&userid));
+                if itm.destroy != 0 || !dispose(world, id, key, itemno, keyuses[i]) {
+                    returned.push(itm.name);
                 }
             }
             None => tracing::error!(?id, key = itemno.0, "Sui:Key not found"),
         }
-        plr.keys[i] = ItemNo(0);
-        plr.keyuses[i] = KEY_EMPTY;
+        if let Some(plr) = world.session_mut(id).and_then(|s| s.character.as_mut()) {
+            plr.keys[i] = ItemNo(0);
+            plr.keyuses[i] = KEY_EMPTY;
+        }
     }
+    let Some(plr) = world.session_mut(id).and_then(|s| s.character.as_mut()) else {
+        return Suicide::NoCharacter;
+    };
     // the worn items and the weapon (their abilities: TODO(T-030, T-032))
     plr.worn = [ItemNo(0); NWORN];
     plr.wornuses = [NO_CHARGES; NWORN];
@@ -217,7 +218,7 @@ pub fn commit_suicide(world: &mut World, id: SessionId, today: i64) -> Suicide {
     plr.poison = 0;
     let name = plr.firstname.clone();
 
-    let out = &mut sessions.get_mut(&id).expect("looked up above").output;
+    let out = &mut world.sessions.get_mut(&id).expect("looked up above").output;
     for item in returned {
         out.push(Msg::SuicideItemReturned { item });
     }

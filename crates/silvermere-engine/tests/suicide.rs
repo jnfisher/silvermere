@@ -383,6 +383,79 @@ fn rightful_place_and_loyal_items_on_the_last_life() {
     assert!(!floor.items.iter().any(|i| i.item == ItemNo(1)));
 }
 
+/// Ann in a field (77) whose 17 visible slots are taken, a meadow (78) north of it and a
+/// lane (79) she came through, carrying item 1 (4 uses) and key 2. `meadow_full` fills
+/// the meadow too.
+fn full_field(meadow_full: bool) -> (Harness, SessionId) {
+    use silvermere_types::enums::ExitType;
+    use silvermere_types::records::{Exit, RoomItem};
+    use silvermere_types::sizes::NROOMITEMS;
+    let mut h = Harness::with(|w| {
+        let exit = |to: u32| Exit {
+            target: RoomId(to),
+            kind: ExitType::Normal,
+            par1: 0,
+            par2: 0,
+            par3: 0,
+            par4: 0,
+        };
+        let blank = silvermere_engine::world::blank::clear_room;
+        let mut field = blank(RoomKey::new(1, 77));
+        field.exits[0] = exit(78);
+        let mut meadow = blank(RoomKey::new(1, 78));
+        meadow.exits[1] = exit(77);
+        let lane = blank(RoomKey::new(1, 79));
+        let junk = RoomItem {
+            item: ItemNo(2),
+            uses: 0,
+            count: 0,
+        };
+        for r in [field, meadow, lane] {
+            let mut state = silvermere_engine::world::RoomState::of(&r);
+            if r.key.room.0 == 77 || (meadow_full && r.key.room.0 == 78) {
+                state.items[..NROOMITEMS].fill(junk);
+            }
+            w.room_state.insert(r.key, state);
+            w.rooms.insert(r.key, r);
+        }
+    });
+    let id = h.player("Ann");
+    let c = h.plr_mut(id);
+    c.room = RoomId(77);
+    c.trailrooms[0] = RoomId(79);
+    c.trailmaps[0] = MapId(1);
+    c.items[0] = ItemNo(1);
+    c.itemuses[0] = 4;
+    c.keys[0] = ItemNo(2);
+    c.keyuses[0] = 0;
+    (h, id)
+}
+
+// dispose_of_item_in_room: a full room passes what does not fit on through its exits
+// (issue #6: the items "returned to their rightful place" instead)
+#[test]
+fn a_full_room_spills_into_the_next_one() {
+    let (mut h, id) = full_field(false);
+    let got = plain(&h.bytes(id, "suicide"));
+    assert!(!got.contains("rightful place"), "{got}");
+    let meadow = &h.engine.world.room_state[&RoomKey::new(1, 78)].items;
+    assert_eq!((meadow[0].item, meadow[0].uses), (ItemNo(1), 4));
+    assert_eq!((meadow[1].item, meadow[1].uses), (ItemNo(2), 0));
+    let lane = &h.engine.world.room_state[&RoomKey::new(1, 79)].items;
+    assert!(lane.iter().all(|i| i.item.0 == 0));
+}
+
+// dispose_of_item_in_trail: with nowhere near to put it, along the trail
+#[test]
+fn with_every_room_near_full_the_trail_takes_it() {
+    let (mut h, id) = full_field(true);
+    let got = plain(&h.bytes(id, "suicide"));
+    assert!(!got.contains("rightful place"), "{got}");
+    let lane = &h.engine.world.room_state[&RoomKey::new(1, 79)].items;
+    assert_eq!((lane[0].item, lane[0].uses), (ItemNo(1), 4));
+    assert_eq!((lane[1].item, lane[1].uses), (ItemNo(2), 0));
+}
+
 // ---------------------------------------------------------------------------------------
 // The character deleted
 
