@@ -13,21 +13,19 @@ autotests = false
 workspace = true
 
 [dependencies]
-silvermere-types.workspace = true
 silvermere-engine.workspace = true
-sqlx = { workspace = true, features = ["any"] }
-tokio.workspace = true
-thiserror.workspace = true
-tracing.workspace = true
+silvermere-types.workspace = true
+jiff.workspace = true
 metrics.workspace = true
 serde_json.workspace = true
-jiff.workspace = true
+sqlx = { workspace = true, features = ["any"] }
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 sqlx = { workspace = true, features = ["any"] }
 tokio = { workspace = true, features = ["test-util"] }
-serde_json.workspace = true
-jiff.workspace = true
 tracing-subscriber.workspace = true
 
 [[test]]

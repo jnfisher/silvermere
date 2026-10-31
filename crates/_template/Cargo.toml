@@ -1,6 +1,6 @@
 # Template for a new workspace crate. Copy this directory to crates/silvermere-NAME,
 # replace NAME below and in src/lib.rs and tests/smoke.rs, add the crate to the
-# workspace members (in dependency order) and to [workspace.dependencies], and list
+# workspace members and to [workspace.dependencies] (both in alphabetical order), and list
 # only lower crates as dependencies (see CONTRIBUTING.md, "Crate dependency rule").
 [package]
 name = "silvermere-NAME"

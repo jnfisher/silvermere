@@ -13,31 +13,25 @@ autotests = false
 workspace = true
 
 [dependencies]
-silvermere-types.workspace = true
 silvermere-rules.workspace = true
 silvermere-text.workspace = true
+silvermere-types.workspace = true
+jiff.workspace = true
+metrics.workspace = true
+slotmap.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
-slotmap.workspace = true
-metrics.workspace = true
-# the daily cleanup's local wall-clock time (T-056)
-jiff.workspace = true
 
 [dev-dependencies]
-insta.workspace = true
-# The room display test matches rendered lines against the pattern registry
-# (tests/fixtures/patterns.json), a JSON table of regexes.
-regex.workspace = true
-# m2_fight (T-040) includes the testkit's pattern classifier by path (the engine may
-# not depend on it, tests/deps.rs); its look-around rows need fancy-regex.
 fancy-regex.workspace = true
+insta.workspace = true
+miniz_oxide.workspace = true
 proptest.workspace = true
+regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-# the testkit's stock helper, included by path (T-120)
 sha2.workspace = true
 ureq.workspace = true
-miniz_oxide.workspace = true
 
 [[test]]
 name = "all"

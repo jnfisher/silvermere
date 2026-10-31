@@ -13,23 +13,22 @@ autotests = false
 workspace = true
 
 [dependencies]
-silvermere-types.workspace = true
 silvermere-engine.workspace = true
 silvermere-net.workspace = true
 silvermere-rules.workspace = true
+silvermere-types.workspace = true
+fancy-regex.workspace = true
 jiff.workspace = true
-tokio.workspace = true
+miniz_oxide.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
 regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-rand.workspace = true
-rand_chacha.workspace = true
-thiserror.workspace = true
-fancy-regex.workspace = true
-# the stock distribution for tests (T-120): fetch, check, unpack
 sha2.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
 ureq.workspace = true
-miniz_oxide.workspace = true
 
 [dev-dependencies]
 silvermere = { path = "../../bin/silvermere" }
@@ -37,10 +36,9 @@ silvermere-auth.workspace = true
 silvermere-db.workspace = true
 silvermere-import.workspace = true
 silvermere-text.workspace = true
-sqlx.workspace = true
-# the engine and rules tests over the stock records (T-125)
 insta.workspace = true
 proptest.workspace = true
+sqlx.workspace = true
 
 [[test]]
 name = "all"
