@@ -611,6 +611,72 @@ fn out_of_range_stats_reset_and_move_to_reincroom() {
     assert!(notices(&w, id).is_empty());
 }
 
+// load_player: a reset ends each spell with its ending, so a poison spell takes its poison
+// with it (issue #7: the poison stayed, with no spell left for a cure to end)
+#[test]
+fn a_reset_ends_the_spells_and_their_poison() {
+    use silvermere_types::enums::{Element, ResistMode, ResistStat, SpellTarget, SpellType};
+    use silvermere_types::flags::SpellFlags;
+    use silvermere_types::ids::MessageNo;
+    let mut w = world();
+    let mut abilities: [(Ability, i16); 10] = std::array::from_fn(|_| (Ability::None, 0));
+    abilities[0] = (Ability::Poison, 0);
+    let bite = silvermere_types::records::Spell {
+        number: SpellNo(81),
+        name: "savagely bites".into(),
+        descs: [String::new(), String::new()],
+        resist: 0,
+        levelcap: 0,
+        flags: SpellFlags::empty(),
+        abilities,
+        energy: 0,
+        level: 0,
+        minval: 10,
+        maxval: 16,
+        spell_type: SpellType::from_code(0),
+        resmode: ResistMode::from_code(0),
+        diff: 0,
+        durlvl: 0,
+        target: SpellTarget::from_code(8),
+        duration: 100,
+        element: Element::from_code(6),
+        resstat: ResistStat::from_code(0),
+        magery: Magery::None,
+        msgnum: MessageNo(0),
+        mana: 0,
+        maxinc: 0,
+        maxlvls: 0,
+        magelvl: 0,
+        mininc: 0,
+        minlvls: 0,
+        durinc: 0,
+        durlvls: 0,
+        shortnm: "bite".into(),
+    };
+    w.spells.insert(bite.number, bite);
+    let id = session(&mut w, 1);
+    let mut c = kasimir(&w, 1);
+    c.cp = -1;
+    c.spells[3] = SpellNo(81);
+    c.spellvals[3] = 13;
+    c.spellrnds[3] = 60;
+    c.poison = 13;
+    load_player(&mut w, id, c, TODAY).unwrap();
+    let c = w.sessions[&id].character.clone().unwrap();
+    assert_eq!(c.spells[3], SpellNo(0));
+    assert_eq!(c.poison, 0);
+    // the notice, then the spell's ending (no text: its colour only)
+    assert_eq!(
+        notices(&w, id),
+        vec![
+            Msg::EnterStatsReset,
+            Msg::SpellEnding {
+                text: String::new()
+            }
+        ]
+    );
+}
+
 // load_player: the entry notices, in order
 #[test]
 fn entry_notices_in_order() {
