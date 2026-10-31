@@ -145,6 +145,41 @@ fn high_bit_byte_is_kept() {
 }
 
 #[test]
+fn arrow_keys_are_dropped_without_echo() {
+    let (events, echo) = edit(
+        &mut LineEditor::new(),
+        b"\x1b[D\x1b[Ca\x1b[A\x1b[B\x1bOCb\r",
+    );
+    assert_eq!(events, vec![line(b"ab")]);
+    assert_eq!(echo, b"ab\r\n");
+}
+
+#[test]
+fn parameterised_sequences_are_dropped() {
+    // Delete, F5, ctrl-right.
+    assert_eq!(lines(b"\x1b[3~\x1b[15~x\x1b[1;5C\r"), vec![line(b"x")]);
+}
+
+#[test]
+fn sequence_split_across_feeds_is_dropped() {
+    let mut ed = LineEditor::new();
+    let (_, first) = edit(&mut ed, b"a\x1b");
+    let (events, second) = edit(&mut ed, b"[Db\r");
+    assert_eq!(events, vec![line(b"ab")]);
+    assert_eq!([first, second].concat(), b"ab\r\n");
+}
+
+#[test]
+fn lone_escape_keeps_the_next_key() {
+    assert_eq!(lines(b"\x1bn\r"), vec![line(b"n")]);
+}
+
+#[test]
+fn cr_ends_an_unfinished_sequence_and_the_line() {
+    assert_eq!(lines(b"a\x1b[\rb\r"), vec![line(b"a"), line(b"b")]);
+}
+
+#[test]
 fn char_mode_delivers_keys_without_echo() {
     let mut ed = LineEditor::new();
     ed.set_char_mode(true);

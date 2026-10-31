@@ -1,8 +1,9 @@
 //! The line discipline: what the Worldgroup GSBL did with each typed byte.
 //!
 //! Per byte: BS and DEL erase, CR ends the line (a following LF or NUL is swallowed), a bare
-//! LF also ends it, XOFF and other control bytes are dropped, everything else (high-bit CP437
-//! bytes included) is kept. Echo happens here, at receive time, so type-ahead splices into
+//! LF also ends it, XOFF and other control bytes are dropped, ANSI escape sequences a
+//! terminal sends for its cursor and function keys (`ESC [ ... final`, `ESC O x`) are dropped
+//! whole, everything else (high-bit CP437 bytes included) is kept. Echo happens here, at receive time, so type-ahead splices into
 //! output as it did on the original host.
 
 use std::collections::VecDeque;
@@ -21,6 +22,7 @@ const LF: u8 = 0x0A;
 const CR: u8 = 0x0D;
 const DEL: u8 = 0x7F;
 const NUL: u8 = 0x00;
+const ESC: u8 = 0x1B;
 /// Erase echo: back, blank, back.
 const RUBOUT: [u8; 3] = [BS, b' ', BS];
 
@@ -35,6 +37,17 @@ pub enum EchoMode {
     /// Echo `ch` per byte up to `width` bytes, nothing beyond (the host's `echsec`;
     /// the password prompt uses `*` and 8). Lasts for one line, then echo returns to `On`.
     Secure { ch: u8, width: u8 },
+}
+
+/// Where an escape sequence is, in line mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+enum EscState {
+    #[default]
+    None,
+    /// ESC seen.
+    Esc,
+    /// `ESC [` or `ESC O` seen: parameters until the final byte.
+    Seq,
 }
 
 /// One thing the editor has for the engine.
@@ -54,6 +67,7 @@ pub struct LineEditor {
     pending: VecDeque<EditorEvent>,
     char_mode: bool,
     after_cr: bool,
+    esc: EscState,
 }
 
 impl Default for LineEditor {
@@ -75,6 +89,7 @@ impl LineEditor {
             pending: VecDeque::new(),
             char_mode: false,
             after_cr: false,
+            esc: EscState::None,
         }
     }
 
@@ -90,6 +105,7 @@ impl LineEditor {
     /// no editing and no echo. Escape-sequence folding stays with the engine (`escstate`).
     pub fn set_char_mode(&mut self, on: bool) {
         self.char_mode = on;
+        self.esc = EscState::None;
     }
 
     /// The partial line typed so far.
@@ -143,6 +159,9 @@ impl LineEditor {
             }
             return;
         }
+        if self.in_escape(byte) {
+            return;
+        }
         match byte {
             CR => {
                 self.after_cr = true;
@@ -153,6 +172,41 @@ impl LineEditor {
             // Other control bytes (XOFF 0x13 among them) are dropped.
             0x00..=0x1F => {}
             _ => self.insert(byte, echo),
+        }
+    }
+
+    /// Whether `byte` belongs to an escape sequence and is dropped. A byte that cannot
+    /// continue the sequence (CR, say, or a letter after a lone ESC) ends it and is
+    /// handled as typed.
+    fn in_escape(&mut self, byte: u8) -> bool {
+        match self.esc {
+            EscState::None if byte == ESC => {
+                self.esc = EscState::Esc;
+                true
+            }
+            EscState::None => false,
+            EscState::Esc => {
+                if byte == b'[' || byte == b'O' {
+                    self.esc = EscState::Seq;
+                    true
+                } else {
+                    self.esc = EscState::None;
+                    self.in_escape(byte)
+                }
+            }
+            EscState::Seq => match byte {
+                // Parameter and intermediate bytes.
+                0x20..=0x3F => true,
+                // The final byte.
+                0x40..=0x7E => {
+                    self.esc = EscState::None;
+                    true
+                }
+                _ => {
+                    self.esc = EscState::None;
+                    self.in_escape(byte)
+                }
+            },
         }
     }
 
