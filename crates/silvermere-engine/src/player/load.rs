@@ -14,8 +14,7 @@
 //!   quest-ability retrofit is a one-time data fix;
 //! - the move out of an add-on map the BBS has not activated.
 //!
-//! Left to their cards: ending the spells of a reset character (T-049), the carried
-//! weight and `update_allowed_worn_items` (T-030).
+//! Left to their cards: the carried weight and `update_allowed_worn_items` (T-030).
 
 use silvermere_rules::Rng;
 use silvermere_rules::progression::new_calc_exp_needed;
@@ -32,6 +31,7 @@ use super::create::{class_title, roll_stats};
 use super::secondary::{CalcMode, recalculate};
 use super::{EVIL_OUTLAW, PLAYER_VERSION, RANK_MIDDLE};
 use crate::player_session::Party;
+use crate::spells::active::end_player_spell;
 use crate::tell::tell_user;
 use crate::world::World;
 
@@ -111,6 +111,37 @@ fn stats_out_of_range(world: &World, c: &Character) -> bool {
             stats.iter().zip(max).any(|(&s, max)| s > max || s < 5)
         }
     }
+}
+
+/// Ends each spell on `c` in slot order (each slot is cleared before its ending runs, so a
+/// chained cast may land in a slot still to come), with `c` in session `id` meanwhile;
+/// returns it.
+fn end_every_spell(world: &mut World, id: SessionId, c: Character) -> Result<Character, LoadError> {
+    world
+        .sessions
+        .get_mut(&id)
+        .ok_or(LoadError::NoSession(id))?
+        .character = Some(c);
+    for i in 0..NSPELLCAST {
+        let Some(p) = world.session_mut(id).and_then(|s| s.character.as_mut()) else {
+            break;
+        };
+        let (n, power) = (p.spells[i], p.spellvals[i]);
+        if n == SpellNo(0) {
+            continue;
+        }
+        p.spells[i] = SpellNo(0);
+        p.spellvals[i] = 0;
+        p.spellrnds[i] = 0;
+        if let Some(spl) = world.spells.get(&n).cloned() {
+            end_player_spell(world, id, &spl, i32::from(power), true);
+        }
+    }
+    world
+        .sessions
+        .get_mut(&id)
+        .and_then(|s| s.character.take())
+        .ok_or(LoadError::NoSession(id))
 }
 
 /// Loads a version-22 record: the repairs, the notices, the derived values, then the
@@ -239,10 +270,16 @@ pub fn load_player(
             world.config.reinc_room
         });
         c.map = MapId(1);
-        // (the termination messages and effects are T-049's).
-        c.spells = [SpellNo(0); NSPELLCAST];
-        c.spellvals = [0; NSPELLCAST];
-        c.spellrnds = [0; NSPELLCAST];
+        // every spell on him ends, slot by slot, with its ending: the message, the undo (a
+        // poison spell takes its poison with it) and its chained cast, before the stats are
+        // rolled again. The notices so far go out first, and the character stands in the
+        // session while the endings run.
+        if c.spells.iter().any(|&s| s != SpellNo(0)) {
+            for msg in notices.drain(..) {
+                tell_user(world, id, msg);
+            }
+            c = end_every_spell(world, id, c)?;
+        }
         let sex = c.sex;
         roll_stats(world, &mut c, sex);
         // the points of every level since 1; the running maxima stop a wrap.
