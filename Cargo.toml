@@ -29,8 +29,6 @@ repository = "https://github.com/jnfisher/silvermere"
 unsafe_code = "forbid"
 
 [workspace.dependencies]
-# Workspace crates. The dependency direction is strictly downward:
-# types <- rules <- text <- engine <- {db, auth, net, api} <- bin; import -> {types, db}.
 silvermere-api = { path = "crates/silvermere-api" }
 silvermere-auth = { path = "crates/silvermere-auth" }
 silvermere-db = { path = "crates/silvermere-db" }
@@ -41,8 +39,6 @@ silvermere-rules = { path = "crates/silvermere-rules" }
 silvermere-testkit = { path = "crates/silvermere-testkit" }
 silvermere-text = { path = "crates/silvermere-text" }
 silvermere-types = { path = "crates/silvermere-types" }
-# Third-party libraries. Crates opt in with `name.workspace = true`; a crate may add
-# features locally but not change versions.
 anyhow = "1.0.104"
 argon2 = "0.6.0"
 axum = "0.8.9"
@@ -55,13 +51,11 @@ jiff = "0.2.38"
 metrics = "0.24.6"
 metrics-exporter-prometheus = { version = "0.18.3", default-features = false, features = ["http-listener"] }
 metrics-util = { version = "0.20.4", default-features = false, features = ["debugging", "registry"] }
-# inflate for the distribution zips (T-107)
 miniz_oxide = "0.9.1"
 proptest = "1.12.0"
 rand = "0.10.3"
 rand_chacha = "0.10.0"
 regex = "1.13.1"
-# the first start's sysop password, read without echo (T-109)
 rpassword = "7.5.4"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
@@ -73,14 +67,11 @@ thiserror = "2.0.21"
 tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "time", "sync", "net", "io-util", "signal"] }
 tokio-stream = { version = "0.1.19", features = ["sync"] }
 toml = "1.1.8"
-# `silvermere config set` keeps the file's comments and order (T-124)
 toml_edit = "0.25.17"
 tower = { version = "0.5.3", features = ["util"] }
 tracing = "0.1.44"
 tracing-appender = "0.2.5"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
-# fetching the stock distribution over HTTPS, rustls with the ring provider sqlx already
-# builds and the webpki roots (T-120)
 ureq = { version = "3.5.0", default-features = false, features = ["rustls"] }
 
 # T-111: etcetera without the SHGetKnownFolderPath call that loads user32.dll on Windows (see
