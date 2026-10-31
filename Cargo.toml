@@ -1,18 +1,17 @@
 [workspace]
 resolver = "3"
-# Dependency order: types first, bin last. Only scaffolding cards edit this list.
 members = [
-    "crates/silvermere-types",
-    "crates/silvermere-rules",
-    "crates/silvermere-text",
-    "crates/silvermere-engine",
-    "crates/silvermere-db",
-    "crates/silvermere-auth",
-    "crates/silvermere-net",
-    "crates/silvermere-api",
-    "crates/silvermere-import",
-    "crates/silvermere-testkit",
     "bin/silvermere",
+    "crates/silvermere-api",
+    "crates/silvermere-auth",
+    "crates/silvermere-db",
+    "crates/silvermere-engine",
+    "crates/silvermere-import",
+    "crates/silvermere-net",
+    "crates/silvermere-rules",
+    "crates/silvermere-testkit",
+    "crates/silvermere-text",
+    "crates/silvermere-types",
 ]
 # The crate template is copied by scaffolding cards; it is not built.
 exclude = ["crates/_template"]
