@@ -14,7 +14,7 @@
 //!   quest-ability retrofit is a one-time data fix;
 //! - the move out of an add-on map the BBS has not activated.
 //!
-//! Left to their cards: the carried weight and `update_allowed_worn_items` (T-030).
+//! Left to its card: the carried weight (T-030).
 
 use silvermere_rules::Rng;
 use silvermere_rules::progression::new_calc_exp_needed;
@@ -23,13 +23,14 @@ use silvermere_types::enums::{Ability, ItemType, StatlineMode};
 use silvermere_types::flags::{
     GangFlags, PlayerFlags, PlayerSettings, PlayerStatus, PlayerStatus2, SessionFlags,
 };
-use silvermere_types::ids::{ClassNo, MapId, RaceNo, RoomId, SessionId, SpellNo};
+use silvermere_types::ids::{ClassNo, ItemNo, MapId, RaceNo, RoomId, SessionId, SpellNo};
 use silvermere_types::records::Character;
 use silvermere_types::sizes::{NKEYS, NSPELLCAST};
 
 use super::create::{class_title, roll_stats};
 use super::secondary::{CalcMode, recalculate};
 use super::{EVIL_OUTLAW, PLAYER_VERSION, RANK_MIDDLE};
+use crate::evil::update_allowed_worn_items;
 use crate::player_session::Party;
 use crate::spells::active::end_player_spell;
 use crate::tell::tell_user;
@@ -113,15 +114,35 @@ fn stats_out_of_range(world: &World, c: &Character) -> bool {
     }
 }
 
-/// Ends each spell on `c` in slot order (each slot is cleared before its ending runs, so a
-/// chained cast may land in a slot still to come), with `c` in session `id` meanwhile;
-/// returns it.
-fn end_every_spell(world: &mut World, id: SessionId, c: Character) -> Result<Character, LoadError> {
+/// Runs `step` with `c` standing in session `id`, for the steps that work through the
+/// session (they tell the player and change the character there); returns it. The notices
+/// gathered so far go out first, so that what `step` says follows them.
+fn in_session(
+    world: &mut World,
+    id: SessionId,
+    c: Character,
+    notices: &mut Vec<Msg>,
+    step: impl FnOnce(&mut World),
+) -> Result<Character, LoadError> {
+    for msg in notices.drain(..) {
+        tell_user(world, id, msg);
+    }
     world
         .sessions
         .get_mut(&id)
         .ok_or(LoadError::NoSession(id))?
         .character = Some(c);
+    step(world);
+    world
+        .sessions
+        .get_mut(&id)
+        .and_then(|s| s.character.take())
+        .ok_or(LoadError::NoSession(id))
+}
+
+/// Ends each spell on the character in session `id` in slot order (each slot is cleared
+/// before its ending runs, so a chained cast may land in a slot still to come).
+fn end_every_spell(world: &mut World, id: SessionId) {
     for i in 0..NSPELLCAST {
         let Some(p) = world.session_mut(id).and_then(|s| s.character.as_mut()) else {
             break;
@@ -137,11 +158,6 @@ fn end_every_spell(world: &mut World, id: SessionId, c: Character) -> Result<Cha
             end_player_spell(world, id, &spl, i32::from(power), true);
         }
     }
-    world
-        .sessions
-        .get_mut(&id)
-        .and_then(|s| s.character.take())
-        .ok_or(LoadError::NoSession(id))
 }
 
 /// Loads a version-22 record: the repairs, the notices, the derived values, then the
@@ -272,13 +288,9 @@ pub fn load_player(
         c.map = MapId(1);
         // every spell on him ends, slot by slot, with its ending: the message, the undo (a
         // poison spell takes its poison with it) and its chained cast, before the stats are
-        // rolled again. The notices so far go out first, and the character stands in the
-        // session while the endings run.
+        // rolled again.
         if c.spells.iter().any(|&s| s != SpellNo(0)) {
-            for msg in notices.drain(..) {
-                tell_user(world, id, msg);
-            }
-            c = end_every_spell(world, id, c)?;
+            c = in_session(world, id, c, &mut notices, |w| end_every_spell(w, id))?;
         }
         let sex = c.sex;
         roll_stats(world, &mut c, sex);
@@ -353,6 +365,14 @@ pub fn load_player(
     if c.keys.len() < NKEYS {
         c.keys.resize(NKEYS, Default::default());
         c.keyuses.resize(NKEYS, -2);
+    }
+    // worn items and the weapon he may no longer use come off ("Your <item> has been
+    // removed."), as when his legal level changes in play: the evil points may have been
+    // changed while he was away.
+    if c.worn.iter().chain([&c.weapon]).any(|&n| n != ItemNo(0)) {
+        c = in_session(world, id, c, &mut notices, |w| {
+            update_allowed_worn_items(w, id)
+        })?;
     }
     c.title = class_title(world, c.class, c.level, c.sex);
     if c.settings.contains(PlayerSettings::OLDBLOCKENT) {

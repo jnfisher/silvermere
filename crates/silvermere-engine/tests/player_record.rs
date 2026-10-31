@@ -677,6 +677,56 @@ fn a_reset_ends_the_spells_and_their_poison() {
     );
 }
 
+// load_player: worn items and the weapon his alignment no longer allows come off on entry
+// (issue #8: an evil-only weapon stayed wielded after the evil points were changed while
+// he was away); they stay in his pack
+#[test]
+fn entry_takes_off_what_the_alignment_forbids() {
+    let armoury = || {
+        let mut w = world();
+        for (n, name, evil_only) in [
+            (763, "blood lance", true),
+            (764, "dark ring", true),
+            (765, "plain ring", false),
+        ] {
+            let mut i = blank::clear_item(silvermere_types::ids::ItemNo(n));
+            i.name = name.into();
+            if evil_only {
+                i.abilities[0] = (Ability::Evil, 0);
+            }
+            w.items.insert(i.number, i);
+        }
+        w
+    };
+    for (evil, removed) in [(-60i16, true), (100, false)] {
+        let mut w = armoury();
+        let id = session(&mut w, 1);
+        let mut c = kasimir(&w, 1);
+        c.evil = evil;
+        c.items[..3].copy_from_slice(&[763, 764, 765].map(silvermere_types::ids::ItemNo));
+        c.worn[0] = silvermere_types::ids::ItemNo(764);
+        c.worn[1] = silvermere_types::ids::ItemNo(765);
+        c.weapon = silvermere_types::ids::ItemNo(763);
+        load_player(&mut w, id, c, TODAY).unwrap();
+        let c = w.sessions[&id].character.clone().unwrap();
+        assert_eq!(c.worn[0].0 == 764, !removed, "evil {evil}");
+        assert_eq!(c.worn[1].0, 765, "evil {evil}");
+        assert_eq!(c.weapon.0 == 763, !removed, "evil {evil}");
+        assert_eq!(
+            &c.items[..3],
+            &[763, 764, 765].map(silvermere_types::ids::ItemNo)
+        );
+        let want: Vec<Msg> = if removed {
+            ["dark ring", "blood lance"]
+                .map(|item| Msg::ItemRemoved { item: item.into() })
+                .into()
+        } else {
+            Vec::new()
+        };
+        assert_eq!(notices(&w, id), want, "evil {evil}");
+    }
+}
+
 // load_player: the entry notices, in order
 #[test]
 fn entry_notices_in_order() {
