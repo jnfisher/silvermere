@@ -15,14 +15,11 @@ workspace = true
 
 [dependencies]
 silvermere-types.workspace = true
-silvermere-rules.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 toml.workspace = true
 tracing.workspace = true
 
-# build.rs parses messages/catalogue.toml with the same code as the library
-# (src/catalogue.rs is included by path), so it needs the same crates.
 [build-dependencies]
 serde.workspace = true
 thiserror.workspace = true
@@ -30,17 +27,13 @@ toml.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
-rand_chacha.workspace = true
+miniz_oxide.workspace = true
 rand.workspace = true
-serde_json.workspace = true
-# The pattern registry (tests/fixtures/patterns.json) is a table of regexes; the
-# layer-2 snapshot test matches rendered messages against them.
+rand_chacha.workspace = true
 regex.workspace = true
-# the testkit's stock helper, included by path: the tests read the game's long text from the
-# stock package (T-138)
+serde_json.workspace = true
 sha2.workspace = true
 ureq.workspace = true
-miniz_oxide.workspace = true
 
 [[test]]
 name = "all"

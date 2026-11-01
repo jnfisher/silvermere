@@ -13,8 +13,6 @@ autotests = false
 workspace = true
 
 [dependencies]
-silvermere-types.workspace = true
-silvermere-engine.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 

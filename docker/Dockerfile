@@ -4,7 +4,7 @@
 # cargo-zigbuild, so a linux/arm64 image needs no QEMU.
 # RUST_VERSION is fed from rust-toolchain.toml by the release workflow; the default must match it.
 
-ARG RUST_VERSION=1.99.0
+ARG RUST_VERSION=1.99.1
 
 FROM --platform=$BUILDPLATFORM rust:${RUST_VERSION}-bookworm AS chef
 RUN apt-get update \

@@ -13,22 +13,20 @@ autotests = false
 workspace = true
 
 [dependencies]
-silvermere-types.workspace = true
-silvermere-text.workspace = true
 silvermere-db.workspace = true
+silvermere-text.workspace = true
+silvermere-types.workspace = true
 argon2.workspace = true
-rand.workspace = true
 jiff.workspace = true
+rand.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
-serde_json.workspace = true
 
 [dev-dependencies]
+proptest.workspace = true
 sqlx = { workspace = true, features = ["any"] }
 tokio.workspace = true
-proptest.workspace = true
-serde_json.workspace = true
-jiff.workspace = true
 
 [[test]]
 name = "all"

@@ -40,8 +40,8 @@ import -> {types, db}
 - Library crates use `thiserror`; binaries use `anyhow`. `unsafe` is forbidden workspace-wide.
 
 New crates start from [`crates/_template/`](crates/_template/) (not a workspace member):
-copy it, replace `NAME`, add it to the workspace members in dependency order and to
-`[workspace.dependencies]`.
+copy it, replace `NAME`, add it to the workspace members and to
+`[workspace.dependencies]`, each list in alphabetical order.
 
 ## Tests
 
