@@ -175,7 +175,7 @@ async fn restore_refuses_in_order() {
 
 async fn open_raw(path: &Path) -> sqlx::AnyPool {
     sqlx::any::install_default_drivers();
-    sqlx::AnyPool::connect(&format!("sqlite://{}", path.display()))
+    sqlx::AnyPool::connect(&format!("sqlite:{}", path.display()))
         .await
         .unwrap()
 }
