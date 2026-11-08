@@ -25,6 +25,7 @@ mod m3_social_training;
 mod metrics_endpoint;
 mod name_check_latency;
 mod queued_characters;
+mod rlogin_e2e;
 mod serve_in_process;
 mod shutdown;
 mod shutdown_barrier;

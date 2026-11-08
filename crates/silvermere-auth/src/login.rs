@@ -34,7 +34,7 @@ use silvermere_text::catalogue::{self, Catalogue, TemplatePiece};
 use silvermere_types::ids::AccountId;
 
 use crate::AuthError;
-use crate::account::{Account, AccountStore, NewAccount, USERNAME_MAX, is_new};
+use crate::account::{Account, AccountStore, NewAccount, Sex, USERNAME_MAX, is_new};
 use crate::lockout::{Lockout, LockoutConfig};
 use crate::password::{self, Secret};
 use crate::signup::SignupState;
@@ -808,6 +808,75 @@ impl<S: AccountStore, C: Clock> LoginService<S, C> {
             return Err(e);
         }
         Ok(Ok(Box::new(account)))
+    }
+
+    /// Logs `username` in without a password: the caller was vouched for by a trusted
+    /// rlogin client (a BBS door, `silvermere_net::rlogin`). The lockout and the one-session
+    /// rule still apply; an unknown name is `InvalidCredentials`.
+    pub async fn trusted_login(
+        &self,
+        username: &str,
+    ) -> Result<Result<Box<Account>, Refusal>, AuthError> {
+        let now = self.clock.now();
+        let Some(mut account) = self.store.by_username(username).await? else {
+            return Ok(Err(Refusal::InvalidCredentials));
+        };
+        let id = account.id;
+        if let Some(until) = self.lockout.locked_until(id, now) {
+            tracing::info!(target: "audit", account = id.0, username = %account.username, "rlogin refused: locked");
+            return Ok(Err(Refusal::Locked {
+                minutes: Lockout::minutes_left(until, now),
+            }));
+        }
+        if self.online.contains(id) {
+            tracing::info!(target: "audit", account = id.0, username = %account.username, "rlogin refused: already online");
+            self.audit(
+                now,
+                "auth.login_duplicate",
+                serde_json::json!({ "account": id.0, "username": account.username, "via": "rlogin" }),
+            )
+            .await?;
+            return Ok(Err(Refusal::AlreadyOnline));
+        }
+        account.last_login_at = Some(now);
+        self.store.update(&account).await?;
+        // as in `authenticate`: claimed once the update is stored
+        if !self.online.claim(id) {
+            return Ok(Err(Refusal::AlreadyOnline));
+        }
+        tracing::info!(target: "audit", account = id.0, username = %account.username, "login (rlogin)");
+        let audited = self
+            .audit(
+                now,
+                "auth.login",
+                serde_json::json!({ "account": id.0, "username": account.username, "via": "rlogin" }),
+            )
+            .await;
+        if let Err(e) = audited {
+            self.online.release(id);
+            return Err(e);
+        }
+        Ok(Ok(Box::new(account)))
+    }
+
+    /// Creates the account of a trusted rlogin caller on their first visit, logged in and
+    /// claimed as signup's are. It has no password: nobody can log in to it over telnet
+    /// until the sysop sets one (`silvermere account passwd`). `None` when the name was
+    /// taken meanwhile.
+    pub async fn trusted_signup(
+        &self,
+        username: &str,
+        sex: Sex,
+    ) -> Result<Option<Account>, AuthError> {
+        crate::account::validate_username(username)?;
+        self.signup(NewAccount {
+            username: username.to_string(),
+            password_hash: String::new(),
+            email: None,
+            sex,
+            roles: crate::roles::RoleSet::player(),
+        })
+        .await
     }
 
     async fn audit(

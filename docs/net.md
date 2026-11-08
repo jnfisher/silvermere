@@ -12,7 +12,8 @@ does and where it differs from the original host (Worldgroup GSBL) or from MBBSE
 | `telnet::options` | The offers sent on accept and the answer table. |
 | `telnet` | `TelnetCodec` (parser + options + NAWS, no I/O), `escape_into` (0xFF doubling), `TelnetTransport` (sequential `Transport` over a `TcpStream`). |
 | `line_editor` | `LineEditor`: the GSBL line discipline and echo. |
-| `session_task` | `spawn_session`, `serve`, `bind`: one task per connection, the accept loop. |
+| `session_task` | `spawn_session`, `serve`, `serve_with_rlogin`, `bind`: one task per connection, the accept loops. |
+| `rlogin` | The rlogin door login: `RloginConfig` (the trusted addresses), `RloginHello`, the handshake parser. |
 | `events` | `SessionEvent`, `SessionCommand`, `Reason`, `Capabilities`, `SessionId`. |
 | `cp437` | Input decode table (until T-010's codec replaces it). |
 
@@ -83,6 +84,15 @@ command sender on `registry` before starting its task (so when the engine sees a
 `Connected` for an unknown id, the registration is already waiting in `registry`), and over
 `max_sessions` writes `compat.full_message` (`The server is full. Please try again later.`)
 and closes. One connection per account is the engine's rule (it knows accounts).
+
+`serve_with_rlogin` runs a second accept loop for `server.rlogin_bind` beside the telnet one;
+the two share the session cap and the numbering. A connection from an address the
+`RloginConfig` does not trust (loopback only when its list is empty) is closed before
+anything is read. The handshake (`NUL client NUL server NUL term/speed NUL`, 10 seconds,
+1 KiB at most) is read before the session is numbered, so a caller that never finishes it
+leaves nothing in the gate or the engine; then `NUL` is sent and the session emits
+`SessionEvent::Rlogin(hello)` just before `Connected`. An rlogin session sends no telnet
+offers, doubles no 0xFF, strips no IAC and sends no heartbeat `NOP`: its bytes are plain.
 
 ## Manual check
 

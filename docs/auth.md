@@ -94,6 +94,32 @@ Then the account is created (roles `player`) and logged in. MBBSEmu's NOTE parag
 before the password prompt (SHA-512 storage, the BBS's 9-character limit) is not printed:
 neither is true here.
 
+### rlogin (a BBS door)
+
+With `server.rlogin_bind` set, Silvermere also listens for rlogin (RFC 1282), the way a
+BBS opens a door game for a caller it has already logged in. The BBS sends
+`NUL client-user NUL server-user NUL terminal/speed NUL`, Silvermere answers `NUL`, and
+the connection then carries plain bytes (no telnet commands). The account is the server
+user, or the client user when that is blank.
+
+- **No second login.** The account is logged in at once and the caller goes straight to
+  `Make your selection (X to exit):`. The lockout and the one-session rule still apply
+  (`This account is already logged on.`, then the connection closes).
+- **First visit.** With `game.open_signup` on, the account is created on the spot, asking
+  only `Please enter your gender 'M' or 'F' (can be changed later):`. It has no password,
+  so the telnet login answers `This account has no password yet.` until the sysop sets
+  one (`account passwd NAME`). With signup off, the caller gets
+  `New accounts are created by the sysop on this system.` and is closed. A name the
+  username rules refuse gets `Please enter a valid Username.` and is closed.
+- **`R` at the logoff question** closes the connection, which takes the caller back to
+  the BBS, instead of showing `Username:`.
+- **Trust.** The name is taken on the BBS's word, so only the addresses in
+  `server.rlogin_trusted` are served (loopback when the list is empty); anyone else is
+  closed before anything is read. Keep `rlogin_bind` on loopback when the BBS runs on the
+  same computer, and never forward the port on the router.
+
+The login is audited as `auth.login` with `"via": "rlogin"`.
+
 ### Shape
 
 `LoginDialogue` is a pure state machine: `start()` and `on_line(&str)` return

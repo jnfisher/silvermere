@@ -131,6 +131,11 @@ pub struct ServerCfg {
     pub admin_bind: String,
     /// Connections beyond this are refused. 1..=100000.
     pub max_sessions: u32,
+    /// rlogin door login listen address (`silvermere_net::rlogin`): a BBS that sends its
+    /// caller here logs them in without a second login. Empty: off.
+    pub rlogin_bind: String,
+    /// The addresses allowed to use `rlogin_bind`. Empty: loopback only.
+    pub rlogin_trusted: Vec<String>,
 }
 
 /// `[net]`.
@@ -264,6 +269,8 @@ impl Default for ServerCfg {
             telnet_bind: "0.0.0.0:2323".into(),
             admin_bind: "127.0.0.1:8080".into(),
             max_sessions: 256,
+            rlogin_bind: String::new(),
+            rlogin_trusted: Vec::new(),
         }
     }
 }
@@ -471,6 +478,17 @@ impl Config {
             v.parse::<SocketAddr>()
                 .map_err(|e| format!("{key} = {v:?} is not a host:port address ({e})"))?;
         }
+        let rlogin = &self.server.rlogin_bind;
+        if !rlogin.is_empty() {
+            rlogin.parse::<SocketAddr>().map_err(|e| {
+                format!("server.rlogin_bind = {rlogin:?} is not a host:port address ({e})")
+            })?;
+        }
+        for ip in &self.server.rlogin_trusted {
+            ip.parse::<std::net::IpAddr>().map_err(|e| {
+                format!("server.rlogin_trusted entry {ip:?} is not an IP address ({e})")
+            })?;
+        }
         if !(1..=100_000).contains(&self.server.max_sessions) {
             return Err(format!(
                 "server.max_sessions = {} is out of range; allowed 1..=100000",
@@ -541,7 +559,15 @@ impl Config {
 
     /// The SQLite file URL with create-if-missing, or the PostgreSQL URL unchanged.
     pub fn sqlite_path(&self) -> Option<PathBuf> {
-        let rest = self.database.url.strip_prefix("sqlite://")?;
+        let url = &self.database.url;
+        // `sqlite:C:\...` too, as silvermere-db writes a Windows path with a drive letter
+        let rest = url.strip_prefix("sqlite://").or_else(|| {
+            url.strip_prefix("sqlite:").filter(|p| {
+                p.as_bytes()
+                    .get(1..3)
+                    .is_some_and(|b| b[0] == b':' && matches!(b[1], b'\\' | b'/'))
+            })
+        })?;
         let rest = rest.split('?').next().unwrap_or(rest);
         (!rest.is_empty()).then(|| PathBuf::from(rest))
     }

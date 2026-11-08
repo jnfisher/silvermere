@@ -3,6 +3,7 @@
 use std::io;
 
 use crate::line_editor::EchoMode;
+use crate::rlogin::RloginHello;
 
 /// Identifies one connection.
 ///
@@ -46,6 +47,9 @@ pub enum Reason {
 /// Session task -> engine.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionEvent {
+    /// An rlogin connection ([`crate::rlogin`]): who the trusted client says is calling.
+    /// Sent once, just before `Connected`.
+    Rlogin(RloginHello),
     /// The connection is up; sent before negotiation completes so the login prompt never
     /// waits on it.
     Connected(Capabilities),

@@ -8,13 +8,20 @@
 //! lines go to the engine. `R` at the BBS menu shim brings the dialogue back
 //! ([`GateControl::ReturnToLogin`]). The account is released from the one-session rule when
 //! the connection drops or returns to the login.
+//!
+//! A connection from the rlogin port (`server.rlogin_bind`) skips the dialogue: the BBS
+//! that opened it has said who is calling ([`SessionEvent::Rlogin`]), and that account is
+//! logged in at once, made on the first visit (asking only the gender) when signup is
+//! open. `R` at the menu shim closes such a connection, which takes the caller back to
+//! the BBS.
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use silvermere_auth::login::{EchoMode as AuthEcho, LoginConfig, Output};
+use silvermere_auth::login::{EchoMode as AuthEcho, LoginConfig, Output, Refusal};
 use silvermere_auth::{
-    Account, LoginDialogue, LoginService, Perm, Role, State, SystemClock, has_permission, has_role,
+    Account, AuthMsg, LoginDialogue, LoginService, Perm, Role, Sex, State, SystemClock,
+    has_permission, has_role,
 };
 use silvermere_db::Db;
 use silvermere_engine::state::login::Login;
@@ -54,6 +61,8 @@ struct Conn {
     login: Option<mpsc::UnboundedSender<String>>,
     /// The account once logged in, to release at the end.
     account: Option<AccountId>,
+    /// The caller an rlogin client named; the connection never sees the dialogue.
+    rlogin: Option<String>,
 }
 
 /// Everything the gate needs besides its channels.
@@ -103,6 +112,13 @@ pub async fn run(
                 if let Some(id) = conn.account.take() {
                     deps.service.online().release(id);
                 }
+                if conn.rlogin.is_some() {
+                    // back to the BBS that sent the caller, not to a password prompt
+                    if let Some(tx) = &conn.tx {
+                        let _ = tx.try_send(SessionCommand::Close);
+                    }
+                    continue;
+                }
                 if let Some(tx) = conn.tx.clone() {
                     conn.login = Some(spawn_login(cid, tx, deps.clone(), done_tx.clone()));
                 }
@@ -118,7 +134,7 @@ pub async fn run(
                 }
                 let cid = conn_id(net_id);
                 let conn = conns.entry(cid).or_insert_with(|| Conn {
-                    net: net_id, tx: None, login: None, account: None,
+                    net: net_id, tx: None, login: None, account: None, rlogin: None,
                 });
                 match ev {
                     SessionEvent::Line(bytes) => {
@@ -136,9 +152,15 @@ pub async fn run(
                             return;
                         }
                     }
+                    SessionEvent::Rlogin(hello) => {
+                        conn.rlogin = Some(hello.user().to_string());
+                    }
                     SessionEvent::Connected(caps) => {
                         if let Some(tx) = conn.tx.clone() {
-                            conn.login = Some(spawn_login(cid, tx, deps.clone(), done_tx.clone()));
+                            conn.login = Some(match &conn.rlogin {
+                                Some(user) => spawn_rlogin(cid, tx, user.clone(), deps.clone(), done_tx.clone()),
+                                None => spawn_login(cid, tx, deps.clone(), done_tx.clone()),
+                            });
                         }
                         if events_out.send((net_id, GateEvent::Net(SessionEvent::Connected(caps)))).await.is_err() {
                             return;
@@ -176,6 +198,7 @@ fn register(
         tx: None,
         login: None,
         account: None,
+        rlogin: None,
     });
     conn.tx = Some(tx.clone());
     registry_out.send((net_id, tx)).is_ok()
@@ -262,6 +285,135 @@ async fn login_task(
             return;
         }
     }
+}
+
+fn spawn_rlogin(
+    cid: ConnId,
+    tx: mpsc::Sender<SessionCommand>,
+    user: String,
+    deps: Arc<GateDeps>,
+    done: mpsc::UnboundedSender<(ConnId, Box<Login>)>,
+) -> mpsc::UnboundedSender<String> {
+    let (lines_tx, lines) = mpsc::unbounded_channel();
+    tokio::spawn(rlogin_task(cid, tx, lines, user, deps, done));
+    lines_tx
+}
+
+/// An rlogin connection's login: the named account, or a new one, straight in.
+async fn rlogin_task(
+    cid: ConnId,
+    tx: mpsc::Sender<SessionCommand>,
+    mut lines: mpsc::UnboundedReceiver<String>,
+    user: String,
+    deps: Arc<GateDeps>,
+    done: mpsc::UnboundedSender<(ConnId, Box<Login>)>,
+) {
+    let account = match rlogin_account(cid, &tx, &mut lines, &user, &deps).await {
+        Ok(Some(account)) => account,
+        Ok(None) => return,
+        Err(e) => {
+            tracing::error!(%e, ?cid, "rlogin failed");
+            let _ = tx.send(SessionCommand::Close).await;
+            return;
+        }
+    };
+    let id = account.id;
+    match login_for(&deps.db, account).await {
+        Ok(login) => {
+            if done.send((cid, Box::new(login))).is_err() {
+                deps.service.online().release(id);
+            }
+        }
+        Err(e) => {
+            tracing::error!(%e, ?cid, "loading the character failed");
+            deps.service.online().release(id);
+            let _ = tx.send(SessionCommand::Close).await;
+        }
+    }
+}
+
+/// The account an rlogin caller is logged in to, claimed; `None` when the caller was
+/// refused (the reason sent and the connection closing) or left.
+async fn rlogin_account(
+    cid: ConnId,
+    tx: &mpsc::Sender<SessionCommand>,
+    lines: &mut mpsc::UnboundedReceiver<String>,
+    user: &str,
+    deps: &GateDeps,
+) -> anyhow::Result<Option<Account>> {
+    // twice at most: a first visit whose name another connection created meanwhile logs
+    // in to that account
+    for _ in 0..2 {
+        match deps.service.trusted_login(user).await? {
+            Ok(account) => return Ok(Some(*account)),
+            Err(Refusal::AlreadyOnline) => return refuse(tx, AuthMsg::DuplicateLogin).await,
+            Err(Refusal::Locked { minutes }) => {
+                return refuse(tx, AuthMsg::AccountLocked { minutes }).await;
+            }
+            Err(Refusal::InvalidCredentials | Refusal::NoPassword) => {}
+        }
+        if !deps.config.open_signup {
+            return refuse(tx, AuthMsg::SignupClosed).await;
+        }
+        if silvermere_auth::account::validate_username(user).is_err()
+            || silvermere_auth::account::is_new(user)
+        {
+            tracing::info!(?cid, user, "rlogin name is not a valid username");
+            return refuse(tx, AuthMsg::SignupUsernameInvalid).await;
+        }
+        let Some(sex) = ask_sex(cid, tx, lines, deps).await else {
+            return Ok(None);
+        };
+        if let Some(account) = deps.service.trusted_signup(user, sex).await? {
+            return Ok(Some(account));
+        }
+    }
+    refuse(tx, AuthMsg::DuplicateLogin).await
+}
+
+/// The one question of a first rlogin visit; `None` when the caller left or idled out.
+async fn ask_sex(
+    cid: ConnId,
+    tx: &mpsc::Sender<SessionCommand>,
+    lines: &mut mpsc::UnboundedReceiver<String>,
+    deps: &GateDeps,
+) -> Option<Sex> {
+    let mut first = true;
+    loop {
+        let mut out = Vec::new();
+        if !first {
+            out.push(Output::Text(AuthMsg::SignupGenderInvalid));
+        }
+        first = false;
+        out.push(Output::Text(AuthMsg::SignupGenderPrompt));
+        if !apply(tx, out).await {
+            return None;
+        }
+        let line = match deps.login_timeout {
+            Some(limit) => match tokio::time::timeout(limit, lines.recv()).await {
+                Ok(line) => line,
+                Err(_) => {
+                    tracing::info!(?cid, "rlogin signup idle too long; closing");
+                    let _ = tx.send(SessionCommand::Close).await;
+                    return None;
+                }
+            },
+            None => lines.recv().await,
+        }?;
+        let _ = tx.send(SessionCommand::LineDone).await;
+        if let Some(sex) = Sex::from_answer(line.trim()) {
+            return Some(sex);
+        }
+    }
+}
+
+/// Sends `msg` and closes; nothing was claimed.
+async fn refuse(
+    tx: &mpsc::Sender<SessionCommand>,
+    msg: AuthMsg,
+) -> anyhow::Result<Option<Account>> {
+    apply(tx, vec![Output::Text(msg), Output::Close]).await;
+    Ok(None)
 }
 
 /// The engine's view of a logged-in account, with its character.
