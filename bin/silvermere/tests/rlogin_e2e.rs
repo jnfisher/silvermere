@@ -108,6 +108,30 @@ async fn a_first_visit_asks_only_the_gender() {
     db.close().await;
 }
 
+// A BBS that knows the caller's gender sends it as the client user (RedialBBS:
+// `--remote-client "{gender}"`), and a first visit asks nothing at all.
+#[tokio::test]
+async fn a_first_visit_with_the_gender_asks_nothing() {
+    let (_t, url) = common::seeded(&[]).await;
+    let r = server(url.clone(), &[]).await;
+    let mut c = rlogin(&r, "F", "Cara Wynn").await;
+    let got = c.until(MENU, WAIT).await.unwrap();
+    assert!(!got.plain.contains("gender"), "{}", got.plain);
+    c.send_line("X").await.unwrap();
+    c.until("R to re-logon", WAIT).await.unwrap();
+    c.send_line("Y").await.unwrap();
+    assert!(c.wait_closed(WAIT).await.unwrap());
+    r.stop().await.unwrap();
+
+    let db = Db::connect_and_migrate(&url).await.unwrap();
+    let account = silvermere_auth::AccountStore::by_username(&db, "cara wynn")
+        .await
+        .unwrap()
+        .expect("the visit made the account");
+    assert_eq!(account.sex, silvermere_auth::Sex::Female);
+    db.close().await;
+}
+
 // Only the trusted addresses may say who is calling; anyone else is closed unanswered.
 #[tokio::test]
 async fn an_untrusted_address_is_closed() {

@@ -11,8 +11,8 @@
 //!
 //! A connection from the rlogin port (`server.rlogin_bind`) skips the dialogue: the BBS
 //! that opened it has said who is calling ([`SessionEvent::Rlogin`]), and that account is
-//! logged in at once, made on the first visit (asking only the gender) when signup is
-//! open. `R` at the menu shim closes such a connection, which takes the caller back to
+//! logged in at once, made on the first visit when signup is open. The gender comes
+//! from the BBS when it sends `M` or `F` as the client user, and is asked otherwise. `R` at the menu shim closes such a connection, which takes the caller back to
 //! the BBS.
 
 use std::collections::HashMap;
@@ -26,7 +26,9 @@ use silvermere_auth::{
 use silvermere_db::Db;
 use silvermere_engine::state::login::Login;
 use silvermere_engine::{AccountRef, ConnId};
-use silvermere_net::{EchoMode, SessionCommand, SessionEvent, SessionId as NetId, cp437};
+use silvermere_net::{
+    EchoMode, RloginHello, SessionCommand, SessionEvent, SessionId as NetId, cp437,
+};
 use silvermere_types::ids::AccountId;
 use tokio::sync::mpsc;
 
@@ -62,7 +64,7 @@ struct Conn {
     /// The account once logged in, to release at the end.
     account: Option<AccountId>,
     /// The caller an rlogin client named; the connection never sees the dialogue.
-    rlogin: Option<String>,
+    rlogin: Option<RloginHello>,
 }
 
 /// Everything the gate needs besides its channels.
@@ -153,12 +155,12 @@ pub async fn run(
                         }
                     }
                     SessionEvent::Rlogin(hello) => {
-                        conn.rlogin = Some(hello.user().to_string());
+                        conn.rlogin = Some(hello);
                     }
                     SessionEvent::Connected(caps) => {
                         if let Some(tx) = conn.tx.clone() {
                             conn.login = Some(match &conn.rlogin {
-                                Some(user) => spawn_rlogin(cid, tx, user.clone(), deps.clone(), done_tx.clone()),
+                                Some(hello) => spawn_rlogin(cid, tx, hello.clone(), deps.clone(), done_tx.clone()),
                                 None => spawn_login(cid, tx, deps.clone(), done_tx.clone()),
                             });
                         }
@@ -290,12 +292,12 @@ async fn login_task(
 fn spawn_rlogin(
     cid: ConnId,
     tx: mpsc::Sender<SessionCommand>,
-    user: String,
+    hello: RloginHello,
     deps: Arc<GateDeps>,
     done: mpsc::UnboundedSender<(ConnId, Box<Login>)>,
 ) -> mpsc::UnboundedSender<String> {
     let (lines_tx, lines) = mpsc::unbounded_channel();
-    tokio::spawn(rlogin_task(cid, tx, lines, user, deps, done));
+    tokio::spawn(rlogin_task(cid, tx, lines, hello, deps, done));
     lines_tx
 }
 
@@ -304,11 +306,11 @@ async fn rlogin_task(
     cid: ConnId,
     tx: mpsc::Sender<SessionCommand>,
     mut lines: mpsc::UnboundedReceiver<String>,
-    user: String,
+    hello: RloginHello,
     deps: Arc<GateDeps>,
     done: mpsc::UnboundedSender<(ConnId, Box<Login>)>,
 ) {
-    let account = match rlogin_account(cid, &tx, &mut lines, &user, &deps).await {
+    let account = match rlogin_account(cid, &tx, &mut lines, &hello, &deps).await {
         Ok(Some(account)) => account,
         Ok(None) => return,
         Err(e) => {
@@ -338,9 +340,10 @@ async fn rlogin_account(
     cid: ConnId,
     tx: &mpsc::Sender<SessionCommand>,
     lines: &mut mpsc::UnboundedReceiver<String>,
-    user: &str,
+    hello: &RloginHello,
     deps: &GateDeps,
 ) -> anyhow::Result<Option<Account>> {
+    let user = hello.user();
     // twice at most: a first visit whose name another connection created meanwhile logs
     // in to that account
     for _ in 0..2 {
@@ -361,8 +364,13 @@ async fn rlogin_account(
             tracing::info!(?cid, user, "rlogin name is not a valid username");
             return refuse(tx, AuthMsg::SignupUsernameInvalid).await;
         }
-        let Some(sex) = ask_sex(cid, tx, lines, deps).await else {
-            return Ok(None);
+        let sex = match hello.sex() {
+            Some('F') => Sex::Female,
+            Some(_) => Sex::Male,
+            None => match ask_sex(cid, tx, lines, deps).await {
+                Some(sex) => sex,
+                None => return Ok(None),
+            },
         };
         if let Some(account) = deps.service.trusted_signup(user, sex).await? {
             return Ok(Some(account));

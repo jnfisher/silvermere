@@ -68,6 +68,20 @@ impl RloginHello {
             server
         }
     }
+
+    /// The caller's sex, `'M'` or `'F'`, when the BBS sent it as the client user
+    /// (`M`, `F`, `Male` or `Female`, any case) beside a server user that names the
+    /// account; otherwise `None`, and a first visit asks.
+    pub fn sex(&self) -> Option<char> {
+        if self.server_user.trim().is_empty() {
+            return None;
+        }
+        match self.client_user.trim().to_ascii_lowercase().as_str() {
+            "m" | "male" => Some('M'),
+            "f" | "female" => Some('F'),
+            _ => None,
+        }
+    }
 }
 
 /// Reads the handshake from `stream`. Returns the hello and any bytes the client sent
@@ -138,6 +152,22 @@ pub fn parse_hello(buf: &[u8]) -> io::Result<Option<(RloginHello, usize)>> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_client_user_can_carry_the_sex() {
+        let hello = |client: &str, server: &str| RloginHello {
+            client_user: client.into(),
+            server_user: server.into(),
+            terminal: "ansi".into(),
+        };
+        assert_eq!(hello("F", "Brenna").sex(), Some('F'));
+        assert_eq!(hello(" male ", "Aldric").sex(), Some('M'));
+        assert_eq!(hello("", "Aldric").sex(), None);
+        assert_eq!(hello("Other", "Aldric").sex(), None);
+        // the client user is the account when the server user is blank, never a sex
+        assert_eq!(hello("M", "").sex(), None);
+        assert_eq!(hello("M", "").user(), "M");
+    }
+
     use super::*;
     use std::net::{Ipv4Addr, Ipv6Addr};
 

@@ -80,7 +80,8 @@ terminal type ANSI. The login goes:
 
 **From a BBS, as a door.** Set `rlogin_bind = "127.0.0.1:2327"` under `[server]` and point
 the BBS's rlogin door at `127.0.0.1:2327` with the caller's name as the user. Callers go
-straight to the game with no second login; on their first visit they are asked only M or F.
+straight to the game with no second login; on their first visit they are asked only M or F, or nothing when the BBS sends the
+gender as the client user (RedialBBS: `--remote-client "{gender}"`).
 See [auth.md](auth.md#rlogin-a-bbs-door).
 
 **Telnet is plaintext.** Everything you type, passwords included, crosses the network

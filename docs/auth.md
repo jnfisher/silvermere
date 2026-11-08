@@ -106,7 +106,9 @@ user, or the client user when that is blank.
   `Make your selection (X to exit):`. The lockout and the one-session rule still apply
   (`This account is already logged on.`, then the connection closes).
 - **First visit.** With `game.open_signup` on, the account is created on the spot, asking
-  only `Please enter your gender 'M' or 'F' (can be changed later):`. It has no password,
+  only `Please enter your gender 'M' or 'F' (can be changed later):`. A BBS that knows
+  the caller's gender can send it as the client user (`M`, `F`, `Male` or `Female`, beside
+  the name as the server user), and then nothing is asked. It has no password,
   so the telnet login answers `This account has no password yet.` until the sysop sets
   one (`account passwd NAME`). With signup off, the caller gets
   `New accounts are created by the sysop on this system.` and is closed. A name the
