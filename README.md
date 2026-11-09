@@ -21,7 +21,9 @@ with or endorsed by its owner.
 It keeps its data in a local SQLite file out of the box, or in PostgreSQL: your own server or a
 hosted service such as Neon.
 
-MegaMud and ordinary telnet clients connect on port 2323 and play unmodified.
+MegaMud and ordinary telnet clients connect on port 2323 and play unmodified. A BBS can also
+run it as a door over rlogin, so its callers go straight in without a second login
+([docs/auth.md](docs/auth.md#rlogin-a-bbs-door)).
 
 ## Play it locally
 
@@ -221,6 +223,15 @@ recipes in [docs/install.md](docs/install.md#backup-and-restore)). The full runb
 for PostgreSQL and troubleshooting: [docs/install.md](docs/install.md) and
 [docs/deploy-checklist.md](docs/deploy-checklist.md).
 
+### Behind a BBS, as a door
+
+Set `rlogin_bind = "127.0.0.1:2327"` under `[server]` and point the BBS's rlogin door at it with
+the caller's name as the user. Callers skip silvermere's login. Only accounts with the `door`
+flag can be reached this way: the ones the door creates on a first visit, an import's players
+with `--door-users`, and any you grant it to (`silvermere account grant NAME door`).
+[docs/auth.md](docs/auth.md#rlogin-a-bbs-door) covers door, telnet or both, sysops on the door,
+and moving a realm from a BBS.
+
 ### Upgrading
 
 On Linux, installed with install.sh: run the same one-liner again, as you did the first time
@@ -363,6 +374,7 @@ Details: [docs/testing.md](docs/testing.md) and [docs/differences.md](docs/diffe
 | [docs/config.md](docs/config.md) | every setting, environment variable and default |
 | [docs/differences.md](docs/differences.md) | how this differs from the original |
 | [docs/import.md](docs/import.md) | importing the legacy world files |
+| [docs/auth.md](docs/auth.md) | accounts, login dialogue, lockout, BBS door (rlogin) |
 | [docs/admin-api.md](docs/admin-api.md) | admin HTTP API and tokens |
 | [docs/metrics.md](docs/metrics.md) | metrics, shutdown and backups |
 | [docs/schema.md](docs/schema.md) | database schema (generated; CI fails if it is stale) |
