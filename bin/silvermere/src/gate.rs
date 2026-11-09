@@ -11,9 +11,11 @@
 //!
 //! A connection from the rlogin port (`server.rlogin_bind`) skips the dialogue: the BBS
 //! that opened it has said who is calling ([`SessionEvent::Rlogin`]), and that account is
-//! logged in at once, made on the first visit when signup is open. The gender comes
-//! from the BBS when it sends `M` or `F` as the client user, and is asked otherwise. `R` at the menu shim closes such a connection, which takes the caller back to
-//! the BBS.
+//! logged in at once, made on the first visit when signup is open. Only an account with
+//! the `door` flag is logged in this way: the BBS's names are not ours. The
+//! gender comes from the BBS when it sends `M` or `F` as the client user, and is asked
+//! otherwise. `R` at the menu shim closes such a connection, which takes the caller back
+//! to the BBS.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -352,6 +354,10 @@ async fn rlogin_account(
             Err(Refusal::AlreadyOnline) => return refuse(tx, AuthMsg::DuplicateLogin).await,
             Err(Refusal::Locked { minutes }) => {
                 return refuse(tx, AuthMsg::AccountLocked { minutes }).await;
+            }
+            Err(Refusal::NotDoorAccount) => {
+                tracing::info!(?cid, user, "rlogin named an account without the door flag");
+                return refuse(tx, AuthMsg::RloginRefused).await;
             }
             Err(Refusal::InvalidCredentials | Refusal::NoPassword) => {}
         }

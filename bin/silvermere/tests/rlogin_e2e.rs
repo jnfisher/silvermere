@@ -1,7 +1,8 @@
 //! The rlogin door login over a socket (`server.rlogin_bind`): a BBS that knows its
 //! caller opens the game with the caller's name and the caller is not asked to log in
-//! again; a first visit asks only the gender; an address that is not trusted is closed;
-//! `R` at the BBS menu shim goes back to the BBS.
+//! again; a first visit asks only the gender; an account without the `door` flag is
+//! refused, and one with it is reached from the door and over telnet; an address that is
+//! not trusted is closed; `R` at the BBS menu shim goes back to the BBS.
 
 use crate::common;
 
@@ -43,22 +44,25 @@ async fn rlogin(r: &silvermere::Running, client_user: &str, server_user: &str) -
     c
 }
 
-// An existing account goes straight to the menu: no username, no password.
+// An existing door account goes straight to the menu: no username, no password, no
+// gender question.
 #[tokio::test]
 async fn an_existing_account_skips_the_login() {
     let (_t, url) = common::seeded(&[]).await;
-    {
-        let db = Db::connect_and_migrate(&url).await.unwrap();
-        create_with_cost(&db, "Aldric", "aldric1", &[Role::Player], Cost::Low)
-            .await
-            .unwrap();
-        db.close().await;
-    }
     let r = server(url, &[]).await;
+    // the first visit makes the door account
+    let mut first = rlogin(&r, "M", "Aldric").await;
+    first.until(MENU, WAIT).await.unwrap();
+    first.send_line("X").await.unwrap();
+    first.until("R to re-logon", WAIT).await.unwrap();
+    first.send_line("Y").await.unwrap();
+    assert!(first.wait_closed(WAIT).await.unwrap());
+
     let mut c = rlogin(&r, "Aldric", "").await;
     let got = c.until(MENU, WAIT).await.unwrap();
     assert!(!got.plain.contains("Username:"), "{}", got.plain);
     assert!(!got.plain.contains("Password:"), "{}", got.plain);
+    assert!(!got.plain.contains("gender"), "{}", got.plain);
     // the one-session rule holds: a second door visit while the first is on is refused
     let mut again = rlogin(&r, "x", "aldric").await;
     again.until("already logged on", WAIT).await.unwrap();
@@ -69,6 +73,104 @@ async fn an_existing_account_skips_the_login() {
     c.send_line("R").await.unwrap();
     assert!(c.wait_closed(WAIT).await.unwrap());
     assert!(!c.plain().contains("Username:"));
+    r.stop().await.unwrap();
+}
+
+/// Opens the door as `server_user` and expects the refusal and the close, never the menu.
+async fn refused(r: &silvermere::Running, server_user: &str) {
+    let mut c = rlogin(r, "M", server_user).await;
+    let got = c.until("used from the BBS door", WAIT).await.unwrap();
+    assert!(!got.plain.contains("Make your selection"), "{}", got.plain);
+    assert!(c.wait_closed(WAIT).await.unwrap());
+}
+
+/// Opens the door as `server_user`, expects the menu and leaves.
+async fn let_in(r: &silvermere::Running, server_user: &str) {
+    let mut c = rlogin(r, "M", server_user).await;
+    let got = c.until(MENU, WAIT).await.unwrap();
+    assert!(!got.plain.contains("Password:"), "{}", got.plain);
+    c.send_line("X").await.unwrap();
+    c.until("R to re-logon", WAIT).await.unwrap();
+    c.send_line("Y").await.unwrap();
+    assert!(c.wait_closed(WAIT).await.unwrap());
+}
+
+/// Logs in over telnet with a password and leaves.
+async fn telnet_login(r: &silvermere::Running, name: &str, password: &str) {
+    let mut t = TelnetClient::connect(r.telnet_addr).await.unwrap();
+    t.until("Username:", WAIT).await.unwrap();
+    t.send_line(name).await.unwrap();
+    t.until("Password:", WAIT).await.unwrap();
+    t.send_line(password).await.unwrap();
+    t.until(MENU, WAIT).await.unwrap();
+    t.send_line("X").await.unwrap();
+    t.until("R to re-logon", WAIT).await.unwrap();
+    t.send_line("Y").await.unwrap();
+    assert!(t.wait_closed(WAIT).await.unwrap());
+}
+
+/// Makes `name` with `password` and `roles`, and with the `door` flag when `door`.
+async fn account(url: &str, name: &str, password: &str, roles: &[Role], door: bool) {
+    let db = Db::connect_and_migrate(url).await.unwrap();
+    create_with_cost(&db, name, password, roles, Cost::Low)
+        .await
+        .unwrap();
+    if door {
+        silvermere_auth::cli::grant(&db, name, "door".parse().unwrap())
+            .await
+            .unwrap();
+    }
+    db.close().await;
+}
+
+// The BBS's names are not this server's: a BBS caller who shares a telnet player's name
+// does not get that player's account, which has no `door` flag.
+#[tokio::test]
+async fn an_unmarked_account_is_refused() {
+    let (_t, url) = common::seeded(&[]).await;
+    account(&url, "Dorin", "dorin123", &[Role::Player], false).await;
+    let r = server(url, &[]).await;
+    refused(&r, "dorin").await;
+    // the account is untouched: its owner still logs in over telnet
+    telnet_login(&r, "Dorin", "dorin123").await;
+    r.stop().await.unwrap();
+}
+
+// With the `door` flag an account with a password is reached both ways: from the BBS
+// door without the password, over telnet with it.
+#[tokio::test]
+async fn a_marked_account_works_from_the_door_and_telnet() {
+    let (_t, url) = common::seeded(&[]).await;
+    account(&url, "Dorin", "dorin123", &[Role::Player], true).await;
+    let r = server(url, &[]).await;
+    let_in(&r, "dorin").await;
+    telnet_login(&r, "Dorin", "dorin123").await;
+    r.stop().await.unwrap();
+}
+
+// Whoever registers `Warden` on the BBS does not become this server's sysop of that name;
+// once the sysop marks the account for the door, a door sysop is fine.
+#[tokio::test]
+async fn a_sysop_account_needs_the_door_flag() {
+    let (_t, url) = common::seeded(&[]).await;
+    account(
+        &url,
+        "Warden",
+        "warden123",
+        &[Role::Player, Role::Sysop],
+        false,
+    )
+    .await;
+    let r = server(url.clone(), &[]).await;
+    refused(&r, "warden").await;
+    {
+        let db = Db::connect_and_migrate(&url).await.unwrap();
+        silvermere_auth::cli::grant(&db, "Warden", "door".parse().unwrap())
+            .await
+            .unwrap();
+        db.close().await;
+    }
+    let_in(&r, "warden").await;
     r.stop().await.unwrap();
 }
 
@@ -105,6 +207,7 @@ async fn a_first_visit_asks_only_the_gender() {
     assert_eq!(account.username, "Brenna Vale");
     assert_eq!(account.sex, silvermere_auth::Sex::Female);
     assert!(account.password_hash.is_empty());
+    assert!(account.flags.contains(silvermere_auth::AccountFlags::DOOR));
     db.close().await;
 }
 

@@ -51,6 +51,10 @@ note = "silvermere's own. compat.duplicate_login. MBBSEmu refused a second sessi
 text = "\r\n\u001B[1m\u001B[31mThis account has no password yet. Ask the sysop to set one.\u001B[0m\r\n"
 note = "silvermere's own. An account with no password (an import creates its players' accounts without one) is refused with this whatever is typed; it does not count towards the lockout."
 
+[messages.rlogin_refused]
+text = "\r\n\u001B[1m\u001B[31mThis account can't be used from the BBS door. Log in over telnet instead.\u001B[0m\r\n"
+note = "silvermere's own. The rlogin door named an account without the `door` flag; the connection closes. The BBS's names are not this server's, so the door logs in only the accounts the sysop has marked for it (and the ones it made itself)."
+
 [messages.signup_closed]
 text = "\r\n\u001B[1m\u001B[31mNew accounts are created by the sysop on this system.\u001B[0m\r\n"
 note = "silvermere's own. `NEW` while compat.open_signup = false; the username prompt follows again."
