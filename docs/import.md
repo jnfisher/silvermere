@@ -8,7 +8,7 @@ game's record layouts (`crates/silvermere-import`).
 
 ```
 silvermere import [ZIP|DIR | --from DIR|ZIP | --download] [--live] [--map-files WCCMP001.VIR,NEWMP001.VIR] [--dry-run]
-                  [--json OUT] [--content-only | --reset-state] [--with-users]
+                  [--json OUT] [--content-only | --reset-state] [--with-users] [--door-users]
                   [--allow-duplicates] [--legacy-tz ZONE] [--no-patches | --patches PATH]
                   [--overwrite-assets] [--database-url URL]
 ```
@@ -52,6 +52,7 @@ silvermere import [ZIP|DIR | --from DIR|ZIP | --download] [--live] [--map-files 
 | `--content-only` | Write content tables only; state is neither created nor changed. |
 | `--reset-state` | Rewrite state from the records (excludes `--content-only`). |
 | `--with-users` | Import `WCCUSERS` records as characters (an account per userid, no password; see `account passwd --missing`). |
+| `--door-users` | Implies `--with-users`, and gives each player's account the `door` flag, an account that already existed included: a BBS rlogin door (`server.rlogin_bind`) that sends a caller of the same name logs them in without a password. Use it when the realm's players are the users of the BBS in front of the door; see "Players: door, telnet or both" and [auth.md](auth.md#rlogin-a-bbs-door). |
 | `--allow-duplicates` | Keep the first of records with the same key instead of failing. |
 | `--legacy-tz ZONE` | The zone the legacy server ran in (IANA name, default `UTC`), for the records' DOS dates. |
 | `--no-patches` | Skip the `WCCUPDAT.DAT` patches (see "Patches"). |
@@ -354,7 +355,27 @@ known-offset checks of the state records, and the dry-run checks on a real World
    ...), or zip it.
 3. Check it: `silvermere import --live --dry-run --from DIR` (see "Checking a realm").
 4. Import: `silvermere import --live --from DIR`, then `silvermere account passwd --missing`
-   to give the players' accounts passwords.
+   to give the players' accounts passwords. To run the game as a door of the same BBS, add
+   `--door-users` (see "Players: door, telnet or both").
+
+### Players: door, telnet or both
+
+An imported player's account has no password, so nobody can log in to it until you decide
+how the players will connect:
+
+| Players connect | Import with | Then |
+|---|---|---|
+| Over telnet | `--with-users` (or `--live`) | `silvermere account passwd --missing`, and hand on the `name<TAB>password` lines. |
+| From the BBS's door | `--door-users` | Nothing: a caller whose BBS name is a player's userid goes straight in. |
+| Both | `--door-users` | `silvermere account passwd --missing`: the door needs no password, telnet uses the new one. |
+
+`--door-users` says the BBS's users are the realm's players, name for name. That holds when
+the door is on the BBS the realm came from, with its user base carried over. When it is a
+different BBS, a name there may belong to someone else: import without it and grant `door`
+to the accounts you have checked (`silvermere account grant NAME door`). The import's closing
+output counts the accounts with no password and, with `--door-users`, the accounts the door
+can reach. A sysop account of your own is never touched: only the accounts of the imported
+players get the flag.
 
 ### Checking a realm
 

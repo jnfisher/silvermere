@@ -178,7 +178,7 @@ fn translate(id: silvermere_engine::SessionId, ev: GateEvent) -> Option<EngineIn
         GateEvent::LoggedIn(login) => return Some(EngineInput::LoggedIn { id, login }),
     };
     Some(match ev {
-        SessionEvent::Connected(_) => return None,
+        SessionEvent::Connected(_) | SessionEvent::Rlogin(_) => return None,
         SessionEvent::Line(bytes) => EngineInput::Line {
             id,
             text: cp437::decode(&bytes),

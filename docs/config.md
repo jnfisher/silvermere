@@ -66,6 +66,7 @@ silvermere` for the service).
 [server]
 telnet_bind = "0.0.0.0:2323"
 admin_bind  = "127.0.0.1:8080"    # keep on loopback; a non-loopback bind needs a token
+rlogin_bind = "127.0.0.1:2327"    # a BBS door on this computer: no second login
 
 [database]
 url = "postgres://silvermere:secret@localhost/silvermere"   # empty = SQLite in the data directory
@@ -106,6 +107,8 @@ options that were dropped are in [config-defaults.md](config-defaults.md).
 | `server.telnet_bind` | `SILVERMERE_SERVER__TELNET_BIND` | `"0.0.0.0:2323"` | Telnet listen address, host:port. | — |
 | `server.admin_bind` | `SILVERMERE_SERVER__ADMIN_BIND` | `"127.0.0.1:8080"` | Admin API listen address. Keep it on loopback unless you set a token. | — |
 | `server.max_sessions` | `SILVERMERE_SERVER__MAX_SESSIONS` | `256` | Most simultaneous connections, 1..=100000. | — |
+| `server.rlogin_bind` | `SILVERMERE_SERVER__RLOGIN_BIND` | `""` | rlogin door login listen address, host:port; empty is off. A BBS that sends its callers here logs them in without a second login. See [auth.md](auth.md#rlogin-a-bbs-door). | — |
+| `server.rlogin_trusted` | `SILVERMERE_SERVER__RLOGIN_TRUSTED` | `[]` | The IP addresses allowed to use `server.rlogin_bind`; empty is loopback only (a BBS on the same computer). Anyone else is closed unanswered. | — |
 
 ### [admin]
 

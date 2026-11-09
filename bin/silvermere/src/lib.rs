@@ -35,6 +35,8 @@ pub struct Running {
     pub telnet_addr: SocketAddr,
     /// The bound admin address (`server.admin_bind`; the configured port may have been 0).
     pub admin_addr: Option<SocketAddr>,
+    /// The bound rlogin address (`server.rlogin_bind`), when it is on.
+    pub rlogin_addr: Option<SocketAddr>,
     /// Send `true` (or drop) to stop accepting and ticking.
     pub shutdown: watch::Sender<bool>,
     /// The engine's input channel (the admin API and tests feed it).
@@ -370,6 +372,25 @@ pub async fn serve_world_with_db(
     };
     let listener = silvermere_net::bind(addr, &net_cfg)?;
     let telnet_addr = listener.local_addr()?;
+    let rlogin = if cfg.server.rlogin_bind.is_empty() {
+        None
+    } else {
+        let addr: SocketAddr = cfg.server.rlogin_bind.parse()?;
+        let l = silvermere_net::bind(addr, &net_cfg)
+            .with_context(|| format!("binding server.rlogin_bind {addr}"))?;
+        let trusted = cfg
+            .server
+            .rlogin_trusted
+            .iter()
+            .map(|ip| ip.parse())
+            .collect::<Result<Vec<std::net::IpAddr>, _>>()?;
+        tracing::info!(addr = %l.local_addr()?, trusted = ?cfg.server.rlogin_trusted, "rlogin door login on");
+        Some((l, silvermere_net::RloginConfig { trusted }))
+    };
+    let rlogin_addr = match &rlogin {
+        Some((l, _)) => Some(l.local_addr()?),
+        None => None,
+    };
     let admin_addr: SocketAddr = cfg.server.admin_bind.parse()?;
     let admin_listener = tokio::net::TcpListener::bind(admin_addr)
         .await
@@ -503,7 +524,7 @@ pub async fn serve_world_with_db(
     let mut stop_accept = stop;
     tokio::spawn(async move {
         tokio::select! {
-            r = silvermere_net::serve(listener, net_cfg, net_tx, registry) => {
+            r = silvermere_net::serve_with_rlogin(listener, rlogin, net_cfg, net_tx, registry) => {
                 if let Err(e) = r { tracing::error!(%e, "telnet acceptor stopped"); }
             }
             _ = stop_accept.changed() => {}
@@ -512,6 +533,7 @@ pub async fn serve_world_with_db(
     Ok(Running {
         telnet_addr,
         admin_addr: Some(admin_addr),
+        rlogin_addr,
         shutdown,
         to_engine,
         backups,

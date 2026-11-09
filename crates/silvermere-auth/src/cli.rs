@@ -30,7 +30,7 @@ pub enum Grant {
     Role(Role),
     /// A `SYS_*` INI key, `GOSSIP`, `AUCTION` or `LOAN` held explicitly.
     Perm(Perm),
-    /// `no_gossip`, `no_auction`, `no_loan`.
+    /// `no_gossip`, `no_auction`, `no_loan`, `door`.
     Flag(AccountFlags),
 }
 

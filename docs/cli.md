@@ -149,8 +149,8 @@ silvermere account delete <NAME> [--yes]
 | `account passwd --missing` | give every account that has no password (as an import creates them) a random one, and print `name<TAB>password` lines; accounts with a password are never touched ([auth.md](auth.md), [import.md](import.md)) |
 | `--dry-run` | with `--missing`: list the accounts that would get a password, change nothing |
 | `--out <FILE>` | with `--missing`: write the lines to FILE (created with mode 600; refused if it exists) instead of stdout |
-| `account grant <NAME> <ROLE>` | grant a role (`player`, `sysop`, `gameop`) or a permission such as `SYS_GOTO_KEY` ([sysop.md](sysop.md#roles-and-permissions)) |
-| `account revoke <NAME> <ROLE>` | revoke a role or permission |
+| `account grant <NAME> <ROLE>` | grant a role (`player`, `sysop`, `gameop`), a permission such as `SYS_GOTO_KEY` ([sysop.md](sysop.md#roles-and-permissions)) or a flag such as `door` (the BBS rlogin door may log the account in, [auth.md](auth.md#rlogin-a-bbs-door)) |
+| `account revoke <NAME> <ROLE>` | revoke a role, permission or flag |
 | `account list` | list accounts |
 | `account delete <NAME>` | delete an account; `--yes` skips the question. With a server running it goes through the admin API, which needs an `admin` token in the config |
 
@@ -176,6 +176,7 @@ silvermere import [OPTIONS] [ZIP|DIR]
 | `--content-only` | write content tables only; leave state untouched |
 | `--reset-state` | recreate state (room floors, shop stock, monster state) from the content |
 | `--with-users` | import `WCCUSERS` records as characters (for differential tests) |
+| `--door-users` | as `--with-users`, and give each player's account the `door` flag so a BBS rlogin door logs them in without a password ([import.md](import.md), [auth.md](auth.md#rlogin-a-bbs-door)) |
 | `--allow-duplicates` | keep the first of records with the same key instead of failing |
 | `--no-patches` | skip the `WCCUPDAT.DAT` patches |
 | `--patches <PATH>` | the patch file to apply (default: `WCCUPDAT.DAT` in `--from`) |

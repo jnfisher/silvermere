@@ -78,6 +78,15 @@ terminal type ANSI. The login goes:
 - Windows' telnet client: **Turn Windows features on or off > Telnet Client**, then
   `telnet localhost 2323` in a Command Prompt.
 
+**From a BBS, as a door.** Set `rlogin_bind = "127.0.0.1:2327"` under `[server]` and point
+the BBS's rlogin door at `127.0.0.1:2327` with the caller's name as the user. Callers go
+straight to the game with no second login; on their first visit they are asked only M or F,
+or nothing when the BBS sends the gender as the client user (RedialBBS:
+`--remote-client "{gender}"`). The door logs in only accounts with the `door` flag: the ones
+it made itself, an import's players with `--door-users`, and any you grant it to
+(`silvermere account grant NAME door`). A player who used telnet before needs the flag to
+come in from the BBS, and keeps telnet. See [auth.md](auth.md#rlogin-a-bbs-door).
+
 **Telnet is plaintext.** Everything you type, passwords included, crosses the network
 unencrypted. On your own PC or home network that's fine. Over the internet, anyone on the path can
 read it. Tell players to use a password they use nowhere else.

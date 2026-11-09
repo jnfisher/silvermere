@@ -190,10 +190,17 @@ impl Db {
 }
 
 /// `sqlite:` URLs get `mode=rwc` so the file is created; a bare `sqlite://` means an
-/// in-memory database (one connection, see [`open_pool`]).
+/// in-memory database (one connection, see [`open_pool`]). A Windows path with a drive
+/// letter is written `sqlite:C:\...`: in `sqlite://C:\...` the URL parser takes `C:` for
+/// a host and port and the driver opens `C/\...`, which does not exist.
 fn normalise_url(dialect: Dialect, url: &str) -> String {
     match dialect {
         Dialect::Sqlite => {
+            let url = match url.strip_prefix("sqlite://") {
+                Some(path) if has_drive_letter(path) => format!("sqlite:{path}"),
+                _ => url.to_string(),
+            };
+            let url = url.as_str();
             if is_memory_sqlite(url) || url.contains("mode=") {
                 url.to_string()
             } else if url.contains('?') {
@@ -204,6 +211,12 @@ fn normalise_url(dialect: Dialect, url: &str) -> String {
         }
         Dialect::Postgres => url.to_string(),
     }
+}
+
+/// `C:\...` or `C:/...`.
+pub(crate) fn has_drive_letter(path: &str) -> bool {
+    let b = path.as_bytes();
+    b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && matches!(b[2], b'\\' | b'/')
 }
 
 fn is_memory_sqlite(url: &str) -> bool {
@@ -573,6 +586,24 @@ mod tests {
         assert_eq!(
             normalise_url(Dialect::Postgres, "postgres://u@h/d"),
             "postgres://u@h/d"
+        );
+    }
+
+    // Validated on Windows 11 with sqlx 0.9: `sqlite://C:\...` opened `C/\...` and failed
+    // with SQLITE_CANTOPEN; `sqlite:C:\...` opened the file.
+    #[test]
+    fn windows_drive_letters_survive() {
+        assert_eq!(
+            normalise_url(Dialect::Sqlite, r"sqlite://C:\data\silvermere.db"),
+            r"sqlite:C:\data\silvermere.db?mode=rwc"
+        );
+        assert_eq!(
+            normalise_url(Dialect::Sqlite, "sqlite://S:/bbs/x.db?mode=ro"),
+            "sqlite:S:/bbs/x.db?mode=ro"
+        );
+        assert_eq!(
+            normalise_url(Dialect::Sqlite, "sqlite://./data/x.db"),
+            "sqlite://./data/x.db?mode=rwc"
         );
     }
 

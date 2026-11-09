@@ -297,7 +297,14 @@ fn pg_tool(tool: &str, url: &str) -> Command {
 }
 
 fn sqlite_url(path: &Path, mode: &str) -> String {
-    format!("sqlite://{}?mode={mode}", path.display())
+    let path = path.display().to_string();
+    // `sqlite:C:\...` on Windows: `sqlite://C:\...` loses the drive letter (`pool.rs`)
+    let sep = if crate::pool::has_drive_letter(&path) {
+        ""
+    } else {
+        "//"
+    };
+    format!("sqlite:{sep}{path}?mode={mode}")
 }
 
 /// The newest applied migration recorded in the database file (0 when none).

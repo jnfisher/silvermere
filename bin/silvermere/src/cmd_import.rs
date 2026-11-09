@@ -60,6 +60,10 @@ pub struct ImportCmd {
     /// Import WCCUSERS records as characters (for differential tests).
     #[arg(long)]
     pub with_users: bool,
+    /// Let the BBS door (server.rlogin_bind) log the imported players in without a
+    /// password: their accounts get the `door` flag. Implies --with-users.
+    #[arg(long)]
+    pub door_users: bool,
     /// Keep the first of records with the same key instead of failing.
     #[arg(long)]
     pub allow_duplicates: bool,
@@ -90,7 +94,8 @@ impl ImportCmd {
             json: self.json.clone(),
             content_only: self.content_only,
             reset_state: self.reset_state,
-            with_users: self.with_users || base.with_users,
+            with_users: self.with_users || self.door_users || base.with_users,
+            door_users: self.door_users,
             allow_duplicates: self.allow_duplicates,
             legacy_tz: self.legacy_tz.clone(),
             no_patches: self.no_patches,

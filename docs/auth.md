@@ -17,7 +17,7 @@ ends at "authenticated, account loaded". Passwords travel inside the dialogue as
 | `password_hash` | `accounts.password_hash` | argon2id PHC string, `argon2` crate defaults (19 MiB, 2 passes, 1 lane), 16-byte random salt. Passwords are 1-128 bytes; the BBS's 5-9 character rule is not enforced. |
 | `email` | `accounts.email` | Optional; the game never reads it. |
 | `sex` | bit 0 of `accounts.flags` | `M`/`F`: the game copies the account's sex into the character and picks pronouns from it. |
-| `flags` | bits 1-3 of `accounts.flags` | `no_gossip`, `no_auction`, `no_loan`. |
+| `flags` | bits 1-4 of `accounts.flags` | `no_gossip`, `no_auction`, `no_loan`, and `door` (bit 4: the rlogin door may log in to the account, see rlogin below). |
 | `roles` | `account_roles.role` (lowercase) | `player`, `sysop`, `gameop`. |
 | `perms` | `account_roles.role` (INI name) | Explicit grants, e.g. `SYS_GOTO_KEY`. |
 | `created_at`, `last_login_at` | `accounts.created`, `accounts.last_login` | |
@@ -93,6 +93,91 @@ Each prompt is re-asked after its refusal; the order is MBBSEmu's.
 Then the account is created (roles `player`) and logged in. MBBSEmu's NOTE paragraph
 before the password prompt (SHA-512 storage, the BBS's 9-character limit) is not printed:
 neither is true here.
+
+### rlogin (a BBS door)
+
+A BBS can run Silvermere as a door game. The BBS has already logged its caller in, so it
+opens the game over rlogin (RFC 1282) with the caller's name, and the caller goes straight
+to `Make your selection (X to exit):` with no second username or password. Telnet keeps
+working beside it.
+
+**Turning it on.** Set `server.rlogin_bind` (off when empty) and point the BBS's rlogin
+door at it:
+
+```toml
+[server]
+rlogin_bind = "127.0.0.1:2327"   # the BBS runs on this computer
+rlogin_trusted = []              # empty: loopback only
+```
+
+**What the BBS sends.** `NUL client-user NUL server-user NUL terminal/speed NUL`;
+Silvermere answers `NUL` and the connection then carries plain bytes (no telnet commands).
+The account is the server user, or the client user when the server user is blank. A BBS
+that knows the caller's gender can send it as the client user (`M`, `F`, `Male` or
+`Female`, any case) beside the name as the server user (RedialBBS:
+`--remote-client "{gender}"`).
+
+#### Which accounts the door logs in: the `door` flag
+
+The door takes the name on the BBS's word, and the BBS's user names are not this server's:
+whoever registers `Sysop` on the BBS is not your sysop, and a BBS caller who happens to share
+a telnet player's name is not that player. So the door logs in only an account that carries
+the **`door` flag**, the sysop's say-so that the BBS's user of that name is this account's
+player. An account without it gets
+`This account can't be used from the BBS door. Log in over telnet instead.` and the
+connection closes; nothing about the account changes.
+
+An account gets the flag:
+
+- **On a first door visit.** With `game.open_signup` on, a name with no account here gets
+  one on the spot, flagged, asking only
+  `Please enter your gender 'M' or 'F' (can be changed later):` (nothing at all when the BBS
+  sent the gender). With signup off the caller gets
+  `New accounts are created by the sysop on this system.`; a name the username rules refuse
+  gets `Please enter a valid Username.`. Either way the connection closes.
+- **From an import with `--door-users`** ([import.md](import.md)): every imported player's
+  account, one that already existed included.
+- **By hand:** `silvermere account grant NAME door`, and `account revoke NAME door` to take
+  it away. `account list` shows it with the other flags.
+
+The flag is the only test. A password makes no difference to the door, and neither do sysop
+powers:
+
+- **Door and telnet both.** A flagged account with a password is reached from the door
+  without it and over telnet with it. A door account starts with no password (telnet answers
+  `This account has no password yet.`); give it one with `account passwd NAME`, or every
+  passwordless account at once with `account passwd --missing`, and it works both ways.
+- **Telnet only.** No flag (every account made over telnet or with `account create`).
+- **Door only.** The flag and no password.
+- **Sysops on the door.** Grant `sysop` or `gameop` to a flagged account as to any other
+  (`account grant NAME sysop`) and its player has those powers when they come in from the
+  BBS. That is a statement that you trust the BBS's account of that name as much as you
+  trust the BBS itself: anyone who can log in to the BBS as that user is your sysop here.
+  Your own sysop account, made with `account create`, has no flag, so no BBS caller can
+  reach it unless you grant one.
+
+#### Setting it up
+
+| You are | Do |
+|---|---|
+| Starting a new game behind a BBS | Turn on `rlogin_bind` and keep `game.open_signup` on: callers make their own (flagged) accounts on their first visit. |
+| Adding the door to a game whose players use telnet | Grant `door` to each player who calls from the BBS under the same name (`account grant NAME door`). Leave the rest, and your sysop account, unflagged. |
+| Moving a MajorMUD realm from a BBS | Import with `--door-users` when the realm's players are the users of the BBS in front of the door; then `account passwd --missing` too if they should also have telnet. Without `--door-users` the import's players are telnet-only once they have passwords, as before. |
+
+#### The rest
+
+- The lockout and the one-session rule apply as for telnet (`This account is already logged
+  on.`, then the connection closes).
+- **`R` at the logoff question** closes the connection, which takes the caller back to the
+  BBS, instead of showing `Username:`.
+- **Trust.** Only the addresses in `server.rlogin_trusted` are served (loopback when the
+  list is empty); anyone else is closed before anything is read. Keep `rlogin_bind` on
+  loopback when the BBS runs on the same computer, list the BBS's address when it does not,
+  and never forward the port on the router: anyone who can reach it can claim to be any
+  flagged account.
+- **Audit.** A door login is `auth.login` with `"via": "rlogin"`; a refusal for the missing
+  flag is `auth.login_failed` with `"reason": "not_door_account"`; a first visit is
+  `auth.signup`.
 
 ### Shape
 
@@ -173,7 +258,7 @@ Nineteen of these end in `_KEY`; `SYS_RESET_ROOMS` and `SYS_DISABLE_GANGS` are k
 | `account create NAME [--sysop] [--gameop] [--password-stdin]` | `cli::create` (the password is one line on stdin) |
 | `account passwd NAME` | `cli::set_password` (stdin) |
 | `account passwd --missing [--dry-run] [--out FILE]` | `cli::without_password` and `cli::set_missing_password`: every account with no password (as an import creates them) gets a random one, 14 lower-case letters and digits without the look-alikes `0`, `o`, `1`, `l`, `i`; accounts that have a password are never touched. Prints `name<TAB>password` once to stdout and nothing to the log; `--out FILE` writes the lines to a new file instead (mode 600; refused if it exists, before anything changes). Each line is written and flushed before its password is stored, so a failed write (stdout closed by `| head`, a full disk) stops the run with no account given a password nobody saw; `--dry-run` lists the accounts and changes nothing. Each account gets the same `auth.password` audit line and row as `account passwd`. It is a flag of `passwd` rather than its own subcommand because it is the same change, made for the accounts that need it. |
-| `account grant NAME WHAT`, `account revoke NAME WHAT` | `cli::grant` / `cli::revoke`; `WHAT` is a role (`sysop`), an INI key (`SYS_GOTO_KEY`, `GOSSIP`) or a flag (`no_gossip`) |
+| `account grant NAME WHAT`, `account revoke NAME WHAT` | `cli::grant` / `cli::revoke`; `WHAT` is a role (`sysop`), an INI key (`SYS_GOTO_KEY`, `GOSSIP`) or a flag (`no_gossip`, `door`) |
 | `account list` | `cli::list`, one line per account: id, name, sex, roles/perms/flags |
 | `account delete NAME --yes` | `cli::delete`: the character first (the hook T-023 owns), then the account and its `account_roles` rows |
 

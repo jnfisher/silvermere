@@ -213,10 +213,17 @@ async fn live_dat_hand_set_fields_round_trip() {
 
     // Mira's account is created with no password, and the closing output says so.
     assert_eq!(report.accounts_without_password, Some(1));
+    // without --door-users the BBS door cannot reach it
+    assert_eq!(report.door_accounts, None);
+    let mira = db.accounts().by_username("Mira").await.unwrap().unwrap();
+    assert_eq!(
+        mira.account.flags & silvermere_db::repo::accounts::FLAG_DOOR,
+        0
+    );
     assert!(
         report.to_string().contains(
-            "1 account(s) have no password and cannot log in yet; give each a random one with \
-             `silvermere account passwd --missing`"
+            "1 account(s) have no password and cannot log in over telnet yet; give each a \
+             random one with `silvermere account passwd --missing`"
         ),
         "{report}"
     );
@@ -273,6 +280,43 @@ async fn live_dat_hand_set_fields_round_trip() {
 }
 
 /// A dry run, with no database, still reports the orphaned bank book.
+// `--door-users`: the players' accounts carry the rlogin door flag, one that was already
+// there included, and the closing output counts them.
+#[tokio::test]
+async fn door_users_marks_the_players_accounts() {
+    let d = realm("door");
+    let tdb = TestDb::from_env().await.unwrap();
+    let db: &Db = &tdb;
+    let flag = silvermere_db::repo::accounts::FLAG_DOOR;
+    // Mira already has an account (a telnet one, with a password); a sysop's has nothing
+    // to do with the import and stays unmarked
+    for (name, hash) in [("Mira", "$argon2id$x"), ("Warden", "$argon2id$y")] {
+        let a = silvermere_db::repo::Account::new(name, hash, jiff::Timestamp::now());
+        db.accounts().insert(&a).await.unwrap();
+    }
+    let opts = ImportOptions {
+        door_users: true,
+        ..live(&d)
+    };
+    let report = Importer::new(opts, Some(db)).run().await.unwrap();
+    assert_eq!(report.door_accounts, Some(1));
+    assert!(
+        report.to_string().contains(
+            "1 account(s) can be logged in to from the BBS door (server.rlogin_bind) without \
+             a password"
+        ),
+        "{report}"
+    );
+    let mira = db.accounts().by_username("Mira").await.unwrap().unwrap();
+    assert_ne!(mira.account.flags & flag, 0);
+    assert_eq!(
+        mira.account.password_hash, "$argon2id$x",
+        "the password is kept"
+    );
+    let warden = db.accounts().by_username("Warden").await.unwrap().unwrap();
+    assert_eq!(warden.account.flags & flag, 0);
+}
+
 #[tokio::test]
 async fn dry_run_reports_the_orphaned_book() {
     let d = realm("dry");

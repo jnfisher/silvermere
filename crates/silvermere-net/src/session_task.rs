@@ -16,8 +16,11 @@ use tokio::net::{TcpListener, TcpSocket, TcpStream};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc};
 use tokio::time::{Instant, sleep_until};
 
+use std::sync::atomic::{AtomicU32, Ordering};
+
 use crate::events::{Reason, SessionCommand, SessionEvent, SessionId};
 use crate::line_editor::{EditorEvent, LineEditor};
+use crate::rlogin::{self, RloginConfig, RloginHello};
 use crate::telnet::parser::{IAC, NOP};
 use crate::telnet::{TelnetCodec, escape_into};
 
@@ -103,7 +106,7 @@ pub fn spawn_session_with(
     config: SessionConfig,
 ) -> mpsc::Sender<SessionCommand> {
     let (tx, rx) = mpsc::channel(COMMAND_CAPACITY);
-    tokio::spawn(run(id, stream, to_engine, rx, config, None));
+    tokio::spawn(run(id, stream, to_engine, rx, config, None, None));
     tx
 }
 
@@ -129,15 +132,78 @@ pub async fn serve(
     to_engine: mpsc::Sender<(SessionId, SessionEvent)>,
     registry: mpsc::UnboundedSender<(SessionId, mpsc::Sender<SessionCommand>)>,
 ) -> io::Result<()> {
-    let slots = Arc::new(Semaphore::new(config.max_sessions));
-    let mut next_id = 0u32;
+    serve_with_rlogin(listener, None, config, to_engine, registry).await
+}
+
+/// [`serve`], with an rlogin listener beside the telnet one ([`crate::rlogin`]). The two
+/// share the session cap and the session numbers. An rlogin session's first event is
+/// [`SessionEvent::Rlogin`], ahead of its `Connected`; its bytes are not telnet.
+pub async fn serve_with_rlogin(
+    telnet: TcpListener,
+    rlogin: Option<(TcpListener, RloginConfig)>,
+    config: ServerConfig,
+    to_engine: mpsc::Sender<(SessionId, SessionEvent)>,
+    registry: mpsc::UnboundedSender<(SessionId, mpsc::Sender<SessionCommand>)>,
+) -> io::Result<()> {
+    let shared = Arc::new(Shared {
+        slots: Arc::new(Semaphore::new(config.max_sessions)),
+        next_id: AtomicU32::new(0),
+        config,
+        to_engine,
+        registry,
+    });
+    let telnet_loop = accept_loop(telnet, None, Arc::clone(&shared));
+    match rlogin {
+        None => telnet_loop.await,
+        Some((listener, rc)) => {
+            tokio::select! {
+                r = telnet_loop => r,
+                r = accept_loop(listener, Some(Arc::new(rc)), shared) => r,
+            }
+        }
+    }
+}
+
+/// What the accept loops share.
+struct Shared {
+    slots: Arc<Semaphore>,
+    next_id: AtomicU32,
+    config: ServerConfig,
+    to_engine: mpsc::Sender<(SessionId, SessionEvent)>,
+    registry: mpsc::UnboundedSender<(SessionId, mpsc::Sender<SessionCommand>)>,
+}
+
+impl Shared {
+    /// Numbers a new session and hands its sender to the engine side; `None` once the
+    /// engine is gone.
+    fn register(&self) -> Option<(SessionId, mpsc::Receiver<SessionCommand>)> {
+        let id = SessionId(self.next_id.fetch_add(1, Ordering::Relaxed).wrapping_add(1));
+        let (tx, rx) = mpsc::channel(COMMAND_CAPACITY);
+        self.registry.send((id, tx)).ok()?;
+        Some((id, rx))
+    }
+}
+
+async fn accept_loop(
+    listener: TcpListener,
+    rlogin: Option<Arc<RloginConfig>>,
+    shared: Arc<Shared>,
+) -> io::Result<()> {
     loop {
         let (mut stream, peer) = listener.accept().await?;
+        if let Some(rc) = &rlogin
+            && !rc.trusts(peer.ip())
+        {
+            // whoever connects here says who they are: only the BBS may
+            tracing::warn!(%peer, "rlogin from an address not in server.rlogin_trusted; closed");
+            drop(stream);
+            continue;
+        }
         // Small writes (echo, prompts) must not wait on Nagle.
         let _ = stream.set_nodelay(true);
-        let Ok(permit) = Arc::clone(&slots).try_acquire_owned() else {
+        let Ok(permit) = Arc::clone(&shared.slots).try_acquire_owned() else {
             tracing::info!(%peer, "server full; connection refused");
-            let message = config.full_message.clone();
+            let message = shared.config.full_message.clone();
             tokio::spawn(async move {
                 let _ = tokio::time::timeout(CLOSE_GRACE, async {
                     let _ = stream.write_all(&message).await;
@@ -147,22 +213,59 @@ pub async fn serve(
             });
             continue;
         };
-        next_id = next_id.wrapping_add(1);
-        let id = SessionId(next_id);
-        let (tx, rx) = mpsc::channel(COMMAND_CAPACITY);
-        if registry.send((id, tx)).is_err() {
-            // The engine is gone; nothing will ever read this session's events.
-            return Ok(());
+        if rlogin.is_none() {
+            let Some((id, rx)) = shared.register() else {
+                // The engine is gone; nothing will ever read this session's events.
+                return Ok(());
+            };
+            tracing::info!(%peer, ?id, "connection accepted");
+            tokio::spawn(run(
+                id,
+                stream,
+                shared.to_engine.clone(),
+                rx,
+                shared.config.session.clone(),
+                Some(permit),
+                None,
+            ));
+            continue;
         }
-        tracing::info!(%peer, ?id, "connection accepted");
-        tokio::spawn(run(
-            id,
-            stream,
-            to_engine.clone(),
-            rx,
-            config.session.clone(),
-            Some(permit),
-        ));
+        // The handshake is read before the session is numbered, so a caller that never
+        // finishes it leaves nothing behind in the gate or the engine.
+        let shared = Arc::clone(&shared);
+        tokio::spawn(async move {
+            let hello =
+                tokio::time::timeout(rlogin::HANDSHAKE_TIMEOUT, rlogin::read_hello(&mut stream))
+                    .await;
+            let (hello, ahead) = match hello {
+                Ok(Ok(h)) => h,
+                Ok(Err(e)) => {
+                    tracing::info!(%peer, %e, "rlogin handshake refused");
+                    return;
+                }
+                Err(_) => {
+                    tracing::info!(%peer, "rlogin handshake timed out");
+                    return;
+                }
+            };
+            if stream.write_all(&[0]).await.is_err() {
+                return;
+            }
+            let Some((id, rx)) = shared.register() else {
+                return;
+            };
+            tracing::info!(%peer, ?id, user = hello.user(), "rlogin accepted");
+            run(
+                id,
+                stream,
+                shared.to_engine.clone(),
+                rx,
+                shared.config.session.clone(),
+                Some(permit),
+                Some((hello, ahead)),
+            )
+            .await;
+        });
     }
 }
 
@@ -173,10 +276,16 @@ async fn run(
     commands: mpsc::Receiver<SessionCommand>,
     config: SessionConfig,
     permit: Option<OwnedSemaphorePermit>,
+    rlogin: Option<(RloginHello, Vec<u8>)>,
 ) {
-    let reason = Session::new(stream, config)
-        .drive(id, &to_engine, commands)
-        .await;
+    let mut session = Session::new(stream, config);
+    let hello = rlogin.map(|(hello, ahead)| {
+        session.raw = true;
+        session.out.clear();
+        session.inbox.extend(ahead);
+        hello
+    });
+    let reason = session.drive(id, &to_engine, commands, hello).await;
     match &reason {
         Reason::Backpressure => {
             tracing::warn!(
@@ -208,6 +317,8 @@ struct Session {
     hold_until: Option<Instant>,
     /// The CR echo of the line the engine has not started yet (`hold_line_echo`).
     held_echo: Vec<u8>,
+    /// An rlogin session: plain bytes both ways, no telnet commands.
+    raw: bool,
 }
 
 impl Session {
@@ -223,13 +334,23 @@ impl Session {
             last_output: Instant::now(),
             hold_until: None,
             held_echo: Vec::new(),
+            raw: false,
+        }
+    }
+
+    /// Queues output bytes: as they are on an rlogin session, IAC doubled on telnet.
+    fn put(&mut self, bytes: &[u8]) {
+        if self.raw {
+            self.out.extend_from_slice(bytes);
+        } else {
+            escape_into(bytes, &mut self.out);
         }
     }
 
     /// One command from the engine.
     fn apply(&mut self, command: Option<SessionCommand>, close_by: &mut Option<Instant>) {
         match command {
-            Some(SessionCommand::Write(bytes)) => escape_into(&bytes, &mut self.out),
+            Some(SessionCommand::Write(bytes)) => self.put(&bytes),
             Some(SessionCommand::SetEcho(mode)) => self.editor.set_echo(mode),
             Some(SessionCommand::SetCharMode(on)) => self.editor.set_char_mode(on),
             Some(SessionCommand::LineStarted) => self.release_echo(),
@@ -246,7 +367,8 @@ impl Session {
 
     /// Sends the held CR echo, if any.
     fn release_echo(&mut self) {
-        escape_into(&std::mem::take(&mut self.held_echo), &mut self.out);
+        let held = std::mem::take(&mut self.held_echo);
+        self.put(&held);
     }
 
     /// Runs until the session ends; returns why.
@@ -255,7 +377,16 @@ impl Session {
         id: SessionId,
         to_engine: &mpsc::Sender<(SessionId, SessionEvent)>,
         mut commands: mpsc::Receiver<SessionCommand>,
+        rlogin: Option<RloginHello>,
     ) -> Reason {
+        if let Some(hello) = rlogin
+            && to_engine
+                .send((id, SessionEvent::Rlogin(hello)))
+                .await
+                .is_err()
+        {
+            return Reason::Closed;
+        }
         // Negotiation runs alongside the login prompt, never before it.
         let connected = SessionEvent::Connected(self.codec.capabilities());
         if to_engine.send((id, connected)).await.is_err() {
@@ -305,7 +436,7 @@ impl Session {
                     self.held_echo.extend(echo.drain(mark..));
                 }
             }
-            escape_into(&echo, &mut self.out);
+            self.put(&echo);
             if self.out.len() > self.config.output_limit {
                 return Reason::Backpressure;
             }
@@ -322,12 +453,13 @@ impl Session {
             let heartbeat_at = self
                 .config
                 .heartbeat
-                .filter(|_| self.out.is_empty() && close_by.is_none())
+                .filter(|_| !self.raw && self.out.is_empty() && close_by.is_none())
                 .map(|d| self.last_output + d);
 
             tokio::select! {
                 read = rd.read(&mut raw), if can_read => match read {
                     Ok(0) => eof = true,
+                    Ok(n) if self.raw => self.inbox.extend(&raw[..n]),
                     Ok(n) => {
                         let mut reply = Vec::new();
                         if let Some(caps) = self.codec.decode(&raw[..n], &mut self.inbox, &mut reply) {

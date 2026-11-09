@@ -77,12 +77,16 @@ impl AccountFlags {
     pub const NO_AUCTION: Self = Self(1 << 2);
     /// Bank loans withheld (the original required `LOANKEY`).
     pub const NO_LOAN: Self = Self(1 << 3);
+    /// The rlogin door may log in to this account without a password: the sysop has said
+    /// the BBS's user of this name is this account's player (`docs/auth.md`, rlogin).
+    pub const DOOR: Self = Self(db_accounts::FLAG_DOOR);
 
     /// The named flags, as the CLI and `docs/auth.md` spell them.
-    pub const NAMED: [(&'static str, Self); 3] = [
+    pub const NAMED: [(&'static str, Self); 4] = [
         ("no_gossip", Self::NO_GOSSIP),
         ("no_auction", Self::NO_AUCTION),
         ("no_loan", Self::NO_LOAN),
+        ("door", Self::DOOR),
     ];
 
     /// The flag named `name` (`no_gossip`, ...), ignoring case.

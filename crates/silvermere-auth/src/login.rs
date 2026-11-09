@@ -34,7 +34,7 @@ use silvermere_text::catalogue::{self, Catalogue, TemplatePiece};
 use silvermere_types::ids::AccountId;
 
 use crate::AuthError;
-use crate::account::{Account, AccountStore, NewAccount, USERNAME_MAX, is_new};
+use crate::account::{Account, AccountFlags, AccountStore, NewAccount, Sex, USERNAME_MAX, is_new};
 use crate::lockout::{Lockout, LockoutConfig};
 use crate::password::{self, Secret};
 use crate::signup::SignupState;
@@ -76,6 +76,8 @@ pub enum AuthMsg {
     DuplicateLogin,
     /// The account has no password yet.
     NoPassword,
+    /// rlogin named an account without the `door` flag.
+    RloginRefused,
     /// `NEW` while signup is closed.
     SignupClosed,
     /// Signup: username prompt.
@@ -117,6 +119,7 @@ impl AuthMsg {
         "login_intro",
         "no_password",
         "password_prompt",
+        "rlogin_refused",
         "signup_closed",
         "signup_confirm_prompt",
         "signup_email_invalid",
@@ -148,6 +151,7 @@ impl AuthMsg {
             Self::AccountLocked { .. } => "account_locked",
             Self::DuplicateLogin => "duplicate_login",
             Self::NoPassword => "no_password",
+            Self::RloginRefused => "rlogin_refused",
             Self::SignupClosed => "signup_closed",
             Self::SignupUsernamePrompt => "signup_username_prompt",
             Self::SignupUsernameInvalid => "signup_username_invalid",
@@ -266,6 +270,8 @@ pub enum Refusal {
     AlreadyOnline,
     /// The account has no password yet (an imported player's, until the sysop sets one).
     NoPassword,
+    /// rlogin named an account that is not a door account ([`LoginService::trusted_login`]).
+    NotDoorAccount,
 }
 
 /// The store's answer to a [`Request`].
@@ -570,6 +576,15 @@ pub struct LoginService<S, C> {
     cost: password::Cost,
 }
 
+/// Whether an rlogin door may log in to `account` on a BBS's word: it carries the `door`
+/// flag. The door's own signups get it ([`LoginService::trusted_signup`]), as do an
+/// import's players with `--door-users`; the sysop sets or clears it with
+/// `account grant|revoke NAME door`. A password and sysop powers make no difference: the
+/// flag is the sysop's say-so that the BBS's user of this name is this account's player.
+pub fn is_door_account(account: &Account) -> bool {
+    account.flags.contains(AccountFlags::DOOR)
+}
+
 impl<S: AccountStore, C: Clock> LoginService<S, C> {
     /// A service over `store` with the lockout settings `lockout`.
     pub fn new(store: S, clock: C, lockout: LockoutConfig) -> Self {
@@ -678,12 +693,17 @@ impl<S: AccountStore, C: Clock> LoginService<S, C> {
                     sex,
                     roles: crate::roles::RoleSet::player(),
                 };
-                Reply::Created(self.signup(new).await?.map(Box::new))
+                Reply::Created(self.signup(new, AccountFlags::NONE).await?.map(Box::new))
             }
         })
     }
 
-    async fn signup(&self, new: NewAccount) -> Result<Option<Account>, AuthError> {
+    /// Creates `new` with `flags` set, logged in and claimed.
+    async fn signup(
+        &self,
+        new: NewAccount,
+        flags: AccountFlags,
+    ) -> Result<Option<Account>, AuthError> {
         let now = self.clock.now();
         let mut account = match self.store.insert(&new, now).await {
             Ok(a) => a,
@@ -691,6 +711,7 @@ impl<S: AccountStore, C: Clock> LoginService<S, C> {
             Err(e) => return Err(e.into()),
         };
         account.last_login_at = Some(now);
+        account.flags.insert(flags);
         self.store.update(&account).await?;
         // Claimed only once the update is stored, so a failed update leaves no claim
         // behind (T-013 review). A new account cannot have a session yet.
@@ -810,6 +831,94 @@ impl<S: AccountStore, C: Clock> LoginService<S, C> {
         Ok(Ok(Box::new(account)))
     }
 
+    /// Logs `username` in without a password: the caller was vouched for by a trusted
+    /// rlogin client (a BBS door, `silvermere_net::rlogin`). The lockout and the one-session
+    /// rule still apply; an unknown name is `InvalidCredentials`.
+    ///
+    /// Only a door account ([`is_door_account`]) is logged in; any other is
+    /// `NotDoorAccount`. The BBS's user names are not this server's: whoever registers
+    /// `Sysop` on the BBS must not become this server's sysop, nor take over a telnet
+    /// player's account that happens to share their name, unless the sysop has marked
+    /// that account for the door.
+    pub async fn trusted_login(
+        &self,
+        username: &str,
+    ) -> Result<Result<Box<Account>, Refusal>, AuthError> {
+        let now = self.clock.now();
+        let Some(mut account) = self.store.by_username(username).await? else {
+            return Ok(Err(Refusal::InvalidCredentials));
+        };
+        let id = account.id;
+        if !is_door_account(&account) {
+            tracing::info!(target: "audit", account = id.0, username = %account.username, "rlogin refused: not a door account");
+            self.audit(
+                now,
+                "auth.login_failed",
+                serde_json::json!({ "account": id.0, "username": account.username, "reason": "not_door_account", "via": "rlogin" }),
+            )
+            .await?;
+            return Ok(Err(Refusal::NotDoorAccount));
+        }
+        if let Some(until) = self.lockout.locked_until(id, now) {
+            tracing::info!(target: "audit", account = id.0, username = %account.username, "rlogin refused: locked");
+            return Ok(Err(Refusal::Locked {
+                minutes: Lockout::minutes_left(until, now),
+            }));
+        }
+        if self.online.contains(id) {
+            tracing::info!(target: "audit", account = id.0, username = %account.username, "rlogin refused: already online");
+            self.audit(
+                now,
+                "auth.login_duplicate",
+                serde_json::json!({ "account": id.0, "username": account.username, "via": "rlogin" }),
+            )
+            .await?;
+            return Ok(Err(Refusal::AlreadyOnline));
+        }
+        account.last_login_at = Some(now);
+        self.store.update(&account).await?;
+        // as in `authenticate`: claimed once the update is stored
+        if !self.online.claim(id) {
+            return Ok(Err(Refusal::AlreadyOnline));
+        }
+        tracing::info!(target: "audit", account = id.0, username = %account.username, "login (rlogin)");
+        let audited = self
+            .audit(
+                now,
+                "auth.login",
+                serde_json::json!({ "account": id.0, "username": account.username, "via": "rlogin" }),
+            )
+            .await;
+        if let Err(e) = audited {
+            self.online.release(id);
+            return Err(e);
+        }
+        Ok(Ok(Box::new(account)))
+    }
+
+    /// Creates the account of a trusted rlogin caller on their first visit, logged in and
+    /// claimed as signup's are, with the `door` flag. It has no password: nobody can log
+    /// in to it over telnet until the sysop sets one (`silvermere account passwd`), and
+    /// then both work. `None` when the name was taken meanwhile.
+    pub async fn trusted_signup(
+        &self,
+        username: &str,
+        sex: Sex,
+    ) -> Result<Option<Account>, AuthError> {
+        crate::account::validate_username(username)?;
+        self.signup(
+            NewAccount {
+                username: username.to_string(),
+                password_hash: String::new(),
+                email: None,
+                sex,
+                roles: crate::roles::RoleSet::player(),
+            },
+            AccountFlags::DOOR,
+        )
+        .await
+    }
+
     async fn audit(
         &self,
         now: Timestamp,
@@ -823,6 +932,7 @@ impl<S: AccountStore, C: Clock> LoginService<S, C> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::roles::Role;
 
     #[test]
     fn keys_match_the_catalogue() {
@@ -832,6 +942,31 @@ mod tests {
             .map(String::as_str)
             .collect();
         assert_eq!(AuthMsg::KEYS, keys.as_slice());
+    }
+
+    #[tokio::test]
+    async fn the_door_flag_alone_decides() {
+        let store = crate::account::MemoryStore::default();
+        let new = |name: &str, hash: &str, roles: &[Role]| NewAccount {
+            username: name.into(),
+            password_hash: hash.into(),
+            email: None,
+            sex: Sex::Male,
+            roles: roles.iter().copied().collect(),
+        };
+        let now = Timestamp::now();
+        // unflagged: refused whatever it holds, a passwordless player included
+        for (name, hash, roles) in [
+            ("Plain", "", &[Role::Player][..]),
+            ("Telnet", "$argon2id$x", &[Role::Player][..]),
+            ("Warden", "", &[Role::Player, Role::Sysop][..]),
+        ] {
+            let mut a = store.insert(&new(name, hash, roles), now).await.unwrap();
+            assert!(!is_door_account(&a), "{name}");
+            // flagged: let in, with a password or sysop powers too
+            a.flags.insert(AccountFlags::DOOR);
+            assert!(is_door_account(&a), "{name}");
+        }
     }
 
     #[test]

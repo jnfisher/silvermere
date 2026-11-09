@@ -37,7 +37,7 @@ async fn test_databases_are_isolated() {
 async fn sqlite_temp_is_always_available() {
     let t = TestDb::sqlite_temp().await.unwrap();
     assert_eq!(t.dialect(), Dialect::Sqlite);
-    assert!(t.url().starts_with("sqlite://"));
+    assert!(t.url().starts_with("sqlite:"));
     assert_eq!(t.events().count().await.unwrap(), 0);
     t.close().await;
 }
