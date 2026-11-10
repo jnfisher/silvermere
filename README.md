@@ -380,6 +380,27 @@ Details: [docs/testing.md](docs/testing.md) and [docs/differences.md](docs/diffe
 | [docs/schema.md](docs/schema.md) | database schema (generated; CI fails if it is stale) |
 | [docs/README.md](docs/README.md) | the full index |
 
+## Editing the world
+
+silvermere has no world editor of its own. Edit the world with an editor that writes the
+MajorMUD 1.11p Btrieve files, then import the result. The import replaces the content (rooms,
+items, monsters, spells, shops, text) and leaves play alone: characters, room state, shop stock,
+gangs and bank books are not touched.
+
+```sh
+silvermere backup                                        # a copy of the database first
+sudo systemctl stop silvermere                           # an import needs the server stopped
+silvermere import --from DIR --live --content-only --dry-run   # read and check; writes nothing
+silvermere import --from DIR --live --content-only
+sudo systemctl start silvermere
+```
+
+`DIR` holds the edited files. `--live` reads the `.DAT` set, which is what the game and its
+editors work on; leave it out to read `.VIR` files instead. `--content-only` is what keeps the
+players and the state as they are, and running it twice gives the same result. The update file
+`WCCUPDAT.DAT` in `DIR` is applied over the content, as the original applied it at every start;
+`--no-patches` skips it. [docs/import.md](docs/import.md#content-and-state) has the details.
+
 ## Contributing
 
 This repository aims to stay faithful to MajorMUD 1.11p. Contributions that keep the game as it
@@ -388,9 +409,9 @@ compatibility. A place where silvermere behaves differently from the original is
 fix for it belongs here; say how you checked it against the original running under MBBSEmu. A
 change to gameplay that departs from 1.11p does not.
 
-To make your own game, fork it. The rules are readable Rust, and the world (rooms, items,
-monsters, text) lives in your database after import, so changing either is far easier than
-patching `WCCMMUD.DLL`, as many sysops once had to.
+To change the world, see [Editing the world](#editing-the-world) above; that needs no fork. To
+change the rules, fork it. They are readable Rust, far easier to change than patching
+`WCCMMUD.DLL`, as many sysops once had to.
 
 The practical steps (building, tests, the faithfulness checks) are in
 [CONTRIBUTING.md](CONTRIBUTING.md).
