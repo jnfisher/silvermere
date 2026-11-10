@@ -1367,8 +1367,8 @@ fn look_at_an_item() {
 // Hidden room items. A hidden item that can never be picked up is scenery in plain sight (every
 // hidden item in the stock world is one: signs, plaques, walls, the old parchment of the Ancient
 // Library), so LOOK and READ find it by any word of its name; a hidden item that can be picked up
-// is found only once a search has turned it up, and not by its full name before that. Read from
-// the recovered 1.11p source's target search; issue #14.
+// is found only once a search has turned it up, and not by its full name before that. The
+// original's behaviour as reported in issue #14 (the old parchment of 9/1008).
 
 const PARCHMENT: i32 = 990;
 const WALL: i32 = 120;
