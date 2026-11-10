@@ -253,7 +253,8 @@ enum Target {
 /// the floor and spells (T-033's to do in full): the first match, in that order, of the monsters in
 /// the room (dropping trailing words of `name` until one fits), the players in the room by the
 /// first word (a hidden one only for himself or a searcher who sees hidden), the items carried, the
-/// items lying in the room, and the spells in the book. The "which one did you mean?" list for
+/// items lying in the room (then its hidden items that cannot be picked up or that a search has
+/// found), and the spells in the book. The "which one did you mean?" list for
 /// several matches is not carried.
 fn find_target(world: &World, id: SessionId, name: &str) -> Option<Target> {
     let plr = world.session(id)?.player()?;
@@ -312,6 +313,20 @@ fn find_target(world: &World, id: SessionId, name: &str) -> Option<Target> {
                 .get(&slot.item)
                 .is_some_and(|i| matches_any_word(name, &i.name))
             {
+                return Some(Target::Item(slot.item));
+            }
+        }
+        // The hidden ones that are in plain sight anyway: scenery that can never be picked up
+        // (signs, plaques, walls), or an item a search has turned up. Anything else hidden stays
+        // unseen, even by its full name.
+        for (i, slot) in st.hiditems.iter().enumerate() {
+            if slot.item.0 == 0 {
+                continue;
+            }
+            let found = st.foundmask & (1u32 << i) != 0;
+            if world.items.get(&slot.item).is_some_and(|itm| {
+                (itm.gettable == 0 || found) && matches_any_word(name, &itm.name)
+            }) {
                 return Some(Target::Item(slot.item));
             }
         }

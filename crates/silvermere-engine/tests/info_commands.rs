@@ -35,10 +35,12 @@ use silvermere_types::flags::{
     ActiveMonsterFlags, GangFlags, PlayerFlags, PlayerSettings, SessionFlags, SpellFlags,
 };
 use silvermere_types::ids::{
-    ActiveMonsterId, ClassNo, ItemNo, MapId, MessageNo, MonsterNo, RaceNo, RoomId, RoomKey, SpellNo,
+    ActiveMonsterId, ClassNo, ItemNo, MapId, MessageNo, MonsterNo, RaceNo, RoomId, RoomKey,
+    SpellNo, TextBlockNo,
 };
 use silvermere_types::records::{
-    ActiveMonster, ActiveSpell, Character, Coins, Exit, Gang, Message, Room, Spell,
+    ActiveMonster, ActiveSpell, Character, Coins, Exit, Gang, Message, Room, RoomItem, Spell,
+    TextBlock,
 };
 
 const CAPTURE: &[u8] = include_bytes!("../../../tests/captures/status-screens/raw.bin");
@@ -1360,6 +1362,108 @@ fn look_at_an_item() {
         esc(&got),
         "\\x1b[79D\\x1b[K\\x1b[37mA stout wooden staff, shod with iron. \\r\\n"
     );
+}
+
+// Hidden room items. A hidden item that can never be picked up is scenery in plain sight (every
+// hidden item in the stock world is one: signs, plaques, walls, the old parchment of the Ancient
+// Library), so LOOK and READ find it by any word of its name; a hidden item that can be picked up
+// is found only once a search has turned it up, and not by its full name before that. Read from
+// the recovered 1.11p source's target search; issue #14.
+
+const PARCHMENT: i32 = 990;
+const WALL: i32 = 120;
+const RING: i32 = 121;
+
+/// The entrance with the parchment, a wall and a stashed ring hidden in it.
+fn hidden_items(world: &mut World) {
+    let mut parchment = blank::clear_item(ItemNo(PARCHMENT));
+    parchment.name = "old parchment".into();
+    parchment.item_type = ItemType::Special;
+    parchment.textnum = TextBlockNo(1416);
+    let mut wall = blank::clear_item(ItemNo(WALL));
+    wall.name = "stone wall".into();
+    wall.desc[0] = "Grey stone, damp to the touch.".into();
+    let mut ring = item(
+        RING,
+        "silver ring",
+        ItemType::Armour,
+        WornLocation::Finger,
+        0,
+    );
+    ring.desc[0] = "A plain silver band.".into();
+    for i in [parchment, wall, ring] {
+        world.items.insert(i.number, i);
+    }
+    world.text_blocks.insert(
+        (0, TextBlockNo(1416)),
+        TextBlock {
+            part: 0,
+            number: TextBlockNo(1416),
+            link: TextBlockNo(0),
+            text: "When the light in the sky flies once again\r".into(),
+        },
+    );
+    let st = world
+        .room_state
+        .get_mut(&RoomKey::new(1, ENTRANCE))
+        .unwrap();
+    for (slot, n) in [PARCHMENT, WALL, RING].into_iter().enumerate() {
+        st.hiditems[slot] = RoomItem {
+            item: ItemNo(n),
+            uses: -1,
+            count: 0,
+        };
+    }
+}
+
+#[test]
+fn look_at_hidden_scenery() {
+    let mut w = world();
+    let id = aldric(&mut w);
+    hidden_items(&mut w);
+    look_at(&mut w, id, "wall");
+    assert_eq!(lines(&take(&mut w, id)), ["Grey stone, damp to the touch."]);
+    look_at(&mut w, id, "parch");
+    let got = lines(&take(&mut w, id));
+    assert!(
+        got.iter()
+            .any(|l| l == "When the light in the sky flies once again"),
+        "{got:?}"
+    );
+}
+
+#[test]
+fn look_at_a_hidden_item_only_once_found() {
+    let mut w = world();
+    let id = aldric(&mut w);
+    hidden_items(&mut w);
+    look_at(&mut w, id, "silver ring");
+    assert_eq!(
+        lines(&take(&mut w, id)),
+        ["You do not see silver ring here!"]
+    );
+    // the ring's slot (2) found by a search
+    w.room_state
+        .get_mut(&RoomKey::new(1, ENTRANCE))
+        .unwrap()
+        .foundmask = 1 << 2;
+    look_at(&mut w, id, "ring");
+    assert_eq!(lines(&take(&mut w, id)), ["A plain silver band."]);
+}
+
+// READ with nothing carried by that name looks, so it reads the scenery too
+#[test]
+fn read_hidden_scenery() {
+    let mut h = Harness::new();
+    let id = h.player("Aldric");
+    hidden_items(&mut h.engine.world);
+    h.line(id, "read parchment");
+    let got = h.text(id);
+    assert!(
+        got.contains("When the light in the sky flies once again"),
+        "{got:?}"
+    );
+    assert!(!got.contains("You do not see"), "{got:?}");
 }
 
 // looking at nothing, and at the spell book
