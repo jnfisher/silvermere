@@ -304,7 +304,7 @@ mod tests {
         // 19 is evicted
         assert_eq!(c.get(79, true), Lookup::Loaded(19));
         assert_eq!(c.take_evicted(), vec![id(39)]);
-        assert_eq!(c.number_at(0), 0);
+        assert_eq!(c.number_at(0), MONFREE);
         assert_eq!(c.resident().count(), 3);
     }
 
