@@ -14,6 +14,7 @@ use silvermere_types::enums::SessionState;
 use silvermere_types::flags::SessionFlags;
 
 use crate::display::topten::display_next_topten;
+use crate::state::sysop_menu::page_god_info;
 use crate::state::{Input, Outcome};
 use crate::world::World;
 
@@ -62,7 +63,7 @@ pub fn on_line(world: &mut World, input: Input<'_>) -> Outcome {
 }
 
 /// The polls since the last tick: every session reading a paged TOPTEN list gets the rest
-/// of it (`display_next_topten` until the paging stops).
+/// of it (`display_next_topten` until the paging stops), then each sysop's GOD user INFO.
 pub fn on_tick(world: &mut World) {
     for id in world.session_ids() {
         // at most the 100 entries `topten[]` holds, as a guard
@@ -76,4 +77,5 @@ pub fn on_tick(world: &mut World) {
             display_next_topten(world, id);
         }
     }
+    page_god_info(world);
 }

@@ -316,10 +316,20 @@ pub fn on_tick(world: &mut World) {
             world.sysop.reports.remove(&id);
         }
     }
-    let ids: Vec<(SessionId, (u8, SessionId))> =
-        world.sysop.info.iter().map(|(k, v)| (*k, *v)).collect();
-    for (id, (part, shown)) in ids {
-        god_info_part(world, id, part, shown);
+}
+
+/// The polls since the last tick: each GOD user INFO display is shown to its end, one part
+/// a poll (after the TOPTEN lists, as the game's per-poll routine takes them).
+pub fn page_god_info(world: &mut World) {
+    let ids: Vec<SessionId> = world.sysop.info.keys().copied().collect();
+    for id in ids {
+        // the four parts, then the display is over
+        for _ in 0..4 {
+            let Some(&(part, shown)) = world.sysop.info.get(&id) else {
+                break;
+            };
+            god_info_part(world, id, part, shown);
+        }
     }
 }
 
