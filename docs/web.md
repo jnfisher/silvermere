@@ -38,11 +38,15 @@ A session lasts 12 hours and ends when the server stops.
 
 ## Reaching it from another computer
 
-The default bind is loopback, so only the server's own computer reaches the pages. Two ways to
+The default bind is loopback, so only the server's own computer reaches the pages. Three ways to
 open them from elsewhere:
 
 - **An SSH tunnel**, with nothing to change: `ssh -L 8088:127.0.0.1:8088 you@server`, then
   open `http://127.0.0.1:8088` on your own computer.
+- **A private network such as Tailscale or WireGuard**: bind the pages to the server's address
+  on that network (`silvermere config set server.web_bind 100.x.y.z:8088`, the address
+  `tailscale ip -4` prints) and restart. The network encrypts the traffic, and only its members
+  reach the port.
 - **A wider bind** (`server.web_bind = "0.0.0.0:8088"`). The pages are plain HTTP, so the sysop
   password would cross the network unprotected: put a reverse proxy with TLS in front, and
   open the port only to it. The server logs a warning when the bind is not loopback.

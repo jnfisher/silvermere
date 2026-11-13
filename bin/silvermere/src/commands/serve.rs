@@ -93,6 +93,14 @@ pub fn run_with(cfg: &Config, args: &ServeArgs, first_start: bool) -> anyhow::Re
         if let Some(a) = running.admin_addr {
             eprintln!("silvermere: admin listening on {a}");
         }
+        match running.web_addr {
+            Some(a) => eprintln!("silvermere: web pages on http://{a} (documentation, settings)"),
+            None if !cfg.server.web_bind.is_empty() => eprintln!(
+                "silvermere: web pages off: {} could not be used (server.web_bind)",
+                cfg.server.web_bind
+            ),
+            None => {}
+        }
         // T-150: the daily backup, until the shutdown starts
         let (stop_backups, backups_stop) = tokio::sync::watch::channel(false);
         tokio::spawn(crate::backups::schedule::run(
@@ -105,6 +113,9 @@ pub fn run_with(cfg: &Config, args: &ServeArgs, first_start: bool) -> anyhow::Re
                 "\n{}\n",
                 super::first_start::running_line(running.telnet_addr.port())
             );
+            if let Some(a) = running.web_addr {
+                println!("Documentation and settings: open http://{a} in a browser on this computer.\n");
+            }
         }
         let lost = tokio::select! {
             stop = signals.next() => {
