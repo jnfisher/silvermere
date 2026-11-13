@@ -82,6 +82,9 @@ Stated here so they are not read as differences from a stock install.
   taken off it or a sysop's experience edit shows the next day. The report and the `cleanup.complete` audit line count the
   placed items put back, the exits reset, the shop slots topped up, the monsters placed in Shop
   rooms and the top list's entries.
+- **A gang shop's takings need an owner in the game or a book.** Bank books belong to accounts, so a
+  sale pays an owner who has a book at the gang bank, or who is on line (a new book is opened). The
+  original opened a book for any name, an offline owner or an empty one too; that money is lost here.
 - **Groups, following and dragging are not saved.** They live in the session only.
 - **Name validation finishes at once** instead of over several polling passes, with the same message.
 - **`set utf8 on`.** A player can switch a session to UTF-8 output; the default stays CP437

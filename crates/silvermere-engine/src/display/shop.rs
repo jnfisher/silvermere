@@ -103,8 +103,15 @@ pub fn shop_row(name: &str, qty: u16, price: Option<(String, String)>, usable: U
 pub fn display_shop_items(world: &mut World, id: SessionId, shopnum: ShopNo) {
     let plr = world.session(id).and_then(|s| s.player()).cloned();
     let (Some(shop), Some(plr)) = (world.shops.get(&shopnum).cloned(), plr) else {
-        // An internal error: nothing is shown
+        // An internal error: the player is told
         tracing::error!(shop = shopnum.0, "display_shop_items: no shop or no player");
+        tell_user(
+            world,
+            id,
+            Msg::MudInternalError {
+                msg: "display_shop_items".into(),
+            },
+        );
         return;
     };
     if shop.shop_type == ShopType::Bank {

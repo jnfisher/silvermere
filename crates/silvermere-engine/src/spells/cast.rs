@@ -1443,6 +1443,17 @@ fn self_slot(
             }
             summon(world, id, n, Summoned::Servant);
         }
+        // already active and not renewable: the cast fails
+        Outcome::AlreadyActive => {
+            if !told.caster
+                && let Some(s) = world.session_mut(id)
+            {
+                s.output.push(Msg::CastFail {
+                    spell: spl.name.clone(),
+                });
+                s.push_prompt();
+            }
+        }
         Outcome::Immune | Outcome::NoEffect => {}
         other => tracing::debug!(?other, "cast_no_target self: outcome not shown"),
     }
@@ -2520,6 +2531,8 @@ fn user_slot(
                 display_spell_success(world, told, id, Some(tid), spl, &tname, shown);
             }
             state.told = true;
+            // a target already down can die of it too
+            return after_user_damage(world, tid, false);
         }
         Outcome::Ended { spells, poison } => {
             if effect == E::CurePoison {

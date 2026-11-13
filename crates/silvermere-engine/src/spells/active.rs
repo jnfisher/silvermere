@@ -15,7 +15,7 @@ use silvermere_text::Msg;
 use silvermere_types::enums::Ability;
 use silvermere_types::flags::PlayerStatus;
 use silvermere_types::ids::{ActiveMonsterId, MessageNo, RoomKey, SessionId, SpellNo};
-use silvermere_types::records::Spell;
+use silvermere_types::records::{ActiveSpell, Spell};
 use silvermere_types::sizes::{NMONSPELLS, NSPELLCAST};
 
 use super::cast::{CastMode, CastOpts, cast_no_target};
@@ -235,6 +235,38 @@ pub fn tick_monster_spells(world: &mut World, mon: ActiveMonsterId) {
         if m.spells[i].rounds == 0 {
             m.spells[i].spell = SpellNo(0);
             apply_monster_termination(m, &spl, power);
+        }
+    }
+}
+
+/// A charm breaks: each spell on the monster is ended once for every "Enslave Creature" it
+/// lists (with the slot's value the first time, 0 after, as the slot is cleared by then),
+/// and a slot whose spell no longer exists is cleared.
+pub fn end_enslaving_spells(world: &mut World, mon: ActiveMonsterId) {
+    const EMPTY: ActiveSpell = ActiveSpell {
+        spell: SpellNo(0),
+        value: 0,
+        rounds: 0,
+    };
+    for i in 0..NMONSPELLS {
+        let Some(n) = world.active_monsters.peek(mon).map(|m| m.spells[i].spell) else {
+            return;
+        };
+        if n == SpellNo(0) {
+            continue;
+        }
+        let spl = world.spells.get(&n).cloned();
+        let Some(m) = world.active_monsters.peek_mut(mon) else {
+            return;
+        };
+        let Some(spl) = spl else {
+            m.spells[i] = EMPTY;
+            continue;
+        };
+        for _ in spl.abilities.iter().filter(|(a, _)| *a == Ability::Enslave) {
+            let power = i32::from(m.spells[i].value);
+            apply_monster_termination(m, &spl, power);
+            m.spells[i] = EMPTY;
         }
     }
 }

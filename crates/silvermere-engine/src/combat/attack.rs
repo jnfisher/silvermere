@@ -16,6 +16,7 @@ use silvermere_types::flags::{
 };
 use silvermere_types::ids::{ActiveMonsterId, RoomKey, SessionId, SpellNo};
 
+use super::autocombat::match_combat_target;
 use super::messages::{
     CombatMsg, SlotTexts, monster_on_player, player_on_monster, player_on_player,
 };
@@ -23,12 +24,13 @@ use super::{
     AutoTarget, Combatant, EvilKind, add_evil_points, already_evil, auto_use, check_confusion,
     check_kill_monster, check_kill_user, check_monster_confusion, debug_on,
     display_autocombat_broken, engage_autocombat, interrupt_output, is_combatting_user,
-    item_ability, item_has, kill_autocombat, kill_autocombat_against_monster, knock_out_user,
-    monster, monster_cast, monster_cast_random_spell, monster_group, monster_has, monster_mut,
-    monster_side, pick_random_attack_move, player, player_mut, player_side, possessive_pronoun,
-    room_of, subject_pronoun, user_ability, user_group,
+    is_inside_autocombat, item_ability, item_has, kill_autocombat, kill_autocombat_against_monster,
+    knock_out_user, monster, monster_cast, monster_cast_random_spell, monster_group, monster_has,
+    monster_mut, monster_side, pick_random_attack_move, player, player_mut, player_side,
+    possessive_pronoun, room_of, subject_pronoun, user_ability, user_group,
 };
 use crate::commands::parse::eq_ignore_case;
+use crate::spells::active::end_enslaving_spells;
 use crate::tell::{Noise, TellBlind, tell_room, tell_user};
 use crate::world::World;
 
@@ -648,37 +650,15 @@ pub fn attack_user_monster(
     last
 }
 
-/// A charmed monster hit by its master breaks free: every "Enslave Creature" spell on it
-/// ends and slots of spells that no longer exist are cleared. The spells' ending is
-/// T-050's.
+/// A charmed monster hit by its master breaks free: no friend, not charmed, and every
+/// "Enslave Creature" spell on it ends.
 fn break_charm(world: &mut World, monnum: ActiveMonsterId) {
-    let enslaving: Vec<bool> = match monster(world, monnum) {
-        Some(m) => m
-            .spells
-            .iter()
-            .map(|c| {
-                c.spell != SpellNo(0)
-                    && world
-                        .spells
-                        .get(&c.spell)
-                        .is_none_or(|s| s.abilities.iter().any(|(a, _)| *a == Ability::Enslave))
-            })
-            .collect(),
-        None => return,
+    let Some(m) = monster_mut(world, monnum) else {
+        return;
     };
-    if let Some(m) = monster_mut(world, monnum) {
-        m.friendly = 0;
-        m.flags.remove(ActiveMonsterFlags::CHARMED);
-        for (slot, clear) in m.spells.iter_mut().zip(enslaving) {
-            if clear {
-                *slot = silvermere_types::records::ActiveSpell {
-                    spell: SpellNo(0),
-                    value: 0,
-                    rounds: 0,
-                };
-            }
-        }
-    }
+    m.friendly = 0;
+    m.flags.remove(ActiveMonsterFlags::CHARMED);
+    end_enslaving_spells(world, monnum);
 }
 
 /// One round of a monster's attacks on a player, at most [`MAX_BLOWS`].
@@ -707,8 +687,9 @@ pub fn attack_monster_user(
     // "Do not Attack if Item Nmbr"
     if monster_has(world, &mon, Ability::NoAttackItem) {
         let noatk = super::monster_ability(world, &mon, Ability::NoAttackItem);
-        // match_combat_target (T-034): the player's auto-combat target has this name
-        let targeting = false;
+        // the player's auto-combat target has this monster's name: he attacks it
+        let targeting =
+            is_inside_autocombat(world, id) && match_combat_target(world, id, &kmon.name).is_some();
         let p = player_mut(world, id)?;
         if targeting {
             if noatk != p.lastmon {

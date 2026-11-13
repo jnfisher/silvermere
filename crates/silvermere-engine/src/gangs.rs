@@ -23,7 +23,7 @@ use silvermere_text::Msg;
 use silvermere_types::enums::DebugLevel;
 use silvermere_types::flags::{GangFlags, PlayerFlags};
 use silvermere_types::ids::{AccountId, ActiveMonsterId, SessionId, ShopNo};
-use silvermere_types::records::{Character, Gang, Shop};
+use silvermere_types::records::{BankBook, Character, Gang, Shop};
 use silvermere_types::sizes::NSHOPITEMS;
 
 use crate::commands::eq_ignore_case;
@@ -287,8 +287,11 @@ pub fn save_gang_shop(world: &mut World, shop: ShopNo) {
 
 /// The takings of a sale in
 /// gang shop `shop` go to its owner's bank book at the gang bank. Nothing is paid without
-/// an owner or money; without a book, or when the balance would wrap, the money is lost.
-/// A sysop in debug mode is told. The buyer `id` is saved afterwards.
+/// money; an owner in the game without a book there gets a new one. When the balance would
+/// wrap the money is lost. A sysop in debug mode is told. The buyer `id` is saved afterwards.
+///
+/// Not carried: the game also opens a book for an owner who is not in the game; here, with
+/// no account to hold it, that money is lost.
 pub fn deposit_gangleaders_account(world: &mut World, id: SessionId, shop: ShopNo, amount: u32) {
     let Some(owner) = world.shops.get(&shop).map(gang_shop_owner) else {
         return;
@@ -300,12 +303,32 @@ pub fn deposit_gangleaders_account(world: &mut World, id: SessionId, shop: ShopN
     let debug = world
         .session(id)
         .is_some_and(|s| s.flags.debug != DebugLevel::Off);
-    let book = world
+    let mut book = world
         .bank_books
         .iter()
         .filter(|((_, bank), b)| *bank == GANGBANK && eq_ignore_case(&b.userid, &owner))
         .map(|((account, _), _)| *account)
         .min();
+    if book.is_none() && !owner.is_empty() {
+        // an owner in the game: a new, empty book
+        let online = world.sessions.values().find_map(|s| {
+            let c = s.character.as_ref()?;
+            let account = s.account.as_ref()?.id;
+            eq_ignore_case(&c.userid, &owner).then(|| (account, c.userid.clone()))
+        });
+        if let Some((account, userid)) = online {
+            world.bank_books.insert(
+                (account, GANGBANK),
+                BankBook {
+                    userid,
+                    bank: GANGBANK,
+                    balance: 0,
+                    loan: 0,
+                },
+            );
+            book = Some(account);
+        }
+    }
     match book {
         Some(account) => {
             let b = world

@@ -31,7 +31,7 @@ use silvermere_types::enums::{
 use silvermere_types::flags::{ActiveMonsterFlags, PlayerSettings, PlayerStatus2, RoomFlags};
 use silvermere_types::ids::{
     AccountId, ActiveMonsterId, ClassNo, ItemNo, MapId, MessageNo, MonsterNo, RaceNo, RoomId,
-    RoomKey,
+    RoomKey, SpellNo,
 };
 use silvermere_types::records::{ActiveMonster, ActiveSpell, Coins, Message};
 
@@ -512,6 +512,34 @@ fn too_afraid() {
     spawn(&mut w, RAT, ARENA, 1);
     plr(&mut w, k).status2.insert(PlayerStatus2::AFRAID);
     assert!(run(&mut w, k, "a rat").contains(&"You are too afraid!".to_owned()));
+}
+
+// seddonm1's differential runs against the original under MBBSEmu: a monster that leaves
+// the holder of an item alone still fights back once that player attacks it
+#[test]
+fn a_protected_player_is_attacked_once_he_attacks() {
+    let mut w = world();
+    let k = kang(&mut w, "Kasimir", MessageLevel::High);
+    w.monsters.get_mut(&RAT).unwrap().abilities[0] = (Ability::NoAttackItem, QUARTERSTAFF.0 as i16);
+    let rat = spawn(&mut w, RAT, ARENA, 1);
+    // he carries the item: left alone
+    assert_eq!(monster_round(&mut w, rat, k), None);
+    // he attacks it: it strikes back
+    run(&mut w, k, "a rat");
+    assert!(monster_round(&mut w, rat, k).is_some());
+}
+
+// seddonm1's differential runs against the original under MBBSEmu: what the worn items and
+// the weapon gave goes with them at death
+#[test]
+fn death_takes_back_what_the_weapon_gave() {
+    let mut w = world();
+    let k = kang(&mut w, "Kasimir", MessageLevel::High);
+    w.items.get_mut(&QUARTERSTAFF).unwrap().abilities[0] = (Ability::GiveSpell, 7);
+    plr(&mut w, k).spellbook[0] = SpellNo(7);
+    plr(&mut w, k).hp = -10;
+    assert_eq!(check_kill_user(&mut w, k), KillOutcome::Reborn);
+    assert!(!plr(&mut w, k).spellbook.contains(&SpellNo(7)));
 }
 
 // a protected room

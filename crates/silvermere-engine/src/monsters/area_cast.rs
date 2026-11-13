@@ -307,18 +307,19 @@ fn cast_slots(
         );
         // An instant area effect on the players works one player at a time: his change,
         // his display, his kill or knock-out, then the next player, so each prompt shows the
-        // figures of its own moment (T-100). Everything else goes through in one call.
+        // figures of its own moment (T-100). "Inflict Damage on Armour" does so in a lasting
+        // spell too. Everything else goes through in one call.
         let one_by_one = spl.target.is_area()
-            && !cast.base_lasting()
-            && matches!(
-                s.ability,
-                Ability::DamageNoArmour
-                    | Ability::DamageArmour
-                    | Ability::StealHp
-                    | Ability::Energy
-                    | Ability::Heal
-                    | Ability::HealMana
-            );
+            && (s.ability == Ability::DamageArmour
+                || !cast.base_lasting()
+                    && matches!(
+                        s.ability,
+                        Ability::DamageNoArmour
+                            | Ability::StealHp
+                            | Ability::Energy
+                            | Ability::Heal
+                            | Ability::HealMana
+                    ));
         let order: Vec<Option<SessionId>> = if one_by_one {
             let Some((ids, _, ())) = with_targets(world, mon, known, room, spl, None, |_, _, _| ())
             else {
