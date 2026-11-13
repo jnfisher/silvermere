@@ -13,6 +13,7 @@ pub mod config;
 pub mod gate;
 pub mod stock;
 pub mod store;
+pub mod web;
 
 use std::net::SocketAddr;
 use std::process::ExitCode;
@@ -37,6 +38,9 @@ pub struct Running {
     pub admin_addr: Option<SocketAddr>,
     /// The bound rlogin address (`server.rlogin_bind`), when it is on.
     pub rlogin_addr: Option<SocketAddr>,
+    /// The bound address of the web pages (`server.web_bind`), when they are on and the
+    /// address was free.
+    pub web_addr: Option<SocketAddr>,
     /// Send `true` (or drop) to stop accepting and ticking.
     pub shutdown: watch::Sender<bool>,
     /// The engine's input channel (the admin API and tests feed it).
@@ -441,12 +445,48 @@ pub async fn serve_world_with_db(
         state.log.clone(),
         state.events.clone(),
     ));
-    let admin_tasks = vec![tokio::spawn(async move {
+    let mut admin_tasks = vec![tokio::spawn(async move {
         let never = std::future::pending();
         if let Err(e) = silvermere_api::serve(admin_listener, state, never).await {
             tracing::error!(%e, "admin listener stopped");
         }
     })];
+    // The web pages. They are on by default, so an address that is taken must not stop
+    // the game from starting: the server runs without them and says so.
+    let mut web_addr = None;
+    if !cfg.server.web_bind.is_empty() {
+        let bind = &cfg.server.web_bind;
+        match tokio::net::TcpListener::bind(bind.parse::<SocketAddr>()?).await {
+            Ok(listener) => {
+                let addr = listener.local_addr()?;
+                web_addr = Some(addr);
+                if !silvermere_api::is_loopback_bind(bind).unwrap_or(false) {
+                    tracing::warn!(
+                        %addr,
+                        "the web pages are reachable from other hosts over plain HTTP: put a TLS proxy in front before signing in from elsewhere"
+                    );
+                }
+                tracing::info!(%addr, "web pages on (documentation, FAQ, settings)");
+                let web = silvermere_web::WebState {
+                    settings: Some(std::sync::Arc::new(web::FileSettings::new(&cfg))),
+                    login: Some(std::sync::Arc::new(web::AccountLogin::new(
+                        events_db.clone(),
+                    ))),
+                    ..silvermere_web::WebState::open(env!("CARGO_PKG_VERSION"))
+                };
+                admin_tasks.push(tokio::spawn(async move {
+                    let never = std::future::pending();
+                    if let Err(e) = silvermere_web::serve(listener, web, never).await {
+                        tracing::error!(%e, "web listener stopped");
+                    }
+                }));
+            }
+            Err(e) => tracing::warn!(
+                %e,
+                "server.web_bind {bind} could not be bound: running without the web pages"
+            ),
+        }
+    }
     let (gate_tx, gate_rx) = tmpsc::channel(256);
     let (gate_registry_tx, gate_registry_rx) = tmpsc::unbounded_channel();
     let (control_tx, control_rx) = tmpsc::unbounded_channel();
@@ -534,6 +574,7 @@ pub async fn serve_world_with_db(
         telnet_addr,
         admin_addr: Some(admin_addr),
         rlogin_addr,
+        web_addr,
         shutdown,
         to_engine,
         backups,
@@ -677,6 +718,7 @@ pub fn run(args: impl IntoIterator<Item = std::ffi::OsString>) -> anyhow::Result
             return Ok(ExitCode::from(code as u8));
         }
     };
+    config::remember_invocation(cli.data_dir.as_deref(), &cli.overrides());
     let Some(command) = &cli.command else {
         // T-109: a double-click. Logs go to the data directory; the console keeps the plain
         // lines, and a failure stays on screen until Enter.
@@ -701,6 +743,9 @@ pub fn run(args: impl IntoIterator<Item = std::ffi::OsString>) -> anyhow::Result
     if let Healthcheck(a) = command {
         return Ok(commands::healthcheck::run(a));
     }
+    if let Web { action } = command {
+        return commands::web::run(action);
+    }
     if let Service { action } = command {
         return commands::service::run(action, cli.data_dir.as_deref(), &cli.overrides());
     }
@@ -722,13 +767,13 @@ pub fn run(args: impl IntoIterator<Item = std::ffi::OsString>) -> anyhow::Result
         Restore(a) => commands::restore::run(&cfg, a),
         Account { action } => commands::account::run(&cfg, action),
         Admin { action } => commands::admin::run(&cfg, action),
-        Sysop { action } => commands::sysop::run(&cfg, action),
+        Sysop { action, json } => Ok(commands::sysop::run(&cfg, action, *json)),
         Setup(a) => commands::first_start::setup(
             &cfg,
             a.yes,
             &config::config_target(cli.data_dir.as_deref(), &cli.overrides()),
         ),
         Healthcheck(a) => Ok(commands::healthcheck::run(a)),
-        Service { .. } | Settings { .. } => unreachable!("dispatched above"),
+        Service { .. } | Settings { .. } | Web { .. } => unreachable!("dispatched above"),
     }
 }

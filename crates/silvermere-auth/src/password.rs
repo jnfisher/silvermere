@@ -60,7 +60,7 @@ pub fn verify(plain: &str, hash: &str) -> bool {
 
 /// A hash of a password nobody knows, verified against when a username does not exist
 /// so that an unknown name costs as much time as a wrong password.
-pub(crate) fn dummy_hash() -> &'static str {
+pub fn dummy_hash() -> &'static str {
     static DUMMY: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     DUMMY.get_or_init(|| hash("silvermere unknown-user placeholder"))
 }

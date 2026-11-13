@@ -10,8 +10,8 @@
 //! guard itself (T-072): with the guard held by a server whose admin API cannot be
 //! reached, it refuses.
 
-use std::io::{BufRead as _, Read as _, Write as _};
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream};
+use std::io::{BufRead as _, Write as _};
+use std::net::SocketAddr;
 use std::path::Path;
 use std::process::ExitCode;
 use std::time::Duration;
@@ -21,6 +21,7 @@ use silvermere_auth::Role;
 use silvermere_auth::cli::{self, Grant};
 use silvermere_db::{Db, TryAcquire, WriterGuard};
 
+use super::api_client::{call, reach};
 use crate::cli::AccountCmd;
 use crate::config::{Config, TokenScope};
 
@@ -221,56 +222,16 @@ enum Server {
     Unusable(String),
 }
 
-/// The address a client reaches `bind` on: an unspecified address is reached on loopback.
-fn reach(bind: &str) -> Option<SocketAddr> {
-    let mut addr: SocketAddr = bind.parse().ok()?;
-    if addr.ip().is_unspecified() {
-        addr.set_ip(match addr.ip() {
-            IpAddr::V4(_) => IpAddr::V4(Ipv4Addr::LOCALHOST),
-            IpAddr::V6(_) => IpAddr::V6(Ipv6Addr::LOCALHOST),
-        });
-    }
-    Some(addr)
-}
-
 fn probe(bind: &str) -> Server {
     let Some(addr) = reach(bind) else {
         return Server::Unusable(format!("server.admin_bind `{bind}` is not host:port"));
     };
-    match call(addr, "GET", "/healthz", None, PROBE_TIMEOUT) {
+    match call(addr, "GET", "/healthz", None, None, PROBE_TIMEOUT) {
         Err(e) if e.kind() == std::io::ErrorKind::ConnectionRefused => Server::Down,
         Err(e) => Server::Unusable(e.to_string()),
         Ok((200, _)) => Server::Up(addr),
         Ok((status, _)) => Server::Unusable(format!("/healthz answered {status}")),
     }
-}
-
-/// One HTTP/1.1 request with `Connection: close`; the status and the body.
-fn call(
-    addr: SocketAddr,
-    method: &str,
-    path: &str,
-    token: Option<&str>,
-    timeout: Duration,
-) -> std::io::Result<(u16, String)> {
-    let mut s = TcpStream::connect_timeout(&addr, timeout)?;
-    s.set_read_timeout(Some(timeout))?;
-    s.set_write_timeout(Some(timeout))?;
-    let auth = token.map_or(String::new(), |t| format!("Authorization: Bearer {t}\r\n"));
-    write!(
-        s,
-        "{method} {path} HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n{auth}Content-Length: 0\r\n\r\n"
-    )?;
-    let mut raw = Vec::new();
-    s.take(1 << 20).read_to_end(&mut raw)?;
-    let raw = String::from_utf8_lossy(&raw);
-    let status = raw
-        .split_whitespace()
-        .nth(1)
-        .and_then(|c| c.parse().ok())
-        .ok_or_else(|| std::io::Error::other("not an HTTP answer"))?;
-    let body = raw.split_once("\r\n\r\n").map_or("", |(_, b)| b);
-    Ok((status, body.to_string()))
 }
 
 /// `account delete` with a server running: the account's id from the store, then
@@ -295,7 +256,7 @@ async fn delete_through(cfg: &Config, db: &Db, addr: SocketAddr, name: &str) -> 
     };
     let path = format!("/v1/accounts/{}", account.id.0);
     let (status, body) = tokio::task::spawn_blocking(move || {
-        call(addr, "DELETE", &path, Some(&token), CALL_TIMEOUT)
+        call(addr, "DELETE", &path, Some(&token), None, CALL_TIMEOUT)
     })
     .await?
     .with_context(|| format!("calling DELETE /v1/accounts on {addr}"))?;

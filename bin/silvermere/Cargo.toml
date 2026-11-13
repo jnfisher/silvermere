@@ -23,6 +23,7 @@ silvermere-import.workspace = true
 silvermere-net.workspace = true
 silvermere-text.workspace = true
 silvermere-types.workspace = true
+silvermere-web.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 figment.workspace = true

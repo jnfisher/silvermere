@@ -12,6 +12,7 @@ services:
       # host ports from SILVERMERE_TELNET_PORT / SILVERMERE_ADMIN_PORT (CI runners sharing a VM set them)
       - "${SILVERMERE_TELNET_PORT:-2323}:2323"
       - "127.0.0.1:${SILVERMERE_ADMIN_PORT:-8080}:8080"   # admin API: keep it on loopback
+      - "127.0.0.1:${SILVERMERE_WEB_PORT:-8088}:8088"   # web pages (docs, FAQ, settings): plain HTTP, keep it on loopback
     volumes:
       - silvermere-data:/data
     restart: unless-stopped
@@ -19,6 +20,7 @@ services:
     environment:
       SILVERMERE_SERVER__TELNET_BIND: "0.0.0.0:2323"
       SILVERMERE_SERVER__ADMIN_BIND: "0.0.0.0:8080"
+      SILVERMERE_SERVER__WEB_BIND: "0.0.0.0:8088"
       # A non-loopback admin bind refuses to start without a token.
       SILVERMERE_ADMIN_TOKENS: '[{"name":"ops","token":"${SILVERMERE_ADMIN_TOKEN:?set SILVERMERE_ADMIN_TOKEN in docker/.env}","scopes":["read","broadcast","sysop"]}]'
       SILVERMERE_LOGGING__FORMAT: json

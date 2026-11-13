@@ -136,6 +136,9 @@ pub struct ServerCfg {
     pub rlogin_bind: String,
     /// The addresses allowed to use `rlogin_bind`. Empty: loopback only.
     pub rlogin_trusted: Vec<String>,
+    /// Web pages listen address (`silvermere_web`): the documentation, the FAQ and the
+    /// settings editor. Empty: off.
+    pub web_bind: String,
 }
 
 /// `[net]`.
@@ -271,6 +274,7 @@ impl Default for ServerCfg {
             max_sessions: 256,
             rlogin_bind: String::new(),
             rlogin_trusted: Vec::new(),
+            web_bind: "127.0.0.1:8088".into(),
         }
     }
 }
@@ -302,6 +306,20 @@ pub struct Overrides {
     pub config_file: Option<PathBuf>,
     /// Flag-layer TOML lines such as `game.death_hp = -5` (highest precedence).
     pub flag_lines: Vec<String>,
+}
+
+/// The data directory flag and the overrides of this process's command line, for what
+/// reads the settings file again while the server runs (the web settings editor).
+static INVOCATION: std::sync::OnceLock<(Option<PathBuf>, Overrides)> = std::sync::OnceLock::new();
+
+/// Remembers the command line's data directory flag and overrides; the first call wins.
+pub fn remember_invocation(data_dir_flag: Option<&Path>, ov: &Overrides) {
+    let _ = INVOCATION.set((data_dir_flag.map(Path::to_path_buf), ov.clone()));
+}
+
+/// What [`remember_invocation`] was given, if it was called.
+pub fn invocation() -> Option<&'static (Option<PathBuf>, Overrides)> {
+    INVOCATION.get()
 }
 
 /// Parses `SILVERMERE_ADMIN_TOKENS`. serde_json quotes the offending value, which may be a
@@ -482,6 +500,12 @@ impl Config {
         if !rlogin.is_empty() {
             rlogin.parse::<SocketAddr>().map_err(|e| {
                 format!("server.rlogin_bind = {rlogin:?} is not a host:port address ({e})")
+            })?;
+        }
+        let web = &self.server.web_bind;
+        if !web.is_empty() {
+            web.parse::<SocketAddr>().map_err(|e| {
+                format!("server.web_bind = {web:?} is not a host:port address ({e})")
             })?;
         }
         for ip in &self.server.rlogin_trusted {

@@ -57,7 +57,7 @@ WORKDIR /
 ENV SILVERMERE_DATA_DIR=/data \
     SILVERMERE_SERVER__ADMIN_BIND=0.0.0.0:8080
 VOLUME /data
-EXPOSE 2323 8080
+EXPOSE 2323 8080 8088
 USER 65532:65532
 HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
   CMD ["/silvermere","healthcheck"]

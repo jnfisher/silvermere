@@ -1650,6 +1650,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pulldown-cmark"
+version = "0.13.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3db2be46835f013dd3f4fa7f5f7402c537787b54ebb6fe2b94bbdd7e2669bb7b"
+dependencies = [
+ "bitflags 2.13.2",
+ "memchr",
+ "pulldown-cmark-escape",
+ "unicase",
+]
+
+[[package]]
+name = "pulldown-cmark-escape"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "007d8adb5ddab6f8e3f491ac63566a7d5002cc7ed73901f72057943fa71ae1ae"
+
+[[package]]
 name = "quanta"
 version = "0.12.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2084,7 +2102,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "anyhow",
  "clap",
@@ -2106,6 +2124,7 @@ dependencies = [
  "silvermere-testkit",
  "silvermere-text",
  "silvermere-types",
+ "silvermere-web",
  "sqlx",
  "tokio",
  "toml 1.1.8+spec-1.1.0",
@@ -2117,7 +2136,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-api"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "axum",
  "metrics",
@@ -2138,7 +2157,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-auth"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "argon2",
  "jiff",
@@ -2156,7 +2175,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-db"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "jiff",
  "metrics",
@@ -2172,7 +2191,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-engine"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "fancy-regex",
  "insta",
@@ -2195,7 +2214,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-import"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "jiff",
  "miniz_oxide",
@@ -2213,7 +2232,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-net"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "proptest",
  "tokio",
@@ -2222,7 +2241,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-rules"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "jiff",
  "proptest",
@@ -2234,7 +2253,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-testkit"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "fancy-regex",
  "insta",
@@ -2264,7 +2283,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-text"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "insta",
  "miniz_oxide",
@@ -2283,7 +2302,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-types"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "bitflags 2.13.2",
  "jiff",
@@ -2291,6 +2310,19 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+]
+
+[[package]]
+name = "silvermere-web"
+version = "0.1.16"
+dependencies = [
+ "axum",
+ "pulldown-cmark",
+ "rand 0.10.3",
+ "serde",
+ "tokio",
+ "tower",
+ "tracing",
 ]
 
 [[package]]
@@ -2971,6 +3003,12 @@ checksum = "e1b88fcfe09e89d3866a5c11019378088af2d24c3fbd4f0543f96b479ec90697"
 dependencies = [
  "version_check",
 ]
+
+[[package]]
+name = "unicase"
+version = "2.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "357cc3acc6a036009fd6c973ed009037c732d60d0b4f6c673e9041497482a28f"
 
 [[package]]
 name = "unicode-bidi"

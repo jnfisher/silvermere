@@ -12,12 +12,13 @@ members = [
     "crates/silvermere-testkit",
     "crates/silvermere-text",
     "crates/silvermere-types",
+    "crates/silvermere-web",
 ]
 # The crate template is copied by scaffolding cards; it is not built.
 exclude = ["crates/_template"]
 
 [workspace.package]
-version = "0.1.15"
+version = "0.1.16"
 edition = "2024"
 rust-version = "1.99.1"
 publish = false
@@ -38,6 +39,7 @@ silvermere-rules = { path = "crates/silvermere-rules" }
 silvermere-testkit = { path = "crates/silvermere-testkit" }
 silvermere-text = { path = "crates/silvermere-text" }
 silvermere-types = { path = "crates/silvermere-types" }
+silvermere-web = { path = "crates/silvermere-web" }
 anyhow = "1.0.104"
 argon2 = "0.6.0"
 axum = "0.8.9"
@@ -52,6 +54,7 @@ metrics-exporter-prometheus = { version = "0.18.3", default-features = false, fe
 metrics-util = { version = "0.20.4", default-features = false, features = ["debugging", "registry"] }
 miniz_oxide = "0.9.1"
 proptest = "1.12.0"
+pulldown-cmark = { version = "0.13.6", default-features = false, features = ["html"] }
 rand = "0.10.3"
 rand_chacha = "0.10.0"
 regex = "1.13.1"

@@ -244,17 +244,50 @@ silvermere admin token list
 
 ## `silvermere sysop`
 
-Sysop commands over the admin API of a running server: `sysop who`, `sysop broadcast <MESSAGE>`
-and `sysop reload-world`. **Not implemented yet:** each prints `not implemented yet` and exits
-with status 2. The same three actions are admin API routes (`GET /v1/who`, `POST /v1/broadcast`,
-`POST /v1/reload-world`; see [admin-api.md](admin-api.md)), and in the game `SYSOP` lists the
-sysop commands ([sysop.md](sysop.md)).
+Sysop commands on a running server, over its admin API on `server.admin_bind`. Details:
+[admin-api.md](admin-api.md). In the game, `SYSOP` lists the sysop commands
+([sysop.md](sysop.md)).
 
 ```
 silvermere sysop who
 silvermere sysop broadcast <MESSAGE>
 silvermere sysop reload-world
+silvermere sysop --json <SUBCOMMAND>
 ```
+
+| Subcommand | What it does | Route | Scope |
+|---|---|---|---|
+| `sysop who` | lists the players in the game: name, class, race, level, gang and idle time | `GET /v1/who` | `read` |
+| `sysop broadcast <MESSAGE>` | sends one line to every player in the game and says how many were told | `POST /v1/broadcast` | `write` |
+| `sysop reload-world` | reads the static world tables again from the database, with nobody disconnected | `POST /v1/reload-world` | `write` |
+
+| Flag | Meaning |
+|---|---|
+| `--json` | print the server's JSON answer as it came, for scripts |
+
+The command sends a token whose secret the config holds: `SILVERMERE_ADMIN_TOKEN` (the same
+value the server was started with), or a `token` in `[[admin.tokens]]`. A token stored only as
+its `sha256` cannot be sent. An `admin` token is used when there is one (`sysop who` then lists
+hidden sysops too), else one with the scope in the table.
+
+Exit 0 with the answer on stdout; exit 1 with one line on stderr when no server is running on
+`server.admin_bind`, the config has no usable token, or the server refuses the call.
+
+## `silvermere web`
+
+The web pages without a server. Details: [web.md](web.md).
+
+```
+silvermere web export <DIR> [--base <BASE>]
+```
+
+| Subcommand | What it does |
+|---|---|
+| `web export <DIR>` | write the documentation pages as static files into `DIR` (made if missing), for a public copy; the settings page is the reference of every key |
+
+| Flag | Meaning |
+|---|---|
+| `--base <BASE>` | the path the copy is served under, such as `/silvermere` for a project site (default: the root) |
 
 ## `silvermere healthcheck`
 

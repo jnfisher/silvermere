@@ -32,4 +32,5 @@ mod shutdown_barrier;
 mod single_writer;
 mod startup_coalescing;
 mod text_assets;
+mod web;
 mod world_load_db;

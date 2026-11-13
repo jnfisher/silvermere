@@ -2,6 +2,8 @@
 
 <p align="center"><img src="docs/images/silvermere.webp" alt="Silvermere from the air: the walled town on the Silver river, the island with the Labyrinth beyond it, and Darkwood Forest to the east" width="100%"></p>
 
+<h3 align="center">📖 <a href="https://jnfisher.github.io/silvermere/">Documentation, FAQ and settings reference: jnfisher.github.io/silvermere</a></h3>
+
 silvermere is a faithful recreation of the MajorMUD 1.11p engine, written in Rust.
 
 It is one binary. The stock 1.11p game data is downloaded from MBBSEmu
@@ -256,7 +258,11 @@ the server runs from:
 | Windows | beside `silvermere.exe`, such as `C:\Silvermere\silvermere.toml` |
 | Docker | `/data/silvermere.toml`, in the volume |
 
-`silvermere config` reads and writes it with the same checks as startup, run from that folder:
+The easiest way to see and change settings is in a browser: the server has web pages of its
+own on `http://127.0.0.1:8088` (this documentation, a FAQ and a settings editor a sysop signs
+in to with his game account; [docs/web.md](docs/web.md)).
+
+`silvermere config` reads and writes the same file with the same checks as startup, run from that folder:
 
 ```sh
 silvermere config path                      # which file, and whether it exists
@@ -372,6 +378,8 @@ Details: [docs/testing.md](docs/testing.md) and [docs/differences.md](docs/diffe
 | [docs/cli.md](docs/cli.md) | every `silvermere` command and flag |
 | [docs/sysop.md](docs/sysop.md) | first steps for a new sysop, and the sysop commands |
 | [docs/config.md](docs/config.md) | every setting, environment variable and default |
+| [docs/web.md](docs/web.md) | the server's own web pages: documentation, FAQ, settings editor |
+| [docs/faq.md](docs/faq.md) | short answers to what sysops ask first |
 | [docs/differences.md](docs/differences.md) | how this differs from the original |
 | [docs/import.md](docs/import.md) | importing the legacy world files |
 | [docs/auth.md](docs/auth.md) | accounts, login dialogue, lockout, BBS door (rlogin) |

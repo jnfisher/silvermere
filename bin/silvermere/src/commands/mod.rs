@@ -2,6 +2,7 @@
 
 pub mod account;
 pub mod admin;
+pub mod api_client;
 pub mod backup;
 pub mod config;
 pub mod first_start;
@@ -12,10 +13,9 @@ pub mod restore;
 pub mod serve;
 pub mod service;
 pub mod sysop;
+pub mod web;
 
-use std::process::ExitCode;
-
-/// Exit code for a subcommand whose crate has not merged yet.
+/// Exit code when a tool a subcommand needs (pg_dump, pg_restore) is not installed.
 pub const EXIT_UNIMPLEMENTED: u8 = 2;
 /// Exit code when `serve` finds no world data, or a world an import left half written.
 pub const EXIT_NO_WORLD: u8 = 3;
@@ -24,12 +24,6 @@ pub const EXIT_NO_WORLD: u8 = 3;
 pub const UNFINISHED_IMPORT: &str = "The last import did not finish, so the world is incomplete. \
      Run the same import again (silvermere import, with the same --from if you gave one): it \
      writes the tables the interrupted run did not.";
-
-/// Prints the stub line and returns the exit code.
-pub fn not_implemented(card: &str) -> ExitCode {
-    eprintln!("not implemented yet ({card})");
-    ExitCode::from(EXIT_UNIMPLEMENTED)
-}
 
 /// Creates the directory of a SQLite database file so the pool can create the file.
 pub fn ensure_sqlite_dir(cfg: &crate::config::Config) -> anyhow::Result<()> {
