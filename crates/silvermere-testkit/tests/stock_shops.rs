@@ -902,8 +902,9 @@ mod shop {
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(48))]
 
-        // item_ownership never holds more copies of a limited item than its limit, and
-        // its rows are the item's count in play (`active`), whatever two players do
+        // the count in play (`active`) never passes a limited item's limit, whatever two
+        // players do. (sic) The rows need not match it: a copy dropped in the shop is taken
+        // for a shelf copy, and the count goes down when no record is found, as in the game.
         #[test]
         fn limited_copies_never_exceed_the_limit(ops in proptest::collection::vec(op(), 1..40)) {
             let mut h = Harness::new();
@@ -929,10 +930,8 @@ mod shop {
                 };
                 h.bytes(line.0, &line.1);
                 let w = &h.engine.world;
-                let rows = shops_rows(w);
-                let limit = usize::from(w.items[&RAPIER].limit);
-                prop_assert!(rows <= limit, "{rows} copies after {op:?}");
-                prop_assert_eq!(rows, usize::from(w.items[&RAPIER].active));
+                let (active, limit) = (w.items[&RAPIER].active, w.items[&RAPIER].limit);
+                prop_assert!(active <= limit, "{active} copies in play after {op:?}");
             }
         }
     }
@@ -977,7 +976,7 @@ mod shop {
             h.line(b, "sell rapier"),
             "You sold emerald-hilted rapier for 5000 copper farthings.\n"
         );
-        // back on the shelf: an ownership record of the shop's room, marked as the shelf
+        // back on the shelf: an ownership record of the shop's room, as one on its floor
         let shelf: Vec<_> = silvermere_engine::items::limited::holders_of(&h.engine.world, RAPIER)
             .iter()
             .map(|o| (o.owntype.code(), o.roomnum, o.userid.clone()))
@@ -987,16 +986,16 @@ mod shop {
             [(
                 room,
                 silvermere_types::ids::RoomId(SWORD_ROOM),
-                silvermere_engine::items::limited::SHELF_MARK.to_string()
+                String::new()
             )]
         );
         assert_eq!(h.engine.world.items[&RAPIER].active, 1);
     }
 
-    // the collision the property test found: a copy dropped on a shop's floor is not a
-    // shelf copy, so buying from the shelf leaves the floor record alone
+    // (sic) the collision the property test found, as the game has it: a copy dropped on a
+    // shop's floor counts as a shelf copy, so buying from the shelf takes the floor record
     #[test]
-    fn a_floor_copy_in_a_shop_is_not_a_shelf_copy() {
+    fn a_floor_copy_in_a_shop_counts_as_a_shelf_copy() {
         let mut h = Harness::new();
         {
             let s = &mut h.world().shops.get_mut(&SWORD_SHOP).unwrap().stock[16];
@@ -1013,13 +1012,8 @@ mod shop {
         h.line(a, "buy emerald-hilted rapier"); // the shelf record: count unchanged
         assert_eq!(h.engine.world.items[&RAPIER].active, 1);
         h.line(a, "drop rapier");
-        h.line(b, "buy emerald-hilted rapier"); // unrecorded stock: a new copy
-        assert_eq!(h.engine.world.items[&RAPIER].active, 2);
-        h.line(b, "get rapier");
-        let w = &h.engine.world;
-        assert_eq!(shops_rows(w), 2);
-        assert_eq!(w.items[&RAPIER].active, 2);
-        assert_eq!(h.carried(b, RAPIER), 2);
+        h.line(b, "buy emerald-hilted rapier"); // the floor record taken for the shelf's
+        assert_eq!(h.engine.world.items[&RAPIER].active, 1);
     }
 
     // reason 1: only stock no one sold here (unrecorded) needs a copy

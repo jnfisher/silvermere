@@ -19,12 +19,6 @@ use crate::world::World;
 /// Most records one release scan examines.
 pub const MAXOWNSCAN: usize = 1000;
 
-/// The `userid` of an `OWN_ROOM` record that stands for a copy on a shop's shelf rather
-/// than on the room's floor. A copy dropped in a shop and a copy sold to it are both
-/// `OWN_ROOM` records of the shop's room; the mark keeps them apart. Floor
-/// records have an empty `userid`.
-pub const SHELF_MARK: &str = "#SHELF";
-
 /// Who holds a copy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Holder<'a> {
@@ -34,7 +28,8 @@ pub enum Holder<'a> {
     Room(RoomKey),
     /// `OWN_MONSTER`, by active monster number.
     Monster(ActiveMonsterId),
-    /// A shop's shelf: `OWN_ROOM` of the shop's room, marked [`SHELF_MARK`].
+    /// A shop's shelf: `OWN_ROOM` of the shop's room. (sic) The game keeps no mark of its
+    /// own for it, so a copy dropped on the shop's floor counts as one on the shelf.
     Shelf(RoomKey),
 }
 
@@ -45,19 +40,10 @@ impl Holder<'_> {
             Holder::User(userid) => {
                 own.owntype == OwnerKind::User && own.userid.eq_ignore_ascii_case(userid)
             }
-            Holder::Room(key) => {
-                own.owntype == OwnerKind::Room
-                    && own.userid != SHELF_MARK
-                    && own.mapnum == key.map
-                    && own.roomnum == key.room
+            Holder::Room(key) | Holder::Shelf(key) => {
+                own.owntype == OwnerKind::Room && own.mapnum == key.map && own.roomnum == key.room
             }
             Holder::Monster(m) => own.owntype == OwnerKind::Monster && own.monnum == m,
-            Holder::Shelf(key) => {
-                own.owntype == OwnerKind::Room
-                    && own.userid == SHELF_MARK
-                    && own.mapnum == key.map
-                    && own.roomnum == key.room
-            }
         }
     }
 }
@@ -99,7 +85,7 @@ pub fn acquire(world: &mut World, item: ItemNo, holder: Holder<'_>) -> bool {
     };
     match holder {
         Holder::User(userid) => userid.clone_into(&mut own.userid),
-        Holder::Room(key) => {
+        Holder::Room(key) | Holder::Shelf(key) => {
             own.owntype = OwnerKind::Room;
             own.mapnum = key.map;
             own.roomnum = key.room;
@@ -107,12 +93,6 @@ pub fn acquire(world: &mut World, item: ItemNo, holder: Holder<'_>) -> bool {
         Holder::Monster(m) => {
             own.owntype = OwnerKind::Monster;
             own.monnum = m;
-        }
-        Holder::Shelf(key) => {
-            own.owntype = OwnerKind::Room;
-            own.mapnum = key.map;
-            own.roomnum = key.room;
-            SHELF_MARK.clone_into(&mut own.userid);
         }
     }
     world.item_ownership.insert(id, own.clone());

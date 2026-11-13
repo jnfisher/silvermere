@@ -359,8 +359,8 @@ pub const SYSOP_TEXT_BLOCK: TextBlockNo = TextBlockNo(1510);
 
 /// Every copy of a limited item and where it is, at most 1000.
 ///
-/// A shop-shelf copy (T-041) is an `OWN_ROOM` record of the shop room (user-id `#SHELF`)
-/// and prints as the original printed it: `Item X Map m Room r`, like a copy on the floor.
+/// A shop-shelf copy (T-041) is an `OWN_ROOM` record of the shop room and prints as one
+/// on the floor: `Item X Map m Room r`.
 pub fn display_list_of_limited_items(world: &mut World, id: SessionId) {
     let mut rows: Vec<_> = world.item_ownership.values().cloned().collect();
     rows.sort_by_key(|o| o.id);
