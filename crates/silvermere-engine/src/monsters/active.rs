@@ -269,6 +269,17 @@ impl ActiveMonsters {
             };
             self.evictions.borrow_mut().push(e);
         }
+        // written back in place: a changed one counts as written, as it is now
+        let flushed = self.cache.borrow_mut().take_flushed();
+        for n in flushed {
+            let Some(m) = self.peek(n) else { continue };
+            if self.is_dirty(n) {
+                self.quiet.borrow_mut().remove(&n);
+                self.marked.borrow_mut().remove(&n);
+                let e = Eviction::Written(Box::new(m.clone()));
+                self.evictions.borrow_mut().push(e);
+            }
+        }
     }
 
     /// The cache.

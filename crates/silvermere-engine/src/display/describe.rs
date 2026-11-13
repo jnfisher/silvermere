@@ -406,6 +406,9 @@ pub fn display_monster_desc(world: &mut World, to: SessionId, monnum: ActiveMons
         send(world, to, msgs);
         return;
     }
+    // (sic) the Shadowform value is asked for monster -1, which is looked up as 4294967295:
+    // there is no such monster, but the look-up reads through the cache all the same
+    world.active_monsters.touch_raw(u32::MAX);
     if shadowform != 0 {
         send(world, to, msgs);
         display_long_text(world, to, TextBlockNo(shadowform), None);
