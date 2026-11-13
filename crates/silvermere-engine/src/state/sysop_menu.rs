@@ -19,6 +19,7 @@ use silvermere_types::ids::{AccountId, ItemNo, SessionId};
 use silvermere_types::records::Character;
 
 use crate::commands::sysop::{audit, leading_int};
+use crate::display::bank::display_users_bankbooks_to;
 use crate::display::sysop::{report_order, show_report};
 use crate::event_loop::{EngineOutput, PersistRequest};
 use crate::state::login::{key, show_menu};
@@ -333,13 +334,13 @@ pub fn page_god_info(world: &mut World) {
     }
 }
 
-/// The GOD user INFO display, one part a poll: the spells and the powers, the profile,
-/// the abilities, then the prompt. The bank books of part 0 are not shown:
-/// `display_users_bankbooks` writes to its own player (TODO(T-042)).
+/// The GOD user INFO display, one part a poll: the bank books, the spells and the
+/// powers, the profile, the abilities, then the prompt.
 fn god_info_part(world: &mut World, id: SessionId, part: u8, shown: SessionId) {
     use silvermere_types::enums::CommandCode as Cmd;
     match part {
         0 => {
+            display_users_bankbooks_to(world, shown, id);
             crate::display::spells::display_users_spells(world, shown, id, Cmd::Spells);
             crate::display::spells::display_users_spells(world, shown, id, Cmd::Powers);
         }
