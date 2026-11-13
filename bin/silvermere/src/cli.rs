@@ -67,6 +67,9 @@ pub enum Command {
     },
     /// Admin commands over the admin API.
     Sysop {
+        /// Print the server's JSON answer as it came.
+        #[arg(long, global = true)]
+        json: bool,
         #[command(subcommand)]
         action: SysopCmd,
     },
@@ -228,11 +231,11 @@ pub enum TokenCmd {
 /// `sysop` subcommands (T-018).
 #[derive(Debug, Subcommand)]
 pub enum SysopCmd {
-    /// Who is online.
+    /// List the players in the game.
     Who,
-    /// Broadcast a message.
+    /// Send a line to every player in the game.
     Broadcast { message: String },
-    /// Reload static world tables.
+    /// Read the static world tables again from the database.
     ReloadWorld,
 }
 

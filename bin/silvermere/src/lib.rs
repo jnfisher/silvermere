@@ -722,7 +722,7 @@ pub fn run(args: impl IntoIterator<Item = std::ffi::OsString>) -> anyhow::Result
         Restore(a) => commands::restore::run(&cfg, a),
         Account { action } => commands::account::run(&cfg, action),
         Admin { action } => commands::admin::run(&cfg, action),
-        Sysop { action } => commands::sysop::run(&cfg, action),
+        Sysop { action, json } => Ok(commands::sysop::run(&cfg, action, *json)),
         Setup(a) => commands::first_start::setup(
             &cfg,
             a.yes,

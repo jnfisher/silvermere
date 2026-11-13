@@ -166,11 +166,11 @@ fn serve_without_world_exits_3() {
 }
 
 #[test]
-fn unmerged_crates_exit_2() {
-    let d = tmp("stubs");
+fn sysop_without_a_token_says_how_to_give_one() {
+    let d = tmp("sysop");
     let o = run(&d, &[], &["sysop", "who"]);
-    assert_eq!(o.status.code(), Some(2));
-    assert!(err(&o).contains("not implemented yet (T-018)"));
+    assert_eq!(o.status.code(), Some(1));
+    assert!(err(&o).contains("SILVERMERE_ADMIN_TOKEN"), "{}", err(&o));
 }
 
 fn run_stdin(dir: &PathBuf, args: &[&str], stdin: &str) -> Output {

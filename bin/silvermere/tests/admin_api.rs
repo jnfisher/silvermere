@@ -181,3 +181,90 @@ fn serve_refuses_open_admin_bind_without_tokens() {
         "{err}"
     );
 }
+
+/// `silvermere sysop <args>` against the admin API on `admin`, with `token` in the environment.
+async fn sysop_cli(admin: String, token: Option<&str>, args: &[&str]) -> (i32, String, String) {
+    let token = token.map(str::to_owned);
+    let args: Vec<String> = args.iter().map(|a| (*a).to_owned()).collect();
+    tokio::task::spawn_blocking(move || {
+        let mut c = Command::new(env!("CARGO_BIN_EXE_silvermere"));
+        c.current_dir(env!("CARGO_TARGET_TMPDIR"))
+            .arg("sysop")
+            .args(&args);
+        for (k, _) in std::env::vars().filter(|(k, _)| k.starts_with("SILVERMERE_")) {
+            c.env_remove(k);
+        }
+        c.env("SILVERMERE_SERVER__ADMIN_BIND", admin);
+        if let Some(t) = token {
+            c.env("SILVERMERE_ADMIN_TOKEN", t);
+        }
+        let o = c.output().unwrap();
+        (
+            o.status.code().unwrap_or(-1),
+            String::from_utf8_lossy(&o.stdout).into_owned(),
+            String::from_utf8_lossy(&o.stderr).into_owned(),
+        )
+    })
+    .await
+    .unwrap()
+}
+
+/// The `sysop` subcommands reach a running server, and say why when they cannot.
+#[tokio::test]
+async fn sysop_cli_talks_to_a_running_server() {
+    let (_t, url) = common::seeded(&[]).await;
+    let mut cfg = Config::default();
+    cfg.server.telnet_bind = "127.0.0.1:0".into();
+    cfg.server.admin_bind = "127.0.0.1:0".into();
+    cfg.database.url = url;
+    cfg.admin = AdminCfg {
+        tokens: vec![TokenCfg {
+            name: "ops".into(),
+            sha256: None,
+            token: Some(TOKEN.into()),
+            scopes: vec![TokenScope::Read, TokenScope::Write],
+        }],
+        ..Default::default()
+    };
+    let r = silvermere::serve_in_process(cfg, SystemClock, SeededRng::new(7))
+        .await
+        .expect("starts");
+    let admin = r.admin_addr.expect("admin listener bound").to_string();
+
+    let (code, out, err) = sysop_cli(admin.clone(), Some(TOKEN), &["who"]).await;
+    assert_eq!(
+        (code, out.as_str()),
+        (0, "Nobody is in the game.\n"),
+        "{err}"
+    );
+    let (code, out, err) = sysop_cli(admin.clone(), Some(TOKEN), &["--json", "who"]).await;
+    assert_eq!((code, out.as_str()), (0, "{\"players\":[]}\n"), "{err}");
+    let (code, out, err) = sysop_cli(admin.clone(), Some(TOKEN), &["broadcast", "hello"]).await;
+    assert_eq!((code, out.as_str()), (0, "Told 0 players.\n"), "{err}");
+    let (code, out, err) = sysop_cli(admin.clone(), Some(TOKEN), &["reload-world"]).await;
+    assert_eq!(code, 0, "{err}");
+    assert!(
+        out.starts_with("World reloaded in ") && out.contains(" rooms"),
+        "{out}"
+    );
+    // what the server refuses
+    let (code, _, err) = sysop_cli(admin.clone(), Some(TOKEN), &["broadcast", "a\tb"]).await;
+    assert_eq!(code, 1);
+    assert!(err.contains("answered 400"), "{err}");
+    let (code, _, err) = sysop_cli(admin.clone(), Some("wrong"), &["who"]).await;
+    assert_eq!(code, 1);
+    assert!(err.contains("does not know this token"), "{err}");
+    // no token to send
+    let (code, _, err) = sysop_cli(admin.clone(), None, &["who"]).await;
+    assert_eq!(code, 1);
+    assert!(err.contains("SILVERMERE_ADMIN_TOKEN"), "{err}");
+
+    tokio::time::timeout(Duration::from_secs(5), r.stop())
+        .await
+        .expect("stops within 5 s")
+        .expect("engine joins");
+    // nothing listens any more
+    let (code, _, err) = sysop_cli(admin, Some(TOKEN), &["who"]).await;
+    assert_eq!(code, 1);
+    assert!(err.contains("no server is running"), "{err}");
+}
