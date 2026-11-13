@@ -7,7 +7,6 @@
 //! (names and unmasked fields) always, and the masked lines byte for byte when the scenario
 //! is deterministic.
 
-use silvermere_text::wrap::from_mbbsemu;
 
 use crate::captures::{Capture, ScriptMask, apply_script_masks, text_to_lines};
 use crate::normalise::{Difference, MaskSpec, diff_events, normalise};
@@ -224,7 +223,7 @@ pub fn assert_matches_capture(
     extra_masks: &[&str],
 ) {
     let masks = masks_for(capture, extra_masks);
-    let expected = from_mbbsemu(&step_output(capture, step));
+    let expected = step_output(capture, step);
     assert!(
         !expected.is_empty(),
         "capture {} step {step} has no output",
@@ -312,7 +311,7 @@ pub async fn replay_steps(
         }
         if problem.is_none() {
             let actual = client.raw()[at..].to_vec();
-            let expected = from_mbbsemu(&step_output(capture, index));
+            let expected = step_output(capture, index);
             let diffs = compare_events(&expected, &actual, &masks, &patterns, &fields);
             // text first; then, with the ANSI colours kept, the escapes too
             let bytes = compare_bytes(&expected, &actual, &masks).err().or_else(|| {

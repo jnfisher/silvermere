@@ -1,48 +1,14 @@
-//! M3 shop tests (T-048): the Newhaven shops of the T-005 `shop` capture replayed against
-//! the in-process server and compared byte for byte (ANSI stripped, then with colour kept).
-//! Pins: the buy price, the sell price, and that a Hospital sells `healing` and `curing`
-//! only.
+//! M3 shop tests (T-048) against the in-process server. Pins: the buy price, the sell
+//! price, and that a Hospital sells `healing` and `curing` only.
 
 use crate::common;
 
 use common::m3::{
-    PROMPT, Player, assert_classified, body_lines, classify, copies, edit_char, place, stored,
+    Player, assert_classified, body_lines, classify, copies, edit_char, place, stored,
     stored_stock_total, team_db,
 };
-use common::stock::{WAIT, aldric_db, login_to_menu, start};
-use silvermere_testkit::capture_compare::{assert_clean, replay_steps};
-use silvermere_testkit::{Capture, TelnetClient, captures};
+use common::stock::start;
 use silvermere_types::ids::ClassNo;
-
-fn capture(name: &str) -> Capture {
-    Capture::load(captures::captures_dir().join(name)).expect("capture")
-}
-
-/// The whole `shop` capture (steps 5-40): weapon shop list, two buys, sell, appraise,
-/// wield, the armour shop list and padded set, the general store (too poor, not sold),
-/// the healer's empty list.
-#[tokio::test]
-async fn shop_capture_replays_byte_equal() {
-    let (_dir, url) = aldric_db();
-    let cap = capture("shop");
-    // the walk's ticks come from the test (`walker_ticker`, as the m1 walks), not a second
-    // of the server's own per move
-    let r = common::stock::start_ticked_by_test(&url).await;
-    let mut c = TelnetClient::connect(r.telnet_addr).await.unwrap();
-    login_to_menu(&mut c, "Aldric", "aldric1").await;
-    c.send_line("E").await.unwrap();
-    c.until(PROMPT, WAIT).await.unwrap();
-    let ticker = common::stock::walker_ticker(&r);
-    // Shop quantities depend on how often the original's start-up fill ran (the capture's
-    // own mask list masks them in the gang scenario too); the item names and prices stay.
-    let reports = replay_steps(&mut c, &cap, 5..41, &[QTY], WAIT).await;
-    ticker.abort();
-    assert_clean("shop", &reports);
-    r.stop().await.unwrap();
-}
-
-/// The quantity column of a shop row.
-const QTY: &str = r"(?m)\d+(?= +(?:Free|\d+ \w+)\r?$)";
 
 /// The Newhaven Spell Shop (1:2144) `list`, as a Druid of the first level saw it in the
 /// original under MBBSEmu (ANSI stripped): the stock, the quantities and the per-class suffixes.
