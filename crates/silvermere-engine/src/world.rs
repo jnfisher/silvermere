@@ -52,6 +52,17 @@ pub enum WorldError {
     NoRooms,
 }
 
+/// The items the game puts into an empty slot of its room cache, which a look-up of room
+/// 0 of map 0 (a trail entry not yet walked) finds: lost there until the cache is loaded
+/// again, and never saved.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct EmptyRoomSlot {
+    /// Its visible items, at most `NROOMITEMS`.
+    pub items: Vec<RoomItem>,
+    /// Its hidden items, at most `NHIDITEMS`.
+    pub hiditems: Vec<RoomItem>,
+}
+
 /// The live part of a room (what `RoomState` in `silvermere-db` persists): floor
 /// items, hidden items, monsters here, coins, owner, the alive flag and the counters.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -251,6 +262,8 @@ pub struct World {
     /// room: a look-up of room 0 of map 0 then finds one (an empty slot's key), else it
     /// fails. Set by [`World::load`].
     pub room_cache_free: bool,
+    /// What lies in that empty slot ([`EmptyRoomSlot`]).
+    pub empty_room_slot: EmptyRoomSlot,
     /// `monqref`: the known-monster quick reference (T-035).
     pub monqref: Vec<silvermere_rules::spawn::QuickRef>,
     /// The spawn pass's and the monster passes' statics (T-035).
@@ -393,6 +406,7 @@ impl World {
             topten: TopTen::new(),
             occupied: vec![OccRoom::default(); NOCCROOMS],
             room_cache_free: true,
+            empty_room_slot: EmptyRoomSlot::default(),
             monqref: Vec::new(),
             spawn: crate::monsters::SpawnState::default(),
             wall: 0,
