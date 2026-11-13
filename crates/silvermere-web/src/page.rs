@@ -4,7 +4,7 @@
 
 use std::fmt::Write as _;
 
-use crate::settings::{Kind, SettingValue, SettingsView, Source};
+use crate::settings::{Kind, Lock, SettingValue, SettingsView, Source};
 use crate::site::{FAQ, KeyDoc, Site, escape};
 
 /// The style sheet, served as `/assets/style.css`.
@@ -64,7 +64,9 @@ pub fn layout(c: &Chrome<'_>, title: &str, nav: Nav, body: &str) -> String {
          <a class=\"brand\" href=\"{base}/\"><img src=\"{base}/assets/images/silvermere-logo.png\" \
          alt=\"Silvermere\" width=\"166\" height=\"48\"></a>\n\
          <nav>{}{}{}{}</nav>\n{account}\n</header>\n{body}\n\
-         <footer>Silvermere {} · these pages were built with the server and describe this version</footer>\n\
+         <footer>Silvermere {} · these pages were built with the server and describe this version · \
+         <a href=\"{base}/docs/web\">about these pages</a> · \
+         <a href=\"https://github.com/jnfisher/silvermere\">source</a></footer>\n\
          <script src=\"{base}/assets/app.js\"></script>\n</body>\n</html>\n",
         link("/", "Home", nav == Nav::Home),
         link("/docs", "Documentation", nav == Nav::Docs),
@@ -207,8 +209,13 @@ pub fn docs_index(c: &Chrome<'_>) -> String {
 
 /// A short page with a message (not found, not built yet).
 pub fn notice(c: &Chrome<'_>, title: &str, text: &str) -> String {
+    let base = &c.site.base;
     let body = format!(
-        "<main class=\"narrow\"><h1>{}</h1><p>{}</p></main>",
+        "<main class=\"narrow\"><h1>{}</h1><p>{}</p>\
+         <p class=\"hint\">Go to <a href=\"{base}/\">Home</a>, the \
+         <a href=\"{base}/docs\">documentation</a>, the <a href=\"{base}/faq\">FAQ</a>, the \
+         <a href=\"{base}/settings\">settings</a>, or see \
+         <a href=\"{base}/docs/install#connecting\">how to connect</a>.</p></main>",
         escape(title),
         escape(text)
     );
@@ -228,10 +235,13 @@ pub fn login(c: &Chrome<'_>, error: Option<&str>, username: &str) -> String {
          <label>Account <input name=\"username\" value=\"{}\" autocomplete=\"username\" required autofocus></label>\n\
          <label>Password <input name=\"password\" type=\"password\" autocomplete=\"current-password\" required></label>\n\
          <button type=\"submit\">Sign in</button>\n</form>\n\
-         <p class=\"hint\">No sysop account yet? On the server: <code>silvermere account create NAME --sysop</code>.</p>\n\
+         <p class=\"hint\">No sysop account yet? On the server: <code>silvermere account create NAME --sysop</code> \
+         (<a href=\"{base}/docs/auth#command-line\">account commands</a>). \
+         <a href=\"{base}/docs/web#settings\">About signing in</a>.</p>\n\
          </main>",
         c.site.base,
-        escape(username)
+        escape(username),
+        base = c.site.base
     );
     layout(c, "Sign in", Nav::Settings, &body)
 }
@@ -263,6 +273,41 @@ fn settings_sidebar(sections: &[&str]) -> String {
     }
     out.push_str("</ul>\n</aside>");
     out
+}
+
+/// Why a setting is locked, with where to change it instead.
+fn lock_text(base: &str, key: &str, lock: &Lock) -> String {
+    let wins = format!("<a href=\"{base}/docs/config#precedence\">wins over the file</a>");
+    match lock {
+        Lock::Secret if key.starts_with("admin.") => format!(
+            "Holds secrets, so it is neither shown nor changed here. Make a token on the \
+             server with <code>silvermere admin token new</code>: see \
+             <a href=\"{base}/docs/admin-api#tokens\">Tokens</a>."
+        ),
+        Lock::Secret => format!(
+            "Can hold a password, so it is neither shown nor changed here. Change it on the \
+             server: see <a href=\"{base}/docs/config#the-config-command\">Configuration</a>."
+        ),
+        Lock::DataDir => format!(
+            "Where the settings file itself lives. Change it with <code>--data-dir</code> or \
+             <code>SILVERMERE_DATA_DIR</code>: see \
+             <a href=\"{base}/docs/config#precedence\">Configuration</a>."
+        ),
+        Lock::Env(var) => format!(
+            "Set by the environment variable <code>{}</code>, which {wins}. Remove it to \
+             change the value here.",
+            escape(var)
+        ),
+        Lock::Flag => format!("Set by a flag on the server's command line, which {wins}."),
+    }
+}
+
+/// The original game's option a key replaces, linked to the page that lists them all.
+fn original_option(base: &str, original: &str) -> String {
+    format!(
+        " · original option <a href=\"{base}/docs/config-defaults\"><code>{}</code></a>",
+        escape(original)
+    )
 }
 
 /// The field a value is edited in.
@@ -302,14 +347,19 @@ pub fn settings(c: &Chrome<'_>, view: &SettingsView, banner: Option<(&str, bool)
     if view.pending {
         main.push_str(
             "<p class=\"banner warn\">The settings file has changes this server has not \
-             loaded: settings are read once, at startup. Restart the server to apply them.</p>\n",
+             loaded: settings are read once, at startup. Restart the server to apply them \
+             (<a href=\"BASE/docs/config#the-config-command\">how</a>).</p>\n"
+                .replace("BASE", &c.site.base)
+                .as_str(),
         );
     }
     let _ = writeln!(
         main,
         "<p class=\"hint\">Saved to <code>{}</code>. A value set by an environment variable \
-         or a flag wins over the file and cannot be changed here.</p>",
-        escape(&view.file)
+         or a flag <a href=\"{base}/docs/config#precedence\">wins over the file</a> and cannot be \
+         changed here. <a href=\"{base}/docs/web#settings\">How this page works</a>.</p>",
+        escape(&view.file),
+        base = c.site.base
     );
     for s in &secs {
         let _ = writeln!(
@@ -332,12 +382,15 @@ pub fn settings(c: &Chrome<'_>, view: &SettingsView, banner: Option<(&str, bool)
                 Source::Flag => "<span class=\"badge lock\">set by a flag</span>".to_owned(),
             };
             let locked = v.locked.as_ref().map_or(String::new(), |why| {
-                format!("<p class=\"locked\">{}</p>", escape(why))
+                format!(
+                    "<p class=\"locked\">{}</p>",
+                    lock_text(&c.site.base, &v.key, why)
+                )
             });
             let original = doc
                 .filter(|d| !d.original.is_empty())
                 .map_or(String::new(), |d| {
-                    format!(" · original option <code>{}</code>", escape(&d.original))
+                    original_option(&c.site.base, &d.original)
                 });
             let _ = writeln!(
                 main,
@@ -384,7 +437,7 @@ pub fn settings_reference(c: &Chrome<'_>) -> String {
             let original = if d.original.is_empty() {
                 String::new()
             } else {
-                format!(" · original option <code>{}</code>", escape(&d.original))
+                original_option(&c.site.base, &d.original)
             };
             let _ = writeln!(
                 main,

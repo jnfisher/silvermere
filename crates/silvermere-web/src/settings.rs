@@ -22,6 +22,19 @@ pub enum Source {
     Flag,
 }
 
+/// Why a value cannot be changed on the settings page.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Lock {
+    /// It holds a secret (the database URL, the admin tokens): never shown or written.
+    Secret,
+    /// It says where the settings file itself lives.
+    DataDir,
+    /// The `SILVERMERE_*` variable named sets it, above the file.
+    Env(String),
+    /// A flag on the server's command line sets it, above the file.
+    Flag,
+}
+
 /// One setting as it stands.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SettingValue {
@@ -34,8 +47,8 @@ pub struct SettingValue {
     pub default: String,
     pub kind: Kind,
     pub source: Source,
-    /// Why the value cannot be changed here (a secret, or set above the file), if so.
-    pub locked: Option<String>,
+    /// Why the value cannot be changed here, if it cannot.
+    pub locked: Option<Lock>,
 }
 
 /// Every setting, and the file they are saved to.
@@ -138,7 +151,7 @@ mod tests {
 
     fn view() -> SettingsView {
         let mut secret = value("database.url", "<redacted>", "", Kind::Text, Source::File);
-        secret.locked = Some("a secret".into());
+        secret.locked = Some(Lock::Secret);
         SettingsView {
             file: "silvermere.toml".into(),
             pending: false,

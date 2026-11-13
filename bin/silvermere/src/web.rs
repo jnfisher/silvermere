@@ -9,7 +9,7 @@ use std::sync::Arc;
 use silvermere_auth::{AccountStore as _, Clock as _, Lockout, LockoutConfig, Role, has_role};
 use silvermere_db::Db;
 use silvermere_web::{
-    Change, Kind, LoginOutcome, SettingValue, Settings, SettingsView, Source, SysopLogin,
+    Change, Kind, Lock, LoginOutcome, SettingValue, Settings, SettingsView, Source, SysopLogin,
 };
 
 use crate::commands::config::{self as file, Row};
@@ -65,26 +65,13 @@ fn kind(v: Option<&toml::Value>) -> Kind {
 
 fn setting(row: Row) -> SettingValue {
     let locked = if row.secret {
-        Some(
-            "Holds a secret, so it is neither shown nor changed here. Change it on the \
-             server with the silvermere command (see Configuration)."
-                .to_owned(),
-        )
+        Some(Lock::Secret)
     } else if row.key == "data_dir" {
-        Some(
-            "Where the settings file itself lives. Change it with --data-dir or \
-             SILVERMERE_DATA_DIR."
-                .to_owned(),
-        )
+        Some(Lock::DataDir)
     } else {
         match &row.source {
-            file::Source::Env(var) => Some(format!(
-                "Set by the environment variable {var}, which wins over the file. Remove \
-                 it to change the value here."
-            )),
-            file::Source::Flag => Some(
-                "Set by a flag on the server's command line, which wins over the file.".to_owned(),
-            ),
+            file::Source::Env(var) => Some(Lock::Env(var.clone())),
+            file::Source::Flag => Some(Lock::Flag),
             _ => None,
         }
     };

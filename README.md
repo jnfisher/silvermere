@@ -2,6 +2,8 @@
 
 <p align="center"><img src="docs/images/silvermere.webp" alt="Silvermere from the air: the walled town on the Silver river, the island with the Labyrinth beyond it, and Darkwood Forest to the east" width="100%"></p>
 
+<h3 align="center">📖 <a href="https://jnfisher.github.io/silvermere/">Documentation, FAQ and settings reference: jnfisher.github.io/silvermere</a></h3>
+
 silvermere is a faithful recreation of the MajorMUD 1.11p engine, written in Rust.
 
 It is one binary. The stock 1.11p game data is downloaded from MBBSEmu

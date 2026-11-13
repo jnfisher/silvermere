@@ -31,7 +31,7 @@ use axum::routing::get;
 
 pub use export::export;
 pub use session::{LoginOutcome, Sessions, SysopLogin};
-pub use settings::{Change, Kind, SettingValue, Settings, SettingsView, Source};
+pub use settings::{Change, Kind, Lock, SettingValue, Settings, SettingsView, Source};
 pub use site::Site;
 
 use page::Chrome;

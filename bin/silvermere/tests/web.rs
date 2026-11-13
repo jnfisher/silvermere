@@ -138,7 +138,7 @@ async fn a_sysop_changes_a_setting_in_the_browser() {
         "the field"
     );
     assert!(body.contains("Hit points at which a player dies."));
-    assert!(body.contains("id=\"f-database.url\"") && body.contains("Holds a secret"));
+    assert!(body.contains("id=\"f-database.url\"") && body.contains("Can hold a password"));
     assert!(!body.contains("has changes this server has not loaded"));
     let csrf = body
         .split("name=\"csrf\" value=\"")

@@ -7,8 +7,8 @@ use std::sync::{Arc, Mutex};
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use silvermere_web::{
-    Change, Kind, LoginOutcome, SettingValue, Settings, SettingsView, Source, SysopLogin, WebState,
-    router,
+    Change, Kind, Lock, LoginOutcome, SettingValue, Settings, SettingsView, Source, SysopLogin,
+    WebState, router,
 };
 use tower::ServiceExt as _;
 
@@ -20,20 +20,20 @@ struct Fake {
 
 impl Settings for Fake {
     fn view(&self) -> Result<SettingsView, String> {
-        let value = |key: &str, value: &str, kind, locked: Option<&str>| SettingValue {
+        let value = |key: &str, value: &str, kind, locked: Option<Lock>| SettingValue {
             key: key.into(),
             value: value.into(),
             default: value.into(),
             kind,
             source: Source::Default,
-            locked: locked.map(str::to_owned),
+            locked,
         };
         Ok(SettingsView {
             file: "/data/silvermere.toml".into(),
             pending: false,
             values: vec![
                 value("game.death_hp", "-200", Kind::Integer, None),
-                value("database.url", "<redacted>", Kind::Text, Some("a secret")),
+                value("database.url", "<redacted>", Kind::Text, Some(Lock::Secret)),
                 value("server.max_sessions", "256", Kind::Integer, None),
             ],
         })
@@ -203,7 +203,11 @@ async fn a_sysop_sees_and_saves_settings() {
     assert!(body.contains("/data/silvermere.toml"));
     // the meaning comes from docs/config.md
     assert!(body.contains("Hit points at which a player dies."));
-    assert!(body.contains("original option <code>DEATHHP</code>"));
+    assert!(
+        body.contains("original option <a href=\"/docs/config-defaults\"><code>DEATHHP</code></a>")
+    );
+    // a locked setting says where to change it instead
+    assert!(body.contains("see <a href=\"/docs/config#the-config-command\">Configuration</a>"));
     // a secret is shown locked
     assert!(body.contains(
         "name=\"database.url\" value=\"&lt;redacted&gt;\" spellcheck=\"false\" disabled"
