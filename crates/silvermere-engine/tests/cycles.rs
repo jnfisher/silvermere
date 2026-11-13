@@ -290,12 +290,9 @@ fn raw(run: &mut Run, id: SessionId) -> Vec<u8> {
     b
 }
 
-// REST and MEDITATE: `tell_room` sends the whole
-// output buffer, so the dispatcher's ANSI_NORMAL goes to the room ahead of the line and the
-// player's own line comes bare (m4/spells step 22 `rest` against the original, run
-// 38904009536). Already resting, nobody else is told and the reset is the player's.
+// REST and MEDITATE: the player's line follows his colour reset; the room gets the line alone.
 #[test]
-fn rest_and_meditate_give_the_pending_reset_to_the_room() {
+fn rest_and_meditate_keep_the_reset_with_the_player() {
     use silvermere_engine::commands::input::execute_input;
     let mut run = Run::new();
     let id = kang(&mut run);
@@ -303,10 +300,10 @@ fn rest_and_meditate_give_the_pending_reset_to_the_room() {
     raw(&mut run, id);
     raw(&mut run, other);
     execute_input(&mut run.world, id, "rest", false);
-    assert_eq!(raw(&mut run, id), b"You are now resting.\r\n");
+    assert_eq!(raw(&mut run, id), b"\x1b[0;37;40mYou are now resting.\r\n");
     assert_eq!(
         raw(&mut run, other),
-        b"\x1b[0;37;40m\x1b[79D\x1b[KKang stops to rest.\r\n"
+        b"\x1b[79D\x1b[KKang stops to rest.\r\n"
     );
     execute_input(&mut run.world, id, "rest", false);
     assert_eq!(raw(&mut run, id), b"\x1b[0;37;40mYou are now resting.\r\n");
@@ -317,10 +314,13 @@ fn rest_and_meditate_give_the_pending_reset_to_the_room() {
     raw(&mut run, other);
     raw(&mut run, id);
     execute_input(&mut run.world, mage, "meditate", false);
-    assert_eq!(raw(&mut run, mage), b"You are now meditating.\r\n");
+    assert_eq!(
+        raw(&mut run, mage),
+        b"\x1b[0;37;40mYou are now meditating.\r\n"
+    );
     assert!(
-        raw(&mut run, other).starts_with(b"\x1b[0;37;40m\x1b[79D\x1b[K"),
-        "the reset goes to the room"
+        raw(&mut run, other).starts_with(b"\x1b[79D\x1b[K"),
+        "the room gets the line alone"
     );
 }
 
@@ -777,10 +777,9 @@ fn session_time_counts_slow_ticks() {
 }
 
 // The "other" cycle every 60 s (the test config), T-023's
-// save_characters: five players a sweep, round-robin from where the
-// last sweep stopped.
+// save_characters: every player in the game.
 #[test]
-fn the_save_sweep_writes_five_players_a_minute_round_robin() {
+fn the_save_sweep_writes_every_player_a_minute() {
     use silvermere_engine::player_session::AccountRef;
     use silvermere_engine::{EngineOutput, PersistRequest};
     use silvermere_types::flags::PlayerSettings;
@@ -821,12 +820,7 @@ fn the_save_sweep_writes_five_players_a_minute_round_robin() {
     clock.advance_ticks(59, &mut engine);
     assert!(saved(&rx).is_empty());
     clock.advance_ticks(1, &mut engine);
-    assert_eq!(saved(&rx), [1, 2, 3, 4, 5]);
+    assert_eq!(saved(&rx), (1..=12).collect::<Vec<i64>>());
     clock.advance_ticks(60, &mut engine);
-    assert_eq!(saved(&rx), [6, 7, 8, 9, 10]);
-    // Slots 10..16 hold two players; the sweep ends at the last slot and starts over.
-    clock.advance_ticks(60, &mut engine);
-    assert_eq!(saved(&rx), [11, 12]);
-    clock.advance_ticks(60, &mut engine);
-    assert_eq!(saved(&rx), [1, 2, 3, 4, 5]);
+    assert_eq!(saved(&rx), (1..=12).collect::<Vec<i64>>());
 }

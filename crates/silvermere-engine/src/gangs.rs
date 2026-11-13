@@ -55,6 +55,15 @@ pub fn get_gang_mut<'a>(world: &'a mut World, name: &str) -> Option<&'a mut Gang
     world.gangs.get_mut(&gang_key(name))
 }
 
+/// Puts the gang with key `key` after every other gang of its experience, as the game's gang
+/// file does with a record inserted, or written back with a new experience (the
+/// experience is a key with duplicates, which come out in the order they arrived): the
+/// order in which TOP GANG lists gangs of equal experience.
+pub fn place_gang_last(world: &mut World, key: &str) {
+    let next = world.gang_order.values().max().map_or(0, |n| n + 1);
+    world.gang_order.insert(key.to_string(), next);
+}
+
 /// Marks the gang changed: queues the gang record named `name` for the store.
 pub fn save_gang(world: &mut World, name: &str) {
     if let Some(g) = get_gang(world, name).cloned() {
@@ -76,8 +85,8 @@ fn player_mut(world: &mut World, id: SessionId) -> Option<&mut Character> {
 /// `gangname`. `false` when the gang does not exist or the invitation is a duplicate.
 ///
 /// (sic) the duplicate test starts at the newest invitation and walks on from there, so
-/// only the newest one is compared; an older identical invitation is not noticed. At most
-/// 19 characters of the name are kept.
+/// only the newest one is compared; an older identical invitation is not noticed. Harmless:
+/// joining takes the first and clears the rest. At most 19 characters of the name are kept.
 pub fn invite_to_gang(world: &mut World, unum: SessionId, gangname: &str) -> bool {
     if get_gang(world, gangname).is_none() {
         return false;
@@ -287,11 +296,12 @@ pub fn save_gang_shop(world: &mut World, shop: ShopNo) {
 
 /// The takings of a sale in
 /// gang shop `shop` go to its owner's bank book at the gang bank. Nothing is paid without
-/// money; an owner in the game without a book there gets a new one. When the balance would
-/// wrap the money is lost. A sysop in debug mode is told. The buyer `id` is saved afterwards.
+/// money; an owner in the game without a book there gets a new one, as the game opens a
+/// book on any look-up. When the balance would wrap the money is lost. A sysop in debug
+/// mode is told. The buyer `id` is saved afterwards.
 ///
-/// Not carried: the game also opens a book for an owner who is not in the game; here, with
-/// no account to hold it, that money is lost.
+/// Not carried: the game also opens a book for an owner who is not in the game (or for
+/// no owner at all); here, with no account to hold it, that money is lost.
 pub fn deposit_gangleaders_account(world: &mut World, id: SessionId, shop: ShopNo, amount: u32) {
     let Some(owner) = world.shops.get(&shop).map(gang_shop_owner) else {
         return;
@@ -377,8 +387,9 @@ pub fn deposit_gangleaders_account(world: &mut World, id: SessionId, shop: ShopN
 /// What a gang command asks the store about characters that are not in the game.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GangQuery {
-    /// The stored characters whose gang is `gang` (any case), lowest experience first:
-    /// the member list's WCCUSERS walk on key 2.
+    /// Every stored character, highest experience first: the member list's WCCUSERS walk
+    /// on key 2, where a record of another gang also counts towards the end of the list.
+    /// `gang` is the gang listed.
     Members { gang: String },
     /// The stored character whose first name is `name` (any case): the key 1 lookups of
     /// removing an offline member and of PROMOTE/DEMOTE. `gang` is the commander's gang.

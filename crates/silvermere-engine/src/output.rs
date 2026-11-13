@@ -12,16 +12,6 @@ use silvermere_types::ids::SessionId;
 use crate::tell::PromptState;
 use crate::world::World;
 
-/// The output buffer is cleared inside the command of `id` (ending a multiple-match list, a
-/// non-ambiguous player lookup, using a scroll): the dispatcher's colour reset
-/// (`Msg::CmdNormal`) never reaches the player when nothing was told before the clear. Text
-/// the command already told stays: it had been sent. `true` when the reset was dropped.
-pub fn clear_output(world: &mut World, id: SessionId) -> bool {
-    world
-        .session_mut(id)
-        .is_some_and(|s| s.output.discard_last(&Msg::CmdNormal))
-}
-
 /// One queued item.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Item {
@@ -83,17 +73,7 @@ impl OutputBatch {
         self.reprompt = false;
     }
 
-    /// Removes the item at `index` when it is `msg` without a colour prefix (a message
-    /// that was queued and then dropped from the prf buffer); anything else stays.
-    pub fn remove_msg_at(&mut self, index: usize, msg: &Msg) {
-        if matches!(self.items.get(index), Some(Item::Msg { msg: m, colour: None }) if m == msg) {
-            self.items.remove(index);
-        }
-    }
-
-    /// Drops the last item when it is `msg` with no colour: what a [`clear_output`] (or a
-    /// `tell_room` that sends the output buffer to others) takes back of a line the command had
-    /// only queued so far, such as the dispatcher's `ANSI_NORMAL`. `true` when dropped.
+    /// Drops the last item when it is `msg` with no colour. `true` when dropped.
     pub fn discard_last(&mut self, msg: &Msg) -> bool {
         let last =
             matches!(self.items.last(), Some(Item::Msg { msg: m, colour: None }) if m == msg);

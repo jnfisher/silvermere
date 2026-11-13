@@ -105,7 +105,9 @@ pub fn cast_at_player(
     use MonsterCastResult as R;
     // the cast roll comes first, whatever follows
     let roll = world.rng.range(0, 100);
-    let Some(m) = combat::monster(world, mon).cloned() else {
+    // the game holds the caster's record through the cast: peeked here and below, never
+    // looked up (a summon in between would show in the cache's last slot)
+    let Some(m) = world.active_monsters.peek(mon).cloned() else {
         return R::Nothing;
     };
     let Some(known) = world.monsters.get(&m.knownnum).cloned() else {
@@ -231,7 +233,7 @@ pub fn cast_at_player(
         0
     };
     // the attack's full energy is spent
-    if let Some(mm) = combat::monster_mut(world, mon) {
+    if let Some(mm) = world.active_monsters.peek_mut(mon) {
         mm.energy = mm.energy.wrapping_sub(cost as u16);
     }
     // the strength, with the level only for a cast from a slot
@@ -264,7 +266,7 @@ pub fn cast_at_player(
         }
         if state.refused {
             // refused: the energy is given back and the cast ends with 0
-            if let Some(mm) = combat::monster_mut(world, mon) {
+            if let Some(mm) = world.active_monsters.peek_mut(mon) {
                 mm.energy = mm.energy.wrapping_add(cost as u16);
             }
             return R::Nothing;
@@ -299,7 +301,7 @@ fn apply_slot(
     slot: &EffectSlot,
     state: &mut MonsterCastState,
 ) -> Outcome {
-    let Some(mut caster_rec) = combat::monster(world, mon).cloned() else {
+    let Some(mut caster_rec) = world.active_monsters.peek(mon).cloned() else {
         return Outcome::NoEffect;
     };
     let Some(p) = combat::player(world, id) else {
@@ -340,7 +342,7 @@ fn apply_slot(
     };
     let out = apply_monster_cast(slot, cast, &mut caster, &mut user, state);
     // a steal of hit points is the only change to the caster's record
-    if let Some(m) = combat::monster_mut(world, mon) {
+    if let Some(m) = world.active_monsters.peek_mut(mon) {
         m.hp = caster_rec.hp;
     }
     out
@@ -361,7 +363,7 @@ fn after_slot(
     was_added: bool,
 ) -> Flow {
     let name = combat::player(world, id).map_or(String::new(), |p| p.firstname.clone());
-    let room = combat::monster(world, mon).map(|m| RoomKey {
+    let room = world.active_monsters.peek(mon).map(|m| RoomKey {
         map: m.map,
         room: m.room,
     });
@@ -495,18 +497,18 @@ pub fn cast_self(world: &mut World, mon: ActiveMonsterId, spl: &Spell, level: i3
     monster_display_spell_success(world, None, spl, mon, "itself", value);
     let effects = SpellEffects::from_record(spl);
     if spl.duration != 0 {
-        if let Some(m) = combat::monster_mut(world, mon) {
+        if let Some(m) = world.active_monsters.peek_mut(mon) {
             add_spell_to_monster(&mut m.spells, spl.number, i32::from(spl.duration), value);
         }
         for s in effects.iter() {
             if s.ability == Ability::Poison
-                && let Some(m) = combat::monster_mut(world, mon)
+                && let Some(m) = world.active_monsters.peek_mut(mon)
             {
                 m.poison = m.poison.wrapping_add(s.amount(value) as i16);
             }
         }
     } else {
-        let Some(m) = combat::monster(world, mon) else {
+        let Some(m) = world.active_monsters.peek(mon) else {
             return;
         };
         let room = RoomKey {
@@ -574,7 +576,7 @@ pub fn cast_by_number(
 /// slot whose cumulative percent is above it, cast at that slot's level; a roll above
 /// every slot casts nothing. No roll is drawn for a monster without spells.
 pub fn cast_random(world: &mut World, mon: ActiveMonsterId, target: SessionId) {
-    let Some(m) = combat::monster(world, mon) else {
+    let Some(m) = world.active_monsters.peek(mon) else {
         return;
     };
     let Some(known) = world.monsters.get(&m.knownnum) else {

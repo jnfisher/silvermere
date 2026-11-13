@@ -1110,10 +1110,11 @@ mod scripts {
         let me = t.me;
         execute_input(&mut t.w, me, "pull lever", false);
         assert!(t.out().ends_with("You do it.\r\n<P>"));
-        // LOOK at something not here reaches it too
+        // LOOK at something not here reaches it too; (sic) LOOK shows the prompt and then
+        // the command's own
         block(&mut t.w, 980, &format!("look lever:message {MSG_DO}\n"));
         execute_input(&mut t.w, me, "look lever", false);
-        assert!(t.out().ends_with("You do it.\r\n<P>"));
+        assert!(t.out().ends_with("You do it.\r\n<P><P>"));
     }
 
     // -----------------------------------------------------------------------------------

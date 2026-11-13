@@ -348,7 +348,8 @@ pub fn cmd_auction(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLi
 }
 
 /// GLOBAL: no BBS global commands exist, so the line is not a command and goes on to speech, as
-/// in the original with none registered.
+/// in the original with none taking it; the line goes on without its first word (see
+/// `execute_input`).
 pub fn cmd_global(_world: &mut World, _id: SessionId, _cmd: Cmd, _line: &CommandLine) -> Handled {
     Handled::NotCommand
 }

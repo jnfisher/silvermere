@@ -11,7 +11,6 @@ use silvermere_types::enums::{DebugLevel, MessageLevel, trb, trn};
 use silvermere_types::flags::{PlayerFlags, PlayerStatus, PlayerStatus2};
 use silvermere_types::ids::{RoomKey, SessionId};
 
-use crate::output::Item;
 use crate::world::World;
 
 /// `tell_room` noise: how minor a room message is (`TRN_*`).
@@ -60,61 +59,9 @@ pub type Sound = Option<u8>;
 
 /// The message goes to one session, with no
 /// prompt and no colour. The split-screen and client/server paths are not carried.
-///
-/// There is one output buffer: told to another player inside a command, the line takes
-/// the command's still-queued `ANSI_NORMAL` along ([`World::prf_owner`]).
 pub fn tell_user(world: &mut World, id: SessionId, msg: Msg) {
-    let pending = pending_buffer_owner(world);
-    if let Some(owner) = pending.filter(|&o| o != id) {
-        clear_pending(world, owner);
-        if let Some(s) = world.session_mut(id) {
-            s.output.push(Msg::CmdNormal);
-        }
-    }
     if let Some(s) = world.session_mut(id) {
         s.output.push(msg);
-    }
-}
-
-/// The player of the running command when the dispatcher's `ANSI_NORMAL` is still the last
-/// thing queued for him: nothing has been told yet, so it is still in the output buffer.
-/// [`tell_room`], [`tell_group`], [`tell_gang`], [`tell_game`] and [`tell_user`] to another player
-/// send the whole buffer to each listener and empty it: the listeners get the reset ahead
-/// of the line and the player's own later line comes without it.
-fn pending_buffer_owner(world: &World) -> Option<SessionId> {
-    let owner = world.prf_owner?;
-    let last = world.session(owner)?.output.items().last();
-    matches!(
-        last,
-        Some(Item::Msg {
-            msg: Msg::CmdNormal,
-            colour: None
-        })
-    )
-    .then_some(owner)
-}
-
-/// The buffer is cleared at the end of a `tell_*` (the buffer went to the listeners).
-fn clear_pending(world: &mut World, owner: SessionId) {
-    if let Some(s) = world.session_mut(owner) {
-        s.output.discard_last(&Msg::CmdNormal);
-    }
-}
-
-/// One listener of a fan-out: whether the pending reset leads his line. The player's own,
-/// when he is a listener, is taken back so that [`deliver`] puts it after his colour.
-fn lead_pending(world: &mut World, pending: Option<SessionId>, id: SessionId) -> bool {
-    if pending == Some(id) {
-        clear_pending(world, id);
-    }
-    pending.is_some()
-}
-
-/// The end of a fan-out: the buffer is cleared, so a player who was not among the
-/// listeners loses the reset.
-fn end_pending(world: &mut World, pending: Option<SessionId>, told_owner: bool) {
-    if let Some(owner) = pending.filter(|_| !told_owner) {
-        clear_pending(world, owner);
     }
 }
 
@@ -137,27 +84,7 @@ pub fn tell_room(
     sound: Sound,
     msg: &Msg,
 ) -> usize {
-    tell_room_led(world, room, except, noise, blind, prompt, sound, None, msg)
-}
-
-/// [`tell_room`] for a command that left text in the output buffer (the dispatcher's
-/// `ANSI_NORMAL`) before the call: `tell_room` sends the whole buffer, so each
-/// listener gets `lead` ahead of `msg`.
-#[allow(clippy::too_many_arguments)]
-pub fn tell_room_led(
-    world: &mut World,
-    room: RoomKey,
-    except: [Option<SessionId>; 2],
-    noise: Noise,
-    blind: TellBlind,
-    prompt: bool,
-    sound: Sound,
-    lead: Option<&Msg>,
-    msg: &Msg,
-) -> usize {
     let mut cnt = 0;
-    let pending = pending_buffer_owner(world);
-    let mut told_owner = false;
     for id in world.session_ids() {
         if except.contains(&Some(id)) || !world.is_in_game(id) {
             continue;
@@ -177,14 +104,11 @@ pub fn tell_room_led(
             continue;
         }
         let hidden = plr.hidden != 0;
-        told_owner |= pending == Some(id);
-        let reset = lead_pending(world, pending, id);
-        deliver(world, id, reset, lead, msg, prompt, sound);
+        deliver(world, id, msg, prompt, sound);
         if !hidden {
             cnt += 1;
         }
     }
-    end_pending(world, pending, told_owner);
     cnt
 }
 
@@ -202,8 +126,6 @@ pub fn tell_game(
     msg: &Msg,
 ) -> usize {
     let mut cnt = 0;
-    let pending = pending_buffer_owner(world);
-    let mut told_owner = false;
     for id in world.session_ids() {
         if except == Some(id) || !world.is_in_game(id) {
             continue;
@@ -236,13 +158,10 @@ pub fn tell_game(
             true
         };
         if allowed {
-            told_owner |= pending == Some(id);
-            let reset = lead_pending(world, pending, id);
-            deliver(world, id, reset, None, msg, prompt, sound);
+            deliver(world, id, msg, prompt, sound);
             cnt += 1;
         }
     }
-    end_pending(world, pending, told_owner);
     cnt
 }
 
@@ -251,8 +170,6 @@ pub fn tell_game(
 /// (always).
 pub fn tell_gang(world: &mut World, gang: &str, msg: &Msg) -> usize {
     let mut cnt = 0;
-    let pending = pending_buffer_owner(world);
-    let mut told_owner = false;
     for id in world.session_ids() {
         if !world.is_in_game(id) {
             continue;
@@ -263,13 +180,10 @@ pub fn tell_gang(world: &mut World, gang: &str, msg: &Msg) -> usize {
             .and_then(|s| s.player())
             .is_some_and(|p| p.gang.eq_ignore_ascii_case(gang));
         if same {
-            told_owner |= pending == Some(id);
-            let reset = lead_pending(world, pending, id);
-            deliver(world, id, reset, None, msg, true, None);
+            deliver(world, id, msg, true, None);
             cnt += 1;
         }
     }
-    end_pending(world, pending, told_owner);
     cnt
 }
 
@@ -277,8 +191,6 @@ pub fn tell_gang(world: &mut World, gang: &str, msg: &Msg) -> usize {
 /// (`player.bchannel`); each gets the message followed by a fresh prompt (always).
 pub fn tell_group(world: &mut World, channel: i16, except: Option<SessionId>, msg: &Msg) -> usize {
     let mut cnt = 0;
-    let pending = pending_buffer_owner(world);
-    let mut told_owner = false;
     for id in world.session_ids() {
         if except == Some(id) || !world.is_in_game(id) {
             continue;
@@ -289,35 +201,20 @@ pub fn tell_group(world: &mut World, channel: i16, except: Option<SessionId>, ms
             .and_then(|s| s.player())
             .is_some_and(|p| p.bchannel == channel);
         if tuned {
-            told_owner |= pending == Some(id);
-            let reset = lead_pending(world, pending, id);
-            deliver(world, id, reset, None, msg, true, None);
+            deliver(world, id, msg, true, None);
             cnt += 1;
         }
     }
-    end_pending(world, pending, told_owner);
     cnt
 }
 
-/// One listener's share (the bytes one listener receives): the colour first; then the
-/// pending reset (`reset`) and `lead` when there are any, the message and the
+/// One listener's share (the bytes one listener receives): the colour, the message and the
 /// prompt if asked.
-fn deliver(
-    world: &mut World,
-    id: SessionId,
-    reset: bool,
-    lead: Option<&Msg>,
-    msg: &Msg,
-    prompt: bool,
-    sound: Sound,
-) {
-    let mut colour = sound.filter(|&row| row != TELL_NOCOLOR);
+fn deliver(world: &mut World, id: SessionId, msg: &Msg, prompt: bool, sound: Sound) {
+    let colour = sound.filter(|&row| row != TELL_NOCOLOR);
     let Some(s) = world.session_mut(id) else {
         return;
     };
-    for m in reset.then_some(&Msg::CmdNormal).into_iter().chain(lead) {
-        s.output.push_coloured(m.clone(), colour.take());
-    }
     s.output.push_coloured(msg.clone(), colour);
     if prompt {
         s.push_prompt();

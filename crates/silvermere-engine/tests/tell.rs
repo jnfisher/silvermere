@@ -419,30 +419,25 @@ fn bytes_of(world: &World, id: SessionId) -> Vec<u8> {
     world.session(id).unwrap().output.render(palette, b"")
 }
 
-// `tell_game` and `tell_room`: the colour goes out on its own before `tell_user` sends the
-// text buffer, so a command's still-queued ANSI_NORMAL
-// comes after the listener's colour, not before it. No command reaches this today (the
-// coloured social lines run after the buffer has been cleared).
+// The player's colour reset stays his: listeners of `tell_room` and `tell_game` get their
+// colour and the line only.
 #[test]
-fn the_listeners_colour_goes_ahead_of_the_pending_reset() {
+fn the_players_reset_stays_with_him() {
     const RESET: &[u8] = b"\x1b[0;37;40m";
     let row = 2u8; // COL_PROMPT
     let pending = |f: &mut Four| {
-        f.world.prf_owner = Some(f.high);
         f.world
             .session_mut(f.high)
             .unwrap()
             .output
             .push(Msg::CmdNormal);
     };
-    let expected = |palette: usize| {
+    let line = |palette: usize| {
         let mut b = CLRTBL[usize::from(row)][palette].to_vec();
-        b.extend_from_slice(RESET);
         b.extend_from_slice(&render(&msg(), Palette::new(palette as u8).unwrap()).bytes);
         b
     };
-    // tell_room, the player left out: Mel and Blinky get colour, reset, line; the player
-    // loses the reset
+    // tell_room, the player left out
     let mut f = four();
     pending(&mut f);
     tell_room(
@@ -455,10 +450,10 @@ fn the_listeners_colour_goes_ahead_of_the_pending_reset() {
         Some(row),
         &msg(),
     );
-    assert_eq!(bytes_of(&f.world, f.medium), expected(0));
-    assert_eq!(bytes_of(&f.world, f.blind), expected(0));
-    assert!(bytes_of(&f.world, f.high).is_empty());
-    // tell_game, the player among the listeners: his own reset follows his colour too
+    assert_eq!(bytes_of(&f.world, f.medium), line(0));
+    assert_eq!(bytes_of(&f.world, f.blind), line(0));
+    assert_eq!(bytes_of(&f.world, f.high), RESET);
+    // tell_game, the player among the listeners: his reset, then his line
     let mut f = four();
     pending(&mut f);
     tell_game(
@@ -469,8 +464,10 @@ fn the_listeners_colour_goes_ahead_of_the_pending_reset() {
         Some(row),
         &msg(),
     );
-    assert_eq!(bytes_of(&f.world, f.high), expected(1), "palette 1");
+    let mut own = RESET.to_vec();
+    own.extend(line(1));
+    assert_eq!(bytes_of(&f.world, f.high), own, "palette 1");
     for id in [f.medium, f.low, f.blind] {
-        assert_eq!(bytes_of(&f.world, id), expected(0), "listener {id}");
+        assert_eq!(bytes_of(&f.world, id), line(0), "listener {id}");
     }
 }

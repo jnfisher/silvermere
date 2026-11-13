@@ -141,8 +141,8 @@ pub fn display_next_topten(world: &mut World, id: SessionId) {
     }
 }
 
-/// A date as `MM/DD/YY` (the founding date, held here as Unix seconds
-/// UTC; days to a civil date by the proleptic Gregorian rule).
+/// A date as `DD-MON-YY`, as the game's `ncedat` writes it (the founding date, held here as
+/// Unix seconds UTC; days to a civil date by the proleptic Gregorian rule).
 fn format_date(unix: i64) -> String {
     let z = unix.div_euclid(86_400) + 719_468;
     let era = z.div_euclid(146_097);
@@ -153,7 +153,11 @@ fn format_date(unix: i64) -> String {
     let day = doy - (153 * mp + 2) / 5 + 1;
     let month = if mp < 10 { mp + 3 } else { mp - 9 };
     let year = yoe + era * 400 + i64::from(month <= 2);
-    format!("{month:02}/{day:02}/{:02}", year.rem_euclid(100))
+    const MONTHS: [&str; 12] = [
+        "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
+    ];
+    let mon = MONTHS[(month - 1) as usize];
+    format!("{day:02}-{mon}-{:02}", year.rem_euclid(100))
 }
 
 /// One gang's line.
@@ -199,7 +203,14 @@ pub fn display_top_gangs(world: &mut World, id: SessionId, count: usize) {
             .session(id)
             .is_some_and(|s| s.flags.debug != DebugLevel::Off);
     let mut gangs: Vec<&Gang> = world.gangs.values().collect();
-    gangs.sort_by(|a, b| b.exp.cmp(&a.exp).then_with(|| a.key.cmp(&b.key)));
+    // equal experience in the gang file's order
+    let order = |g: &Gang| world.gang_order.get(&g.key).copied().unwrap_or(u64::MAX);
+    gangs.sort_by(|a, b| {
+        b.exp
+            .cmp(&a.exp)
+            .then_with(|| order(a).cmp(&order(b)))
+            .then_with(|| a.key.cmp(&b.key))
+    });
     let mut msgs = Vec::new();
     let mut cnt = 0;
     for g in gangs.into_iter().take(TOPGANGSCAN) {
@@ -232,6 +243,6 @@ mod tests {
     #[test]
     fn gang_dates() {
         // 2026-10-14 00:00 UTC
-        assert_eq!(format_date(1_791_936_000), "10/14/26");
+        assert_eq!(format_date(1_791_936_000), "14-OCT-26");
     }
 }

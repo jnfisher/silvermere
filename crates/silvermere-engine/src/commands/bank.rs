@@ -24,7 +24,7 @@ use crate::display::bank::{display_bank_balance, display_users_bankbooks, proper
 use crate::event_loop::{EngineOutput, PersistRequest};
 use crate::player::save::{SavePoint, save_at};
 use crate::state::newchar::leading_int;
-use crate::tell::{Noise, TellBlind, tell_room_led};
+use crate::tell::{Noise, TellBlind, tell_room};
 use crate::world::World;
 
 /// A deposit the bank cannot take.
@@ -208,13 +208,6 @@ fn cmd_banking(world: &mut World, id: SessionId, line: &CommandLine, way: Way) -
         Way::Deposit => deposit_gold(world, id, bank, amount),
         Way::Withdraw => withdraw_gold(world, id, bank, amount),
     }
-    // The dispatcher's colour reset waits in the session's output. When the money moved, the
-    // user's line takes it along; when it did not, nothing is told, the reset is taken off the
-    // user's output and the others get it ahead of the room line (m3/bank on the original:
-    // `deposit 5` with no coins differs only in colour).
-    let held = world
-        .session_mut(id)
-        .is_some_and(|s| s.output.discard_last(&Msg::CmdNormal));
     // the room sees it, whether or not the money moved
     let Some(plr) = world.session(id).and_then(|s| s.player()) else {
         return Handled::Done;
@@ -230,7 +223,7 @@ fn cmd_banking(world: &mut World, id: SessionId, line: &CommandLine, way: Way) -
         Way::Deposit => Msg::BankSeeDeposit { who },
         Way::Withdraw => Msg::BankSeeWithdrawal { who },
     };
-    tell_room_led(
+    tell_room(
         world,
         room,
         [Some(id), None],
@@ -238,7 +231,6 @@ fn cmd_banking(world: &mut World, id: SessionId, line: &CommandLine, way: Way) -
         TellBlind::All,
         true,
         None,
-        held.then_some(&Msg::CmdNormal),
         &msg,
     );
     Handled::Done
@@ -273,7 +265,8 @@ fn deposit_gold(world: &mut World, id: SessionId, bank: ShopNo, amount: u32) {
     let (Some(acct), Some(plr)) = (s.account.as_ref(), s.character.as_ref()) else {
         return;
     };
-    let (acct, userid) = (acct.id, acct.username.clone());
+    // the book is the character's userid, as the game writes it
+    let (acct, userid) = (acct.id, plr.userid.clone());
     if !economy::can_pay(plr.coins, amount) {
         return;
     }

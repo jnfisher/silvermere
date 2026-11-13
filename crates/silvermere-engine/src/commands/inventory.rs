@@ -24,9 +24,9 @@ use crate::items::inventory::{
     Found, Search, add_item_to_inventory, find_item_in_inventory, load, matches_any_word,
     max_weight, remove_item_from_inventory, show_options, update_encumbrance, user_is_wearing,
 };
-use crate::items::light::{possessive, use_light};
+use crate::items::light::possessive;
 use crate::items::room_items::{add_item_to_room, mark_changed, remove_item_from_room};
-use crate::output::clear_output;
+use crate::items::use_item::use_no_target;
 use crate::tell::{Noise, TellBlind, tell_room, tell_user};
 use crate::world::World;
 
@@ -191,8 +191,6 @@ pub fn cmd_light(world: &mut World, id: SessionId, cmd: Cmd, line: &CommandLine)
         show_options(world, id, &f.options);
         return Handled::Done;
     }
-    // the match lookup ends: the dispatcher's colour reset is thrown away
-    clear_output(world, id);
     let Some(plr) = player(world, id) else {
         return Handled::NotCommand;
     };
@@ -211,7 +209,11 @@ pub fn cmd_light(world: &mut World, id: SessionId, cmd: Cmd, line: &CommandLine)
         } else if plr.readied != -1 {
             // one light at a time
             tell_user(world, id, Msg::AlreadyLit);
-        } else if use_light(world, id, &itm) {
+        } else {
+            // the item's use effects, after what is queued is thrown away
+            if !use_no_target(world, id, &itm, None) {
+                return Handled::Done;
+            }
             // the slot is now the readied light
             let Some(plr) = player_mut(world, id) else {
                 return Handled::Done;
@@ -468,8 +470,6 @@ pub fn hide_item(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLine
         show_options(world, id, &f.options);
         return Handled::Done;
     }
-    // the match lookup ends: the dispatcher's colour reset is thrown away
-    clear_output(world, id);
     let Some(plr) = player(world, id) else {
         return Handled::NotCommand;
     };
@@ -566,8 +566,6 @@ pub fn cmd_drop(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLine)
         show_options(world, id, &f.options);
         return Handled::Done;
     }
-    // the match lookup ends: the dispatcher's colour reset is thrown away
-    clear_output(world, id);
     let Some(plr) = player(world, id) else {
         return Handled::NotCommand;
     };
@@ -797,10 +795,6 @@ fn give_coins(
         return Handled::Done;
     }
     let tgt = find_receiver(world, id, room, line.rest_from(4));
-    // the match lookup ends (the colour reset is dropped) unless the name was ambiguous
-    if !matches!(tgt, Target::Multiple) {
-        clear_output(world, id);
-    }
     let tgt = match tgt {
         Target::Multiple => return Handled::Done,
         Target::NotAPlayer => {
@@ -938,8 +932,6 @@ fn give_item(world: &mut World, id: SessionId, room: RoomKey, line: &CommandLine
         show_options(world, id, &f.options);
         return Handled::Done;
     }
-    // the match lookup ends: the dispatcher's colour reset is thrown away
-    clear_output(world, id);
     let Some(plr) = player(world, id) else {
         return Handled::NotCommand;
     };
@@ -1062,10 +1054,6 @@ pub fn cmd_equip(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLine
     }
     let name = line.rest_from(1);
     let f = find_item_in_inventory(world, plr, name, Search::Unworn);
-    // the match lookup ends by clearing the output buffer: the dispatcher's colour reset never
-    // reaches the user, so `You are now wearing ...` starts at `ESC[79D` (the `shop` capture, steps
-    // 12 and 22-26)
-    clear_output(world, id);
     let Some(itm) = f.item.and_then(|n| world.items.get(&n)).cloned() else {
         tell_user(
             world,

@@ -48,7 +48,9 @@ use silvermere_types::records::{Character, Spell};
 use silvermere_types::sizes::NDIRS;
 
 use super::active::end_player_spell;
-use super::area::{AreaTargets, add_evil_warnings_to_room, count_valid_targets};
+use super::area::{
+    AreaTargets, add_evil_warnings_to_room, count_valid_targets, room_monster_slots, valid_monster,
+};
 use super::messages::{Told, display_spell_success};
 use crate::combat::{
     self, AutoTarget, EvilKind, add_evil_points, check_kill_monster, check_kill_user,
@@ -258,7 +260,8 @@ pub fn roll_succeeds(plr: &Character, spl: &Spell, roll: i32) -> bool {
 
 fn charge(world: &mut World, id: SessionId, energy: i32, mana: i32) {
     if let Some(p) = plr_mut(world, id) {
-        p.energy = (i32::from(p.energy) - energy).clamp(0, i32::from(u16::MAX)) as u16;
+        // unsigned in the game: below 0 it wraps
+        p.energy = (i32::from(p.energy) - energy) as u16;
         p.mana = (i32::from(p.mana) - mana) as i16;
     }
 }
@@ -280,10 +283,14 @@ fn fail_lines(world: &mut World, id: SessionId, spl: &Spell) {
     };
     let who = p.firstname.clone();
     let room = room_of(p);
-    if let Some(s) = world.session_mut(id) {
-        s.output.push(Msg::CastFail {
+    tell_user(
+        world,
+        id,
+        Msg::CastFail {
             spell: spl.name.clone(),
-        });
+        },
+    );
+    if let Some(s) = world.session_mut(id) {
         s.push_prompt();
     }
     tell_room(
@@ -335,7 +342,13 @@ fn short_lines(world: &mut World, id: SessionId, spl: &Spell, level: bool) {
     } else {
         None
     };
+    let twice = matches!(msg, Some(Msg::CastShortEnergy { .. }));
     if let Some(m) = msg {
+        // (sic) the energy line is told, then told again: the game's tell_user empties its
+        // buffer by moving the write pointer only, so the second send repeats the line
+        if twice {
+            tell_user(world, id, m.clone());
+        }
         tell_user(world, id, m);
     }
 }
@@ -406,8 +419,8 @@ fn use_spell_component(world: &mut World, id: SessionId, spl: &Spell, item: Item
     };
     let who = p.firstname.clone();
     let room = room_of(p);
+    tell_user(world, id, Msg::CastNoComponent);
     if let Some(s) = world.session_mut(id) {
-        s.output.push(Msg::CastNoComponent);
         s.push_prompt();
     }
     tell_room(
@@ -711,6 +724,17 @@ pub(crate) fn report_ended(
     spells: &[EndedSpell],
     poison: Option<PoisonCut>,
 ) {
+    end_spells(world, tid, spells, poison);
+    crate::items::equip::recalc(world, tid);
+}
+
+/// The ended spells' endings and the poison cut, without the stats again (a room's cast).
+pub(crate) fn end_spells(
+    world: &mut World,
+    tid: SessionId,
+    spells: &[EndedSpell],
+    poison: Option<PoisonCut>,
+) {
     for e in spells {
         if let Some(spl) = world.spells.get(&e.number).cloned() {
             end_player_spell(world, tid, &spl, e.power, e.chain);
@@ -722,7 +746,6 @@ pub(crate) fn report_ended(
     {
         silvermere_rules::spells::cut_poison(p, cut);
     }
-    crate::items::equip::recalc(world, tid);
 }
 
 /// The kill test after a player was hurt by a spell: `check_kill_user` (dead: player kills
@@ -803,6 +826,22 @@ fn bash_room_exits(world: &mut World, id: SessionId, key: RoomKey, chance: i32) 
     opened
 }
 
+/// The teleport halves a cast's slots have set so far, put in the world's one pair.
+fn keep_teleport(world: &mut World, state: &mut CastState) {
+    if let Some(room) = state.teleport_room.take() {
+        world.cast_teleport.0 = room;
+    }
+    if let Some(map) = state.teleport_map.take() {
+        world.cast_teleport.1 = map;
+    }
+}
+
+/// The world's teleport destination, when both halves are set.
+fn cast_destination(world: &World) -> Option<(i32, i32)> {
+    let (room, map) = world.cast_teleport;
+    (room != 0 && map != 0).then_some((room, map))
+}
+
 /// The teleport after the slots: Full Party takes the caster's party along; anything else
 /// moves the caster alone, whose followers stop following him.
 pub(crate) fn teleport(world: &mut World, mover: SessionId, dest: RoomKey, party: bool) {
@@ -870,27 +909,28 @@ fn add_duration_spell_to_room(
         let out = add_lasting_user(world, tid, caster, spl, dose);
         lasting_user_lines(world, told, id, tid, spl, dose, out);
     }
-    if spl.target.area_reaches_monsters() {
-        for &(mon, _) in &targets.monsters {
-            let Some(m) = combat::monster(world, mon) else {
-                continue;
-            };
-            let dose = apply_element_resistance(power, monster_element_resist(world, m, spl));
-            let name = m.name.clone();
-            let rounds = silvermere_rules::spells::duration(
-                spl,
-                Some(silvermere_rules::spells::CasterLevel {
-                    level: caster.level,
-                    spellduration_pct: caster.spellduration_pct,
-                }),
-                &mut world.rng,
-            );
-            let Some(m) = combat::monster_mut(world, mon) else {
-                continue;
-            };
-            let out = add_spell_to_monster(&mut m.spells, spl.number, rounds, dose);
-            lasting_monster_lines(world, told, id, &name, spl, dose, out);
+    for mon in room_monster_slots(world, id, spl) {
+        if valid_monster(world, id, mon, spl).is_none() {
+            continue;
         }
+        let Some(m) = combat::monster(world, mon) else {
+            continue;
+        };
+        let dose = apply_element_resistance(power, monster_element_resist(world, m, spl));
+        let name = m.name.clone();
+        let rounds = silvermere_rules::spells::duration(
+            spl,
+            Some(silvermere_rules::spells::CasterLevel {
+                level: caster.level,
+                spellduration_pct: caster.spellduration_pct,
+            }),
+            &mut world.rng,
+        );
+        let Some(m) = combat::monster_mut(world, mon) else {
+            continue;
+        };
+        let out = add_spell_to_monster(&mut m.spells, spl.number, rounds, dose);
+        lasting_monster_lines(world, told, id, &name, spl, dose, out);
     }
 }
 
@@ -909,6 +949,8 @@ pub fn cast_no_target(
     if plr(world, id).is_none() {
         return res;
     }
+    // no destination yet
+    world.cast_teleport = (0, 0);
     let by_hand = opts.mode == CastMode::Cast;
     let engage_none = |res: &mut CastResult| {
         res.engaged = Some(Engage {
@@ -1133,7 +1175,8 @@ pub fn cast_no_target(
             &mut state, &rm,
         );
         // the teleport
-        if let Some((room, map)) = state.teleport() {
+        keep_teleport(world, &mut state);
+        if let Some((room, map)) = cast_destination(world) {
             if !told.caster {
                 let name = caster.name.clone();
                 display_spell_success(world, &mut told, id, Some(id), &spl, &name, amount);
@@ -1148,7 +1191,9 @@ pub fn cast_no_target(
     }
     // the chain
     if let Some(next) = chain_spell(world, &state) {
-        cast_no_target(world, id, next, opts);
+        // the chained cast queues the caster itself, before this one does
+        let r = cast_no_target(world, id, next, opts);
+        apply_engage(world, id, &r);
     }
     crate::items::equip::recalc(world, id);
     if opts.autocombat {
@@ -1253,6 +1298,8 @@ fn no_target_slots(
             | SpellEffect::DetectMagic
             | SpellEffect::RemoveSpell { .. } => continue,
             SpellEffect::TextBlock => {
+                // a cast in the block clears and sets the one destination
+                keep_teleport(world, state);
                 crate::scripts::special::run_text_block(
                     world,
                     id,
@@ -1401,7 +1448,8 @@ fn self_slot(
                 state.told = true;
             }
             SpellEffect::Hunger => {
-                // (sic) the slot index is passed as the target; nobody here
+                // (sic) the slot index is passed as the target; nobody here. Not reached:
+                // every stock Alter Hunger spell lasts
                 if !was_told {
                     display_spell_success(world, told, id, None, spl, &name, amount);
                 }
@@ -1613,8 +1661,9 @@ fn area_slot(
                     tp.poison = peramt as i16;
                 }
             }
-            for &(mon, _) in &targets.monsters {
-                if let Some(m) = combat::monster(world, mon)
+            for mon in room_monster_slots(world, id, spl) {
+                if valid_monster(world, id, mon, spl).is_some()
+                    && let Some(m) = combat::monster(world, mon)
                     && !monster_has(world, m, Ability::PoisonImmune)
                     && let Some(m) = combat::monster_mut(world, mon)
                     && i32::from(m.poison) < amount
@@ -1740,7 +1789,10 @@ fn area_slot(
     }
     // The monster loop, for the kinds that reach them; its line sets `told`.
     if kind.area_reaches_monsters() {
-        for &(mon, _) in &targets.monsters {
+        for mon in room_monster_slots(world, id, spl) {
+            if valid_monster(world, id, mon, spl).is_none() {
+                continue;
+            }
             let Some(m) = combat::monster(world, mon) else {
                 continue;
             };
@@ -1825,6 +1877,8 @@ pub fn cast_user_target(
     if plr(world, id).is_none() || plr(world, tid).is_none() {
         return res;
     }
+    // no destination yet
+    world.cast_teleport = (0, 0);
     let manual = opts.mode == CastMode::Item;
     let target_engage = Some(AutoTarget::Player(tid));
     let engage_t = |res: &mut CastResult| {
@@ -2244,13 +2298,13 @@ pub fn cast_user_target(
                     );
                 }
                 // the teleport: both halves non-zero and the map loaded
+                keep_teleport(world, &mut state);
                 if !killed
-                    && let Some((room, map)) = state.teleport()
-                    && room != 0
-                    && map != 0
+                    && let Some((room, map)) = cast_destination(world)
                     && world.room(RoomKey::new(map as u32, room as u32)).is_some()
                 {
-                    // (sic) the value the last slot left, the caster as the target
+                    // (sic) the value the last slot left, the caster as the target. Not
+                    // reached: every stock teleport is cast on oneself or the party
                     if !state.told {
                         display_spell_success(world, &mut told, id, Some(id), &spl, &tname, value);
                     }
@@ -2292,7 +2346,9 @@ pub fn cast_user_target(
             && let Some(next) = endspell
             && world.rng.range(0, 100) < endchance
         {
-            cast_user_target(world, id, next, tid, opts);
+            // the chained cast queues the caster itself, before this one does
+            let r = cast_user_target(world, id, next, tid, opts);
+            apply_engage(world, id, &r);
             endspell = None;
             endchance = 100;
             done = true;
@@ -2323,11 +2379,15 @@ fn resist_lines(
     spl: &Spell,
     key: RoomKey,
 ) {
-    if let Some(s) = world.session_mut(id) {
-        s.output.push(Msg::CastResisted {
+    tell_user(
+        world,
+        id,
+        Msg::CastResisted {
             spell: spl.name.clone(),
             target: tname.to_owned(),
-        });
+        },
+    );
+    if let Some(s) = world.session_mut(id) {
         s.push_prompt();
     }
     if let Some(s) = world.session_mut(tid) {
@@ -2362,11 +2422,15 @@ fn user_fail_lines(
     spl: &Spell,
     key: RoomKey,
 ) {
-    if let Some(s) = world.session_mut(id) {
-        s.output.push(Msg::CastFailAt {
+    tell_user(
+        world,
+        id,
+        Msg::CastFailAt {
             spell: spl.name.clone(),
             target: tname.to_owned(),
-        });
+        },
+    );
+    if let Some(s) = world.session_mut(id) {
         s.push_prompt();
     }
     if let Some(s) = world.session_mut(tid) {
@@ -2415,6 +2479,8 @@ fn user_slot(
     match effect {
         E::Marker(_) | E::KillDead | E::DetectMagic | E::RemoveSpell { .. } => return false,
         E::TextBlock => {
+            // a cast in the block clears and sets the one destination
+            keep_teleport(world, state);
             crate::scripts::special::run_text_block(
                 world,
                 tid,
@@ -2632,6 +2698,8 @@ pub fn cast_monster_target(
         return res;
     };
     let manual = opts.mode == CastMode::Item;
+    // the target is looked up first, whatever stops the cast after
+    let _ = combat::monster(world, mon);
     let engage_m = |res: &mut CastResult, mon: ActiveMonsterId| {
         res.engaged = Some(Engage {
             target: Some(AutoTarget::Monster(mon)),
@@ -2904,11 +2972,15 @@ pub fn cast_monster_target(
                 .is_some_and(|m| monster_has(world, m, Ability::AntiMagic));
             let resisted = success && monster_resists_single(&spl, mr, anti, &mut world.rng);
             if resisted {
-                if let Some(s) = world.session_mut(id) {
-                    s.output.push(Msg::CastResisted {
+                tell_user(
+                    world,
+                    id,
+                    Msg::CastResisted {
                         spell: spl.name.clone(),
                         target: tgtname.clone(),
-                    });
+                    },
+                );
+                if let Some(s) = world.session_mut(id) {
                     s.push_prompt();
                 }
                 tell_room(
@@ -2928,7 +3000,7 @@ pub fn cast_monster_target(
                 charge_failure(world, id, &spl);
             } else if success {
                 if let Some(p) = plr_mut(world, id) {
-                    p.energy = p.energy.saturating_sub(spl.energy);
+                    p.energy = p.energy.wrapping_sub(spl.energy);
                     if p.mana > 0 {
                         p.mana -= spl.mana.max(0);
                     }
@@ -2975,7 +3047,9 @@ pub fn cast_monster_target(
             && let Some(next) = endspell
             && world.rng.range(0, 100) < endchance
         {
-            cast_monster_target(world, id, next, mon, opts);
+            // the chained cast queues the caster itself, before this one does
+            let r = cast_monster_target(world, id, next, mon, opts);
+            apply_engage(world, id, &r);
             endspell = None;
             endchance = 100;
             done = true;
@@ -3043,6 +3117,8 @@ fn turn_roll(world: &mut World, id: SessionId, mon: ActiveMonsterId) {
     {
         m.following = name;
         m.friendly = 0;
+        // marked even when it already followed them
+        world.active_monsters.mark_dirty(mon);
     }
 }
 
@@ -3067,15 +3143,18 @@ fn guard_redirect(
     let name = plr(world, id)
         .map(|p| p.firstname.clone())
         .unwrap_or_default();
-    let Some(m) = combat::monster_mut(world, mon) else {
+    let Some(m) = combat::monster(world, mon) else {
         return mon;
     };
     let protected = m.name.clone();
-    m.following = name.clone();
     let key = RoomKey {
         map: m.map,
         room: m.room,
     };
+    // the game sets the followers without marking the records changed
+    world
+        .active_monsters
+        .set_quietly(mon, |m| m.following = name.clone());
     let mut protnum = None;
     let ids: Vec<ActiveMonsterId> = world
         .room_state
@@ -3086,10 +3165,10 @@ fn guard_redirect(
         if n == mon {
             continue;
         }
-        if let Some(g) = combat::monster_mut(world, n)
-            && g.knownnum.0 as i16 == guardnum
-        {
-            g.following = name.clone();
+        if combat::monster(world, n).is_some_and(|g| g.knownnum.0 as i16 == guardnum) {
+            world
+                .active_monsters
+                .set_quietly(n, |g| g.following = name.clone());
             protnum = Some(n);
         }
     }

@@ -28,7 +28,7 @@
 //!   and markup, which STOCK, UNSTOCK and MARKUP change) flushes the worker, then rewrites
 //!   the shop with its stock.
 //! - `GangQuery` reads the characters a gang command needs that are not in the game:
-//!   the gang's members lowest experience first, or one by first name;
+//!   the gang's members highest experience first, or one by first name;
 //!   the answer goes back as `EngineInput::Custom` running `gangs::on_query_answer`.
 //!
 //! - `DeleteGang` goes to the worker as `Write::GangDelete`. `CleanupScan` (the daily
@@ -59,6 +59,7 @@ use std::sync::mpsc;
 use silvermere_db::Db;
 use silvermere_db::persist::{Persist, Write};
 use silvermere_db::repo::CharacterRow;
+use silvermere_engine::display::sysop::report_order;
 use silvermere_engine::gangs::{self, GangAnswer, GangQuery};
 use silvermere_engine::session::{self, AccountScan};
 use silvermere_engine::state::newchar::validate_name;
@@ -371,14 +372,14 @@ async fn handle(
         }
         Job::GangQuery { id, query } => {
             let answer = match &query {
-                GangQuery::Members { gang } => {
-                    let mut rows: Vec<_> = all_characters(db, persist)
+                // every character: the walk counts the other gangs' records too
+                GangQuery::Members { .. } => {
+                    let rows = all_characters(db, persist)
                         .await?
                         .into_iter()
-                        .filter(|r| r.character.gang.eq_ignore_ascii_case(gang))
+                        .map(|r| (r.account, r.character))
                         .collect();
-                    rows.sort_by_key(|r| (r.character.exp, r.id));
-                    GangAnswer::Members(rows.into_iter().map(|r| r.character).collect())
+                    GangAnswer::Members(report_order(rows).into())
                 }
                 GangQuery::Offline { name, .. } => GangAnswer::Offline(
                     by_first_name(db, persist, name)

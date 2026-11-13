@@ -102,6 +102,13 @@ impl CommandLine {
         }
     }
 
+    /// The line as GLOBAL leaves it for a board command: the second word on to the end
+    /// copied over the first (leading blanks kept), then split again.
+    pub fn second_word_first(&self) -> Self {
+        let lead = self.words.first().map_or(0, |w| w.start);
+        Self::parse(&format!("{}{}", &self.raw[..lead], self.rest_from(1)))
+    }
+
     /// The number of words.
     pub fn argc(&self) -> usize {
         self.words.len()
@@ -112,10 +119,21 @@ impl CommandLine {
         self.words.get(i).map_or("", |w| w.text.as_str())
     }
 
-    /// The line from word `i` to its end with the typed spacing (trailing blanks trimmed);
-    /// `""` past the end.
+    /// The line from word `i` to its last word with the typed spacing (`rstrin()` puts the
+    /// spaces back between words only, so trailing blanks are gone); `""` past the end.
     pub fn rest_from(&self, i: usize) -> &str {
-        self.words.get(i).map_or("", |w| &self.raw[w.start..])
+        match (self.words.get(i), self.words.last()) {
+            (Some(w), Some(last)) => &self.raw[w.start..last.end],
+            _ => "",
+        }
+    }
+
+    /// The whole line as `rstrin()` leaves it: leading blanks kept, the line ending at its
+    /// last word (`parsin()` put a NUL after it); unchanged with no word.
+    pub fn restored(&self) -> &str {
+        self.words
+            .last()
+            .map_or(self.raw.as_str(), |w| &self.raw[..w.end])
     }
 
     /// The first word, or `""`.
@@ -156,7 +174,9 @@ mod tests {
         assert_eq!(l.arg(0), "say");
         assert_eq!(l.arg(2), "there");
         assert_eq!(l.arg(3), "");
-        assert_eq!(l.rest_from(1), "hello   there ");
+        // rstrin() puts back the spaces between words, not those after the last
+        assert_eq!(l.rest_from(1), "hello   there");
+        assert_eq!(l.restored(), "  say  hello   there");
         assert_eq!(l.words[1].start, 7);
         assert_eq!(l.words[1].end, 12);
         assert_eq!(CommandLine::parse("").argc(), 0);

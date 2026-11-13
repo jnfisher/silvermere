@@ -110,8 +110,7 @@ pub struct ShopMatch {
     pub count: usize,
     /// The "Please be more specific" names, in order.
     pub options: Vec<String>,
-    /// A later exact name threw the list away by clearing the output buffer, which also empties
-    /// what the command had queued (the dispatcher's `ANSI_NORMAL`).
+    /// A later exact name threw the list away.
     pub cleared: bool,
 }
 
@@ -152,7 +151,7 @@ pub fn get_shop_item_from_name(world: &World, shop: &Shop, name: &str) -> ShopMa
                     m.options.push(itm.name.clone());
                     m.options.push(first_name.to_string());
                 } else if exact {
-                    // A later exact match drops the list (`clear_output`)
+                    // A later exact match drops the list
                     m.options.clear();
                     m.cleared = true;
                     m.item = Some(itm.number);

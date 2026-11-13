@@ -761,7 +761,7 @@ mod race_change {
         h.line(id, "5");
         let out = h.line(id, "e");
         assert!(out.contains("Your stats have been reset"), "{out}");
-        assert!(out.contains("Strength  35 - 0\n"), "{out}");
+        assert!(out.contains("Strength  35 - 90\n"), "{out}");
         assert_eq!(h.state(id), SessionState::NewChar(NewCharStep::Stats));
     }
 

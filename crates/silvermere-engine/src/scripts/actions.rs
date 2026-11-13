@@ -16,6 +16,7 @@ use silvermere_types::sizes::{NDIRS, NHIDITEMS, NROOMITEMS};
 
 use super::special::{HOOKS, perform_random_text_block, run_text_block};
 use super::{Clause, Coin, Skill, Teleport, clauses};
+use crate::combat::monster as active_monster;
 use crate::commands::input::RemoteExits;
 use crate::commands::parse::eq_ignore_case;
 use crate::display::long_text::{display_long_text, display_long_text_to_room};
@@ -288,12 +289,11 @@ fn run_clause(
             let Some(state) = world.room_state.get(&key) else {
                 return OK;
             };
-            let here = state.monsters.iter().filter(|m| m.0 != 0).any(|&m| {
-                world
-                    .active_monsters
-                    .values()
-                    .any(|a| a.number == m && a.knownnum == MonsterNo(monster))
-            });
+            // every slot through the cache, as the game does: no stop at the first
+            let mut here = false;
+            for m in state.monsters.into_iter().filter(|m| m.0 != 0) {
+                here |= active_monster(world, m).is_some_and(|a| a.knownnum == MonsterNo(monster));
+            }
             if here { OK } else { fail(world, id, Some(msg)) }
         }
         // One monster generated in the player's room, nobody's, as an ally and forced:

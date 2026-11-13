@@ -413,14 +413,13 @@ mod shop {
         let b = h.player("Betram", WEAPON_ROOM);
         let (first, seen) = h.both(a, "buy quarterstaff", b);
         let (second, _) = h.both(a, "buy quarterstaff", b);
-        let bought = b"You just bought quarterstaff for nothing.\r\n";
+        let bought = b"\x1b[0;37;40mYou just bought quarterstaff for nothing.\r\n";
         assert!(
             first.starts_with(bought),
             "{:?}",
             String::from_utf8_lossy(&first)
         );
         assert_eq!(first, second);
-        // the room got what the output buffer held: the dispatcher's colour reset first
         let see = cat(&[NORMAL, CLRLINE, b"You see Aldric buy a quarterstaff.\r\n"]);
         assert!(
             seen.starts_with(&see),
@@ -442,7 +441,7 @@ mod shop {
         h.bytes(a, "buy quarterstaff");
         let (sold, seen) = h.both(a, "sell quarterstaff", b);
         assert!(
-            sold.starts_with(b"You sold quarterstaff for 0 copper farthings.\r\n"),
+            sold.starts_with(b"\x1b[0;37;40mYou sold quarterstaff for 0 copper farthings.\r\n"),
             "{:?}",
             String::from_utf8_lossy(&sold)
         );
@@ -456,7 +455,9 @@ mod shop {
         assert_eq!(h.qty(WEAPON_SHOP, 0), 30);
         let appraised = h.bytes(a, "appraise quarterstaff");
         assert!(
-            appraised.starts_with(b"You would get 0 copper farthings for your quarterstaff.\r\n"),
+            appraised.starts_with(
+                b"\x1b[0;37;40mYou would get 0 copper farthings for your quarterstaff.\r\n"
+            ),
             "{:?}",
             String::from_utf8_lossy(&appraised)
         );

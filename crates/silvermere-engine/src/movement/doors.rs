@@ -366,8 +366,8 @@ pub fn cmd_picklock(world: &mut World, id: SessionId, line: &CommandLine) -> Han
         tell_user(world, id, Msg::PicklockFail);
         return Handled::Done;
     }
-    let roll = world.rng.range(0, 100);
-    if picklocks > 0 && roll < bonus.wrapping_add(picklocks) {
+    // no skill, no roll
+    if picklocks > 0 && world.rng.range(0, 100) < bonus.wrapping_add(picklocks) {
         set_lock(world, room, dir, &exit, LOCK_CLOSED);
         add_exit_to_list(world, room, dir, open_steps(&exit));
         if let Some((orm, rev, back)) = other_side(world, room, dir, &exit) {

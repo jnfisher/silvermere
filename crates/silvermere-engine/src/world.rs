@@ -10,6 +10,7 @@
 //! occupied-room table, the monster quick reference, the exit revert queue, the restock
 //! list, evil timers, gang invites) are fields here with the original's sizes.
 
+use silvermere_rules::combat::Move;
 use std::collections::{HashMap, VecDeque};
 
 use silvermere_types::config::GameConfig;
@@ -25,6 +26,7 @@ use silvermere_types::records::{
 };
 use silvermere_types::sizes::{NDIRS, NHIDITEMS, NROOMITEMS, NROOMMONS};
 
+use crate::gangs::place_gang_last;
 use crate::ids::SessionIds;
 use crate::movement::exits::ExitOverride;
 use crate::player_session::PlayerSession;
@@ -223,6 +225,12 @@ pub struct World {
     pub ids: SessionIds,
     /// Gangs by key (`gang.key`, upper case name).
     pub gangs: HashMap<String, Gang>,
+    /// Each gang's place in the game's gang file among gangs of equal experience, by key
+    /// (lower is earlier; see [`crate::gangs::place_gang_last`]).
+    pub gang_order: HashMap<String, u64>,
+    /// The move of the attack in progress, kept between attacks: the last attack (or round)
+    /// left it, and a spell's engage takes it for its entry.
+    pub atkmove: Move,
     /// Bank books by account and bank.
     pub bank_books: HashMap<(AccountId, ShopNo), BankBook>,
     /// Limited-item ownership by row id.
@@ -237,12 +245,12 @@ pub struct World {
     /// thread's one `Rng`. `World::load` seeds it from the OS; `Engine::new` reseeds it
     /// from the engine's `Rng`; tests replace it with a fixed seed.
     pub rng: SeededRng,
-    /// The session while `handle_commands` runs a command: the player whose text sits in
-    /// the one output buffer (the dispatcher's `ANSI_NORMAL`). A `tell_*` to anyone else
-    /// sends that buffer, so the reset goes with it ([`crate::tell`]).
-    pub prf_owner: Option<SessionId>,
     /// The occupied-room table, always [`NOCCROOMS`] entries.
     pub occupied: Vec<OccRoom>,
+    /// Whether the room cache has an empty slot after the start-up's walk over every
+    /// room: a look-up of room 0 of map 0 then finds one (an empty slot's key), else it
+    /// fails. Set by [`World::load`].
+    pub room_cache_free: bool,
     /// `monqref`: the known-monster quick reference (T-035).
     pub monqref: Vec<silvermere_rules::spawn::QuickRef>,
     /// The spawn pass's and the monster passes' statics (T-035).
@@ -257,14 +265,16 @@ pub struct World {
     pub restock: Vec<crate::shops::RestockNode>,
     /// The evil timers, oldest first (T-038).
     pub evil_timers: Vec<crate::evil::EvilTimer>,
+    /// The teleport destination of the spell being cast, room and map (0 none). One
+    /// pair for every cast, as the game keeps it: a cast made inside another (a text
+    /// block's `cast`) leaves its destination for the outer cast to find.
+    pub cast_teleport: (i32, i32),
     /// Pending gang invitations.
     pub gang_invites: Vec<GangInvite>,
     /// The background cycles' own state and hooks (T-037).
     pub cycles: crate::cycles::CycleState,
     /// The auto-combat entries and ring (T-034).
     pub autocombat: crate::combat::autocombat::AutoCombat,
-    /// The session slot the next save sweep starts at.
-    pub save_next: u16,
     /// Players allowed in the realm at once, separate from the session slots; starts at
     /// `server.max_sessions`, the SYSOP command changes it (T-055).
     pub max_in_game: u16,
@@ -356,7 +366,6 @@ impl World {
         let mut world = Self {
             scheduler: Scheduler::new(Periods::from_config(&config)),
             rng: SeededRng::new(seed),
-            prf_owner: None,
             config,
             compat: Compat::default(),
             rooms: HashMap::new(),
@@ -375,22 +384,25 @@ impl World {
             sessions: HashMap::new(),
             ids: SessionIds::new(max_sessions),
             gangs: HashMap::new(),
+            gang_order: HashMap::new(),
+            atkmove: Move::Attack,
             bank_books: HashMap::new(),
             item_ownership: HashMap::new(),
             profiles: HashMap::new(),
             evil_points: HashMap::new(),
             topten: TopTen::new(),
             occupied: vec![OccRoom::default(); NOCCROOMS],
+            room_cache_free: true,
             monqref: Vec::new(),
             spawn: crate::monsters::SpawnState::default(),
             wall: 0,
             exit_reverts: VecDeque::new(),
             restock: Vec::new(),
             evil_timers: Vec::new(),
+            cast_teleport: (0, 0),
             gang_invites: Vec::new(),
             cycles: crate::cycles::CycleState::default(),
             autocombat: Default::default(),
-            save_next: 0,
             max_in_game: max_sessions,
             today: 0,
             minute: 0,
@@ -422,6 +434,10 @@ impl World {
             .iter()
             .map(|g| (g.key.clone(), g.clone()))
             .collect();
+        // the snapshot's gangs are in file order
+        for g in &snapshot.gangs {
+            place_gang_last(&mut world, &g.key);
+        }
         world.item_ownership = snapshot
             .item_ownership
             .iter()
@@ -436,6 +452,8 @@ impl World {
         world.evil_points = snapshot.evil_points.iter().cloned().collect();
         world.topten = TopTen::rebuild(&snapshot.top_characters);
         world.replace_content(&snapshot);
+        world.room_cache_free =
+            room_cache_free(world.rooms.keys().copied(), world.config.buffers.roombuf);
         world.check_special_rooms()?;
         // The first NRESTOCK shops queue their restocks once
         let mut rng = world.rng.clone();
@@ -666,7 +684,7 @@ impl World {
         crate::monsters::spawn_pass::generate_monsters_near_users(self);
     }
 
-    /// `save_characters`: the round-robin save (T-023), then the
+    /// `save_characters`: every player in the game saved (T-023), then the
     /// write-back of the active monsters changed since their last write (T-035).
     pub fn save_cycle(&mut self) {
         crate::player::save_characters(self);
@@ -731,6 +749,32 @@ impl World {
     pub fn shuffle_order(&mut self) {
         crate::cycles::slow::shuffle_mappings(self);
     }
+}
+
+/// Whether the room cache keeps an empty slot once the start-up has looked up every
+/// room, map by map and room by room (`get_room_data`): `roombuf + 1` slots, a room
+/// probed for from `room % roombuf` up to the last slot and loaded into the first
+/// empty one, else into the hashed slot, but never into the slot loaded last (then the
+/// next one, or the hashed slot past the end).
+fn room_cache_free(rooms: impl Iterator<Item = RoomKey>, roombuf: u32) -> bool {
+    let roombuf = roombuf.max(1) as usize;
+    let mut slots = vec![false; roombuf + 1];
+    let mut rooms: Vec<RoomKey> = rooms.collect();
+    rooms.sort_by_key(|k| (k.map.0, k.room.0));
+    let mut last = None;
+    for k in rooms {
+        let hash = k.room.0 as usize % roombuf;
+        let mut slot = (hash..=roombuf).find(|&i| !slots[i]).unwrap_or(hash);
+        if Some(slot) == last {
+            slot += 1;
+            if slot > roombuf {
+                slot = hash;
+            }
+        }
+        slots[slot] = true;
+        last = Some(slot);
+    }
+    slots.contains(&false)
 }
 
 /// A seed nobody can predict, from the process's hash randomness: the world's `Rng` is

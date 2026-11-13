@@ -332,10 +332,7 @@ pub fn exit_gate(world: &mut World, c: &GateCtx) -> Gate {
         ExitType::Race => class_or_race(world, c, false),
         ExitType::Level => level(world, c),
         ExitType::Alignment => alignment(world, c),
-        ExitType::MapChange => Gate::Pass {
-            newmap: MapId(c.exit.par1),
-            seen: false,
-        },
+        ExitType::MapChange => map_change(world, c),
         ExitType::Timed => timed(world, c),
         ExitType::Cast => cast(world, c),
         ExitType::Ability => ability(world, c),
@@ -360,6 +357,54 @@ fn pass(c: &GateCtx) -> Gate {
 fn refuse(world: &mut World, id: SessionId, msg: Msg) -> Gate {
     tell_user(world, id, msg);
     Gate::Refused
+}
+
+/// The game's add-on packs, by map number: a map is an add-on's.
+const ADDONS: [(u32, &str); 12] = [
+    (2, "Dragon's Teeth add-on"),
+    (3, "The Cursed Ruins add-on"),
+    (4, "MajorMud Guilds (not yet released)"),
+    (6, "Terror from Below add-on"),
+    (8, "Strangers in the Night add-on"),
+    (9, "The Rising Dawn add-on"),
+    (12, "The Sands of Time"),
+    (13, "MajorMud Quests (not yet released)"),
+    (14, "Unnamed (not yet released)"),
+    (15, "A call to Arms "),
+    (16, "Savage Lands add-on"),
+    (17, "Prophecy of Plague "),
+];
+
+/// A Map Change exit into map `par1`. An add-on's map is open only when its pack is
+/// loaded (the target room is in the world); maps 1, 5, 7, 10 and 11 need no pack.
+fn map_change(world: &mut World, c: &GateCtx) -> Gate {
+    let newmap = MapId(c.exit.par1);
+    let free = matches!(newmap.0, 1 | 5 | 7 | 10 | 11);
+    if !free
+        && world
+            .room(RoomKey {
+                map: newmap,
+                room: c.exit.target,
+            })
+            .is_none()
+    {
+        let addon = ADDONS.iter().find(|(m, _)| *m == newmap.0).map_or(
+            "appropriate addon (and upgrade to the latest MajorMUD Version - most \
+                 likely not available yet)",
+            |(_, n)| n,
+        );
+        return refuse(
+            world,
+            c.id,
+            Msg::AddonNotActivated {
+                addon: addon.to_owned(),
+            },
+        );
+    }
+    Gate::Pass {
+        newmap,
+        seen: false,
+    }
 }
 
 /// A dragging player is refused: "You may not drag anyone through this exit.".

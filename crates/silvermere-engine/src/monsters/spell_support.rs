@@ -145,7 +145,7 @@ pub fn monster_display_spell_success(
     tgtname: &str,
     damage: i32,
 ) {
-    let Some(m) = combat::monster(world, mon) else {
+    let Some(m) = world.active_monsters.peek(mon) else {
         return;
     };
     let (name, room) = (

@@ -727,7 +727,7 @@ mod gang {
                 gang: "Wolves".into()
             }
         );
-        // lowest experience first: Eve (off line), the leader, Ann, Dan (lieutenant); every
+        // in the store's order: Eve (off line), the leader, Ann, Dan (lieutenant); every
         // line from the stored record, Online from who is in the game
         let rows = vec![
             stored("Eve", "Wolves", 1, PlayerFlags::empty()),

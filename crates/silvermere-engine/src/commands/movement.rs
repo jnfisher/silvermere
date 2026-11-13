@@ -2,20 +2,22 @@
 //! entry points the fast tick and the typed-exit stage call (`move_user`, `queued_move`). The
 //! bodies live in [`crate::movement`]; this file is the dispatch table's view of them.
 
+use silvermere_rules::spells::MatchKinds;
 use silvermere_text::Msg;
 use silvermere_types::enums::MessageLevel;
 use silvermere_types::flags::{PlayerStatus, PlayerStatus2};
 use silvermere_types::ids::{RoomKey, SessionId};
 
+use super::cast::{Found, find_action_target};
 use super::dispatch::Handled;
-use super::parse::{CommandLine, parse_command, starts_with_ignore_case};
+use super::parse::{CommandLine, parse_command};
 use super::pending::{add_delay, delay_done};
 use super::{Cmd, CommandLine as Line};
+use crate::items::inventory::show_options;
 use crate::movement::doors::{self, no_exits_msg, safe_colliseum};
 use crate::movement::exits::{exit_is_available, live_exit, prompt};
 use crate::movement::move_user::{get_encumbrance_percent, move_user_with};
 use crate::movement::{direction, dirname};
-use crate::output::clear_output;
 use crate::tell::{Noise, TellBlind, tell_room, tell_user};
 use crate::world::World;
 
@@ -185,19 +187,21 @@ pub fn cmd_drag(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLine)
         }
         return Handled::Done;
     }
-    // the second word names another player in the room
-    let word = line.arg(1);
-    let target = world.session_ids().into_iter().find(|&o| {
-        o != id
-            && world.is_in_game(o)
-            && world.session(o).and_then(|s| s.player()).is_some_and(|p| {
-                p.map == room.map
-                    && p.room == room.room
-                    && starts_with_ignore_case(word, &p.firstname)
-            })
-    });
-    // the match lookup ends, dropping the colour reset (this search carries no list)
-    clear_output(world, id);
+    // the rest of the line names another player in the room
+    let kinds = MatchKinds {
+        users: true,
+        not_self: true,
+        ..MatchKinds::default()
+    };
+    let target = match find_action_target(world, id, line.rest_from(1), kinds) {
+        // several fit: the "which one?" list is kept
+        Found::Multiple(_, names) => {
+            show_options(world, id, &names);
+            return Handled::Done;
+        }
+        Found::User(s) => Some(s),
+        _ => None,
+    };
     let Some(tgt) = target else {
         tell_user(world, id, Msg::DragSyntax);
         return Handled::Done;

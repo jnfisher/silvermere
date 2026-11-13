@@ -13,8 +13,6 @@
 //! - the restructuring of pre-1.11 experience and the old-ability conversion, whose
 //!   quest-ability retrofit is a one-time data fix;
 //! - the move out of an add-on map the BBS has not activated.
-//!
-//! Left to its card: the carried weight (T-030).
 
 use silvermere_rules::Rng;
 use silvermere_rules::progression::new_calc_exp_needed;
@@ -31,6 +29,7 @@ use super::create::{class_title, roll_stats};
 use super::secondary::{CalcMode, recalculate};
 use super::{EVIL_OUTLAW, PLAYER_VERSION, RANK_MIDDLE};
 use crate::evil::update_allowed_worn_items;
+use crate::items::inventory::update_weight_carried;
 use crate::player_session::Party;
 use crate::spells::active::end_player_spell;
 use crate::tell::tell_user;
@@ -91,6 +90,19 @@ pub fn reduce_level_to_exp(world: &World, c: &mut Character) {
             break;
         }
     }
+}
+
+/// A character from before 1.11 moves to the split experience: the old total
+/// becomes the rest below a billion, every whole billion counted into
+/// `expbil` (from what it holds), and the character is marked converted.
+pub fn restructure_experience(c: &mut Character) {
+    const BILLION: u32 = 1_000_000_000;
+    c.exprem = c.exp;
+    while c.exprem >= BILLION {
+        c.expbil = c.expbil.wrapping_add(1);
+        c.exprem -= BILLION;
+    }
+    c.flags |= PlayerFlags::NEWEXP;
 }
 
 /// Whether a stat is out of the race's range: more than 50 above its maximum or below
@@ -192,6 +204,9 @@ pub fn load_player(
         c.class = DEFAULT_CLASS;
     }
     super::save::strip_level_gated(&mut c);
+    if !c.flags.contains(PlayerFlags::NEWEXP) {
+        restructure_experience(&mut c);
+    }
     reduce_level_to_exp(world, &mut c);
     // nobody is in a group or moving on entry (the group is session state).
     if let Some(s) = world.sessions.get_mut(&id) {
@@ -348,6 +363,7 @@ pub fn load_player(
         c.hp = c.maxhp;
     }
     recalculate(world, &mut c, CalcMode::KeepCurrent);
+    update_weight_carried(world, &mut c);
     // (`INACTWARN` went with the session flags cleared above).
     c.version = PLAYER_VERSION;
     c.moves = 0;

@@ -34,8 +34,8 @@ use silvermere_rules::spells::apply_monster::{
 };
 use silvermere_rules::spells::resist::{item_negates, may_resist, resist_chance};
 use silvermere_rules::spells::{
-    CharacterSlots, EffectSlot, MAXCHANCE, MonsterTarget, Outcome, SpellEffect, SpellEffects,
-    Target, UserTarget, add_spell_to_character, apply_effect, is_attack_type,
+    CharacterSlots, EffectSlot, MAXCHANCE, MonsterTarget, Outcome, SlotOutcome, SpellEffect,
+    SpellEffects, Target, UserTarget, add_spell_to_character, apply_effect, is_attack_type,
 };
 use silvermere_text::Msg;
 use silvermere_types::enums::{Ability, DebugLevel};
@@ -46,7 +46,7 @@ use silvermere_types::ids::{
 use silvermere_types::records::Spell;
 use silvermere_types::sizes::{NHIDITEMS, NROOMITEMS};
 
-use super::cast::{report_ended, strip_worn, user_element_resist};
+use super::cast::{end_spells, strip_worn, user_element_resist};
 use super::messages::coloured_line;
 use crate::combat::{self, monster_ability, monster_has, room_of, user_has};
 use crate::items::limited::{self, Holder};
@@ -276,7 +276,7 @@ fn room_slot(
         // Freedom, Dispel magic; Cure Poison
         Outcome::Ended { spells, poison } => {
             changed = true;
-            report_ended(world, id, spells, *poison);
+            end_spells(world, id, spells, *poison);
         }
         Outcome::Summon(n, _) => {
             changed = true;
@@ -313,10 +313,17 @@ fn room_slot(
     {
         silvermere_rules::spells::raise_hp(p, v);
     }
-    if matches!(
+    // the stats again only when the stat was raised (the spell added now or earlier in
+    // the cast) or the weapon broke
+    let raised = matches!(
         slot.effect,
-        SpellEffect::StatAlter(_) | SpellEffect::AlterHp | SpellEffect::Shatter
-    ) {
+        SpellEffect::StatAlter(_) | SpellEffect::AlterHp
+    ) && match out {
+        Outcome::Lasting(SlotOutcome::Added(_)) => true,
+        Outcome::NoEffect => added_before && spl.duration != 0,
+        _ => false,
+    };
+    if raised || matches!(out, Outcome::Shattered { .. }) {
         crate::items::equip::recalc(world, id);
     }
 }

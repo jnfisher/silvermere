@@ -16,6 +16,7 @@ workspace = true
 silvermere-engine.workspace = true
 silvermere-net.workspace = true
 silvermere-rules.workspace = true
+silvermere-text.workspace = true
 silvermere-types.workspace = true
 fancy-regex.workspace = true
 jiff.workspace = true
@@ -35,7 +36,6 @@ silvermere = { path = "../../bin/silvermere" }
 silvermere-auth.workspace = true
 silvermere-db.workspace = true
 silvermere-import.workspace = true
-silvermere-text.workspace = true
 insta.workspace = true
 proptest.workspace = true
 sqlx.workspace = true

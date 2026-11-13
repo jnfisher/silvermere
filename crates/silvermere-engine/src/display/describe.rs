@@ -9,7 +9,7 @@ use silvermere_types::ids::{ActiveMonsterId, ItemNo, MessageNo, SessionId, Spell
 use silvermere_types::records::{ActiveMonster, Character};
 
 use super::long_text::display_long_text;
-use super::room::desc_from_file;
+use super::room::{desc_file_error, desc_from_file};
 use super::status::{left, with_abilities};
 use crate::world::World;
 
@@ -468,12 +468,17 @@ pub fn display_item_desc(world: &mut World, to: SessionId, itemnum: ItemNo) {
         && !itm.desc[1].is_empty()
     {
         // ANSI_CLRLINE and ANSI_FGGREY come first
-        let lines = desc_from_file(world, &itm.desc[1], &itm.desc[2], false).unwrap_or_default();
+        let lines = desc_from_file(world, &itm.desc[1], &itm.desc[2], false);
         if let Some(s) = world.session_mut(to) {
             s.output.push(Msg::Clrline);
             s.output.push_raw(silvermere_text::ansi::ANSI_FGGREY);
-            for line in lines {
-                s.output.push(Msg::RoomFileLine { line });
+            match lines {
+                Some(lines) => {
+                    for line in lines {
+                        s.output.push(Msg::RoomFileLine { line });
+                    }
+                }
+                None => s.output.push(desc_file_error(&itm.desc[1])),
             }
         }
         return;

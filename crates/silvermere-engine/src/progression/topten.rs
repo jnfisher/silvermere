@@ -139,9 +139,8 @@ impl TopTen {
 }
 
 impl World {
-    /// [`TopTen::update`] for the session's character. The experience gain calls it
-    /// ([`crate::progression::add_experience`]); the save and combat-stop paths (T-023,
-    /// T-033/T-034) call it too.
+    /// [`TopTen::update`] for the session's character. Only the combat-stop notice calls
+    /// it, as in the game: a gain shows on the list once a fight is over.
     pub fn update_top_list(&mut self, id: SessionId) {
         let Some(c) = self.sessions.get(&id).and_then(|s| s.character.as_ref()) else {
             return;

@@ -19,7 +19,6 @@ use crate::items::equip::{tell_others, user_can_use};
 use crate::items::inventory::{Search, deduct_item_charge, find_item_in_inventory, show_options};
 use crate::items::use_item::{UseTarget, use_item};
 use crate::movement::direction;
-use crate::output::clear_output;
 use crate::tell::tell_user;
 use crate::world::World;
 
@@ -63,8 +62,6 @@ pub fn cmd_use(world: &mut World, id: SessionId, cmd: Cmd, line: &CommandLine) -
         show_options(world, id, &f.options);
         return Handled::Done;
     }
-    // the match lookup ends: the dispatcher's colour reset is thrown away
-    clear_output(world, id);
     let Some(plr) = player(world, id) else {
         return Handled::NotCommand;
     };
@@ -75,8 +72,12 @@ pub fn cmd_use(world: &mut World, id: SessionId, cmd: Cmd, line: &CommandLine) -
             stop_resting(world, id);
             return super::info::cmd_look(world, id, cmd, line);
         }
-        // the room's command text, else the refusal
+        // the room's command text: (sic) a prompt, and another after the command; else the
+        // refusal
         if crate::scripts::room_command(world, id, &line.raw) {
+            if let Some(s) = world.session_mut(id) {
+                s.push_prompt();
+            }
             return Handled::Done;
         }
         tell_user(
@@ -178,8 +179,6 @@ fn consume(world: &mut World, id: SessionId, line: &CommandLine, drink: bool) ->
         show_options(world, id, &f.options);
         return Handled::Done;
     }
-    // the match lookup ends: the colour reset is dropped (EAT and DRINK alike)
-    clear_output(world, id);
     let Some(plr) = player(world, id) else {
         return Handled::NotCommand;
     };
@@ -265,8 +264,6 @@ pub fn open_item(world: &mut World, id: SessionId, line: &CommandLine) -> Handle
         show_options(world, id, &f.options);
         return Handled::Done;
     }
-    // the match lookup ends: the colour reset is dropped
-    clear_output(world, id);
     let Some(plr) = player(world, id) else {
         return Handled::NotCommand;
     };

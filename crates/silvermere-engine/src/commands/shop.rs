@@ -24,7 +24,6 @@ use crate::items::inventory::{
     show_options, user_is_wearing,
 };
 use crate::items::limited::{self, Holder};
-use crate::output::clear_output;
 use crate::shops::{
     GANG_SLOTS, ShelfCopy, get_shop_item_from_name, persist_stock, return_shelf_copy, shop_room,
     take_shelf_copy,
@@ -126,7 +125,14 @@ fn room_command_text(
     if cmdtext.0 == 0 {
         return None;
     }
-    Some(Handled::from_rc(HOOKS.room_text.perform(world, id, line)))
+    if !HOOKS.room_text.perform(world, id, line) {
+        return Some(Handled::NotCommand);
+    }
+    // (sic) the game shows the prompt here and again after the command
+    if let Some(s) = world.session_mut(id) {
+        s.push_prompt();
+    }
+    Some(Handled::Done)
 }
 
 /// BUY. In a shop room the rest of the line is bought ([`buy_item`]) and then offered to
@@ -498,9 +504,6 @@ pub fn buy_item(world: &mut World, id: SessionId, shopnum: ShopNo, name: &str) {
         return;
     }
     let found = get_shop_item_from_name(world, &shop, name);
-    if found.cleared {
-        clear_output(world, id);
-    }
     let Some(item) = found.item else {
         if found.count > 0 {
             // the list was sent
@@ -554,8 +557,7 @@ pub fn buy_item(world: &mut World, id: SessionId, shopnum: ShopNo, name: &str) {
         return_shelf_copy(world, item, room, sale.copy);
         return;
     }
-    // the room (with what the prf buffer held), then the buyer, then the money
-    clear_output(world, id);
+    // the room, then the buyer, then the money
     let who = plr.firstname.clone();
     tell_others(
         world,
@@ -642,8 +644,6 @@ pub fn sell_item(world: &mut World, id: SessionId, shopnum: ShopNo, name: &str, 
         show_options(world, id, &found.options);
         return;
     }
-    // the match lookup ends: the prf buffer is emptied
-    clear_output(world, id);
     let Some(item) = found.item else {
         tell_user(world, id, Msg::ShopDontHave { item: name.into() });
         return;

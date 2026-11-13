@@ -166,11 +166,18 @@ pub struct BuffersConfig {
     /// 300: 20): under MBBSEmu it ends at 20 (21 slots), and the differential sets that value
     /// here (T-040).
     pub monsbuf: u32,
+    /// `ROOMBUF`: the room cache holds `roombuf + 1` slots (`{Number of rooms to buffer in
+    /// memory? 2000}`). Only whether the start-up's walk over every room leaves a slot
+    /// empty is modelled.
+    pub roombuf: u32,
 }
 
 impl Default for BuffersConfig {
     fn default() -> Self {
-        Self { monsbuf: 300 }
+        Self {
+            monsbuf: 300,
+            roombuf: 2000,
+        }
     }
 }
 

@@ -23,6 +23,7 @@
 
 use silvermere_types::ids::ActiveMonsterId;
 
+use crate::monsters::active::write_back_evicted;
 use crate::monsters::cache::MONFREE;
 use crate::world::World;
 
@@ -103,8 +104,10 @@ pub fn slow_update_monsters(world: &mut World) {
 pub fn slow_update_next_monster(world: &mut World) {
     if let Some(Some(n)) = step(world, Pass::Slow) {
         let cycle = world.cycles.slowmoncycle;
-        if let Some(mon) = world.active_monsters.peek_mut(n) {
-            slow_update_monster(mon, cycle);
+        if let Some(mon) = world.active_monsters.peek_mut(n)
+            && slow_update_monster(mon, cycle)
+        {
+            world.active_monsters.mark_dirty(n);
         }
     }
 }
@@ -113,21 +116,26 @@ pub fn slow_update_next_monster(world: &mut World) {
 /// takes its toll and a wounded monster regenerates `hpregen`, up to its maximum. A monster
 /// poisoned below 0 dies in the medium pass (T-035). The unused read of the last `WCCACMSR`
 /// record is not carried.
-pub fn slow_update_monster(mon: &mut silvermere_types::records::ActiveMonster, cycle: i32) {
+/// Returns whether the game marks the record changed: poison or regeneration.
+pub fn slow_update_monster(mon: &mut silvermere_types::records::ActiveMonster, cycle: i32) -> bool {
     if mon.lastupd == cycle {
-        return;
+        return false;
     }
     mon.lastupd = cycle;
     mon.lastdir = -1;
+    let mut dirty = false;
     if mon.poison > 0 {
         mon.hp = mon.hp.wrapping_sub(mon.poison);
+        dirty = true;
     }
     if mon.hp < mon.maxhp {
+        dirty = true;
         mon.hp = mon.hp.wrapping_add(mon.hpregen);
         if mon.hp > mon.maxhp {
             mon.hp = mon.maxhp;
         }
     }
+    dirty
 }
 
 /// Starts a medium monster pass: a pass pending, nobody has wandered off in it yet
@@ -171,11 +179,16 @@ pub fn fast_update_next_monster(world: &mut World) {
     }
 }
 
-/// The monster steps of one poll: slow, fast, medium.
+/// The monster steps of one poll: slow, fast, medium. A monster pushed out of the cache
+/// is written back after each, before a later update changes it again: the game writes
+/// it the moment it is pushed out.
 pub fn poll_step(world: &mut World) {
     slow_update_next_monster(world);
+    write_back_evicted(world);
     fast_update_next_monster(world);
+    write_back_evicted(world);
     medium_update_next_monster(world);
+    write_back_evicted(world);
 }
 
 /// The polls between this tick and the next: while a player is in the game (only their

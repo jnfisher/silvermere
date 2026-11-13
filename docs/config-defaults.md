@@ -34,6 +34,7 @@ Regenerate this page with `python3 -I tools/msgconv/msgconv.py --msg WCCMMUD.MSG
 | Option | TOML key | Type | Range | Module default | Shipped value | GameConfig default | Defined at | Notes |
 |---|---|---|---|---|---|---|---|---|
 | `SECOTH` | `game.sec_oth` | number | 1..20000 | `60` | `160` | `160` | WCCMMUD.MSG:124 | Seconds between player saves. The game rounds it down to whole minutes, minimum 60. |
+| `ROOMBUF` | `game.buffers.roombuf` | number | 10..32767 | `2000` | `2000` | `2000` | WCCMMUD.MSG:154 | The room cache holds ROOMBUF + 1 slots. Only whether the start-up's walk over every room leaves a slot empty is modelled: a look-up of room 0 of map 0 then finds one. |
 | `MONSBUF` | `game.buffers.monsbuf` | number | 10..32767 | `300` | `300` | `300` | WCCMMUD.MSG:170 | The active-monster cache holds MONSBUF + 1 slots, and the background passes walk it (T-086), so it decides which monsters move, regenerate and refill their energy. At start-up the original lowers it in steps of 10, while it is above 25, until the cache fits in the free memory: under MBBSEmu it ends at 20 (21 slots), and the differential sets that value (T-040). |
 | `TALKCHAR` | `game.talk_char` | character | one character | `'.'` | `'.'` | `"."` | WCCMMUD.MSG:240 | Prefix that makes a line speech when the profile is SLOW talking. |
 | `YELLCHAR` | `game.yell_char` | character | one character | `'"'` | `'"'` | `'"'` | WCCMMUD.MSG:245 | Prefix that makes a line a yell. |
@@ -113,7 +114,6 @@ the game.
 | `NOPAYKEY` | drop | WCCMMUD.MSG:113 | Key against credit charges. No credits. |
 | `SECBUFF` | drop | WCCMMUD.MSG:131 | Seconds between buffer saves. There are no buffers. |
 | `BUFTOSAV` | drop | WCCMMUD.MSG:141 | Buffers saved per pass. There are no buffers. |
-| `ROOMBUF` | drop | WCCMMUD.MSG:154 | In-memory buffer size (rooms). The database replaces buffers. |
 | `ITEMBUF` | drop | WCCMMUD.MSG:162 | In-memory buffer size (items). |
 | `KMONSBUF` | drop | WCCMMUD.MSG:178 | In-memory buffer size (known monsters). |
 | `SPELBUF` | drop | WCCMMUD.MSG:186 | In-memory buffer size (spells). |

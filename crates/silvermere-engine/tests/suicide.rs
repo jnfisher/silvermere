@@ -706,11 +706,7 @@ fn a_leader_s_followers_are_told_he_is_gone() {
         "\x1b[79D\x1b[K\x1b[1;34mYou are no longer following Ann.\r\n{PROMPT_BYTES}\
          \x1b[79D\x1b[KAnn took their own life!\r\n{PROMPT_BYTES}"
     );
-    // the first write of the tick carries the batch's colour reset
-    assert_eq!(
-        esc(&h.written(mark, bob)),
-        esc(format!("\x1b[0;37;40m{told}").as_bytes())
-    );
+    assert_eq!(esc(&h.written(mark, bob)), esc(told.as_bytes()));
     assert_eq!(esc(&h.written(mark, cid)), esc(told.as_bytes()));
     for f in [bob, cid] {
         assert_eq!(h.engine.world.session(f).unwrap().party.leader, None);

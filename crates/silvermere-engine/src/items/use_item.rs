@@ -96,9 +96,9 @@ fn can_cast(world: &World, id: SessionId, spl: &Spell) -> Result<(), bool> {
     user_can_use_spell(world, plr, spl)
 }
 
-/// A cast from an item (`manual`/`mode` 1). The auto-combat flag is set only on the combat path. The
-/// engage a by-hand cast asks for is handed on as the engines do; on the combat path the
-/// round's own `engage_autocombat` comes after it and decides, so it is not applied.
+/// A cast from an item (`manual`/`mode` 1). The auto-combat flag is set only on the combat path.
+/// The engage the cast asks for is applied on both paths: on the combat path the round's own
+/// `engage_autocombat` replaces it, unless the monster died in the round.
 fn item_cast(
     world: &mut World,
     id: SessionId,
@@ -112,9 +112,7 @@ fn item_cast(
         announce: true,
     };
     let r = cast(world, Caster::Player(id), spell, target, opts);
-    if via == Via::Hand {
-        apply_engage(world, id, &r);
-    }
+    apply_engage(world, id, &r);
     r.outcome.code()
 }
 
@@ -185,6 +183,7 @@ pub fn use_no_target(world: &mut World, id: SessionId, itm: &Item, dir: Option<D
             _ => {}
         }
     }
+    // a key works only on the exit in the direction given
     if itm.item_type == ItemType::Key
         && let Some(dir) = dir
     {
@@ -226,10 +225,8 @@ fn read_scroll(
     };
     // the search clears the slots of spells that no longer exist
     p.spellbook = plr.spellbook;
-    // The output buffer is emptied: what is queued goes, the ANSI_CLRLINE above and the
-    // dispatcher's ANSI_NORMAL with it
+    // The output buffer is emptied: what is queued goes, the ANSI_CLRLINE above with it
     out.clear();
-    crate::output::clear_output(world, id);
     let Some(p) = combat::player_mut(world, id) else {
         return false;
     };

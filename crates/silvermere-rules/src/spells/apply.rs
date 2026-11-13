@@ -121,7 +121,8 @@ pub struct CastState {
     /// See `teleport_room`.
     pub teleport_map: Option<i32>,
     /// The previous area target's "Inflict Damage on Armour" result, which the player
-    /// loop of `cast_no_target` does not clear (sic).
+    /// loop of `cast_no_target` does not clear (sic). 0 for the first target: the game
+    /// left it unset.
     pub area_armour_carry: i32,
     /// The running `amount` of the area "Inflict Damage on Armour" loops: the last player's
     /// element share, then each monster's scaled amount, compounding (sic).
@@ -629,11 +630,14 @@ fn apply_to_user(
             if lasting {
                 return add_lasting_to_user(cast, user, amount, true, state, rng);
             }
-            // up to the maximum, then kept between 0 and it (an area's is not clamped).
+            // up to the maximum, then kept between 0 and it (an area's is not clamped). The
+            // game compares the 16-bit sum with the unsigned maximum, so a sum below 0 counts
+            // as over it: a drain that would empty the mana fills it instead.
             let mana = i32::from(user.character.mana);
-            let maxmana = i32::from(user.character.maxmana);
-            let gain = if mana + amount > maxmana {
-                maxmana - mana
+            let maxmana = user.character.maxmana;
+            let sum = (mana + amount) as i16 as u16;
+            let gain = if sum > maxmana {
+                i32::from(maxmana.wrapping_sub(mana as u16) as i16)
             } else {
                 amount
             };
@@ -1626,8 +1630,9 @@ pub fn apply_round_slot(
             }
         }
         SpellEffect::Energy => {
-            let energy = (i32::from(character.energy) + val).min(i32::from(character.maxenergy));
-            character.energy = energy as u16;
+            // unsigned in the game: the sum wraps, then is held to the maximum
+            let energy = character.energy.wrapping_add(val as u16);
+            character.energy = energy.min(character.maxenergy);
         }
         SpellEffect::Hunger => character.hunger = (i32::from(character.hunger) + val) as i16,
         SpellEffect::Thirst => character.thirst = (i32::from(character.thirst) + val) as i16,

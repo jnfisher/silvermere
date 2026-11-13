@@ -97,6 +97,7 @@ tz = "America/Detroit"   # IANA zone `at` is read in (silvermere addition)
 
 [game.buffers]
 monsbuf = 300   # MONSBUF: the active-monster cache holds monsbuf + 1 slots
+roombuf = 2000  # ROOMBUF: the room cache holds roombuf + 1 slots
 
 [logging]
 format = "pretty"   # "pretty" or "json"

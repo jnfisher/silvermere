@@ -394,7 +394,13 @@ pub fn calc_exp_percent(have_hi: u32, have_lo: u32, need_hi: u32, need_lo: u32) 
 /// next level from the level and the race and class percentages, what is still needed
 /// (borrowing a billion, 0 once past the level) and the percentage.
 pub fn exp_figures(plr: &Character, exp_mod: i16) -> (BigExp, (i64, i64), u32) {
-    let need = new_calc_exp_needed(plr.level as i16, exp_mod);
+    let mut need = new_calc_exp_needed(plr.level as i16, exp_mod);
+    // (sic) short of the billions, a billion is borrowed into the total itself, so the
+    // percentage and the total shown are worked from it
+    if plr.expbil < need.expbil && need.exprem < plr.exprem {
+        need.expbil -= 1;
+        need.exprem = need.exprem.wrapping_add(1_000_000_000);
+    }
     let pct = calc_exp_percent(plr.expbil, plr.exprem, need.expbil, need.exprem);
     // In `long`
     let mut leftbil = i64::from(need.expbil) - i64::from(plr.expbil);

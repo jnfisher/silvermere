@@ -400,20 +400,19 @@ pub fn edit_character_stats(world: &mut World, id: SessionId, newchar: bool) {
         return;
     }
     s.output.push(Msg::StatEditorPreamble);
-    // (sic) a stray '\0' after each number makes the second %d print 0 instead of the
-    // race maximum.
-    for (label, min) in [
-        ("Strength  ", rac.minstr),
-        ("Intellect ", rac.minint),
-        ("Willpower ", rac.minwil),
-        ("Agility   ", rac.minagi),
-        ("Health    ", rac.minhea),
-        ("Charm     ", rac.mincha),
+    // Fixed: the game's format has a stray '\0' after each number, so its maximum prints 0
+    for (label, min, max) in [
+        ("Strength  ", rac.minstr, rac.maxstr),
+        ("Intellect ", rac.minint, rac.maxint),
+        ("Willpower ", rac.minwil, rac.maxwil),
+        ("Agility   ", rac.minagi, rac.maxagi),
+        ("Health    ", rac.minhea, rac.maxhea),
+        ("Charm     ", rac.mincha, rac.maxcha),
     ] {
         s.output.push(Msg::StatRange {
             label: label.to_string(),
             min: min.max(0) as u16,
-            max: 0,
+            max: max.max(0) as u16,
         });
     }
     // the CP left: totalcp - (totalcp - cp)

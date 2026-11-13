@@ -71,26 +71,17 @@ fn long_exits_line_wraps_at_79_at_the_last_space() {
     assert!(r.bytes.starts_with(b"\x1B[0;32mObvious exits: "));
 }
 
-// MBBSEmu.Tests SessionBase_Tests.cs:82: a line never fills all 80 columns
+// a line with no space is never broken
 #[test]
-fn a_line_without_spaces_breaks_at_79() {
+fn a_line_without_spaces_is_not_broken() {
     let text: String = (0..200)
         .map(|i| char::from(b'a' + (i % 26) as u8))
         .collect();
     let wrapped = wrap(format!("{text}\r\n").as_bytes(), WRAPCOLS);
-    let l: Vec<&str> = std::str::from_utf8(&wrapped)
-        .unwrap()
-        .split("\r\n")
-        .collect();
-    assert_eq!(l.len(), 4);
-    assert_eq!(l[0].len(), 79);
-    assert_eq!(l[1].len(), 79);
-    assert_eq!(l[2].len(), 42);
-    assert_eq!(l[3], "");
-    assert_eq!(l.concat(), text);
+    assert_eq!(wrapped, format!("{text}\r\n").into_bytes());
 }
 
-// MBBSEmu LineBreaker: ANSI sequences are not printable characters
+// ANSI sequences are not printable characters
 #[test]
 fn ansi_sequences_do_not_count_toward_the_column() {
     let word = "x".repeat(70);

@@ -98,37 +98,15 @@ pub fn dispatch(world: &mut World, id: SessionId, cmd: Cmd, line: &CommandLine) 
         s.output.push(Msg::MortallyWounded);
         return Handled::Done;
     }
-    let normal_at = s.output.items().len();
+    // plain colours for what the command sends
     s.output.push(Msg::CmdNormal);
     crate::metrics::command(cmd);
-    // the owner of the prf buffer for the `tell_*` family while the command runs
-    let outer = world.prf_owner.replace(id);
     let handled = run(world, id, cmd, line);
-    world.prf_owner = outer;
-    // The colour reset sits in the output buffer and goes out with the command's first send. It
-    // never reaches the player when the buffer is dropped or sent elsewhere: a word that is not a
-    // command (the text exits, `borrow skiff`) and a queued move (its `tell_room` for the others
-    // clears the buffer; the room it shows brings its own). The room-walk capture has neither in
-    // the first bytes of those commands. SEARCH keeps or loses it on its own paths
-    // (`movement::search`).
-    let queued_move = handled == Handled::Wait
-        && matches!(
-            cmd,
-            Cmd::North
-                | Cmd::South
-                | Cmd::East
-                | Cmd::West
-                | Cmd::NorthEast
-                | Cmd::NorthWest
-                | Cmd::SouthEast
-                | Cmd::SouthWest
-                | Cmd::Up
-                | Cmd::Down
-        );
-    if (handled == Handled::NotCommand || queued_move)
+    // not a command after all, or only queued: what runs later sends its own
+    if matches!(handled, Handled::NotCommand | Handled::Wait)
         && let Some(s) = world.session_mut(id)
     {
-        s.output.remove_msg_at(normal_at, &Msg::CmdNormal);
+        s.output.discard_last(&Msg::CmdNormal);
     }
     handled
 }

@@ -31,7 +31,7 @@ const CAPTURED_GREETING: &[u8] =
 // SHA-256 of the generated document, so a hand edit is noticed. Regenerate it with
 // tools/msgconv/README.md and update this.
 const SHA_CONFIG_DEFAULTS: &str =
-    "2681048e1ba467f6a1d831a603ec1aea2f2fab59c150cc8e4a25a206e94c1e01";
+    "dd3ce9257a998aa805ad0fbb2441aaede0b58ec6420e1bcfbde9e93f94e806c8";
 
 fn crate_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

@@ -936,12 +936,12 @@ note = "With the experience column: a sysop in debug mode, or EXPTOPGANG."
 
 [messages.gang_row]
 text = "{@ANSI_FGRED}{rank}. {@ANSI_FGGREEN}{name} {@ANSI_FGMAGENTA}{leader} {@ANSI_FGBROWN}{members}    {@ANSI_FGGREEN}{created}\r"
-example = { rank = "  1", name = "Old Guard          ", leader = "Nester     ", members = "   3", created = "10/14/26" }
-note = "rank `%3.3s`, name `%-19.19s`, leader `%-11.11s`, members `%4.4s`, created ncedat (MM/DD/YY)."
+example = { rank = "  1", name = "Old Guard          ", leader = "Nester     ", members = "   3", created = "14-OCT-26" }
+note = "rank `%3.3s`, name `%-19.19s`, leader `%-11.11s`, members `%4.4s`, created ncedat (DD-MON-YY)."
 
 [messages.gang_row_exp]
 text = "{@ANSI_FGRED}{rank}. {@ANSI_FGGREEN}{name} {@ANSI_FGMAGENTA}{leader} {@ANSI_FGBROWN}{members}    {@ANSI_FGGREEN}{created}    {@ANSI_FGBROWN}{exp}\r"
-example = { rank = "  1", name = "Old Guard          ", leader = "Nester     ", members = "   3", created = "10/14/26", exp = "1000" }
+example = { rank = "  1", name = "Old Guard          ", leader = "Nester     ", members = "   3", created = "14-OCT-26", exp = "1000" }
 note = "As gang_row with the experience `%lu`, followed for a gang past the cap (GF_OVERFLOW) by `\\r%58.58s(%d times)` (more than one wrap) and `\\r%58.58s+%lu`."
 
 [messages.gangs_none]
@@ -1326,6 +1326,10 @@ pattern = "toll_short"
 args = { n = "i64" }
 example = { n = "5", cur = "gold crowns" }
 note = "The amount is the low word of the exit's first parameter (sic)."
+
+[messages.addon_not_activated]
+text = "{@ANSI_CLRLINE}{@ANSI_GREY}Your sysop must purchase the {@ANSI_WHITE}{addon}{@ANSI_GREY} before you may move through this exit.\r"
+example = { addon = "Dragon's Teeth add-on" }
 
 [messages.not_permitted]
 text = "You are not permitted in that room!\r"
@@ -4447,7 +4451,7 @@ note = "`what` is `invoked a power` for a Kai class, else `cast a spell`. The Ge
 text = "{@ANSI_CLRLINE}{@ANSI_LTREDBLK}You have already {what} this round!\r"
 pattern = "already_this_round"
 example = { what = "cast a spell" }
-note = "Short of energy outside auto-combat. The game sends the line and then an empty send."
+note = "Short of energy outside auto-combat at the end of a cast. (sic) The game sends the line twice: its tell_user moves the buffer pointer back without emptying the buffer, so the next send repeats it."
 
 [messages.cast_short_mana]
 text = "{@ANSI_CLRLINE}{@ANSI_LTREDBLK}You do not have enough {what}.\r"
