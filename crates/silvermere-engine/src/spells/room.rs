@@ -468,7 +468,8 @@ fn summon(world: &mut World, id: SessionId, n: i32) {
 /// every item that can be picked up, visible and hidden, with all its copies: each copy
 /// leaves the limited records of `from` and is put down in `to` (`dispose_of_item_in_room`,
 /// which may carry it on through an exit). Items that cannot be taken stay. `false` when
-/// either room does not exist.
+/// either room does not exist. (sic) Scattered into the same room, the coins are added
+/// and then cleared on the one record, so they are lost.
 pub fn move_room_contents(world: &mut World, from: RoomKey, to: RoomKey) -> bool {
     if world.room(from).is_none()
         || world.room(to).is_none()
@@ -484,7 +485,9 @@ pub fn move_room_contents(world: &mut World, from: RoomKey, to: RoomKey) -> bool
             std::mem::take(&mut fs.hidcoins),
         )
     };
-    if let Some(ts) = world.room_state.get_mut(&to) {
+    if from == to {
+        // (sic) lost: the game adds them and then clears the same record
+    } else if let Some(ts) = world.room_state.get_mut(&to) {
         add_coins(&mut ts.coins, coins);
         add_coins(&mut ts.hidcoins, hidcoins);
     }

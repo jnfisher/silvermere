@@ -347,6 +347,33 @@ fn scatter_and_clear_item() {
     );
 }
 
+// (sic) Scattered into the room itself, the coins are lost, and so are the items: each
+// copy stacks on its own slot, which is then emptied.
+#[test]
+fn scatter_into_the_same_room_loses_the_coins() {
+    let mut w = fx::world();
+    let a = enter(&mut w, "Alf", ROOM);
+    w.items.get_mut(&ItemNo(1)).unwrap().gettable = 1;
+    {
+        let rs = w.room_state.get_mut(&fx::key(ROOM)).unwrap();
+        rs.coins.silver = 9;
+        rs.hidcoins.copper = 3;
+        rs.items[0] = silvermere_types::records::RoomItem {
+            item: ItemNo(1),
+            uses: -1,
+            count: 0,
+        };
+    }
+    let n = add_spell(
+        &mut w,
+        room_spell(962, SpellTarget::Single, ROOM as i16, 0, &[(Ability::Scatter, 0)]),
+    );
+    room_cast_on_user(&mut w, a, n);
+    let rs = &w.room_state[&fx::key(ROOM)];
+    assert_eq!((rs.coins.silver, rs.hidcoins.copper), (0, 0));
+    assert!(rs.items.iter().all(|s| s.item != ItemNo(1)));
+}
+
 // The summoned monster follows the player by name, no friend.
 #[test]
 fn summon_hunts_the_player() {
