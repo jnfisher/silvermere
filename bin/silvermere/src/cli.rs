@@ -83,6 +83,11 @@ pub enum Command {
         #[command(subcommand)]
         action: crate::commands::config::ConfigCmd,
     },
+    /// The web pages (documentation, FAQ, settings) without a server.
+    Web {
+        #[command(subcommand)]
+        action: crate::commands::web::WebCmd,
+    },
     /// The systemd service (Linux): install or uninstall.
     Service {
         #[command(subcommand)]

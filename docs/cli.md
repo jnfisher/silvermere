@@ -273,6 +273,22 @@ hidden sysops too), else one with the scope in the table.
 Exit 0 with the answer on stdout; exit 1 with one line on stderr when no server is running on
 `server.admin_bind`, the config has no usable token, or the server refuses the call.
 
+## `silvermere web`
+
+The web pages without a server. Details: [web.md](web.md).
+
+```
+silvermere web export <DIR> [--base <BASE>]
+```
+
+| Subcommand | What it does |
+|---|---|
+| `web export <DIR>` | write the documentation pages as static files into `DIR` (made if missing), for a public copy; the settings page is the reference of every key |
+
+| Flag | Meaning |
+|---|---|
+| `--base <BASE>` | the path the copy is served under, such as `/silvermere` for a project site (default: the root) |
+
 ## `silvermere healthcheck`
 
 Probe the admin API's `/healthz`: exit 0 on an HTTP 200, else 1 with one line on stderr. For

@@ -67,7 +67,7 @@ pub fn run(
 
 /// Where a value comes from, highest first.
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum Source {
+pub enum Source {
     Flag,
     Env(String),
     File,
@@ -203,6 +203,85 @@ fn show(data_dir_flag: Option<&Path>, ov: &Overrides, key: Option<&str>) -> anyh
         println!("{line:width$}  # {src}");
     }
     Ok(())
+}
+
+/// One setting as it stands, for the web settings editor.
+#[derive(Debug, Clone)]
+pub struct Row {
+    pub key: String,
+    /// The value in force (secrets redacted); `None` for a key that is not set.
+    pub value: Option<toml::Value>,
+    /// The default; `None` for a key that is absent by default.
+    pub default: Option<toml::Value>,
+    pub source: Source,
+    /// Whether the key holds secrets (`config set` refuses it).
+    pub secret: bool,
+}
+
+/// The file `config set` would write, and every setting as `config show` prints them.
+pub fn rows(
+    data_dir_flag: Option<&Path>,
+    ov: &Overrides,
+) -> anyhow::Result<(std::path::PathBuf, Vec<Row>)> {
+    let cfg = Config::load(data_dir_flag, ov)?;
+    let file = config_file(data_dir_flag, ov)?;
+    let from = sources(data_dir_flag, ov, file.as_deref());
+    let values = flat(&cfg.to_toml()?);
+    let defaults = defaults();
+    let mut keys: Vec<String> = values.keys().cloned().collect();
+    for k in OPTIONAL {
+        if !values.contains_key(k) {
+            keys.push(k.to_owned());
+        }
+    }
+    let rows = keys
+        .into_iter()
+        .map(|key| Row {
+            value: values.get(&key).cloned(),
+            default: defaults.get(&key).cloned(),
+            source: from.get(&key).cloned().unwrap_or(Source::Default),
+            secret: secret_refusal(&key, false).is_some(),
+            key,
+        })
+        .collect();
+    Ok((
+        std::path::absolute(config_target(data_dir_flag, ov))
+            .unwrap_or_else(|_| config_target(data_dir_flag, ov)),
+        rows,
+    ))
+}
+
+/// Writes `changes` into the settings file at once, checked as `config set` checks one:
+/// a value sets the key, `None` comments it out (back to its default). Nothing is written
+/// when any of them is refused.
+pub fn apply(
+    data_dir_flag: Option<&Path>,
+    ov: &Overrides,
+    changes: &[(String, Option<String>)],
+) -> anyhow::Result<()> {
+    let target = config_target(data_dir_flag, ov);
+    let (_, mut doc) = read_doc(&target)?;
+    for (key, value) in changes {
+        if let Some(why) = secret_refusal(key, value.is_none()) {
+            anyhow::bail!(why);
+        }
+        anyhow::ensure!(is_known(key), "unknown key `{key}`");
+        match value {
+            Some(raw) => {
+                put(&mut doc, &target, key, raw)?;
+            }
+            None => {
+                if get(&doc, key).is_some() {
+                    let parts: Vec<&str> = key.split('.').collect();
+                    let (leaf, parents) = parts.split_last().expect("a key has a name");
+                    comment_out(&mut doc, parents, leaf);
+                }
+            }
+        }
+    }
+    let text = doc.to_string();
+    Config::check_file_text(&text)?;
+    write_file(&target, &text, &lookup_data_dir(data_dir_flag))
 }
 
 /// Why `config set` and `config unset` leave a key that holds a secret alone, and what to

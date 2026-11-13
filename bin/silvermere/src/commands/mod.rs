@@ -13,6 +13,7 @@ pub mod restore;
 pub mod serve;
 pub mod service;
 pub mod sysop;
+pub mod web;
 
 /// Exit code when a tool a subcommand needs (pg_dump, pg_restore) is not installed.
 pub const EXIT_UNIMPLEMENTED: u8 = 2;

@@ -109,6 +109,7 @@ options that were dropped are in [config-defaults.md](config-defaults.md).
 | `server.max_sessions` | `SILVERMERE_SERVER__MAX_SESSIONS` | `256` | Most simultaneous connections, 1..=100000. | — |
 | `server.rlogin_bind` | `SILVERMERE_SERVER__RLOGIN_BIND` | `""` | rlogin door login listen address, host:port; empty is off. A BBS that sends its callers here logs them in without a second login. See [auth.md](auth.md#rlogin-a-bbs-door). | — |
 | `server.rlogin_trusted` | `SILVERMERE_SERVER__RLOGIN_TRUSTED` | `[]` | The IP addresses allowed to use `server.rlogin_bind`; empty is loopback only (a BBS on the same computer). Anyone else is closed unanswered. | — |
+| `server.web_bind` | `SILVERMERE_SERVER__WEB_BIND` | `"127.0.0.1:8088"` | Web pages listen address, host:port: the documentation, the FAQ and the settings editor a sysop signs in to; empty is off. Plain HTTP, so keep it on loopback or behind a TLS proxy. See [web.md](web.md). | — |
 
 ### [admin]
 

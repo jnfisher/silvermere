@@ -1,0 +1,29 @@
+[package]
+name = "silvermere-web"
+description = "The built-in web pages: documentation, FAQ and the settings editor."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+# one test binary for all of tests/ (tests/all.rs), not one per file (T-129)
+autotests = false
+
+[lints]
+workspace = true
+
+[dependencies]
+axum.workspace = true
+pulldown-cmark.workspace = true
+rand.workspace = true
+serde.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+tower.workspace = true
+
+[[test]]
+name = "all"
+path = "tests/all.rs"

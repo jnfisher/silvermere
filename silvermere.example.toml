@@ -10,6 +10,7 @@ admin_bind = "127.0.0.1:8080"   # host:port
 max_sessions = 256   # 1..=100000
 rlogin_bind = ""   # host:port, e.g. "127.0.0.1:2327"; empty = off. A BBS door logs its callers in here without a second login
 rlogin_trusted = []   # IP addresses allowed on rlogin_bind; empty = loopback only
+web_bind = "127.0.0.1:8088"   # host:port; empty = off. The web pages: documentation, FAQ and the settings editor (plain HTTP: loopback, or behind a TLS proxy)
 
 [admin]
 # tokens = []   # none by default; one [[admin.tokens]] table per token, see below. Also SILVERMERE_ADMIN_TOKENS (a JSON array)

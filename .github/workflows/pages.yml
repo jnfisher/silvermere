@@ -1,0 +1,41 @@
+name: Pages
+
+# The public copy of the documentation (docs/web.md): the same pages the server serves,
+# written as static files by `silvermere web export` and published on every push to main,
+# so it follows every change to docs/ and to the settings.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - name: Export the pages
+        run: cargo run --locked -p silvermere -- web export site --base "/${{ github.event.repository.name }}"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

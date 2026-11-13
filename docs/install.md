@@ -38,7 +38,7 @@ of input as the password, and a pasted block's next line is already waiting.
 
 The image and release archives are published from the first tagged release. Until then, build locally (`docker compose -f docker/compose.yaml build`, or `cargo build --release`); for Fly.io or Kubernetes, push your own build to your own registry and use that image name below.
 
-Ports: telnet `2323`, admin API `8080` (loopback by default). Image: `ghcr.io/jnfisher/silvermere`
+Ports: telnet `2323`, admin API `8080` and the web pages `8088` (both loopback by default). Image: `ghcr.io/jnfisher/silvermere`
 (`latest` and version tags). Settings are in [config.md](config.md); `silvermere config show`
 prints them and `silvermere config set KEY VALUE` changes one.
 
@@ -325,7 +325,7 @@ Check it:
 
 ```sh
 systemctl --user status silvermere --no-pager
-sudo ss -ltnp | grep silvermere             # 0.0.0.0:2323 and 127.0.0.1:8080, nothing else
+sudo ss -ltnp | grep silvermere             # 0.0.0.0:2323, 127.0.0.1:8080 and 127.0.0.1:8088, nothing else
 ```
 
 For a system unit under its own `silvermere` user in `/opt/silvermere` instead:
@@ -366,7 +366,7 @@ Save the [systemd unit](#by-hand) as `/etc/systemd/system/silvermere.service`, t
 sudo systemctl daemon-reload
 sudo systemctl enable --now silvermere      # enabled: it starts again after a reboot
 systemctl status silvermere --no-pager
-sudo ss -ltnp | grep silvermere             # 0.0.0.0:2323 and 127.0.0.1:8080, nothing else
+sudo ss -ltnp | grep silvermere             # 0.0.0.0:2323, 127.0.0.1:8080 and 127.0.0.1:8088, nothing else
 ```
 
 Logs: `journalctl -u silvermere -f` has the start and stop lines (with the database in use),
@@ -789,6 +789,8 @@ kubectl apply -f app.yaml
 - Keep `8080` on loopback, or put a reverse proxy with TLS in front of it. A non-loopback
   `server.admin_bind` refuses to start without an admin token (`silvermere admin token new`).
   See [admin-api.md](admin-api.md).
+- Keep `8088` (the web pages) on loopback too, and reach it through an SSH tunnel or a reverse
+  proxy with TLS: a sysop signs in there over plain HTTP. See [web.md](web.md).
 
 ## Connecting
 
@@ -1131,7 +1133,7 @@ A database created before the first release has to be recreated: its migrations 
 | Sourcing the env file prints `[1] 12345`, or commands then say `command not found` | The URL in `~/.config/silvermere/env` is not quoted: the shell took its `&` as "run in the background". Put the value in single quotes, `SILVERMERE_DATABASE_URL='postgres://...'`. |
 | `taking the writer guard ... search_path names no schema that exists` | The `search_path` in the database URL's `options` (or the role's settings) names a schema that does not exist. Create it, or fix the setting. |
 | `serve` prints that there is no world data and exits (under compose it keeps restarting) | Run `silvermere import --from DIR` on the 1.11p files first, then start the server. |
-| Port in use | Something else holds `2323` or `8080`. Change `server.telnet_bind` or `server.admin_bind`, or the published port in compose. |
+| Port in use | Something else holds `2323` or `8080`. Change `server.telnet_bind` or `server.admin_bind`, or the published port in compose. A taken `8088` only costs the web pages: the server logs a warning and runs without them (`server.web_bind`). |
 | Box-drawing and accents look wrong | The terminal is not CP437. Switch it to CP437, or use `set utf8 on` with a UTF-8 terminal. |
 | PostgreSQL connection refused | Check `SILVERMERE_DATABASE_URL`, that the `postgres` service is up, and that the password matches `POSTGRES_PASSWORD`. |
 | `no pg_hba.conf entry ... no encryption` | The database accepts TLS only: add `?sslmode=require` to the URL. |
