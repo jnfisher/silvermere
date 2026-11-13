@@ -146,7 +146,8 @@ pub fn search_room(world: &mut World, id: SessionId) -> bool {
                         state.foundmask |= 1 << i;
                     }
                     searched = true;
-                    state.searchers = state.searchers.saturating_add(1);
+                    // (sic) a byte: past 255 it starts again from 0
+                    state.searchers = state.searchers.wrapping_add(1);
                     add(&mut list, s.item, s.count);
                 }
             }
@@ -228,6 +229,27 @@ pub fn users_hidden_in_room(world: &mut World, id: SessionId) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // (sic) The room's count of searchers is a byte: a find at 255 starts it again from 0
+    #[test]
+    fn the_searchers_count_wraps() {
+        use crate::spells::test_fixture::{self as fx, ROOM, enter};
+        let mut w = fx::world();
+        let a = enter(&mut w, "Alf", ROOM);
+        if let Some(c) = w.session_mut(a).and_then(|s| s.character.as_mut()) {
+            c.perception = 500;
+        }
+        w.items.get_mut(&ItemNo(1)).unwrap().gettable = 1;
+        let rs = w.room_state.get_mut(&fx::key(ROOM)).unwrap();
+        rs.searchers = 255;
+        rs.hiditems[0] = silvermere_types::records::RoomItem {
+            item: ItemNo(1),
+            uses: -1,
+            count: 0,
+        };
+        assert!(search_room(&mut w, a));
+        assert_eq!(w.room_state[&fx::key(ROOM)].searchers, 0);
+    }
 
     // The last free entry takes a new item
     #[test]
