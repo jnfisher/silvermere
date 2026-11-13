@@ -202,10 +202,28 @@ impl ActiveMonsters {
         self.peek(n)
     }
 
-    /// A look-up by number, mutable.
+    /// A look-up by number, mutable. A monster pushed out unchanged is read back as
+    /// written first, so the change is made to that.
     pub fn by_number_mut(&mut self, n: ActiveMonsterId) -> Option<&mut ActiveMonster> {
         self.touch(n);
+        self.read_back(n);
         self.peek_mut(n)
+    }
+
+    /// Monster `n`, pushed out of the cache unchanged, as written.
+    fn read_back(&mut self, n: ActiveMonsterId) {
+        let evictions = self.evictions.get_mut();
+        let before = evictions.len();
+        evictions.retain(|e| !matches!(e, Eviction::Kept(k) if *k == n));
+        if evictions.len() == before {
+            return;
+        }
+        let Some(was) = self.saved.get(&n).cloned() else {
+            return;
+        };
+        if let Some(m) = self.peek_mut(n) {
+            *m = was;
+        }
     }
 
     /// The record, leaving the cache as it is (a monster already in the cache, or a
