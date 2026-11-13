@@ -220,6 +220,16 @@ text = "{@COL_EXITS}Obvious exits: NONE!!!\r"
 wrap = true
 pattern = "room_exits"
 
+[messages.exits_list]
+text = "{@COL_EXITS}Obvious exits: {exits}\r"
+pattern = "room_exits"
+example = { exits = "closed door north, up" }
+note = "The EXITS command: the room display's exit line, not wrapped."
+
+[messages.exits_list_none]
+text = "{@COL_EXITS}Obvious exits: NONE!!!\r"
+pattern = "room_exits"
+
 [messages.room_items]
 text = "{@ANSI_CYAN}You notice {items} here.\r"
 wrap = true
@@ -916,12 +926,12 @@ example = { rank = "  1", name = "Bob Smith            ", class = "Warrior   ", 
 note = "As topten_row_exp without the experience and the mark."
 
 [messages.gangs_header]
-text = "{@ANSI_CLRLINE}{@ANSI_BROWN}Top Gangs of the Realm\r{@ANSI_FGGREY}-=-==-=-=-=-=-=-=-=-=-\r\r{@ANSI_FGRED}Rank {@ANSI_FGGREEN}Gangname            {@ANSI_FGMAGENTA}Leader      {@ANSI_FGBROWN}Members {@ANSI_FGGREEN}Created\r{@ANSI_DKGREY}=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\r{@ANSI_RESET}"
+text = "{@ANSI_CLRLINE}{@ANSI_BROWN}Top Gangs of the Realm\r{@ANSI_FGGREY}-=-==-=-=-=-=-=-=-=-=-\r\r{@ANSI_FGRED}Rank {@ANSI_FGGREEN}Gangname            {@ANSI_FGMAGENTA}Leader      {@ANSI_FGBROWN}Members {@ANSI_FGGREEN}Created\r{@ANSI_DKGREY}=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\r{@ANSI_RESET}"
 pattern = "topten_header"
 note = "The top gangs heading without the experience column."
 
 [messages.gangs_header_exp]
-text = "{@ANSI_CLRLINE}{@ANSI_BROWN}Top Gangs of the Realm\r{@ANSI_FGGREY}-=-==-=-=-=-=-=-=-=-=-\r\r{@ANSI_FGRED}Rank {@ANSI_FGGREEN}Gangname            {@ANSI_FGMAGENTA}Leader      {@ANSI_FGBROWN}Members {@ANSI_FGGREEN}Created      {@ANSI_FGBROWN}Exp\r{@ANSI_DKGREY}=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\r{@ANSI_RESET}"
+text = "{@ANSI_CLRLINE}{@ANSI_BROWN}Top Gangs of the Realm\r{@ANSI_FGGREY}-=-==-=-=-=-=-=-=-=-=-\r\r{@ANSI_FGRED}Rank {@ANSI_FGGREEN}Gangname            {@ANSI_FGMAGENTA}Leader      {@ANSI_FGBROWN}Members {@ANSI_FGGREEN}Created      {@ANSI_FGBROWN}Exp\r{@ANSI_DKGREY}=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\r{@ANSI_RESET}"
 note = "With the experience column: a sysop in debug mode, or EXPTOPGANG."
 
 [messages.gang_row]
@@ -1065,6 +1075,11 @@ note = "To the room looked into, from the reverse direction."
 text = "{@ANSI_LTREDBLK}You do not see {what} here!\r"
 example = { what = "bob" }
 note = "what: the rest of the line after LOOK."
+
+[messages.look_coin_desc]
+text = "{text}\r"
+example = { text = "The gold crowns are rustic and used." }
+note = "LOOK at a kind of coin: its description, the fifth currency's with its name."
 
 [messages.look_up_down]
 text = "{@ANSI_CLRLINE}{@ANSI_CYAN}{who} looks {target} up and down.\r"
@@ -3677,7 +3692,7 @@ text = "Error\r"
 text = "No item error\r"
 
 [messages.sysop_scan_header]
-text = "{@ANSI_CLRLINE}{@ANSI_FGMAGENTA}Userid           {@ANSI_FGGREEN}Name                 {@ANSI_FGCYAN}Bcst{@ANSI_FGBROWN}  Room/Map {@ANSI_FGGREY}Evil      {@ANSI_FGMAGENTA}      \r{@ANSI_DKGREY}=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\r{@ANSI_RESET}"
+text = "{@ANSI_CLRLINE}{@ANSI_FGMAGENTA}Userid           {@ANSI_FGGREEN}Name                 {@ANSI_FGCYAN}Bcst{@ANSI_FGBROWN}  Room/Map {@ANSI_FGGREY}Evil      {@ANSI_FGMAGENTA}      \r{@ANSI_DKGREY}=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\r{@ANSI_RESET}"
 note = "display_scan_of_users, the sysop's heading."
 
 [messages.sysop_scan_row]

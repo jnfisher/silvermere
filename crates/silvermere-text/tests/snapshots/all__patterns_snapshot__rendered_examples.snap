@@ -1427,6 +1427,16 @@ exit_wounded
   palette 1: You may not exit MajorMud while you are mortally wounded!\r\n
   palette 2: You may not exit MajorMud while you are mortally wounded!\r\n
   palette 3: You may not exit MajorMud while you are mortally wounded!\r\n
+exits_list
+  palette 0: \x1b[0;32mObvious exits: closed door north, up\r\n
+  palette 1: \x1b[0;33mObvious exits: closed door north, up\r\n
+  palette 2: \x1b[0;32mObvious exits: closed door north, up\r\n
+  palette 3: \x1b[0;32mObvious exits: closed door north, up\r\n
+exits_list_none
+  palette 0: \x1b[0;32mObvious exits: NONE!!!\r\n
+  palette 1: \x1b[0;33mObvious exits: NONE!!!\r\n
+  palette 2: \x1b[0;32mObvious exits: NONE!!!\r\n
+  palette 3: \x1b[0;32mObvious exits: NONE!!!\r\n
 exp_capped
   palette 0: \x1b[79D\x1b[KYou have progressed too far without training to acquire anymore experience!\r\n
   palette 1: \x1b[79D\x1b[KYou have progressed too far without training to acquire anymore experience!\r\n
@@ -2063,15 +2073,15 @@ gang_you_removed
   palette 2: \x1b[79D\x1b[K\x1b[1;34mYou have removed Bob from your gang.\r\n
   palette 3: \x1b[79D\x1b[K\x1b[1;34mYou have removed Bob from your gang.\r\n
 gangs_header
-  palette 0: \x1b[79D\x1b[K\x1b[0;33mTop Gangs of the Realm\r\n\x1b[37m-=-==-=-=-=-=-=-=-=-=-\r\n\r\n\x1b[31mRank \x1b[32mGangname            \x1b[35mLeader      \x1b[33mMembers \x1b[32mCreated\r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\r\n\x1b[0m
-  palette 1: \x1b[79D\x1b[K\x1b[0;33mTop Gangs of the Realm\r\n\x1b[37m-=-==-=-=-=-=-=-=-=-=-\r\n\r\n\x1b[31mRank \x1b[32mGangname            \x1b[35mLeader      \x1b[33mMembers \x1b[32mCreated\r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\r\n\x1b[0m
-  palette 2: \x1b[79D\x1b[K\x1b[0;33mTop Gangs of the Realm\r\n\x1b[37m-=-==-=-=-=-=-=-=-=-=-\r\n\r\n\x1b[31mRank \x1b[32mGangname            \x1b[35mLeader      \x1b[33mMembers \x1b[32mCreated\r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\r\n\x1b[0m
-  palette 3: \x1b[79D\x1b[K\x1b[0;33mTop Gangs of the Realm\r\n\x1b[37m-=-==-=-=-=-=-=-=-=-=-\r\n\r\n\x1b[31mRank \x1b[32mGangname            \x1b[35mLeader      \x1b[33mMembers \x1b[32mCreated\r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\r\n\x1b[0m
+  palette 0: \x1b[79D\x1b[K\x1b[0;33mTop Gangs of the Realm\r\n\x1b[37m-=-==-=-=-=-=-=-=-=-=-\r\n\r\n\x1b[31mRank \x1b[32mGangname            \x1b[35mLeader      \x1b[33mMembers \x1b[32mCreated\r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\r\n\x1b[0m
+  palette 1: \x1b[79D\x1b[K\x1b[0;33mTop Gangs of the Realm\r\n\x1b[37m-=-==-=-=-=-=-=-=-=-=-\r\n\r\n\x1b[31mRank \x1b[32mGangname            \x1b[35mLeader      \x1b[33mMembers \x1b[32mCreated\r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\r\n\x1b[0m
+  palette 2: \x1b[79D\x1b[K\x1b[0;33mTop Gangs of the Realm\r\n\x1b[37m-=-==-=-=-=-=-=-=-=-=-\r\n\r\n\x1b[31mRank \x1b[32mGangname            \x1b[35mLeader      \x1b[33mMembers \x1b[32mCreated\r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\r\n\x1b[0m
+  palette 3: \x1b[79D\x1b[K\x1b[0;33mTop Gangs of the Realm\r\n\x1b[37m-=-==-=-=-=-=-=-=-=-=-\r\n\r\n\x1b[31mRank \x1b[32mGangname            \x1b[35mLeader      \x1b[33mMembers \x1b[32mCreated\r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\r\n\x1b[0m
 gangs_header_exp
-  palette 0: \x1b[79D\x1b[K\x1b[0;33mTop Gangs of the Realm\r\n\x1b[37m-=-==-=-=-=-=-=-=-=-=-\r\n\r\n\x1b[31mRank \x1b[32mGangname            \x1b[35mLeader      \x1b[33mMembers \x1b[32mCreated      \x1b[33mExp\r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\r\n\x1b[0m
-  palette 1: \x1b[79D\x1b[K\x1b[0;33mTop Gangs of the Realm\r\n\x1b[37m-=-==-=-=-=-=-=-=-=-=-\r\n\r\n\x1b[31mRank \x1b[32mGangname            \x1b[35mLeader      \x1b[33mMembers \x1b[32mCreated      \x1b[33mExp\r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\r\n\x1b[0m
-  palette 2: \x1b[79D\x1b[K\x1b[0;33mTop Gangs of the Realm\r\n\x1b[37m-=-==-=-=-=-=-=-=-=-=-\r\n\r\n\x1b[31mRank \x1b[32mGangname            \x1b[35mLeader      \x1b[33mMembers \x1b[32mCreated      \x1b[33mExp\r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\r\n\x1b[0m
-  palette 3: \x1b[79D\x1b[K\x1b[0;33mTop Gangs of the Realm\r\n\x1b[37m-=-==-=-=-=-=-=-=-=-=-\r\n\r\n\x1b[31mRank \x1b[32mGangname            \x1b[35mLeader      \x1b[33mMembers \x1b[32mCreated      \x1b[33mExp\r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\r\n\x1b[0m
+  palette 0: \x1b[79D\x1b[K\x1b[0;33mTop Gangs of the Realm\r\n\x1b[37m-=-==-=-=-=-=-=-=-=-=-\r\n\r\n\x1b[31mRank \x1b[32mGangname            \x1b[35mLeader      \x1b[33mMembers \x1b[32mCreated      \x1b[33mExp\r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\r\n\x1b[0m
+  palette 1: \x1b[79D\x1b[K\x1b[0;33mTop Gangs of the Realm\r\n\x1b[37m-=-==-=-=-=-=-=-=-=-=-\r\n\r\n\x1b[31mRank \x1b[32mGangname            \x1b[35mLeader      \x1b[33mMembers \x1b[32mCreated      \x1b[33mExp\r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\r\n\x1b[0m
+  palette 2: \x1b[79D\x1b[K\x1b[0;33mTop Gangs of the Realm\r\n\x1b[37m-=-==-=-=-=-=-=-=-=-=-\r\n\r\n\x1b[31mRank \x1b[32mGangname            \x1b[35mLeader      \x1b[33mMembers \x1b[32mCreated      \x1b[33mExp\r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\r\n\x1b[0m
+  palette 3: \x1b[79D\x1b[K\x1b[0;33mTop Gangs of the Realm\r\n\x1b[37m-=-==-=-=-=-=-=-=-=-=-\r\n\r\n\x1b[31mRank \x1b[32mGangname            \x1b[35mLeader      \x1b[33mMembers \x1b[32mCreated      \x1b[33mExp\r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\r\n\x1b[0m
 gangs_none
   palette 0: There are no gangs currently established!\r\n
   palette 1: There are no gangs currently established!\r\n
@@ -2612,6 +2622,11 @@ look_cast_exit
   palette 1: A shimmering wall blocks your view.\r\n
   palette 2: A shimmering wall blocks your view.\r\n
   palette 3: A shimmering wall blocks your view.\r\n
+look_coin_desc
+  palette 0: The gold crowns are rustic and used.\r\n
+  palette 1: The gold crowns are rustic and used.\r\n
+  palette 2: The gold crowns are rustic and used.\r\n
+  palette 3: The gold crowns are rustic and used.\r\n
 look_desc_msg
   palette 0: He is glowing.\r\n
   palette 1: He is glowing.\r\n
@@ -5308,10 +5323,10 @@ sysop_scan_count
   palette 2: \r\nThere are 3 users in the game.\r\n\r\n
   palette 3: \r\nThere are 3 users in the game.\r\n\r\n
 sysop_scan_header
-  palette 0: \x1b[79D\x1b[K\x1b[35mUserid           \x1b[32mName                 \x1b[36mBcst\x1b[33m  Room/Map \x1b[37mEvil      \x1b[35m      \r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\r\n\x1b[0m
-  palette 1: \x1b[79D\x1b[K\x1b[35mUserid           \x1b[32mName                 \x1b[36mBcst\x1b[33m  Room/Map \x1b[37mEvil      \x1b[35m      \r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\r\n\x1b[0m
-  palette 2: \x1b[79D\x1b[K\x1b[35mUserid           \x1b[32mName                 \x1b[36mBcst\x1b[33m  Room/Map \x1b[37mEvil      \x1b[35m      \r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\r\n\x1b[0m
-  palette 3: \x1b[79D\x1b[K\x1b[35mUserid           \x1b[32mName                 \x1b[36mBcst\x1b[33m  Room/Map \x1b[37mEvil      \x1b[35m      \r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\r\n\x1b[0m
+  palette 0: \x1b[79D\x1b[K\x1b[35mUserid           \x1b[32mName                 \x1b[36mBcst\x1b[33m  Room/Map \x1b[37mEvil      \x1b[35m      \r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\r\n\x1b[0m
+  palette 1: \x1b[79D\x1b[K\x1b[35mUserid           \x1b[32mName                 \x1b[36mBcst\x1b[33m  Room/Map \x1b[37mEvil      \x1b[35m      \r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\r\n\x1b[0m
+  palette 2: \x1b[79D\x1b[K\x1b[35mUserid           \x1b[32mName                 \x1b[36mBcst\x1b[33m  Room/Map \x1b[37mEvil      \x1b[35m      \r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\r\n\x1b[0m
+  palette 3: \x1b[79D\x1b[K\x1b[35mUserid           \x1b[32mName                 \x1b[36mBcst\x1b[33m  Room/Map \x1b[37mEvil      \x1b[35m      \r\n\x1b[1;30m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\r\n\x1b[0m
 sysop_scan_none
   palette 0: \r\n\x1b[35mThere are no users in the game at the moment.\r\n
   palette 1: \r\n\x1b[35mThere are no users in the game at the moment.\r\n

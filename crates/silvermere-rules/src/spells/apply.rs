@@ -870,6 +870,7 @@ fn apply_to_user(
                 if !lasting {
                     return Outcome::Silly;
                 }
+                let told = state.told;
                 let out = add_lasting_to_user(cast, user, amount, false, state, rng);
                 if matches!(
                     out,
@@ -882,6 +883,8 @@ fn apply_to_user(
                     }
                     out
                 } else {
+                    // a failed add tells nothing, so a later slot may still try
+                    state.told = told;
                     Outcome::AlreadyActive
                 }
             }
@@ -999,13 +1002,18 @@ fn stat_alter(
     if !cast.lasting() {
         return silly;
     }
+    let told = state.told;
     let out = add_lasting_to_user(cast, user, amount, false, state, rng);
     match out {
         Outcome::NoEffect | Outcome::Lasting(SlotOutcome::Added(_)) => {
             raise(user.character, amount);
             out
         }
-        Outcome::Lasting(_) => Outcome::AlreadyActive,
+        Outcome::Lasting(_) => {
+            // a failed add tells nothing, so a later slot may still try
+            state.told = told;
+            Outcome::AlreadyActive
+        }
         other => other,
     }
 }

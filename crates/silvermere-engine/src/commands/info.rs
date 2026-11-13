@@ -8,6 +8,7 @@ use silvermere_text::{Msg, cp437};
 use silvermere_types::enums::{CommandCode, Direction, ExitType};
 use silvermere_types::flags::{ExitFlags, PlayerStatus};
 use silvermere_types::ids::{ActiveMonsterId, ItemNo, MapId, RoomKey, SessionId, SpellNo};
+use silvermere_types::names::{COIN_DESCRIPTIONS, CURRENCY_NAMES};
 
 use super::dispatch::Handled;
 use super::{Cmd, CommandLine, eq_ignore_case, parse_command, starts_with_ignore_case};
@@ -241,6 +242,20 @@ fn set_location(world: &mut World, id: SessionId, key: RoomKey) {
     }
 }
 
+/// The description of the currency `word` names (any word of a currency's name, abbreviated
+/// or not), or `None`.
+fn coin_description(world: &World, word: &str) -> Option<String> {
+    let runic = world.config.usr_cur_name.as_str();
+    let names: Vec<&str> = CURRENCY_NAMES
+        .iter()
+        .take(4)
+        .copied()
+        .chain([runic])
+        .collect();
+    let cur = names.iter().position(|n| matches_any_word(word, n))?;
+    Some(COIN_DESCRIPTIONS[cur].replace("%s", names[cur]))
+}
+
 /// What a name typed after LOOK refers to.
 enum Target {
     User(SessionId),
@@ -345,8 +360,8 @@ fn find_target(world: &World, id: SessionId, name: &str) -> Option<Target> {
 }
 
 /// LOOK {name}. When nothing matches, the original tries the shop's items (`display_item_in_shop`,
-/// T-041), a coin pile and the room's command text (`perform_special_command`, T-054) before the
-/// player's own name; the coin pile is not carried yet.
+/// T-041), a kind of coin and the room's command text (`perform_special_command`, T-054) before the
+/// player's own name.
 pub fn look_at(world: &mut World, id: SessionId, name: &str) {
     look_at_typed(world, id, name, None);
 }
@@ -381,6 +396,11 @@ pub fn look_at_typed(world: &mut World, id: SessionId, name: &str, input: Option
                     return;
                 }
                 crate::shops::ShopLook::NotHandled => {}
+            }
+            // a kind of coin
+            if let Some(text) = coin_description(world, name) {
+                push(world, id, Msg::LookCoinDesc { text });
+                return;
             }
             // the room's command text; the prompt follows the command
             if let Some(input) = input
@@ -626,7 +646,11 @@ pub fn display_visible_exits(world: &mut World, id: SessionId) {
     let Some(room) = crate::movement::exits::live_room(world, key) else {
         return;
     };
-    let msg = exits_msg(&room, &world.display.dirnames, &world.messages);
+    // the room display's line, without its word wrap
+    let msg = match exits_msg(&room, &world.display.dirnames, &world.messages) {
+        Msg::RoomExits { exits } => Msg::ExitsList { exits },
+        _ => Msg::ExitsListNone,
+    };
     if let Some(s) = world.session_mut(id) {
         s.output.push(msg);
     }

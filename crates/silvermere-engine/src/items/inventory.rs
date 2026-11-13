@@ -277,8 +277,12 @@ fn passes_filter(plr: &Character, itm: &Item, slot: usize, flags: Search) -> boo
     }
 }
 
-/// The ambiguity list sent to the player.
+/// The ambiguity list sent to the player. The heading comes with the first name, so
+/// matches that list no name (hidden items) send nothing.
 pub fn show_options(world: &mut World, id: SessionId, options: &[String]) {
+    if options.is_empty() {
+        return;
+    }
     tell_user(world, id, Msg::Ambiguous);
     for name in options {
         tell_user(world, id, Msg::AmbiguousItem { name: name.clone() });
@@ -358,6 +362,18 @@ pub fn load(plr: &Character) -> i64 {
 /// much!`), else the copy is released again. The refusal goes to `id`'s output. `true` when
 /// stored.
 pub fn add_item_to_inventory(world: &mut World, id: SessionId, item: ItemNo, charges: i16) -> bool {
+    add_item_to_inventory_telling(world, id, item, charges, id)
+}
+
+/// [`add_item_to_inventory`] with the refusal sent to `tell`: whoever the command tells
+/// next gets it.
+pub fn add_item_to_inventory_telling(
+    world: &mut World,
+    id: SessionId,
+    item: ItemNo,
+    charges: i16,
+    tell: SessionId,
+) -> bool {
     let Some(itm) = world.items.get(&item).cloned() else {
         return false;
     };
@@ -371,7 +387,7 @@ pub fn add_item_to_inventory(world: &mut World, id: SessionId, item: ItemNo, cha
     };
     // A limited item must still have a copy free
     if !limited::acquire(world, item, Holder::User(&userid)) {
-        tell_user(world, id, Msg::LimitedRefused);
+        tell_user(world, tell, Msg::LimitedRefused);
         return false;
     }
     // The item, what he carries and his coins against what he can carry
@@ -383,7 +399,7 @@ pub fn add_item_to_inventory(world: &mut World, id: SessionId, item: ItemNo, cha
         })
     };
     if too_heavy {
-        tell_user(world, id, Msg::CarryTooMuch);
+        tell_user(world, tell, Msg::CarryTooMuch);
         limited::release(world, item, Holder::User(&userid));
         return false;
     }
@@ -430,7 +446,7 @@ pub fn add_item_to_inventory(world: &mut World, id: SessionId, item: ItemNo, cha
     if !found {
         // No free slot: give the copy back and say why
         limited::release(world, item, Holder::User(&userid));
-        tell_user(world, id, Msg::CarryTooMuch);
+        tell_user(world, tell, Msg::CarryTooMuch);
     }
     found
 }

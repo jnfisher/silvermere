@@ -17,6 +17,7 @@ use silvermere_types::sizes::NWORN;
 
 use super::{cleanup_when_user_leaves, item_ability, item_has, player, player_mut, room_of};
 use crate::event_loop::{EchoMode, EngineOutput};
+use crate::items::equip::unequip_apply_item_abilities;
 use crate::items::limited::{self, Holder};
 use crate::items::room_items::{dispose_of_item_in_room, dispose_of_item_in_trail};
 use crate::player::profile::{self, Retire};
@@ -277,7 +278,14 @@ pub fn check_kill_user(world: &mut World, id: SessionId) -> KillOutcome {
             p.keyuses[i] = -2;
         }
     }
-    // the worn items and the weapon come off
+    // the worn items and the weapon come off, and with them their abilities
+    let (worn, weapon) =
+        player(world, id).map_or(([ItemNo(0); NWORN], ItemNo(0)), |p| (p.worn, p.weapon));
+    for n in worn.into_iter().chain([weapon]).filter(|n| n.0 != 0) {
+        if let Some(itm) = world.items.get(&n).cloned() {
+            unequip_apply_item_abilities(world, id, &itm);
+        }
+    }
     if let Some(p) = player_mut(world, id) {
         p.worn = [ItemNo(0); NWORN];
         p.wornuses = [-1; NWORN];

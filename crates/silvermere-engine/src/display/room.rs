@@ -25,7 +25,7 @@ use silvermere_text::colour::{ColRow, Colour, Palette};
 use silvermere_text::{Msg, ansi, cp437};
 use silvermere_types::enums::{Alignment, DebugLevel, RoomType, ShopType};
 use silvermere_types::flags::{ActiveMonsterFlags, PlayerStatus};
-use silvermere_types::ids::{ActiveMonsterId, MapId, RoomId, RoomKey, SessionId};
+use silvermere_types::ids::{ActiveMonsterId, MapId, RoomId, RoomKey, SessionId, ShopNo};
 use silvermere_types::records::Room;
 
 use super::exits::{DirNames, exits_msg};
@@ -325,10 +325,14 @@ pub fn long_room_desc(world: &mut World, id: SessionId, room: &Room) {
                     });
                 }
             }
-            // The room shows as a normal one: the shop text is skipped and the fault
-            // logged.
+            // It becomes a normal room, so the fault is met once (in memory here: the
+            // content is read-only, so a reload meets it once again).
             None => {
-                tracing::warn!(room = ?room.key, shop = room.shopnum.0, "shop room without its shop")
+                tracing::warn!(room = ?room.key, shop = room.shopnum.0, "shop room without its shop");
+                if let Some(r) = world.rooms.get_mut(&room.key) {
+                    r.room_type = RoomType::Normal;
+                    r.shopnum = ShopNo(0);
+                }
             }
         }
     }

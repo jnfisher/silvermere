@@ -23,6 +23,7 @@ use crate::combat::autocombat::{attacker_is_in_same_room, attacker_type, is_bein
 use crate::combat::{debug_on, player, player_mut, room_of, user_has};
 use crate::event_loop::{EchoMode, EngineOutput};
 use crate::gangs::{Target, find_any_action_target, find_monster_in_memory};
+use crate::items::equip;
 use crate::items::inventory::show_options;
 use crate::movement::exits::{
     Arg, fmt_msg, green_name, live_exit, live_exits, set_par2, tell_room_all,
@@ -191,11 +192,19 @@ pub fn cmd_action(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLin
 /// running he must wait. Otherwise the attempt costs one tick and works when
 /// a roll of 0 to 99 comes in under the hide/sneak chance (at most 95). A failure looks
 /// like a success unless a second roll comes in under his perception. HIDE alone always
-/// answers 2: no prompt follows.
+/// answers 2: no prompt follows, and the secondary stats are recalculated.
 pub fn cmd_hide(world: &mut World, id: SessionId, cmd: Cmd, line: &CommandLine) -> Handled {
     if line.argc() > 1 {
         return super::inventory::hide_item(world, id, cmd, line);
     }
+    let handled = hide_self(world, id);
+    // the secondary stats again, whatever the outcome
+    equip::recalc(world, id);
+    handled
+}
+
+/// HIDE alone: the player tries to hide in the room.
+fn hide_self(world: &mut World, id: SessionId) -> Handled {
     let Some(plr) = player_mut(world, id) else {
         return Handled::NotCommand;
     };

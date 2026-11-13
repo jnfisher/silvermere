@@ -1700,3 +1700,18 @@ fn menu_counts_plain_equals_the_text() {
         + "\x1b[1;30m[\x1b[0mMAJORMUD\x1b[1;30m]\x1b[0m: \x1b[0;37;40m";
     assert_eq!(h.text(id), want);
 }
+
+// seddonm1's differential runs against the original under MBBSEmu: LOOK at a kind of coin
+// describes it
+#[test]
+fn look_at_a_kind_of_coin() {
+    let mut h = Harness::new();
+    let id = h.player("Aldric");
+    h.line(id, "look gold");
+    let ls = lines(h.text(id).as_bytes());
+    assert!(
+        ls.iter()
+            .any(|l| l == "The gold crowns are rustic and used."),
+        "{ls:?}"
+    );
+}

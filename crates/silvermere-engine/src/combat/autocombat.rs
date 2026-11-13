@@ -29,6 +29,7 @@ use super::{
     attack_user_user, monster, monster_mut, player, player_mut, room_of,
 };
 use crate::items::inventory::matches_any_word;
+use crate::spells::active::end_enslaving_spells;
 use crate::tell::{Noise, TellBlind, tell_room, tell_user};
 use crate::world::World;
 
@@ -575,31 +576,11 @@ pub fn do_charmed_monster_combat(world: &mut World, master: SessionId, mon: Acti
             attack_monster_user(world, mon, t);
         }
         Some(AutoTarget::Monster(m)) if m == mon => {
-            let enslaving: Vec<bool> = match monster(world, mon) {
-                Some(mn) => mn
-                    .spells
-                    .iter()
-                    .map(|c| {
-                        c.spell != SpellNo(0)
-                            && world.spells.get(&c.spell).is_none_or(|s| {
-                                s.abilities
-                                    .iter()
-                                    .any(|(a, _)| *a == silvermere_types::enums::Ability::Enslave)
-                            })
-                    })
-                    .collect(),
-                None => return,
+            let Some(mn) = monster_mut(world, mon) else {
+                return;
             };
-            if let Some(mn) = monster_mut(world, mon) {
-                mn.flags.remove(ActiveMonsterFlags::CHARMED);
-                for (slot, clear) in mn.spells.iter_mut().zip(enslaving) {
-                    if clear {
-                        slot.spell = SpellNo(0);
-                        slot.value = 0;
-                        slot.rounds = 0;
-                    }
-                }
-            }
+            mn.flags.remove(ActiveMonsterFlags::CHARMED);
+            end_enslaving_spells(world, mon);
         }
         Some(AutoTarget::Monster(m)) => {
             attack_monster_monster(world, mon, m);
