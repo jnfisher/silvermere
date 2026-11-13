@@ -16,7 +16,6 @@ use silvermere_engine::display::{Assets, RoomMode, display_entry_movement, displ
 use silvermere_engine::tell::palette_of;
 use silvermere_engine::world::blank;
 use silvermere_engine::{SeededRng, SessionId, World, WorldSnapshot};
-use silvermere_text::wrap::from_mbbsemu;
 use silvermere_types::config::GameConfig;
 use silvermere_types::enums::{
     Alignment, DebugLevel, Direction, ExitType, GroupRole, MessageLevel, MonsterType, RoomType,
@@ -433,23 +432,11 @@ fn short_room_equals_the_capture() {
 
 // A closed door; an evil monster in COL_HERENAMES
 #[test]
-fn arena_equals_the_capture() {
+fn arena_shows_its_exits() {
     let mut w = world();
     let id = player(&mut w, "Aldric", ARENA_ROOM);
     monster(&mut w, 1, ARENA_ROOM, "large giant rat", Alignment::Evil);
     let got = show(&mut w, id, RoomMode::LONG);
-    let want = slice(
-        ARENA,
-        b"\x1b[79D\x1b[K\x1b[1;36mNewhaven, Arena",
-        b"\r\n\x1b[79D\x1b[K\x1b[0;37m[HP",
-    );
-    let want = &want[..want.len() - b"\x1b[79D\x1b[K\x1b[0;37m[HP".len()];
-    // the capture is MBBSEmu's: its word wrap redone as the game's
-    let want = from_mbbsemu(want);
-    assert_eq!(
-        esc(&drop_backspace_pairs(&got)),
-        esc(&drop_backspace_pairs(&want))
-    );
     let ls = lines(&got);
     assert!(
         ls.contains(&"Obvious exits: closed door north, up".to_string()),

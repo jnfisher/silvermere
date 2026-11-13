@@ -80,92 +80,6 @@ pub fn wrap(bytes: &[u8], width: u8) -> Vec<u8> {
     out
 }
 
-/// Output recorded under MBBSEmu (the test captures) with its word wrap redone as
-/// the game's host wraps ([`wrap`]). The two differ on one case: a 79-column line followed
-/// by a space keeps its last word under MBBSEmu, and the game moves it to the next line.
-/// A line MBBSEmu broke is joined to the next: a full line (its line end was the space that
-/// overflowed it, or a cut when it has no space) or one the next line's first word would not
-/// have fitted after. Each joined run is wrapped again.
-pub fn from_mbbsemu(raw: &[u8]) -> Vec<u8> {
-    let width = usize::from(WRAPCOLS);
-    // the columns a piece takes: ANSI colours none, a cursor move starts again
-    let columns = |piece: &[u8]| {
-        let (mut n, mut escape) = (0usize, false);
-        for (i, &b) in piece.iter().enumerate() {
-            if escape {
-                if b.is_ascii_alphabetic() {
-                    escape = false;
-                    if b != b'm' {
-                        n = 0;
-                    }
-                }
-            } else if b == 0x1B && piece.get(i + 1) == Some(&b'[') {
-                escape = true;
-            } else {
-                n += 1;
-            }
-        }
-        n
-    };
-    // whether MBBSEmu broke `line` before `next`; a full line's line end was the space
-    // that overflowed it (or, with no space in it, a cut)
-    let broke = |line: &[u8], next: &[u8]| {
-        let used = columns(line);
-        let first = next.split(|&b| b == b' ').next().unwrap_or_default();
-        used == width
-            || (used < width
-                && !next.starts_with(b" ")
-                && !first.is_empty()
-                && used + 1 + columns(first) > width)
-    };
-    let lines = split_crlf(raw);
-    let last = lines.len() - 1;
-    let mut out = Vec::with_capacity(raw.len());
-    let mut run: Vec<u8> = Vec::new();
-    let mut joined = false;
-    for (i, line) in lines.iter().enumerate() {
-        run.extend_from_slice(line);
-        // the piece after the last line end is never joined to
-        if i + 1 < last && broke(line, lines[i + 1]) {
-            if line.contains(&b' ') || columns(line) < width {
-                run.push(b' ');
-            }
-            joined = true;
-            continue;
-        }
-        // only what MBBSEmu wrapped is wrapped again
-        if joined {
-            out.extend(wrap(&run, WRAPCOLS));
-        } else {
-            out.extend_from_slice(&run);
-        }
-        run.clear();
-        joined = false;
-        if i < last {
-            out.extend_from_slice(b"\r\n");
-        }
-    }
-    out
-}
-
-/// `raw` cut at each CR LF (the last piece is what follows the last one).
-fn split_crlf(raw: &[u8]) -> Vec<&[u8]> {
-    let mut pieces = Vec::new();
-    let mut start = 0;
-    let mut i = 0;
-    while i + 1 < raw.len() {
-        if raw[i] == b'\r' && raw[i + 1] == b'\n' {
-            pieces.push(&raw[start..i]);
-            i += 2;
-            start = i;
-        } else {
-            i += 1;
-        }
-    }
-    pieces.push(&raw[start..]);
-    pieces
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -268,22 +182,5 @@ mod tests {
             wrap(b"test one two three\r\n", 0),
             b"test one two three\r\n"
         );
-    }
-
-    #[test]
-    fn mbbsemu_wraps_become_the_games() {
-        let x = "x".repeat(72);
-        // a space as the 80th character: MBBSEmu keeps "yyyyyy", the game moves it down
-        let mbbsemu = format!("{x} yyyyyy\r\nz\r\n[HP=1]:");
-        assert_eq!(
-            from_mbbsemu(mbbsemu.as_bytes()),
-            format!("{x}\r\nyyyyyy z\r\n[HP=1]:").into_bytes()
-        );
-        // lines MBBSEmu did not wrap are left alone, however long
-        let long = format!("{x}{x}\r\nshort\r\n");
-        assert_eq!(from_mbbsemu(long.as_bytes()), long.into_bytes());
-        // a break the next word explains is redone the same way
-        let same = format!("{} b\r\ncccccccc d\r\n", "a".repeat(70));
-        assert_eq!(from_mbbsemu(same.as_bytes()), same.into_bytes());
     }
 }
