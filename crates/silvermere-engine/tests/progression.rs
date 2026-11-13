@@ -668,7 +668,8 @@ fn update_on_a_full_list_and_notopten() {
     // Below P045 (also 55), above P044 (54).
     assert_eq!(list[at - 1].userid, "P045");
     assert_eq!(list[at + 1].userid, "P044");
+    // (sic) An update does not look at NOTOPTEN: he stays on until the next start-up.
     high.settings |= PlayerSettings::NOTOPTEN;
     list.update(&high);
-    assert!(list.iter().all(|e| e.userid != "HIGH"));
+    assert!(list.iter().any(|e| e.userid == "HIGH"));
 }

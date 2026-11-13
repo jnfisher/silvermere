@@ -83,16 +83,10 @@ impl TopTen {
     /// than the slot past the end, an empty slot when the list is not full, and so with any
     /// experience at all; a full list drops its last entry for him.
     ///
-    /// Under the original a character the sysop took off TOPTEN could come back on it before
-    /// the next start-up; here an update takes him off (or keeps him off) the list.
+    /// (sic) The sysop's NOTOPTEN is not looked at: a character taken off TOPTEN comes back
+    /// on at his next update, until the next start-up leaves him out.
     pub fn update(&mut self, c: &Character) {
         let found = self.0.iter().position(|e| e.userid == c.userid);
-        if c.settings.contains(PlayerSettings::NOTOPTEN) {
-            if let Some(i) = found {
-                self.0.remove(i);
-            }
-            return;
-        }
         let (old, entry) = match found {
             Some(i) => {
                 let mut e = self.0.remove(i);
