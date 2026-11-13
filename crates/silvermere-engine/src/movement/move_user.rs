@@ -17,12 +17,12 @@ use silvermere_text::Msg;
 use silvermere_types::enums::{Ability, Alignment, Direction, ExitType, MonsterType, RoomType};
 use silvermere_types::flags::{PlayerSettings, PlayerStatus, PlayerStatus2, RoomFlags};
 use silvermere_types::ids::{RoomKey, SessionId};
-use silvermere_types::names::{DIRECTION_NAMES_2, DIRECTION_NAMES_3};
 use silvermere_types::records::Character;
 use silvermere_types::sizes::{NROOMMONS, NTRAIL};
 
 use super::exits::{Gate, GateCtx, exit_gate, live_exit, prompt, show_room, tell_room_all};
 use super::{GenerateSpec, HOOKS, direction, dirname};
+use crate::combat::monster;
 use crate::display::display_entry_movement;
 use crate::scheduler::Rng;
 use crate::tell::tell_user;
@@ -406,12 +406,12 @@ fn perform_move(
                 _ => match world.rng.range(1, 4) {
                     2 => Msg::LeftDir2 {
                         who: who.clone(),
-                        dir: DIRECTION_NAMES_2[d].to_owned(),
+                        dir: world.cycles.direction_name(1, d),
                         drag: drag.clone(),
                     },
                     3 => Msg::LeftDir3 {
                         who: who.clone(),
-                        dir: DIRECTION_NAMES_3[d].to_owned(),
+                        dir: world.cycles.direction_name(2, d),
                         drag: drag.clone(),
                     },
                     _ => Msg::LeftDir1 {
@@ -722,12 +722,8 @@ pub fn give_monsters_a_free_attack(world: &mut World, id: SessionId) -> bool {
         if monnum.0 == 0 {
             continue;
         }
-        let Some(mon) = world
-            .active_monsters
-            .values()
-            .find(|m| m.number == monnum)
-            .cloned()
-        else {
+        // looked up through the cache, as the game does
+        let Some(mon) = monster(world, monnum).cloned() else {
             continue;
         };
         if mon.followpct < roll {

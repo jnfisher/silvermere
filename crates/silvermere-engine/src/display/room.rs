@@ -173,7 +173,7 @@ pub fn display_room(world: &mut World, id: SessionId, mode: RoomMode) {
         return;
     };
     if let Some((file, prefix)) = file_description(&room.desc) {
-        // The file's first line only (`once`), then `clear_output`, after the light cyan.
+        // The file's first line only (`once`), then the buffer is cleared, after the light cyan.
         if let Some(lines) = desc_from_file(world, file, prefix, true) {
             match lines.into_iter().next() {
                 Some(name) => push(world, Msg::RoomTitle { name }),
@@ -183,6 +183,12 @@ pub fn display_room(world: &mut World, id: SessionId, mode: RoomMode) {
                     }
                 }
             }
+        } else {
+            // the light cyan goes out with the error
+            if let Some(s) = world.session_mut(id) {
+                s.output.push_raw(ansi::ANSI_LTCYAN);
+            }
+            push(world, desc_file_error(file));
         }
     } else {
         push(
@@ -224,6 +230,14 @@ fn file_description(desc: &[String]) -> Option<(&str, &str)> {
     let file = desc.get(1)?;
     (first.trim_end().eq_ignore_ascii_case("FILE DESCRIPTION") && !file.is_empty())
         .then(|| (file.as_str(), desc.get(2).map_or("", String::as_str)))
+}
+
+/// What the player sees when a description file can't be opened: the game's internal
+/// error (its report mail is not carried).
+pub fn desc_file_error(file: &str) -> Msg {
+    Msg::MudInternalError {
+        msg: format!("Can't display gang house file {file}"),
+    }
 }
 
 /// The stock distribution ships none of 84 of the 131 `FILE DESCRIPTION` names, so a
@@ -294,8 +308,9 @@ pub fn long_room_desc(world: &mut World, id: SessionId, room: &Room) {
     if let Some((file, prefix)) = file_description(&room.desc) {
         msgs.push(Msg::Clrline);
         msgs.push(Msg::AnsiNormal);
-        if let Some(lines) = desc_from_file(world, file, prefix, false) {
-            msgs.extend(lines.into_iter().map(|line| Msg::RoomFileLine { line }));
+        match desc_from_file(world, file, prefix, false) {
+            Some(lines) => msgs.extend(lines.into_iter().map(|line| Msg::RoomFileLine { line })),
+            None => msgs.push(desc_file_error(file)),
         }
     } else {
         msgs.push(Msg::RoomLongDesc {
@@ -306,8 +321,11 @@ pub fn long_room_desc(world: &mut World, id: SessionId, room: &Room) {
         match world.shops.get(&room.shopnum) {
             Some(shp) => {
                 if let Some((file, prefix)) = file_description(&shp.desc) {
-                    if let Some(lines) = desc_from_file(world, file, prefix, false) {
-                        msgs.extend(lines.into_iter().map(|line| Msg::RoomFileLine { line }));
+                    match desc_from_file(world, file, prefix, false) {
+                        Some(lines) => {
+                            msgs.extend(lines.into_iter().map(|line| Msg::RoomFileLine { line }));
+                        }
+                        None => msgs.push(desc_file_error(file)),
                     }
                 } else if shp.desc.iter().any(|l| !l.is_empty()) {
                     msgs.push(Msg::RoomShopDesc {

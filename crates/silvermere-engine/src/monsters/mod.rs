@@ -42,9 +42,8 @@ use silvermere_types::records::ActiveMonster;
 use silvermere_types::sizes::NDIRS;
 
 use crate::movement::exits::{LOCK_LOCKED, live_exits, set_par1, set_par2};
-use crate::movement::timed_exits::{add_exit_to_list, blocked_upto};
+use crate::movement::timed_exits::{add_exit_to_list, blocked_upto, drop_exit_changes};
 use crate::movement::{GenerateSpec, MonsterHooks};
-use crate::scheduler::Routine;
 use crate::world::World;
 
 /// The statics of the spawn pass and the monster passes.
@@ -588,10 +587,7 @@ pub fn preload_exits(world: &mut World, key: RoomKey) -> u32 {
             continue;
         }
         let dir = Direction::COMPASS[i];
-        world.scheduler.disarm(Routine::ExitRevert {
-            room: key,
-            dir: dir.code() as u8,
-        });
+        drop_exit_changes(world, key, dir.code() as u8);
         let par1 = |v: u32| (exit.par1 != v).then_some(v);
         let (p1, p2) = match exit.kind {
             ExitType::Key if exit.par2 != 2 => (None, Some(2)),

@@ -1040,6 +1040,20 @@ mod sysop {
             h.line(s, "sysop list newlimited"),
             format!("{line}{line}Item Ancient Sword User BOB\n\n{P}")
         );
+        // USER id lists that player's copies, NAME the copies of an item wherever they are
+        assert_eq!(
+            h.line(s, "sysop list newlimited user alice"),
+            format!("\n{P}")
+        );
+        assert_eq!(
+            h.line(s, "sysop list newlimited user bob"),
+            format!("Item Ancient Sword User BOB\n\n{P}")
+        );
+        assert_eq!(
+            h.line(s, "sysop list newlimited name ancient"),
+            format!("{line}{line}Item Ancient Sword User BOB\n\n{P}")
+        );
+        assert_eq!(h.line(s, "sysop list newlimited map 2"), format!("\n{P}"));
     }
 
     #[test]
@@ -1110,15 +1124,17 @@ mod sysop {
             h.engine.world.session(s).unwrap().state,
             SessionState::UserReport
         );
+        // the lines follow as soon as the characters arrive
+        let at = h.log.len();
         h.answer_roster(from, stored(3));
-        let from = h.tick();
-        let out = h.got(from, s);
+        h.tick();
+        let out = h.got(at, s);
         let lines: Vec<&str> = out.lines().collect();
         assert!(
-            lines[0].starts_with("USER2 "),
-            "lowest experience first: {out:?}"
+            lines[0].starts_with("USER0 "),
+            "highest experience first: {out:?}"
         );
-        assert!(lines[2].starts_with("USER0 "));
+        assert!(lines[2].starts_with("USER2 "));
         assert!(out.ends_with(P));
         assert_eq!(
             h.engine.world.session(s).unwrap().state,

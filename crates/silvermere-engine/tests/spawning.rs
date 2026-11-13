@@ -1178,11 +1178,12 @@ fn a_full_cache_writes_the_evicted_monster_back() {
     }
     w.active_monsters.peek_mut(ms[1]).unwrap().hp -= 1;
     assert!(w.active_monsters.is_dirty(ms[1]));
+    // written as it is pushed out; the store sees it at the next poll
     w.active_monsters.touch(ms[5]);
-    assert!(w.active_monsters.is_dirty(ms[1]));
-    w.poll_monster_passes();
     assert!(!w.active_monsters.is_dirty(ms[1]));
     assert_eq!(w.active_monsters.cache().slot_of(ms[1]), None);
+    w.poll_monster_passes();
+    assert!(!w.active_monsters.is_dirty(ms[1]));
 }
 
 // MAXMOVERS (3) places a medium pass, handed out in

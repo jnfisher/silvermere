@@ -10,7 +10,6 @@ use super::{CommandLine, eq_ignore_case};
 use crate::combat::{object_pronoun, player, possessive_pronoun};
 use crate::evil::attempt_to_forgive;
 use crate::items::inventory::{matches_any_word, show_options};
-use crate::output::clear_output;
 use crate::tell::tell_user;
 use crate::world::World;
 
@@ -69,10 +68,6 @@ pub fn cmd_forgive(world: &mut World, id: SessionId, line: &CommandLine) -> Hand
     }
     let word = line.arg(1);
     let found = find_user(world, id, word);
-    // the match lookup ends (the colour reset is dropped) unless the name was ambiguous
-    if !matches!(found, Found::Multiple(_)) {
-        clear_output(world, id);
-    }
     match found {
         Found::Multiple(options) => {
             show_options(world, id, &options);

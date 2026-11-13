@@ -13,12 +13,14 @@ use silvermere_types::ids::{ActiveMonsterId, ItemNo, RoomKey, SessionId};
 use silvermere_types::records::{Action, Character};
 use silvermere_types::sizes::NACTTEXTS;
 
+use super::CommandLine;
+use super::cast::{Found, find_action_target as search};
 use super::input::SocialAction;
-use super::{CommandLine, eq_ignore_case};
 use crate::display::actions::list_of_actions;
-use crate::items::inventory::{MAXPASSES, Search, find_item_in_inventory, matches_any_word};
+use crate::items::inventory::matches_any_word;
 use crate::tell::{Noise, TellBlind, pronouns, tell_room};
 use crate::world::World;
+use silvermere_rules::spells::MatchKinds;
 
 /// Text indices of an action record.
 pub const TXT_SOLOSELF: usize = 0;
@@ -67,128 +69,29 @@ enum Target {
     Multiple,
 }
 
-/// The part of the action target search that social actions ask for: the monsters in the
-/// room (trailing words dropped one pass at a time), the players in the room by the first word, the
-/// items carried and the items on the floor, each only when the verb's mask allows it. A full name
-/// ends the search at once. The unused search bit, the spells and the debug output are not carried.
-fn find_action_target(world: &World, id: SessionId, name: &str, allowed: ActionTargets) -> Target {
-    let Some(plr) = world.session(id).and_then(|s| s.player()) else {
-        return Target::None;
+/// The action target search as social actions ask it: the kinds the verb's mask allows
+/// (the unused search bit is not carried).
+fn find_action_target(
+    world: &mut World,
+    id: SessionId,
+    name: &str,
+    allowed: ActionTargets,
+) -> Target {
+    let kinds = MatchKinds {
+        users: allowed.contains(ActionTargets::USER),
+        monsters: allowed.contains(ActionTargets::MONSTER),
+        inventory: allowed.contains(ActionTargets::INVENTORY),
+        floor: allowed.contains(ActionTargets::FLOOR),
+        ..MatchKinds::default()
     };
-    let key = RoomKey {
-        map: plr.map,
-        room: plr.room,
-    };
-    let state = world.room_state.get(&key);
-    let mut found = Target::None;
-    let mut count = 0usize;
-
-    // Step 1: monsters. Every pass drops the last word; the stop flag is never set (sic),
-    // so the passes go on until one word is left or MAXPASSES.
-    if allowed.contains(ActionTargets::MONSTER)
-        && let Some(st) = state
-    {
-        let mut cur = name.trim_end();
-        let mut dropped = false;
-        for _ in 0..MAXPASSES {
-            for &m in st.monsters.iter().filter(|m| m.0 != 0) {
-                let Some(mon) = world.active_monsters.by_number(m) else {
-                    continue;
-                };
-                if matches_any_word(cur, &mon.name) {
-                    if count == 0 {
-                        found = Target::Monster(m);
-                    }
-                    count += 1;
-                    if !dropped && eq_ignore_case(cur, &mon.name) {
-                        return Target::Monster(m);
-                    }
-                }
-            }
-            match cur.trim_end().rfind(' ') {
-                Some(i) => {
-                    cur = cur[..i].trim_end();
-                    dropped = true;
-                }
-                None => break,
-            }
-        }
+    match search(world, id, name, kinds) {
+        Found::None | Found::Spell(_) => Target::None,
+        Found::User(n) => Target::User(n),
+        Found::Monster(n) => Target::Monster(n),
+        Found::Floor(n) => Target::Floor(n),
+        Found::Inventory(n) => Target::Inventory(n),
+        Found::Multiple(..) => Target::Multiple,
     }
-
-    // Step 2: players, the first word only.
-    if allowed.contains(ActionTargets::USER) {
-        let first = name.split(' ').next().unwrap_or("");
-        let sees_hidden = plr.status.contains(PlayerStatus::SEEHIDDEN);
-        let mut ids = world.session_ids();
-        ids.sort();
-        for other in ids {
-            if !world.is_in_game(other) {
-                continue;
-            }
-            let Some(v) = world.session(other).and_then(|s| s.player()) else {
-                continue;
-            };
-            if v.room != key.room || v.map != key.map || !matches_any_word(first, &v.firstname) {
-                continue;
-            }
-            if v.hidden != 0 && other != id && !sees_hidden {
-                continue;
-            }
-            found = Target::User(other);
-            count += 1;
-            if eq_ignore_case(first, &v.firstname) {
-                return found;
-            }
-        }
-    }
-
-    // Step 3: items carried. An exact name leaves `count` at 0 and ends the search.
-    if allowed.contains(ActionTargets::INVENTORY) {
-        let f = find_item_in_inventory(world, plr, name, Search::Any);
-        count += f.count;
-        if let Some(item) = f.item {
-            found = Target::Inventory(item);
-            if f.count == 0 {
-                return found;
-            }
-        }
-    }
-
-    // Step 4: items on the floor: an exact name wins; a partial match is remembered only
-    // while no earlier kind has been counted (a quirk of the original). The hidden items
-    // are not searched.
-    if allowed.contains(ActionTargets::FLOOR)
-        && let Some(st) = state
-    {
-        let counted_before = count;
-        let mut first: Option<ItemNo> = None;
-        for slot in st.items.iter().filter(|s| s.item.0 != 0) {
-            let Some(itm) = world.items.get(&slot.item) else {
-                continue;
-            };
-            if !matches_any_word(name, &itm.name) {
-                continue;
-            }
-            if eq_ignore_case(name, &itm.name) {
-                return Target::Floor(slot.item);
-            }
-            if first != Some(slot.item) {
-                count += 1;
-                first.get_or_insert(slot.item);
-            }
-        }
-        if let Some(item) = first
-            && counted_before == 0
-        {
-            found = Target::Floor(item);
-        }
-    }
-
-    // more than one candidate is ambiguous, unless the last kind found was a monster.
-    if count > 1 && !matches!(found, Target::Monster(_)) {
-        return Target::Multiple;
-    }
-    found
 }
 
 /// `fill_names` as the social actions use it: each `%s` takes the next name, a `%s` too many prints

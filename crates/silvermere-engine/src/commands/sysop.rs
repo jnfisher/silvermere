@@ -488,10 +488,13 @@ fn chain(world: &mut World, id: SessionId, op: Op, line: &CommandLine) -> Handle
     } else if starts_with_ignore_case(w, "lightning") && op.has(Key::SysLightning) {
         return lightning(world, id, line);
     } else if op.sysop && starts_with_ignore_case(w, "transfer") {
-        // the last line this operator typed
+        // the line typed ahead of the game's entry, which there never is: the game prints
+        // its null pointer as the system's printf does
         let last = world
             .session(id)
-            .map_or_else(String::new, |s| s.ust.lastinput.clone());
+            .map(|s| s.ust.lastinput.clone())
+            .filter(|l| !l.is_empty())
+            .unwrap_or_else(|| "<null pointer>".into());
         push(world, id, Msg::SysopTransferInfo { line: last });
     } else if dev && op.sysop && starts_with_ignore_case(w, "values") {
         values(world, id, line);

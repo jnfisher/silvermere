@@ -31,7 +31,6 @@ use crate::movement::exits::{
 use crate::movement::move_user::{MoveType, calc_hide_sneak_chance};
 use crate::movement::timed_exits::add_exit_to_list;
 use crate::movement::{HOOKS, direction, dirname};
-use crate::output::clear_output;
 use crate::player::suicide::commit_suicide;
 use crate::state::login::leave;
 use crate::state::newchar::suicide_pw;
@@ -192,7 +191,7 @@ pub fn cmd_action(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLin
 /// running he must wait. Otherwise the attempt costs one tick and works when
 /// a roll of 0 to 99 comes in under the hide/sneak chance (at most 95). A failure looks
 /// like a success unless a second roll comes in under his perception. HIDE alone always
-/// answers 2: no prompt follows, and the secondary stats are recalculated.
+/// answers 2: no prompt follows. Both end with the secondary stats recalculated.
 pub fn cmd_hide(world: &mut World, id: SessionId, cmd: Cmd, line: &CommandLine) -> Handled {
     if line.argc() > 1 {
         return super::inventory::hide_item(world, id, cmd, line);
@@ -269,13 +268,12 @@ pub fn cmd_track(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLine
         return Handled::Done;
     }
     let name = line.rest_from(1);
-    let found = find_action_target(world, id, name, true);
+    let found = find_action_target(world, id, name, false);
     // several matches: the choices
     if let Found::Multiple(options) = found {
         show_options(world, id, &options);
         return Handled::Done;
     }
-    clear_output(world, id);
     let target = match found {
         Found::User(t) => Some(Tracked::Player(t)),
         Found::Monster(m) => Some(Tracked::Monster(m)),

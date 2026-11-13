@@ -7,7 +7,7 @@
 //! and MEDITATE's): `*Combat Off*` and the prompt come before the change's own lines.
 
 use silvermere_rules::abilities::{Ability, item_has_ability};
-use silvermere_rules::combat::is_weapon_too_fast_for_user;
+use silvermere_rules::combat::{Move, user_align_group};
 use silvermere_text::Msg;
 use silvermere_types::enums::{ItemType, WeaponType, WornLocation};
 use silvermere_types::ids::{ItemNo, RoomKey, SessionId, SpellNo};
@@ -17,6 +17,7 @@ use silvermere_types::sizes::{NSPELLBOOK, NWORN};
 use super::can_use::{UseCheck, can_use};
 use super::inventory::{Found, Search, find_item_in_inventory, has_ability};
 use crate::combat::autocombat::{display_autocombat_broken, is_inside_autocombat, kill_autocombat};
+use crate::combat::player_side;
 use crate::tell::{Noise, TellBlind, tell_room, tell_user};
 use crate::world::World;
 
@@ -331,9 +332,6 @@ pub fn remove_armour(world: &mut World, id: SessionId, name: &str, force: bool) 
         return;
     };
     let f = find_item_in_inventory(world, plr, name, Search::Worn);
-    // The buffer is emptied (for REMOVE, the
-    // dispatcher's ANSI_NORMAL; DROP, HIDE and GIVE have cleared it already)
-    crate::output::clear_output(world, id);
     let Some(plr) = world.sessions.get(&id).and_then(|s| s.player()) else {
         return;
     };
@@ -566,16 +564,17 @@ pub fn ready_weapon(
                 item: itm.name.clone(),
             },
         );
-        let Some(plr) = world.sessions.get(&id).and_then(|s| s.player()) else {
+        let Some(plr) = world.sessions.get(&id).and_then(|s| s.player()).cloned() else {
             return false;
         };
         // Too weak for it (compared unsigned: a negative requirement is always too heavy)
         let heavy = itm.strreq as u16 > plr.str;
-        // Quick with it
-        let quick = world
-            .classes
-            .get(&plr.class)
-            .is_some_and(|cls| is_weapon_too_fast_for_user(plr, cls, Some(&itm)))
+        // Quick with it: a whole normal blow is worked out, verb picks included
+        let style = user_align_group(plr.evil);
+        // the test leaves a plain blow as the attack in progress
+        world.atkmove = Move::Attack;
+        let quick = player_side(world, id, &plr, Move::Attack, Move::Attack, style)
+            .is_some_and(|(f, _)| f.fast)
             && !heavy;
         if heavy {
             tell_user(world, id, Msg::WeaponHeavy);

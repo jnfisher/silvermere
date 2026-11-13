@@ -30,8 +30,8 @@ use silvermere_types::names::DIRECTION_NAMES;
 use silvermere_types::sizes::NDIRS;
 
 use super::dispatch::{Handled, handle_commands};
-use super::parse::{CommandLine, eq_ignore_case};
-use super::{info, misc, movement, pending, social};
+use super::parse::{CommandLine, eq_ignore_case, parse_command};
+use super::{Cmd, info, misc, movement, pending, social};
 use crate::state::Outcome;
 use crate::state::login::leave;
 use crate::tell::{Noise, TellBlind, tell_room};
@@ -142,12 +142,13 @@ pub fn execute_input(world: &mut World, id: SessionId, line: &str, queued: bool)
             .and_then(|s| s.character.as_ref())
             .is_some_and(|p| p.delay != 0);
         if delayed || pending::commands_pending(world, id) {
-            pending::add_delayed_command(world, id, line);
+            // the line as the game copies it, after rstrin()
+            pending::add_delayed_command(world, id, CommandLine::parse(line).restored());
             return Outcome::Continue;
         }
     }
 
-    let cl = CommandLine::parse(line);
+    let mut cl = CommandLine::parse(line);
 
     // Stage 3: an empty line.
     if cl.argc() == 0 {
@@ -182,7 +183,14 @@ pub fn execute_input(world: &mut World, id: SessionId, line: &str, queued: bool)
             prompt(world, id);
             return Outcome::Continue;
         }
-        Handled::NotCommand => {}
+        Handled::NotCommand => {
+            // (sic) GLOBAL rewrites the line for the board's commands before trying
+            // them, and none take it here: what follows reads the line without its
+            // first word
+            if cl.argc() >= 2 && parse_command(cl.first()) == Some(Cmd::Global) {
+                cl = cl.second_word_first();
+            }
+        }
     }
 
     // the room's words and special commands work for the living only
@@ -240,8 +248,8 @@ pub fn execute_input(world: &mut World, id: SessionId, line: &str, queued: bool)
         return Outcome::Continue;
     }
 
-    // Stage 11: speech.
-    speech(world, id, room.as_ref(), line);
+    // Stage 11: speech, of the line as `rstrin()` left it (no blanks after its last word)
+    speech(world, id, room.as_ref(), cl.restored());
     prompt(world, id);
     Outcome::Continue
 }

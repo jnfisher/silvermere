@@ -550,52 +550,52 @@ mod items {
             b
         }
 
-        // USE's and READ's ambiguous-match handling clears the output buffer, which drops
-        // the dispatcher's colour reset and the scroll's
-        // clear-line sequence, so a known scroll's line comes bare (m4 run 38823959731,
-        // `read scroll`); the torch lights and the key turns with no reset in front
-        // (for LIGHT, for USE of a light and for a key alike).
+        // USE, READ and LIGHT: the command's colour reset, then the line. A scroll's
+        // clear-line sequence is dropped with the output buffer, so its line follows the reset.
         #[test]
-        fn find_helpers_clear_the_pending_reset() {
+        fn item_lines_follow_the_reset() {
             let mut w = world();
             let id = druid(&mut w, "Rowan", SPELL_SHOP);
             run(&mut w, id, "buy scroll of vine strike");
             // A new scroll: the learn line, then the (empty) destroy message
             assert_eq!(
                 raw(&mut w, id, "read scroll of vine strike"),
-                b"You read scroll of vine strike and learn the spell vine strike.\r\n\r\n"
+                b"\x1b[0;37;40mYou read scroll of vine strike and learn the spell vine strike.\r\n\r\n"
             );
             run(&mut w, id, "buy scroll of vine strike");
             // A known one, by READ and by USE
             for line in ["read scroll of vine strike", "use scroll of vine strike"] {
                 assert_eq!(
                     raw(&mut w, id, line),
-                    b"You realize that you already know this scroll!\r\n",
+                    b"\x1b[0;37;40mYou realize that you already know this scroll!\r\n",
                     "{line}"
                 );
             }
             give(&mut w, id, TORCH);
             give(&mut w, id, TORCH);
-            assert_eq!(raw(&mut w, id, "light torch"), b"You lit the torch.\r\n");
             assert_eq!(
                 raw(&mut w, id, "light torch"),
-                b"You already have something lit!\r\n"
+                b"\x1b[0;37;40mYou lit the torch.\r\n"
+            );
+            assert_eq!(
+                raw(&mut w, id, "light torch"),
+                b"\x1b[0;37;40mYou already have something lit!\r\n"
             );
             // USE of a light goes to LIGHT
             assert_eq!(
                 raw(&mut w, id, "use torch"),
-                b"You already have something lit!\r\n"
+                b"\x1b[0;37;40mYou already have something lit!\r\n"
             );
             // a key on the Key exit
             let k = druid(&mut w, "Kai", TOMB);
             give(&mut w, k, BONE_KEY);
             assert_eq!(
                 raw(&mut w, k, "use bone key n"),
-                b"You successfully unlocked the door.\r\n"
+                b"\x1b[0;37;40mYou successfully unlocked the door.\r\n"
             );
             assert_eq!(
                 raw(&mut w, k, "use bone key n"),
-                b"The door was not locked.\r\n"
+                b"\x1b[0;37;40mThe door was not locked.\r\n"
             );
         }
 

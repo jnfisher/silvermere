@@ -92,7 +92,7 @@ Periods (`Periods::from_config`): energy `sec_energy` 5, medium `sec_med` 3, slo
 `sec_slow` 30 (restock on every 21st slow run, `RESTOCK_SLOW` 20), monster creation
 `sec_create` 5, save `sec_oth` rounded down to whole minutes with a floor of 60
 (the stock `WCCMMUD.MSG` value of 160 gives 120), inactivity
-`inactive_secs` 3600. Timed exits arm a one-shot `ExitRevert`.
+`inactive_secs` 3600. Exit changes wait in one queue (`Scheduler::exits`); each `ExitRevert` timer works on its head.
 
 ## Sessions
 

@@ -16,6 +16,7 @@ use silvermere_text::ansi::ANSI_CLRLINE;
 use silvermere_text::{Msg, cp437, finish};
 use silvermere_types::ids::SessionId;
 
+use crate::monsters::active::write_back_evicted;
 use crate::output::{PromptText, render_items};
 use crate::player_session::Caps;
 use crate::scheduler::{self, Clock, Rng, TickReport};
@@ -598,7 +599,6 @@ impl<C: Clock, R: Rng> Engine<C, R> {
             EngineInput::Line { id, text } => {
                 if let Some(s) = world.sessions.get_mut(&id) {
                     s.idle_since = now;
-                    s.ust.lastinput.clone_from(&text);
                 }
                 let today = day_start(self.clock.wall().as_second());
                 let outcome = session::on_line(world, id, &text, today);
@@ -645,6 +645,8 @@ impl<C: Clock, R: Rng> Engine<C, R> {
             EngineInput::Custom { run, .. } => run(world),
             EngineInput::Shutdown => {}
         }
+        // the monsters the cache pushed out are written back or read back
+        write_back_evicted(&mut self.world);
     }
 
     fn finish_outcome(&mut self, id: SessionId, outcome: Outcome) {

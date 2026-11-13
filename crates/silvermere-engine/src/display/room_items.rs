@@ -170,8 +170,6 @@ pub fn search_room(world: &mut World, id: SessionId) -> bool {
         users_hidden_in_room(world, id);
         return true;
     }
-    // `clear_output`: the "You notice" start goes, and the command's ANSI_NORMAL with it
-    crate::output::clear_output(world, id);
     if users_hidden_in_room(world, id) > 0 {
         return true;
     }

@@ -116,10 +116,12 @@ pub fn generate_monsters_near_users(world: &mut World) {
                         .filter_map(|k| world.session(k).and_then(|s| s.player()))
                         .filter(|p| p.map == mapnum && p.room == roomnum)
                         .count() as u32;
+                    // the counts are kept in bytes: 256 players are kept as 0 (sic),
+                    // so the room counts as not counted yet for the next player there
                     world.occupied[slot] = OccRoom {
                         room: here,
-                        nplayers: nplayers.min(255) as u8,
-                        nmons: nmons.min(255) as u8,
+                        nplayers: nplayers as u8,
+                        nmons: nmons as u8,
                     };
                 }
                 let roll = world.rng.range(1, 100);

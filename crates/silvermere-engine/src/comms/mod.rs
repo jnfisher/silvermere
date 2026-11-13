@@ -53,13 +53,7 @@ pub fn get_user_number(world: &World, name: &str, exact: bool) -> UserMatch {
     }
 }
 
-/// [`get_user_number`] in the command of `id`: the search, then `clear_output` on a full name or
-/// when at most one abbreviation fits, which takes the dispatcher's `ANSI_NORMAL` out of
-/// the buffer. Several matches leave the buffer alone.
-pub fn find_user_number(world: &mut World, id: SessionId, name: &str, exact: bool) -> UserMatch {
-    let found = get_user_number(world, name, exact);
-    if !matches!(found, UserMatch::Several(_)) {
-        crate::output::clear_output(world, id);
-    }
-    found
+/// [`get_user_number`] in the command of `id`.
+pub fn find_user_number(world: &mut World, _id: SessionId, name: &str, exact: bool) -> UserMatch {
+    get_user_number(world, name, exact)
 }

@@ -928,7 +928,7 @@ fn remove_helm_breaks_off_autocombat_first() {
     let (me, room) = engaged("remove helm", true);
     assert_eq!(
         me,
-        "\x1b[79D\x1b[KYou have removed helm.\r\n\x1b[79D\x1b[K\x1b[0;33m*Combat Off*\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m/MA=0\x1b[0;37m]:\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m]:"
+        "\x1b[0;37;40m\x1b[79D\x1b[KYou have removed helm.\r\n\x1b[79D\x1b[K\x1b[0;33m*Combat Off*\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m/MA=0\x1b[0;37m]:\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m]:"
     );
     assert_eq!(
         room,
@@ -943,7 +943,7 @@ fn wield_another_weapon_breaks_off_autocombat_first() {
     let (me, room) = engaged("wield club", false);
     assert_eq!(
         me,
-        "\x1b[79D\x1b[K\x1b[0;33m*Combat Off*\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m/MA=0\x1b[0;37m]:\x1b[79D\x1b[KYou are now holding club.\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m]:"
+        "\x1b[0;37;40m\x1b[79D\x1b[K\x1b[0;33m*Combat Off*\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m/MA=0\x1b[0;37m]:\x1b[79D\x1b[KYou are now holding club.\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m]:"
     );
     assert_eq!(
         room,
@@ -973,7 +973,7 @@ fn wear_armour_breaks_off_autocombat_first() {
     let (me, room) = engaged("wear helm", false);
     assert_eq!(
         me,
-        "\x1b[79D\x1b[K\x1b[0;33m*Combat Off*\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m/MA=0\x1b[0;37m]:\x1b[79D\x1b[KYou are now wearing helm.\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m]:"
+        "\x1b[0;37;40m\x1b[79D\x1b[K\x1b[0;33m*Combat Off*\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m/MA=0\x1b[0;37m]:\x1b[79D\x1b[KYou are now wearing helm.\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m]:"
     );
     assert_eq!(
         room,

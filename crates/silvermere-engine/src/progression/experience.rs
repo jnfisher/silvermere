@@ -7,6 +7,7 @@ use silvermere_rules::progression::{BILLION, can_gain_exp};
 use silvermere_text::Msg;
 use silvermere_types::ids::SessionId;
 
+use crate::gangs::place_gang_last;
 use crate::world::World;
 
 /// What [`add_experience`] did.
@@ -27,16 +28,15 @@ pub struct ExpOutcome {
 /// past the cap on billions alone is kept; see
 /// `silvermere_rules::progression::can_gain_exp`). Otherwise the gang's total grows too
 /// (amounts above 1), the 32-bit `exp` and the 1.11 pair `expbil`/`exprem` take the amount,
-/// `verbose` prints `You gain N experience.` and the prompt, and the top list is brought up
-/// to date.
+/// `verbose` prints `You gain N experience.` and the prompt. The top list catches up when
+/// combat stops, as in the game.
 ///
 /// (sic) The amount is compared with a billion unsigned, so a negative amount counts as
 /// over four billion: -5 adds 4 to `expbil` and 294,967,291 to `exprem`. The gain line
 /// prints what is left of the amount after whole billions were taken off.
 ///
 /// Not carried: the demo version's level-4 cap and the pre-1.11 refusal (every character
-/// here is on the 1.11 system). The original updated the top list only when combat stopped;
-/// it is updated on every gain here, so TOPTEN is current between fights.
+/// here is on the 1.11 system).
 pub fn add_experience(world: &mut World, id: SessionId, exp: i32, verbose: bool) -> ExpOutcome {
     let xtralvl = i16::try_from(world.config.xtra_lvl).unwrap_or(i16::MAX);
     let Some(plr) = world.sessions.get(&id).and_then(|s| s.character.as_ref()) else {
@@ -75,9 +75,13 @@ pub fn add_experience(world: &mut World, id: SessionId, exp: i32, verbose: bool)
         && !gang.is_empty()
         && let Some(g) = world.gangs.get_mut(&gang.to_ascii_uppercase())
     {
+        let before = g.exp;
         crate::gangs::add_kill_exp(g, exp as u32);
         // The gang record is marked changed
         let key = g.key.clone();
+        if g.exp != before {
+            place_gang_last(world, &key);
+        }
         crate::gangs::save_gang(world, &key);
     }
     let Some(plr) = world.session_mut(id).and_then(|s| s.character.as_mut()) else {
@@ -106,7 +110,6 @@ pub fn add_experience(world: &mut World, id: SessionId, exp: i32, verbose: bool)
         });
         s.push_prompt();
     }
-    world.update_top_list(id);
     ExpOutcome {
         added: true,
         capped: false,

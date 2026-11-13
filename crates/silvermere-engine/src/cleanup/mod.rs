@@ -1229,6 +1229,7 @@ pub fn delete_gangs(world: &mut World) -> u32 {
         };
         if g.members == 0 || g.flags.contains(GangFlags::DELETE) {
             world.gangs.remove(&key);
+            world.gang_order.remove(&key);
             world
                 .outbox
                 .push(EngineOutput::Persist(PersistRequest::DeleteGang(key)));

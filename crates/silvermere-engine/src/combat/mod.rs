@@ -540,15 +540,15 @@ pub fn engage_autocombat(world: &mut World, id: SessionId, target: AutoTarget, m
     autocombat::engage(world, id, Some(target), mv, None);
 }
 
-/// The caster fights on, casting `spell` each round (`spells::cast`). The entry's move
-/// stays what it was (the move the last attack left).
+/// The caster fights on, casting `spell` each round (`spells::cast`). The entry's move is
+/// the one the last attack (anyone's) left.
 pub fn engage_autocombat_spell(
     world: &mut World,
     id: SessionId,
     target: Option<AutoTarget>,
     spell: silvermere_types::ids::SpellNo,
 ) {
-    let mv = world.autocombat.entry(id).mv;
+    let mv = world.atkmove;
     autocombat::engage(world, id, target, mv, Some(spell));
 }
 

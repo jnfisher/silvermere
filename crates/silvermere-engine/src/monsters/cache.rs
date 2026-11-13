@@ -61,12 +61,13 @@ pub enum Lookup {
 }
 
 impl MonsterCache {
-    /// An empty cache of `monsbuf + 1` slots.
+    /// An empty cache of `monsbuf + 1` slots, every one freed ([`MONFREE`]) as the
+    /// game empties them at start-up: no slot is 0, so a probe always runs to `monsbuf`.
     pub fn new(monsbuf: usize) -> Self {
         let monsbuf = monsbuf.max(1);
         Self {
             monsbuf,
-            slots: vec![0; monsbuf + 1],
+            slots: vec![MONFREE; monsbuf + 1],
             last_used_slot: -1,
             evicted: Vec::new(),
             used: 0,

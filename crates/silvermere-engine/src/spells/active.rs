@@ -183,7 +183,8 @@ pub fn termination_text(world: &World, spl: &Spell) -> Option<String> {
 /// (`monsters::following::medium_update_monster`, which calls this first).
 pub fn tick_monster_spells(world: &mut World, mon: ActiveMonsterId) {
     for i in 0..NMONSPELLS {
-        let Some(m) = combat::monster(world, mon) else {
+        // the cache slot's own record: no look-up by number
+        let Some(m) = world.active_monsters.peek(mon) else {
             return;
         };
         let n = m.spells[i].spell;
@@ -191,6 +192,8 @@ pub fn tick_monster_spells(world: &mut World, mon: ActiveMonsterId) {
             continue;
         }
         let spl = world.spells.get(&n).cloned();
+        // every round of a spell marks the record changed
+        world.active_monsters.mark_dirty(mon);
         let Some(m) = world.active_monsters.peek_mut(mon) else {
             return;
         };
@@ -216,7 +219,7 @@ pub fn tick_monster_spells(world: &mut World, mon: ActiveMonsterId) {
                 apply_monster_round(m, &one, power, rng).flee
             };
             if flee
-                && let Some(m) = combat::monster(world, mon)
+                && let Some(m) = world.active_monsters.peek(mon)
                 && let Some(dir) = pick_valid_random_direction(
                     world,
                     RoomKey {
@@ -248,6 +251,7 @@ pub fn end_enslaving_spells(world: &mut World, mon: ActiveMonsterId) {
         value: 0,
         rounds: 0,
     };
+    let mut cleared = false;
     for i in 0..NMONSPELLS {
         let Some(n) = world.active_monsters.peek(mon).map(|m| m.spells[i].spell) else {
             return;
@@ -261,13 +265,18 @@ pub fn end_enslaving_spells(world: &mut World, mon: ActiveMonsterId) {
         };
         let Some(spl) = spl else {
             m.spells[i] = EMPTY;
+            cleared = true;
             continue;
         };
         for _ in spl.abilities.iter().filter(|(a, _)| *a == Ability::Enslave) {
             let power = i32::from(m.spells[i].value);
             apply_monster_termination(m, &spl, power);
             m.spells[i] = EMPTY;
+            cleared = true;
         }
+    }
+    if cleared {
+        world.active_monsters.mark_dirty(mon);
     }
 }
 
@@ -347,16 +356,16 @@ pub fn check_confusion(world: &mut World, id: SessionId) -> bool {
 
 /// The monster's Confusion total is its chance to lose the action; the room is told (the
 /// Confusion Message record's room text with its name, or the stock line). `true` when it
-/// is lost.
+/// is lost. It works on the monster's record as it is, with no look-up by number.
 pub fn check_monster_confusion(world: &mut World, mon: ActiveMonsterId) -> bool {
-    let Some(m) = combat::monster(world, mon) else {
+    let Some(m) = world.active_monsters.peek(mon) else {
         return false;
     };
     let chance = combat::monster_ability(world, m, Ability::Confusion);
     if !(chance > 0 && world.rng.range(0, 100) < chance) {
         return false;
     }
-    let Some(m) = combat::monster(world, mon) else {
+    let Some(m) = world.active_monsters.peek(mon) else {
         return false;
     };
     let msgnum = combat::monster_ability(world, m, Ability::ConfuseMsg);

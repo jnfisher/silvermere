@@ -183,22 +183,25 @@ fn player_hits(world: &World, caster: SessionId, spl: &Spell) -> Vec<(SessionId,
         .collect()
 }
 
-/// The monster loops of `cast_no_target`: the valid monsters of the room, for the kinds
-/// that reach monsters.
-fn monster_hits(world: &World, caster: SessionId, spl: &Spell) -> Vec<(ActiveMonsterId, bool)> {
+/// The monster slots of the caster's room the area loops of `cast_no_target` walk, for
+/// the kinds that reach monsters. Each loop asks [`valid_monster`] as it reaches a slot,
+/// as the game does, so every slot it reaches is looked up.
+pub fn room_monster_slots(world: &World, caster: SessionId, spl: &Spell) -> Vec<ActiveMonsterId> {
     if !spl.target.area_reaches_monsters() {
         return Vec::new();
     }
-    let Some(room) = plr(world, caster).map(room_of) else {
-        return Vec::new();
-    };
-    let Some(rs) = world.room_state.get(&room) else {
-        return Vec::new();
-    };
-    rs.monsters
-        .iter()
-        .filter(|n| n.0 != 0)
-        .filter_map(|&n| valid_monster(world, caster, n, spl).map(|v| (n, v.evil)))
+    plr(world, caster)
+        .map(room_of)
+        .and_then(|room| world.room_state.get(&room))
+        .map(|rs| rs.monsters.iter().copied().filter(|n| n.0 != 0).collect())
+        .unwrap_or_default()
+}
+
+/// The valid monsters of the room, as the count finds them.
+fn monster_hits(world: &World, caster: SessionId, spl: &Spell) -> Vec<(ActiveMonsterId, bool)> {
+    room_monster_slots(world, caster, spl)
+        .into_iter()
+        .filter_map(|n| valid_monster(world, caster, n, spl).map(|v| (n, v.evil)))
         .collect()
 }
 
@@ -283,8 +286,8 @@ pub fn count_valid_targets(world: &mut World, id: SessionId, spl: &Spell) -> Are
         let (mr, name, hidden) = (i32::from(tp.mr), tp.firstname.clone(), tp.hidden);
         let resisted = player_resists(spl, mr, anti_magic, negated, &mut world.rng);
         if resisted {
-            // buffered: it goes out ahead of the caster's next line
             tell_user(world, id, Msg::CastResistsYourSpell { target: name });
+            // (sic) a mark from an earlier count is not cleared, so he may still be hit
         } else {
             // only a visible evil target clears `only_hidden`
             if v.evil {
@@ -305,15 +308,20 @@ pub fn count_valid_targets(world: &mut World, id: SessionId, spl: &Spell) -> Are
                 .remove(PlayerStatus::RESTING | PlayerStatus::SNEAKING);
         }
     }
-    t.monsters = monster_hits(world, id, spl);
-    for &(n, evil) in &t.monsters {
+    // each monster is checked and marked in turn
+    for n in room_monster_slots(world, id, spl) {
+        let Some(v) = valid_monster(world, id, n, spl) else {
+            continue;
+        };
+        let Some(m) = combat::monster_mut(world, n) else {
+            continue;
+        };
+        m.flags.insert(ActiveMonsterFlags::TARGETED);
+        t.monsters.push((n, v.evil));
         // a monster is never hidden
-        if evil {
+        if v.evil {
             t.evil = true;
             t.only_hidden = false;
-        }
-        if let Some(m) = combat::monster_mut(world, n) {
-            m.flags.insert(ActiveMonsterFlags::TARGETED);
         }
     }
     t.players = player_hits(world, id, spl);
@@ -326,7 +334,8 @@ pub fn count_valid_targets(world: &mut World, id: SessionId, spl: &Spell) -> Are
 /// to 97; the others are marked and counted. Nobody's mark is cleared (sic). Returns the
 /// number marked.
 pub fn monster_count_valid_targets(world: &mut World, mon: ActiveMonsterId, spl: &Spell) -> i32 {
-    let Some(room) = combat::monster(world, mon).map(|m| RoomKey {
+    // the caster's record in hand, not looked up again
+    let Some(room) = world.active_monsters.peek(mon).map(|m| RoomKey {
         map: m.map,
         room: m.room,
     }) else {
@@ -378,11 +387,10 @@ pub fn add_evil_warnings_to_room(
         // every area target is recorded as attacked by the caster
         add_evil_points(world, id, Some(tid), 0, EVIL_TICKS, EvilKind::Attack);
     }
-    if spl.target.area_reaches_monsters() {
-        for &(_, tevil) in &targets.monsters {
-            if tevil && !evil {
-                return add_evil_points(world, id, None, pts, EVIL_TICKS, EvilKind::Attack);
-            }
+    // the first evil monster hit charges the caster; the slots after it are not looked at
+    for n in room_monster_slots(world, id, spl) {
+        if valid_monster(world, id, n, spl).is_some_and(|v| v.evil) && !evil {
+            return add_evil_points(world, id, None, pts, EVIL_TICKS, EvilKind::Attack);
         }
     }
     false

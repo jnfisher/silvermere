@@ -5,38 +5,41 @@
 //! the question (both upper-cased), and runs the special command block that text links
 //! to; GREET (and ASK with no question) shows the text the talk block itself links to.
 
+use silvermere_rules::spells::MatchKinds;
 use silvermere_text::Msg;
 use silvermere_types::enums::DebugLevel;
 use silvermere_types::ids::{ActiveMonsterId, SessionId, TextBlockNo};
 
+use super::cast::{Found, find_action_target};
 use super::dispatch::Handled;
 use super::{Cmd, CommandLine};
+use crate::combat::monster as monster_of;
 use crate::display::long_text::display_long_text;
-use crate::items::inventory::matches_any_word;
+use crate::items::inventory::show_options;
 use crate::scripts::{leading_int32, pattern_lines, run_text_block, skip_blanks};
 use crate::world::World;
 
-/// The monster in the player's room that `name` names: the monster step of the action target
-/// search, dropping trailing words of `name` until a monster's name fits (`matches_any_word`). The
-/// "which one?" list for several matches is the full target search's (T-033); the first monster in
-/// room order is taken.
-fn find_monster(world: &World, id: SessionId, name: &str) -> Option<ActiveMonsterId> {
-    let key = world.session(id)?.room_key()?;
-    let state = world.room_state.get(&key)?;
-    let words: Vec<&str> = name.split_whitespace().collect();
-    for n in (1..=words.len()).rev() {
-        let typed = words[..n].join(" ");
-        for &m in state.monsters.iter().filter(|m| m.0 != 0) {
-            if world
-                .active_monsters
-                .values()
-                .any(|a| a.number == m && matches_any_word(&typed, &a.name))
-            {
-                return Some(m);
-            }
+/// What a monster name typed after ASK or GREET finds: the target search over the room's
+/// monsters (`SRCH_MONSTERS`). Several matches leave the "which one?" list shown.
+enum Target {
+    Monster(ActiveMonsterId),
+    Shown,
+    None,
+}
+
+fn find_monster(world: &mut World, id: SessionId, name: &str) -> Target {
+    let kinds = MatchKinds {
+        monsters: true,
+        ..MatchKinds::default()
+    };
+    match find_action_target(world, id, name, kinds) {
+        Found::Multiple(_, options) => {
+            show_options(world, id, &options);
+            Target::Shown
         }
+        Found::Monster(m) => Target::Monster(m),
+        _ => Target::None,
     }
-    None
 }
 
 /// ASK {monster} [{question}]. The question is the line from the word after ASK on (the
@@ -46,11 +49,11 @@ pub fn cmd_ask(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLine) 
     if line.argc() < 2 {
         return Handled::NotCommand;
     }
-    let Some(m) = find_monster(world, id, line.rest_from(1)) else {
-        return Handled::NotCommand;
+    let m = match find_monster(world, id, line.rest_from(1)) {
+        Target::Monster(m) => m,
+        Target::Shown => return Handled::Done,
+        Target::None => return Handled::NotCommand,
     };
-    // the match lookup ends: the pending colour reset is dropped
-    crate::output::clear_output(world, id);
     let question = (line.argc() > 2).then(|| line.rest_from(2).to_owned());
     ask_monster_a_question(world, id, m, question.as_deref());
     Handled::Done
@@ -61,11 +64,11 @@ pub fn cmd_greet(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLine
     if line.argc() < 2 {
         return Handled::NotCommand;
     }
-    let Some(m) = find_monster(world, id, line.rest_from(1)) else {
-        return Handled::NotCommand;
+    let m = match find_monster(world, id, line.rest_from(1)) {
+        Target::Monster(m) => m,
+        Target::Shown => return Handled::Done,
+        Target::None => return Handled::NotCommand,
     };
-    // the match lookup ends: the pending colour reset is dropped
-    crate::output::clear_output(world, id);
     ask_monster_a_question(world, id, m, None);
     Handled::Done
 }
@@ -82,12 +85,8 @@ pub fn ask_monster_a_question(
     monster: ActiveMonsterId,
     question: Option<&str>,
 ) {
-    let Some(mon) = world
-        .active_monsters
-        .values()
-        .find(|a| a.number == monster)
-        .cloned()
-    else {
+    // a cache look-up, as the game's
+    let Some(mon) = monster_of(world, monster).cloned() else {
         return;
     };
     let question = question.map(str::to_ascii_uppercase);

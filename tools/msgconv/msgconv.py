@@ -206,7 +206,7 @@ MSG_OPTIONS = {
     "SECOTH": (K, "sec_oth", "60", "160", "Seconds between player saves. The game rounds it down to whole minutes, minimum 60."),
     "SECBUFF": (D, None, "60", None, "Seconds between buffer saves. There are no buffers."),
     "BUFTOSAV": (D, None, "5", None, "Buffers saved per pass. There are no buffers."),
-    "ROOMBUF": (D, None, "2000", None, "In-memory buffer size (rooms). The database replaces buffers."),
+    "ROOMBUF": (K, "buffers.roombuf", "2000", "2000", "The room cache holds ROOMBUF + 1 slots. Only whether the start-up's walk over every room leaves a slot empty is modelled: a look-up of room 0 of map 0 then finds one."),
     "ITEMBUF": (D, None, "450", None, "In-memory buffer size (items)."),
     "MONSBUF": (K, "buffers.monsbuf", "300", "300", "The active-monster cache holds MONSBUF + 1 slots, and the background passes walk it (T-086), so it decides which monsters move, regenerate and refill their energy. At start-up the original lowers it in steps of 10, while it is above 25, until the cache fits in the free memory: under MBBSEmu it ends at 20 (21 slots), and the differential sets that value (T-040)."),
     "KMONSBUF": (D, None, "200", None, "In-memory buffer size (known monsters)."),

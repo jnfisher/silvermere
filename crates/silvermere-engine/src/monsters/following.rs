@@ -18,7 +18,8 @@ use silvermere_types::sizes::NTRAIL;
 use super::active::remove_active_monster;
 use super::monster_has_ability;
 use super::move_monster::{
-    Moved, dir_monster_travelling_coord, move_monster, pick_valid_random_direction,
+    Moved, dir_monster_travelling_coord, move_monster, move_monster_nowhere,
+    pick_valid_random_direction,
 };
 use crate::combat::experience_split::distribute_experience;
 use crate::combat::{AutoTarget, kill_autocombat_against_monster};
@@ -101,11 +102,13 @@ pub fn medium_update_monster(world: &mut World, n: ActiveMonsterId) {
     }
 }
 
-/// A random usable exit, unless it is the one the monster came by last. No usable exit (-1)
-/// never equals a `lastdir` of a real direction, and `move_monster` with no exit does
-/// nothing.
+/// A random usable exit, unless it is the one the monster came by last. With no usable
+/// exit (-1) the monster is moved through no exit, unless `lastdir` is -1 too.
 fn wander(world: &mut World, n: ActiveMonsterId, here: RoomKey, lastdir: i16) {
     let Some(dir) = pick_valid_random_direction(world, here) else {
+        if lastdir != -1 {
+            move_monster_nowhere(world, n);
+        }
         return;
     };
     if lastdir != dir.code() as i16 {
@@ -179,6 +182,11 @@ pub fn fast_update_monster(world: &mut World, n: ActiveMonsterId) {
         }
         None => lost = true,
     }
+    // a lost round and giving up mark the record changed, even when it is back to its
+    // saved values
+    if lost {
+        world.active_monsters.mark_dirty(n);
+    }
     let Some(m) = world.active_monsters.peek_mut(n) else {
         return;
     };
@@ -194,6 +202,7 @@ pub fn fast_update_monster(world: &mut World, n: ActiveMonsterId) {
                 m.flags.remove(ActiveMonsterFlags::CHARMED);
                 end_enslaving_spells(world, n);
             }
+            world.active_monsters.mark_dirty(n);
         } else {
             remove_active_monster(world, n, true);
         }

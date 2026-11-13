@@ -1001,21 +1001,19 @@ fn raw(w: &mut World, id: SessionId, line: &str) -> Vec<u8> {
     b
 }
 
-// the ambiguous-match handling clears the output buffer, which drops the
-// dispatcher's ANSI_NORMAL, so CAST's refusals start with their own colour
-// (m4 run 38823959731, `cast vine` and `cast vine nobody`).
+// CAST's refusals follow the command's colour reset, then their own colour.
 #[test]
-fn cast_refusals_carry_no_pending_reset() {
+fn cast_refusals_follow_the_reset() {
     let mut w = world();
     let id = druid(&mut w, "Thornwyn", 1);
     // an attack spell needs a target
     assert_eq!(
         raw(&mut w, id, "cast vine"),
-        b"\x1b[79D\x1b[K\x1b[1;31;40mYou must specify a target for that spell!\r\n"
+        b"\x1b[0;37;40m\x1b[79D\x1b[K\x1b[1;31;40mYou must specify a target for that spell!\r\n"
     );
     // nothing by that name
     assert_eq!(
         raw(&mut w, id, "cast vine nobody"),
-        b"\x1b[1;31;40mYou do not see nobody here!\r\n"
+        b"\x1b[0;37;40m\x1b[1;31;40mYou do not see nobody here!\r\n"
     );
 }

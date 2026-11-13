@@ -12,8 +12,9 @@
 use silvermere_rules::spawn;
 use silvermere_text::Msg;
 use silvermere_types::enums::{Ability, Direction, ExitType, GroupRole, MonsterType, RoomType};
-use silvermere_types::flags::ActiveMonsterFlags;
+use silvermere_types::flags::{ActiveMonsterFlags, RoomFlags};
 use silvermere_types::ids::{ActiveMonsterId, RoomId, RoomKey, SessionId};
+use silvermere_types::records::{ActiveMonster, KnownMonster};
 use silvermere_types::sizes::{NAMTRAIL, NDIRS, NROOMMONS};
 
 use super::active::{add_monster_to_room, save_room, take_monster_from_room};
@@ -36,27 +37,36 @@ pub enum Moved {
     NoSuch,
 }
 
-/// A monster moves through an exit. `usrnum` is the player who caused the move (`None`:
-/// none); `follow` is set for a member moving after its group leader.
-pub fn move_monster(
+/// The medium pass's wander with no usable exit: the game moves the monster
+/// through exit -1, which reads no real room, so everything before the exit
+/// look-up still happens (the look-up by number, Hold, the Slowness roll,
+/// getting up, waiting for a leader) and the monster stays.
+pub fn move_monster_nowhere(world: &mut World, monnum: ActiveMonsterId) -> Moved {
+    match before_exit(world, monnum, false) {
+        Ok(_) => Moved::No,
+        Err(moved) => moved,
+    }
+}
+
+/// `move_monster` up to the exit: the monster and the room it starts in, or
+/// why it does not move.
+fn before_exit(
     world: &mut World,
     monnum: ActiveMonsterId,
-    dir: Direction,
-    usrnum: Option<SessionId>,
     follow: bool,
-) -> Moved {
+) -> Result<(ActiveMonster, KnownMonster, RoomKey), Moved> {
     let Some(mon) = world.active_monsters.by_number(monnum).cloned() else {
-        return Moved::NoSuch;
+        return Err(Moved::NoSuch);
     };
     let Some(kmon) = world.monsters.get(&mon.knownnum).cloned() else {
-        return Moved::No;
+        return Err(Moved::No);
     };
     // held: never; slowed: half the time
     if monster_has_ability(world, &mon, Ability::HoldPerson) {
-        return Moved::No;
+        return Err(Moved::No);
     }
     if monster_has_ability(world, &mon, Ability::Slowness) && world.rng.range(0, 100) < 50 {
-        return Moved::No;
+        return Err(Moved::No);
     }
     // knocked down: getting up takes the turn
     if mon.flags.contains(ActiveMonsterFlags::DOWN) {
@@ -66,7 +76,7 @@ pub fn move_monster(
                 m.flags.remove(ActiveMonsterFlags::DOWN);
             }
         }
-        return Moved::No;
+        return Err(Moved::No);
     }
     let start = RoomKey {
         map: mon.map,
@@ -77,7 +87,7 @@ pub fn move_monster(
     if !follow && matches!(mon.grouprole, GroupRole::Follower | GroupRole::Leader) {
         let isleader = mon.grouprole == GroupRole::Leader;
         let Some(slots) = world.room_state.get(&start).map(|s| s.monsters) else {
-            return Moved::No;
+            return Err(Moved::No);
         };
         for other in slots.into_iter().take(NROOMMONS) {
             if other.0 == 0 || other == monnum {
@@ -93,14 +103,34 @@ pub fn move_monster(
                     .get(&o.knownnum)
                     .is_some_and(|k| k.group == kmon.group)
             {
-                return Moved::No;
+                return Err(Moved::No);
             }
+        }
+        // the loop's look-ups over, the monster is looked up again, as in the game
+        if world.active_monsters.by_number(monnum).is_none() {
+            return Err(Moved::No);
         }
     }
     // stationary monsters never move
     if mon.grouprole == GroupRole::Stationary {
-        return Moved::No;
+        return Err(Moved::No);
     }
+    Ok((mon, kmon, start))
+}
+
+/// A monster moves through an exit. `usrnum` is the player who caused the move (`None`:
+/// none); `follow` is set for a member moving after its group leader.
+pub fn move_monster(
+    world: &mut World,
+    monnum: ActiveMonsterId,
+    dir: Direction,
+    usrnum: Option<SessionId>,
+    follow: bool,
+) -> Moved {
+    let (mon, kmon, start) = match before_exit(world, monnum, follow) {
+        Ok(m) => m,
+        Err(moved) => return moved,
+    };
     let Some(exit) = live_exit(world, start, dir) else {
         return Moved::No;
     };
@@ -119,7 +149,12 @@ pub fn move_monster(
     // moves Angels), and that is kept. A Quest monster goes anywhere; a Guard only into
     // RF_PATROL rooms and never through a Block Guard exit.
     if torm.mongroup != mon.montype.code() as i16 {
-        let sic_noflags = torm.flags.is_empty();
+        // the room's flags as they are now: "specific monster alive" is the live state
+        let mut flags = torm.flags - RoomFlags::SPECALIVE;
+        if world.room_state.get(&to).is_some_and(|s| s.specalive) {
+            flags |= RoomFlags::SPECALIVE;
+        }
+        let sic_noflags = flags.is_empty();
         let angel_may = mon.montype == MonsterType::Angel
             && sic_noflags
             && torm.room_type != RoomType::Colliseum;
@@ -127,10 +162,7 @@ pub fn move_monster(
             if mon.montype != MonsterType::Guard {
                 return Moved::No;
             }
-            if !torm
-                .flags
-                .contains(silvermere_types::flags::RoomFlags::PATROL)
-            {
+            if !torm.flags.contains(RoomFlags::PATROL) {
                 return Moved::No;
             }
             // the Block Guard rule: only here, for a guard leaving its group; other
@@ -175,9 +207,10 @@ pub fn move_monster(
         | ExitType::RemoteAction => return Moved::No,
         _ => {}
     }
-    // the move
+    // the move; marked even when it lands back on its saved room and trail
     if let Some(m) = world.active_monsters.by_number_mut(monnum) {
         m.lastdir = dir.code() as i16;
+        world.active_monsters.mark_dirty(monnum);
     }
     let mut moved = Moved::No;
     if take_monster_from_room(world, start, monnum).is_some() {

@@ -17,7 +17,7 @@
 //! | `OutOfCreditsSlow` | out of credits, leaving (slow cycle) |
 //! | `OutOfCreditsExempt` | out of credits, leaving (exempt-credit deduction) |
 //! | `QuitMeditation` | the `QUIT` meditation ended |
-//! | `Sweep` | the round-robin sweep ([`save_characters`]) |
+//! | `Sweep` | the save sweep ([`save_characters`]) |
 //! | `GangLeave` | left a gang (`LEAVE`) |
 //! | `GangJoinCommand` | joined a gang (`JOIN`) |
 //! | `TrainStats` | `TRAIN STATS`, before the editor opens |
@@ -52,12 +52,6 @@ use silvermere_types::records::Character;
 
 use crate::event_loop::{EngineOutput, PersistRequest};
 use crate::world::World;
-
-/// `buftosav`: characters saved per sweep. The option (`BUFTOSAV`) is not in
-/// silvermere's config; the stock value is kept.
-pub const BUFTOSAV: usize = 5;
-/// `MAXSAVECHK`: sessions looked at per sweep.
-pub const MAXSAVECHK: usize = 300;
 
 /// The places a character is saved (the table in the module doc).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -376,22 +370,14 @@ pub fn delete_player(world: &mut World, id: SessionId) {
     }
 }
 
-/// The round-robin sweep: from where the last sweep stopped, look at up to [`MAXSAVECHK`]
-/// session slots and save up to [`BUFTOSAV`] characters in the game; past the last slot,
-/// the next sweep starts again at slot 0. A sweep never wraps within itself.
+/// The save sweep: every character in the game is saved. (The game saved a few each
+/// sweep, round-robin, to spare a slow machine.)
 pub fn save_characters(world: &mut World) {
-    let nterms = world.ids.max();
-    let (mut saved, mut looked) = (0, 0);
-    while looked < MAXSAVECHK && saved < BUFTOSAV && world.save_next < nterms {
-        looked += 1;
-        let id = SessionId(world.save_next);
-        if world.is_in_game(id) {
-            save_at(world, id, SavePoint::Sweep);
-            saved += 1;
-        }
-        world.save_next += 1;
-    }
-    if world.save_next >= nterms {
-        world.save_next = 0;
+    let ids: Vec<SessionId> = (0..world.ids.max())
+        .map(SessionId)
+        .filter(|&id| world.is_in_game(id))
+        .collect();
+    for id in ids {
+        save_at(world, id, SavePoint::Sweep);
     }
 }

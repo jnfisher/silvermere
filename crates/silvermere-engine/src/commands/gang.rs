@@ -25,15 +25,14 @@ use crate::comms::forget::is_user_forgotten;
 use crate::display::gang::{display_gang_members, display_online_gang_members};
 use crate::gangs::{
     GANG_MINEXP, GANGNAMELEN, GangQuery, OfflineOp, Target, ask, find_any_action_target,
-    find_room_user, gang_key, gang_shop_item_value, get_gang, invite_to_gang, remove_from_gang,
-    save_gang, save_gang_shop, set_gang_shop_owner,
+    find_room_user, gang_key, gang_shop_item_value, get_gang, invite_to_gang, place_gang_last,
+    remove_from_gang, save_gang, save_gang_shop, set_gang_shop_owner,
 };
 use crate::items::inventory::{
     Search, add_item_to_inventory, find_item_in_inventory, remove_item_from_inventory,
     show_options, user_is_wearing,
 };
 use crate::items::room_items::add_item_to_room;
-use crate::output::clear_output;
 use crate::shops::{GANG_SLOTS, get_shop_item_from_name};
 use crate::tell::{Noise, TellBlind, tell_gang, tell_room, tell_user};
 use crate::world::World;
@@ -179,6 +178,7 @@ fn create_gang(world: &mut World, id: SessionId, plr: &Character, name: &str) {
         overflows: 0,
     };
     world.gangs.insert(key.clone(), gang);
+    place_gang_last(world, &key);
     save_gang(world, &key);
     if let Some(p) = player_mut(world, id) {
         p.gang = name.to_string();
@@ -254,18 +254,15 @@ pub fn invite_member(world: &mut World, id: SessionId, line: &CommandLine) -> Op
             return Some(Handled::Done);
         }
         Target::None => {
-            clear_output(world, id);
             tell_user(world, id, Msg::GangNotHere { who: shown });
             return Some(Handled::Done);
         }
         Target::Monster => {
-            clear_output(world, id);
             tell_user(world, id, Msg::GangInviteSyntax);
             return Some(Handled::Done);
         }
         Target::User(t) => t,
     };
-    clear_output(world, id);
     if tgt == id {
         tell_user(world, id, Msg::GangInviteSelf);
         return Some(Handled::Done);
@@ -327,7 +324,6 @@ pub fn uninvite_member(world: &mut World, id: SessionId, line: &CommandLine) -> 
         show_options(world, id, &names);
         return Some(Handled::Done);
     }
-    clear_output(world, id);
     if target == Target::None {
         target = find_any_action_target(world, &name);
     }
@@ -549,6 +545,8 @@ fn rank_command(world: &World, id: SessionId, line: &CommandLine) -> Option<Rank
     }
     Some(match find_any_action_target(world, line.arg(1)) {
         Target::User(t) if t == id => RankTarget::Myself,
+        // (sic) the game takes channel 0 for nobody: its player is looked for off line
+        Target::User(t) if t.0 == 0 => RankTarget::Offline,
         Target::User(t) => RankTarget::Online(t),
         Target::Monster => RankTarget::Monster,
         Target::None | Target::Multiple(_) => RankTarget::Offline,
@@ -750,8 +748,7 @@ pub fn cmd_stock(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLine
     }
     stop_hiding(world, id);
     let found = find_item_in_inventory(world, &plr, line.rest_from(1), Search::Any);
-    // the match lookup ends: the candidate list is thrown away and the item found is stocked
-    clear_output(world, id);
+    // the item found is stocked
     let Some(itm) = found.item.and_then(|n| world.items.get(&n)).cloned() else {
         return Handled::Done;
     };
@@ -939,9 +936,6 @@ pub fn cmd_unstock(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLi
     let debug = debug_on(world, id);
     let shp = world.shops[&shopnum].clone();
     let found = get_shop_item_from_name(world, &shp, line.rest_from(1));
-    if found.cleared {
-        clear_output(world, id);
-    }
     if found.item.is_none() && found.count > 0 {
         // several candidates: the list is sent
         show_options(world, id, &found.options);

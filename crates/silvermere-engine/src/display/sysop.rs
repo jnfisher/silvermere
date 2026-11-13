@@ -13,11 +13,12 @@ use silvermere_types::ids::{
     AccountId, MapId, RoomId, RoomKey, SessionId, ShopNo, SpellNo, TextBlockNo,
 };
 use silvermere_types::names::MONSTER_TYPES;
-use silvermere_types::records::Character;
+use silvermere_types::records::{Character, ItemOwnership};
 use silvermere_types::sizes::NDIRS;
 
 use crate::commands::CommandLine;
 use crate::commands::parse::starts_with_ignore_case;
+use crate::commands::sysop::leading_int;
 use crate::display::who::players_in_list_order;
 use crate::items::inventory::ability_value;
 use crate::movement::HOOKS;
@@ -56,6 +57,45 @@ pub fn format_date(unix: i64) -> String {
 pub fn format_time(unix: i64) -> String {
     let s = unix.rem_euclid(86_400);
     format!("{:02}:{:02}:{:02}", s / 3600, s / 60 % 60, s % 60)
+}
+
+/// The game's month names by DOS month number (`moname`): 0 and 13-15 have none.
+const MONAME: [&str; 16] = [
+    "000", "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
+    "XXX", "XXX", "XXX",
+];
+
+/// Unix seconds (UTC) as the game packs them: `(year, month, day, hour, minute, second)`,
+/// all 0 for 0 ("never", a zero DOS date); the second to DOS's two.
+fn dos_fields(unix: i64) -> (i64, i64, i64, i64, i64, i64) {
+    if unix == 0 {
+        return (1980, 0, 0, 0, 0, 0);
+    }
+    let z = unix.div_euclid(86_400) + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    let t = unix.rem_euclid(86_400);
+    (year, month, day, t / 3600, t / 60 % 60, t % 60 / 2 * 2)
+}
+
+/// `ncedat`: `DD-MON-YY`, the fields as they are (`00-000-80` for never).
+fn ncedat(year: i64, month: i64, day: i64) -> String {
+    let mon = MONAME[month.clamp(0, 15) as usize];
+    format!("{day:02}-{mon}-{:02}", year.rem_euclid(100))
+}
+
+/// `pack_due`: the date and time `minutes` from `wall`, to the minute (seconds 0). Fixed:
+/// the game carried a day past the 31st into the next month whatever the month (31-APR).
+fn pack_due(wall: i64, minutes: i64) -> String {
+    let (.., sec) = dos_fields(wall);
+    let (year, month, day, hour, min, _) = dos_fields(wall - sec + minutes * 60);
+    format!("{} {hour:02}:{min:02}:00", ncedat(year, month, day))
 }
 
 /// The player's fighter figures for a normal blow (`atktype = atkmove = 5`) against the
@@ -170,8 +210,14 @@ pub fn display_debug_room_stats(world: &mut World, id: SessionId, room: u32, map
             k.name,
             k.curalive,
             k.maxalive,
-            format_date(k.killed_at),
-            format_time(k.killed_at),
+            {
+                let (y, m, d, ..) = dos_fields(k.killed_at);
+                ncedat(y, m, d)
+            },
+            {
+                let (.., h, mi, se) = dos_fields(k.killed_at);
+                format!("{h:02}:{mi:02}:{se:02}")
+            },
             k.regenhrs
         );
         line(world, id, text);
@@ -254,16 +300,14 @@ pub fn display_debug_room_stats(world: &mut World, id: SessionId, room: u32, map
 
 /// The heading and one line per pending restock of the shop (every shop for 0): slot, due
 /// date and time, and the slot's item when one shop is listed; at most 2000 nodes looked
-/// at, then `Total I2R`. The due tick is shown as wall time (now plus the ticks still to
-/// go).
+/// at, then `Total I2R`. The due tick is shown as the world's wall clock plus the whole
+/// minutes still to go ([`pack_due`]).
 pub fn display_all_restocking_required(world: &mut World, id: SessionId, shop: i64) {
     push(world, id, Msg::SysopRestockHeading { shop });
     let filter = (shop != 0).then_some(ShopNo(shop as i32));
     let shp = filter.and_then(|s| world.shops.get(&s)).cloned();
     let now = world.scheduler.tick();
-    let wall = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs() as i64);
+    let wall = world.wall;
     // MAXDISPLAY counts every node looked at, listed or not
     let nodes: Vec<_> = crate::shops::pending_restocks(world, None)
         .into_iter()
@@ -272,21 +316,13 @@ pub fn display_all_restocking_required(world: &mut World, id: SessionId, shop: i
         .collect();
     let found = nodes.len();
     for n in nodes {
-        let at = wall + (n.due.saturating_sub(now)) as i64;
+        // the whole minutes still to go, on the wall clock (`pack_due`)
+        let at = pack_due(wall, (n.due.saturating_sub(now) / 60) as i64);
         let item = shp
             .as_ref()
             .and_then(|s| s.stock.get(n.slot))
             .map_or_else(String::new, |slot| format!("({})", slot.item.0 as i16));
-        line(
-            world,
-            id,
-            format!(
-                "     [{}] {} {} {item}",
-                n.slot,
-                format_date(at),
-                format_time(at)
-            ),
-        );
+        line(world, id, format!("     [{}] {at} {item}", n.slot));
     }
     if found > 0 {
         push(world, id, Msg::SysopRestockTotal { n: found as i64 });
@@ -353,85 +389,68 @@ pub fn display_list_of_limited_items(world: &mut World, id: SessionId) {
     }
 }
 
-/// The copies sorted by item name, filtered by the words after NEWLIMITED (MAP [n], GANG
-/// [name], USER, MONSTER, NAME item), each selecting the rows the original lists. The item
-/// name is looked up by the item number.
+/// Every limited-item copy, sorted by its item's name (equal names in record order), filtered
+/// by the words after NEWLIMITED: MAP [n] the copies in rooms (of map n), GANG [name] those
+/// in gang houses (that house), USER [id] those players carry (that player), MONSTER those
+/// monsters carry, NAME item the copies of that item; the first of these the word starts is
+/// used. A copy of an item that does not exist is left out.
 pub fn display_new_list_of_limited_items(world: &mut World, id: SessionId, cmd: &CommandLine) {
     let margc = cmd.argc();
     let (w3, w4) = (cmd.arg(3), cmd.arg(4));
-    let mut rows: Vec<(String, silvermere_types::records::ItemOwnership)> = world
+    let arg = margc > 4;
+    let mut rows: Vec<(String, &ItemOwnership)> = world
         .item_ownership
         .values()
-        .filter_map(|o| {
-            world
-                .items
-                .get(&o.itemnum)
-                .map(|i| (i.name.clone(), o.clone()))
-        })
+        .filter_map(|o| world.items.get(&o.itemnum).map(|i| (i.name.clone(), o)))
         .collect();
-    // the insertion sort keeps equal names in reading order
     rows.sort_by(|a, b| a.0.as_bytes().cmp(b.0.as_bytes()).then(a.1.id.cmp(&b.1.id)));
     let mut out = Vec::new();
     for (name, own) in rows {
         let kind = own.owntype;
-        let pass = margc == 3
-            || (margc == 4
-                && kind == OwnerKind::Room
-                && (starts_with_ignore_case(w3, "map") || starts_with_ignore_case(w3, "gang")))
-            || (kind == OwnerKind::User && starts_with_ignore_case(w3, "user"))
-            || (kind == OwnerKind::Monster && starts_with_ignore_case(w3, "monster"))
-            || (margc == 5
-                && kind == OwnerKind::Room
-                && (starts_with_ignore_case(w3, "gang")
-                    || (starts_with_ignore_case(w3, "map")
-                        && super::super::commands::sysop::leading_int(w4) as i32 as i16
-                            == own.mapnum.0 as i16)))
-            || (starts_with_ignore_case(w3, "name") && starts_with_ignore_case(w4, &name));
-        if !pass {
+        let house = (kind == OwnerKind::Room)
+            .then(|| {
+                world.room(RoomKey {
+                    map: own.mapnum,
+                    room: own.roomnum,
+                })
+            })
+            .flatten()
+            .map(|r| r.ganghouse)
+            .filter(|g| g.code() != 0)
+            .and_then(|g| g.name());
+        let show = if margc == 3 {
+            true
+        } else if starts_with_ignore_case(w3, "map") {
+            kind == OwnerKind::Room && (!arg || leading_int(w4) == i64::from(own.mapnum.0))
+        } else if starts_with_ignore_case(w3, "gang") {
+            house.is_some_and(|g| !arg || starts_with_ignore_case(w4, g))
+        } else if starts_with_ignore_case(w3, "user") {
+            kind == OwnerKind::User && (!arg || starts_with_ignore_case(w4, &own.userid))
+        } else if starts_with_ignore_case(w3, "monster") {
+            kind == OwnerKind::Monster
+        } else if starts_with_ignore_case(w3, "name") {
+            arg && starts_with_ignore_case(w4, &name)
+        } else {
+            false
+        };
+        if !show {
             continue;
         }
         match kind {
-            OwnerKind::Room => {
-                let key = RoomKey {
-                    map: own.mapnum,
-                    room: own.roomnum,
-                };
-                let gh = world.room(key).map(|r| r.ganghouse);
-                let ghname = gh
-                    .filter(|g| g.code() != 0)
-                    .and_then(|g| g.name())
-                    .map(str::to_string);
-                let text = match &ghname {
-                    Some(g) => format!(
-                        "Item {name} Map {} Room {} ({g})",
-                        own.mapnum.0, own.roomnum.0
-                    ),
-                    None => format!("Item {name} Map {} Room {}", own.mapnum.0, own.roomnum.0),
-                };
-                let again = margc == 3
-                    || (margc == 4
-                        && (starts_with_ignore_case(w3, "map")
-                            || (starts_with_ignore_case(w3, "gang") && ghname.is_some())))
-                    || (margc == 5
-                        && ((starts_with_ignore_case(w3, "map")
-                            && super::super::commands::sysop::leading_int(w4) as i32 as i16
-                                == own.mapnum.0 as i16)
-                            || (starts_with_ignore_case(w3, "gang")
-                                && ghname
-                                    .as_deref()
-                                    .is_some_and(|g| starts_with_ignore_case(w4, g)))));
-                if again {
-                    out.push(text);
-                }
-            }
+            OwnerKind::Room => out.push(match house {
+                Some(g) => format!(
+                    "Item {name} Map {} Room {} ({g})",
+                    own.mapnum.0, own.roomnum.0
+                ),
+                None => format!("Item {name} Map {} Room {}", own.mapnum.0, own.roomnum.0),
+            }),
             OwnerKind::User => out.push(format!("Item {name} User {}", own.userid)),
             OwnerKind::Monster => {
                 let mname = world
                     .active_monsters
                     .values()
                     .find(|m| m.number == own.monnum)
-                    .map_or("Unknown Monster", |m| m.name.as_str())
-                    .to_string();
+                    .map_or("Unknown Monster", |m| m.name.as_str());
                 out.push(format!("Item {name} Monster {} ({mname})", own.monnum.0));
             }
             // OWN_UNKNOWN is never set; it prints nothing
@@ -574,8 +593,9 @@ pub fn display_scan_of_users(world: &mut World, id: SessionId, mode: u8) {
             edited: left(if p.immortal != 0 { "EDITED" } else { " " }, 6),
         };
         push(world, id, msg);
-        // mode 2: the evil timers. TODO(T-038): the evil timers.
-        let _ = mode;
+        if mode == 2 {
+            display_evil_timers(world, id, pid, &p.firstname);
+        }
         cnt += 1;
     }
     push(
@@ -589,8 +609,33 @@ pub fn display_scan_of_users(world: &mut World, id: SessionId, mode: u8) {
     );
 }
 
-/// The paging state of a REPORT USERS / NOTOPTEN (`listkey`, `rptname`, `USF_REPORT`): the
-/// characters in experience order once `bin` has sent them, and the place reached.
+/// `display_evil_timers`: the attacker's timers, oldest first, with whom he attacked or
+/// robbed and the rounds left. Fixed: the game stopped at the first timer of anyone else
+/// (a hang until its visit guard). (sic) The victim is whatever character is on his
+/// channel, in the game or not, so "Unknown user!" is never shown.
+fn display_evil_timers(world: &mut World, id: SessionId, attacker: SessionId, name: &str) {
+    let mine: Vec<(SessionId, bool, i8)> = world
+        .evil_timers
+        .iter()
+        .filter(|t| t.attacker == attacker)
+        .map(|t| (t.victim, t.robbed, t.rounds))
+        .collect();
+    for (victim, robbed, rounds) in mine {
+        let victim = world
+            .session(victim)
+            .and_then(|s| s.player())
+            .map_or("", |v| v.firstname.as_str())
+            .to_string();
+        let text = format!(
+            "{name} {} {victim} {rounds} rounds to go.",
+            if robbed { "robbed" } else { "attacked" },
+        );
+        line(world, id, text);
+    }
+}
+
+/// A REPORT USERS / NOTOPTEN waiting for the stored characters (`listkey`, `rptname`,
+/// `USF_REPORT`).
 #[derive(Debug, Clone, Default)]
 pub struct Report {
     /// 0 every character (or those whose names hold the filter), 1 those left out of
@@ -598,12 +643,10 @@ pub struct Report {
     pub mode: u8,
     /// At most 19 characters.
     pub filter: String,
-    /// The rows still to show: (user-id, first name, last name, gang, settings, immortal).
-    pub rows: Option<std::collections::VecDeque<Character>>,
 }
 
-/// The heading, the paging state, `SUBST_USER_REPORT`, and the stored characters asked for
-/// (`EngineOutput::Roster`); the lines follow a tick at a time ([`next_reported_user`]).
+/// The heading, `SUBST_USER_REPORT`, and the stored characters asked for
+/// (`EngineOutput::Roster`); the lines follow when they arrive ([`show_report`]).
 pub fn display_sysop_user_report(
     world: &mut World,
     id: SessionId,
@@ -620,14 +663,7 @@ pub fn display_sysop_user_report(
         },
     );
     let filter: String = filter.unwrap_or_default().chars().take(19).collect();
-    world.sysop.reports.insert(
-        id,
-        Report {
-            mode,
-            filter,
-            rows: None,
-        },
-    );
+    world.sysop.reports.insert(id, Report { mode, filter });
     if let Some(s) = world.session_mut(id) {
         s.state = SessionState::UserReport;
     }
@@ -641,63 +677,50 @@ pub(crate) fn contains_ignore_case(sub: &str, s: &str) -> bool {
     s.to_ascii_uppercase().contains(&sub.to_ascii_uppercase())
 }
 
-/// The next character in experience order, lowest first; at the end the report stops with
-/// the prompt. `false` while the characters have not arrived, or when the report is over.
-pub fn next_reported_user(world: &mut World, id: SessionId) -> bool {
-    let Some(report) = world.sysop.reports.get_mut(&id) else {
-        return false;
-    };
-    let Some(rows) = report.rows.as_mut() else {
-        return false;
-    };
-    let Some(plr) = rows.pop_front() else {
-        world.sysop.reports.remove(&id);
-        if let Some(s) = world.session_mut(id) {
-            s.state = SessionState::Playing;
-            s.push_prompt();
+/// The report's lines, one per character in experience order that it selects, then the
+/// prompt. (The game shows one character per poll; the lines are the same.)
+pub fn show_report(world: &mut World, id: SessionId, report: &Report, rows: Vec<Character>) {
+    for plr in rows {
+        let name = left(&format!("{} {}", plr.firstname, plr.lastname), 25);
+        let userid = left(&plr.userid, 29);
+        let msg =
+            match report.mode {
+                1 => (plr.settings.contains(PlayerSettings::NOTOPTEN) || plr.immortal != 0).then(
+                    || Msg::SysopReportRow {
+                        userid,
+                        name,
+                        extra: if plr.immortal != 0 {
+                            "(Editted)".into()
+                        } else {
+                            String::new()
+                        },
+                    },
+                ),
+                _ => (report.filter.is_empty()
+                    || contains_ignore_case(&report.filter, &plr.userid)
+                    || contains_ignore_case(&report.filter, &plr.firstname)
+                    || contains_ignore_case(&report.filter, &plr.lastname))
+                .then(|| Msg::SysopReportRow {
+                    userid,
+                    name,
+                    extra: plr.gang.clone(),
+                }),
+            };
+        if let Some(m) = msg {
+            push(world, id, m);
         }
-        return false;
-    };
-    let name = left(&format!("{} {}", plr.firstname, plr.lastname), 25);
-    let userid = left(&plr.userid, 29);
-    let msg = match report.mode {
-        1 => (plr.settings.contains(PlayerSettings::NOTOPTEN) || plr.immortal != 0).then(|| {
-            Msg::SysopReportRow {
-                userid,
-                name,
-                extra: if plr.immortal != 0 {
-                    "(Editted)".into()
-                } else {
-                    String::new()
-                },
-            }
-        }),
-        _ => (report.filter.is_empty()
-            || contains_ignore_case(&report.filter, &plr.userid)
-            || contains_ignore_case(&report.filter, &plr.firstname)
-            || contains_ignore_case(&report.filter, &plr.lastname))
-        .then(|| Msg::SysopReportRow {
-            userid,
-            name,
-            extra: plr.gang.clone(),
-        }),
-    };
-    if let Some(m) = msg {
-        push(world, id, m);
     }
-    true
+    if let Some(s) = world.session_mut(id) {
+        s.state = SessionState::Playing;
+        s.push_prompt();
+    }
 }
 
-/// The characters for a report, in the order key 2 of WCCUSERS gives (experience, lowest
-/// first; equal keys in insertion order, here the account id).
-pub fn report_order(
-    mut chars: Vec<(AccountId, Character)>,
-) -> std::collections::VecDeque<Character> {
-    chars.sort_by(|a, b| {
-        (a.1.expbil, a.1.exprem, a.1.exp)
-            .cmp(&(b.1.expbil, b.1.exprem, b.1.exp))
-            .then(a.0.0.cmp(&b.0.0))
-    });
+/// The characters for a report, in the order key 2 of WCCUSERS gives: the experience
+/// total, highest first (the key is descending), equal keys in insertion order, here the
+/// account id.
+pub fn report_order(mut chars: Vec<(AccountId, Character)>) -> Vec<Character> {
+    chars.sort_by(|a, b| b.1.exp.cmp(&a.1.exp).then(a.0.0.cmp(&b.0.0)));
     chars.into_iter().map(|(_, c)| c).collect()
 }
 
@@ -878,6 +901,17 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_game_formats_its_dates_as_packed() {
+        // never: the zero DOS date
+        let (y, m, d, ..) = dos_fields(0);
+        assert_eq!(ncedat(y, m, d), "00-000-80");
+        // a real calendar; the seconds are dropped
+        assert_eq!(pack_due(1777591807, 90), "01-MAY-26 01:00:00");
+        assert_eq!(pack_due(1798758000, 60), "01-JAN-27 00:00:00");
+        assert_eq!(pack_due(1798758000, 5), "31-DEC-26 23:05:00");
+    }
+
+    #[test]
     fn dates() {
         assert_eq!(format_date(0), "01/01/70");
         assert_eq!(format_time(3661), "01:01:01");
@@ -890,14 +924,23 @@ mod tests {
     }
 
     #[test]
-    fn report_order_is_lowest_experience_first() {
+    fn report_order_is_highest_experience_first() {
         let mut a = crate::player_session::clear_player();
-        a.exp = 50;
+        a.exp = 10;
         a.userid = "A".into();
         let mut b = crate::player_session::clear_player();
-        b.exp = 10;
+        b.exp = 50;
         b.userid = "B".into();
-        let order = report_order(vec![(AccountId(1), a), (AccountId(2), b)]);
-        assert_eq!(order[0].userid, "B");
+        let mut c = crate::player_session::clear_player();
+        c.exp = 10;
+        c.userid = "C".into();
+        let order = report_order(vec![
+            (AccountId(3), c),
+            (AccountId(1), a),
+            (AccountId(2), b),
+        ]);
+        let ids: Vec<&str> = order.iter().map(|c| c.userid.as_str()).collect();
+        // equal keys in insertion order (the account id)
+        assert_eq!(ids, ["B", "A", "C"]);
     }
 }
