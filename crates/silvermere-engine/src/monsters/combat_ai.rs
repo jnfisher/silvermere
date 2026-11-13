@@ -38,6 +38,7 @@ use silvermere_types::flags::ActiveMonsterFlags;
 use silvermere_types::ids::{ActiveMonsterId, RoomKey, SessionId};
 use silvermere_types::sizes::NROOMMONS;
 
+use super::active::write_back_evicted;
 use super::following::check_monster_confusion;
 use super::move_monster::{dir_monster_travelling_coord, move_monster};
 use super::visibility::monster_can_see_user;
@@ -71,6 +72,10 @@ pub fn do_monster_combat(world: &mut World) {
                 continue;
             }
             monster_turn(world, &order, room, n);
+            // a monster the turn pushed out of the cache is read back from its record
+            // now, as the game reads it on its next look-up: not after a later turn has
+            // changed it
+            write_back_evicted(world);
         }
     }
 }
