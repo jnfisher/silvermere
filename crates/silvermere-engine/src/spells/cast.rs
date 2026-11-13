@@ -930,7 +930,16 @@ fn add_duration_spell_to_room(
             continue;
         };
         let out = add_spell_to_monster(&mut m.spells, spl.number, rounds, dose);
+        mark_spell_slot(world, mon, out);
         lasting_monster_lines(world, told, id, &name, spl, dose, out);
+    }
+}
+
+/// A spell put on or renewed in a monster's slots marks its record changed, even when the
+/// renewal changes nothing.
+pub(crate) fn mark_spell_slot(world: &mut World, mon: ActiveMonsterId, out: SlotOutcome) {
+    if out != SlotOutcome::Full {
+        world.active_monsters.mark_dirty(mon);
     }
 }
 
@@ -3249,6 +3258,7 @@ fn monster_slot(
             );
             if let Some(m) = combat::monster_mut(world, mon) {
                 let out = add_spell_to_monster(&mut m.spells, spl.number, rounds, value);
+                mark_spell_slot(world, mon, out);
                 lasting_monster_lines(world, told, id, tgtname, spl, value, out);
             }
             state.told = true;

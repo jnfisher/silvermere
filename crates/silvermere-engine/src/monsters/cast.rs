@@ -27,7 +27,7 @@ use silvermere_types::records::{KnownMonster, Spell};
 
 use super::spell_support::monster_display_spell_success;
 use crate::combat::{self, user_ability, user_has};
-use crate::spells::cast::{report_ended, strip_worn, teleport, user_element_resist};
+use crate::spells::cast::{mark_spell_slot, report_ended, strip_worn, teleport, user_element_resist};
 use crate::tell::{Noise, TellBlind, tell_room};
 use crate::world::World;
 
@@ -498,7 +498,9 @@ pub fn cast_self(world: &mut World, mon: ActiveMonsterId, spl: &Spell, level: i3
     let effects = SpellEffects::from_record(spl);
     if spl.duration != 0 {
         if let Some(m) = world.active_monsters.peek_mut(mon) {
-            add_spell_to_monster(&mut m.spells, spl.number, i32::from(spl.duration), value);
+            let out =
+                add_spell_to_monster(&mut m.spells, spl.number, i32::from(spl.duration), value);
+            mark_spell_slot(world, mon, out);
         }
         for s in effects.iter() {
             if s.ability == Ability::Poison
