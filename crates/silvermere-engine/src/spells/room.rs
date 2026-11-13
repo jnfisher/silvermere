@@ -162,6 +162,16 @@ pub fn room_cast_on_user(world: &mut World, id: SessionId, spell: SpellNo) {
     let Some(p) = combat::player(world, id) else {
         return;
     };
+    if spell == SpellNo(0) {
+        // (sic) the game finds spell 0 in an empty slot of its spell cache, a blank
+        // spell: a worn item's free negate entry negates it, or it rolls its strength
+        // and does nothing
+        let negated = item_negates(p.worn.iter().filter_map(|n| world.items.get(n)), spell);
+        if !negated {
+            world.rng.range(0, 1);
+        }
+        return;
+    }
     let Some(spl) = spell_of(world, spell) else {
         return;
     };
