@@ -374,6 +374,21 @@ fn scatter_into_the_same_room_loses_the_coins() {
     assert!(rs.items.iter().all(|s| s.item != ItemNo(1)));
 }
 
+// (sic) A room's spell 0 is the game's blank spell: one strength roll for a player with
+// nothing worn, none for one wearing an item (its free negate entries negate it).
+#[test]
+fn spell_zero_rolls_for_the_unequipped() {
+    let mut w = fx::world();
+    let a = enter(&mut w, "Alf", ROOM);
+    let before = (hp(&mut w, a), w.rng.draws());
+    room_cast_on_user(&mut w, a, SpellNo(0));
+    assert_eq!((hp(&mut w, a), w.rng.draws()), (before.0, before.1 + 1));
+    assert!(lines(&mut w, a).is_empty());
+    w.session_mut(a).unwrap().character.as_mut().unwrap().worn[0] = ItemNo(1);
+    room_cast_on_user(&mut w, a, SpellNo(0));
+    assert_eq!(w.rng.draws(), before.1 + 1);
+}
+
 // The summoned monster follows the player by name, no friend.
 #[test]
 fn summon_hunts_the_player() {
