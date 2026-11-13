@@ -213,8 +213,8 @@ pub enum ShelfCopy {
 /// item is limited, the shelf holds no record of it and every allowed copy is in play
 /// (reason 1).
 ///
-/// The shelf's copies are `OWN_ROOM` records of the shop's room, marked
-/// [`limited::SHELF_MARK`] so that a copy dropped on the shop's floor is never taken for one.
+/// The shelf's copies are `OWN_ROOM` records of the shop's room; (sic) a copy dropped on
+/// the shop's floor is taken for one, as the game has nothing to tell them apart.
 /// A recorded shelf copy is released; one that was never recorded (stock from the shop data
 /// or a restock, which records none) is the only kind that needs a free copy under the limit.
 pub fn take_shelf_copy(world: &mut World, item: ItemNo, room: RoomKey) -> Option<ShelfCopy> {

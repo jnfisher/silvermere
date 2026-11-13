@@ -1004,8 +1004,8 @@ mod sysop {
         assert_eq!(h.room(s), special_rooms()[0]);
     }
 
-    // LIST LIMITED_ITEMS / NEWLIMITED: floor, shelf (T-041, OWN_ROOM + #SHELF) and user
-    // copies; shelf and floor print the same line
+    // LIST LIMITED_ITEMS / NEWLIMITED: floor, shelf (T-041, both OWN_ROOM of the room) and
+    // user copies; shelf and floor print the same line
     #[test]
     fn limited_lists_with_a_shelf_copy() {
         let mut h = Harness::new();
@@ -1021,11 +1021,7 @@ mod sysop {
         };
         for o in [
             own(1, OwnerKind::Room, ""),
-            own(
-                2,
-                OwnerKind::Room,
-                silvermere_engine::items::limited::SHELF_MARK,
-            ),
+            own(2, OwnerKind::Room, ""),
             own(3, OwnerKind::User, "BOB"),
         ] {
             h.engine.world.item_ownership.insert(o.id, o);
