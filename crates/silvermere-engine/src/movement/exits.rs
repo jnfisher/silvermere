@@ -183,8 +183,9 @@ pub enum Arg<'a> {
 }
 
 /// A WCCMSG text filled in: each `%s`, `%d`, `%ld`, `%u` or `%lu` takes the next argument
-/// in order, `%%` is a percent sign; anything else is left as written, and a conversion
-/// past the last argument prints nothing.
+/// in order, `%%` is a percent sign, and a conversion past the last argument prints
+/// nothing. Before any other character the `%` is dropped, as the game's formatter does,
+/// and a `%` that ends the text is printed.
 pub fn fmt_msg(fmt: &str, args: &[Arg<'_>]) -> String {
     let mut out = String::with_capacity(fmt.len() + 32);
     let mut next = 0;
@@ -220,10 +221,8 @@ pub fn fmt_msg(fmt: &str, args: &[Arg<'_>]) -> String {
                     // nothing
                 }
             }
-            _ => {
-                out.push('%');
-                out.push_str(&spec);
-            }
+            None if spec.is_empty() => out.push('%'),
+            _ => out.push_str(&spec),
         }
     }
     out
@@ -1058,7 +1057,8 @@ mod tests {
         );
         assert_eq!(fmt_msg("hurt for %d", &[Arg::D(7)]), "hurt for 7");
         assert_eq!(fmt_msg("%ld and %s", &[Arg::D(3)]), "3 and ");
-        assert_eq!(fmt_msg("odd %q", &[]), "odd %q");
+        assert_eq!(fmt_msg("odd %q", &[]), "odd q");
+        assert_eq!(fmt_msg("%'s foes 100%", &[]), "'s foes 100%");
     }
 
     #[test]
