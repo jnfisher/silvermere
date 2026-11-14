@@ -357,7 +357,7 @@ pub fn remove_armour(world: &mut World, id: SessionId, name: &str, force: bool) 
     let room = room_of(plr);
     if itm.item_type == ItemType::Light {
         // Only the readied one can be put out
-        if f.slot_code() == readied {
+        if f.is_readied(readied) {
             let genlight = silvermere_rules::abilities::item_ability_value(&itm, Ability::GenLight);
             if let Some(plr) = world.session_mut(id).and_then(|s| s.character.as_mut()) {
                 plr.readied = -1;

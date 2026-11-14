@@ -484,7 +484,7 @@ pub fn hide_item(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLine
         if crate::display::light::can_see(world, id).is_none() {
             return Handled::Done;
         }
-        if f.slot_code() == readied {
+        if f.is_readied(readied) {
             remove_armour(world, id, name, false);
         }
         let charges = remove_item_from_inventory(world, id, itm.number).unwrap_or(0);
@@ -576,7 +576,7 @@ pub fn cmd_drop(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLine)
             return Handled::Done;
         }
         // the lit light is put out first
-        if f.slot_code() == plr.readied {
+        if f.is_readied(plr.readied) {
             remove_armour(world, id, name, false);
         }
         let charges = remove_item_from_inventory(world, id, itm.number).unwrap_or(0);
@@ -943,7 +943,7 @@ fn give_item(world: &mut World, id: SessionId, room: RoomKey, line: &CommandLine
         return Handled::Done;
     }
     // the readied item is unreadied first (by the first word again)
-    if f.slot_code() == plr.readied {
+    if f.is_readied(plr.readied) {
         remove_armour(world, id, line.arg(1), false);
     }
     if !starts_with_ignore_case(line.arg(f.words + 1), "to") {

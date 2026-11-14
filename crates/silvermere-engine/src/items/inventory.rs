@@ -94,11 +94,16 @@ impl Found {
         self.count > 1
     }
 
-    /// The slot as an `i8`, -1 for none: what the callers compare with
-    /// `player.readied` (a key found on the key ring leaves -1, which equals an unlit
-    /// `readied`).
+    /// The slot as an `i8`, -1 for none: what LIGHT stores in `player.readied`.
     pub fn slot_code(&self) -> i8 {
         self.slot.map_or(-1, |s| s as i8)
+    }
+
+    /// Is the slot found the readied one? (sic) the game keeps the slot in an unsigned
+    /// char, so a key found on the key ring (no slot, 255) is never the readied light,
+    /// not even when nothing is readied (-1).
+    pub fn is_readied(&self, readied: i8) -> bool {
+        self.slot.is_some_and(|s| i16::from(s as u8) == i16::from(readied))
     }
 }
 
