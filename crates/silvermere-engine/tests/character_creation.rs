@@ -414,8 +414,8 @@ fn editor_preamble() {
     // the point-cost chart, the package's text, comes first
     let chart = plain(&crate::common::moved_bytes("stat_editor_preamble"));
     assert!(text.starts_with(&chart), "{text}");
-    // (sic) the maximum prints as 0, as in the original
-    assert!(text.contains("Strength  55 - 0\r\nIntellect 30 - 0\r\nWillpower 45 - 0\r\nAgility   30 - 0\r\nHealth    50 - 0\r\nCharm     30 - 0\r\n"));
+    // the race's minimum and maximum (the original prints 0 for the maximum: D8)
+    assert!(text.contains("Strength  55 - 120\r\nIntellect 30 - 90\r\nWillpower 45 - 110\r\nAgility   30 - 90\r\nHealth    50 - 110\r\nCharm     30 - 85\r\n"));
     assert!(text.contains("\r\nYou have 100 CP to distribute.\r\n"));
     assert!(text.ends_with("Given name [KASIMIR]: "));
     insta::assert_snapshot!("editor_preamble", crate::common::redact(&escape(&out)));

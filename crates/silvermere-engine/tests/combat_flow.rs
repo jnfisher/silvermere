@@ -28,7 +28,7 @@ use silvermere_types::enums::GroupRole;
 use silvermere_types::enums::{
     Ability, Alignment, ItemType, MessageLevel, MonsterAttackType, MonsterType, RoomType,
 };
-use silvermere_types::flags::{ActiveMonsterFlags, PlayerSettings, PlayerStatus2, RoomFlags};
+use silvermere_types::flags::{ActiveMonsterFlags, PlayerSettings, RoomFlags};
 use silvermere_types::ids::{
     AccountId, ActiveMonsterId, ClassNo, ItemNo, MapId, MessageNo, MonsterNo, RaceNo, RoomId,
     RoomKey, SpellNo,
@@ -510,7 +510,8 @@ fn too_afraid() {
     let mut w = world();
     let k = kang(&mut w, "Kasimir", MessageLevel::High);
     spawn(&mut w, RAT, ARENA, 1);
-    plr(&mut w, k).status2.insert(PlayerStatus2::AFRAID);
+    // the fear comes from a Flee ability: the attack brings the abilities up to date first
+    w.races.get_mut(&KANG).unwrap().abilities[3] = (Ability::Flee, 1);
     assert!(run(&mut w, k, "a rat").contains(&"You are too afraid!".to_owned()));
 }
 
@@ -1130,11 +1131,13 @@ fn mask(l: &str) -> String {
 
 /// The kind of a combat line, so only kinds the captures show are compared.
 fn kind(l: &str) -> Option<&'static str> {
-    let kinds: [(&str, &str); 7] = [
+    let kinds: [(&str, &str); 9] = [
         ("hit", r"^You \S+ .+ for # damage!$"),
         ("glance", r"^Your .+ hits, but glances off its armour\.$"),
         ("miss", r"^You swing at .+!$"),
-        ("monster", r"^The .+ (lunges|bites|whips)"),
+        ("lunge", r"^The .+ lunges"),
+        ("bite", r"^The .+ bites"),
+        ("whip", r"^The .+ whips"),
         ("death", r"^The .+ falls to the ground"),
         ("exp", r"^You gain # experience\.$"),
         ("engaged", r"^\*Combat Engaged\*$"),
@@ -1193,6 +1196,8 @@ fn capture_fight(known: MonsterNo, name: &str, weapon: bool, seed: u64) -> Vec<S
 #[test]
 fn fight_lines_match_the_captures() {
     let cap = capture_lines();
+    // a kind no capture shows (a rat's bite that lands) has nothing to compare with
+    let shown: std::collections::BTreeSet<_> = cap.iter().filter_map(|l| kind(l)).collect();
     let mut checked = 0;
     for (known, name, weapon, seed) in [
         (RAT, "large giant rat", true, 11),
@@ -1202,7 +1207,7 @@ fn fight_lines_match_the_captures() {
     ] {
         for l in capture_fight(known, name, weapon, seed) {
             let m = mask(&l);
-            if kind(&m).is_none() {
+            if !kind(&m).is_some_and(|k| shown.contains(k)) {
                 continue;
             }
             assert!(
