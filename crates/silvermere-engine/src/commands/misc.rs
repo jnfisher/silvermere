@@ -40,7 +40,12 @@ use crate::world::World;
 /// QUIT: T-021's `state::login::leave::cmd_quit`, which answers `true` when the prompt should
 /// follow.
 pub fn cmd_quit(world: &mut World, id: SessionId, _cmd: Cmd, _line: &CommandLine) -> Handled {
-    Handled::from_rc(leave::cmd_quit(world, id))
+    // the exit started: handled, without a prompt (the game's 2)
+    if leave::cmd_quit(world, id) {
+        Handled::Done
+    } else {
+        Handled::Wait
+    }
 }
 
 /// SAVE: the refusal, alone; with an argument the word is speech.
