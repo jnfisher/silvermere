@@ -105,6 +105,9 @@ pub struct ActiveMonsters {
     /// Monsters changed without being marked changed (the game sets a few fields that
     /// way): the record that counts as unchanged until it is next written or pushed out.
     quiet: RefCell<HashMap<ActiveMonsterId, ActiveMonster>>,
+    /// Monsters pushed out unchanged and read into the cache again since: each is read
+    /// back as written before it is next changed.
+    reread: RefCell<Vec<ActiveMonsterId>>,
     /// Which monsters the monster cache holds: what the background passes walk
     /// (T-086). A look-up by number ([`Self::by_number`]) changes it, so it sits behind a
     /// `RefCell`.
@@ -121,6 +124,7 @@ impl std::ops::Deref for ActiveMonsters {
 
 impl std::ops::IndexMut<ActiveSlot> for ActiveMonsters {
     fn index_mut(&mut self, slot: ActiveSlot) -> &mut ActiveMonster {
+        self.apply_rereads();
         &mut self.slots[slot]
     }
 }
@@ -168,16 +172,19 @@ impl ActiveMonsters {
 
     /// The record, mutable, by slot.
     pub fn get_mut(&mut self, slot: ActiveSlot) -> Option<&mut ActiveMonster> {
+        self.apply_rereads();
         self.slots.get_mut(slot)
     }
 
     /// Every record, mutable.
     pub fn values_mut(&mut self) -> slotmap::basic::ValuesMut<'_, ActiveSlot, ActiveMonster> {
+        self.apply_rereads();
         self.slots.values_mut()
     }
 
     /// Every record with its slot, mutable.
     pub fn iter_mut(&mut self) -> slotmap::basic::IterMut<'_, ActiveSlot, ActiveMonster> {
+        self.apply_rereads();
         self.slots.iter_mut()
     }
 
@@ -202,27 +209,29 @@ impl ActiveMonsters {
         self.peek(n)
     }
 
-    /// A look-up by number, mutable. A monster pushed out unchanged is read back as
-    /// written first, so the change is made to that.
+    /// A look-up by number, mutable.
     pub fn by_number_mut(&mut self, n: ActiveMonsterId) -> Option<&mut ActiveMonster> {
         self.touch(n);
-        self.read_back(n);
         self.peek_mut(n)
     }
 
-    /// Monster `n`, pushed out of the cache unchanged, as written.
-    fn read_back(&mut self, n: ActiveMonsterId) {
-        let evictions = self.evictions.get_mut();
-        let before = evictions.len();
-        evictions.retain(|e| !matches!(e, Eviction::Kept(k) if *k == n));
-        if evictions.len() == before {
-            return;
-        }
-        let Some(was) = self.saved.get(&n).cloned() else {
-            return;
-        };
-        if let Some(m) = self.peek_mut(n) {
-            *m = was;
+    /// Each monster pushed out unchanged and read in again since, as written: the game
+    /// reads it from the file, so what changed without counting before is lost and what
+    /// changes after is kept.
+    fn apply_rereads(&mut self) {
+        let reread = std::mem::take(self.reread.get_mut());
+        for n in reread {
+            self.evictions
+                .get_mut()
+                .retain(|e| !matches!(e, Eviction::Kept(k) if *k == n));
+            let Some(was) = self.saved.get(&n).cloned() else {
+                continue;
+            };
+            if let Some(slot) = self.slot_of(n)
+                && let Some(m) = self.slots.get_mut(slot)
+            {
+                *m = was;
+            }
         }
     }
 
@@ -234,6 +243,7 @@ impl ActiveMonsters {
 
     /// The record, mutable, leaving the cache as it is.
     pub fn peek_mut(&mut self, n: ActiveMonsterId) -> Option<&mut ActiveMonster> {
+        self.apply_rereads();
         let slot = self.slot_of(n)?;
         self.slots.get_mut(slot)
     }
@@ -250,6 +260,13 @@ impl ActiveMonsters {
             .ok()
             .is_some_and(|n| self.slot_of(ActiveMonsterId(n)).is_some());
         let found = self.cache.borrow_mut().get(monnum, exists);
+        if matches!(found, Lookup::Loaded(_)) {
+            let n = ActiveMonsterId(monnum as i32);
+            let kept = self.evictions.borrow().iter().any(|e| matches!(e, Eviction::Kept(k) if *k == n));
+            if kept {
+                self.reread.borrow_mut().push(n);
+            }
+        }
         self.note_evictions();
         found
     }
@@ -414,6 +431,7 @@ pub fn save_active_monster(world: &mut World, n: ActiveMonsterId) {
 /// without counting (the slow pass's `lastupd` and `lastdir`, the fought flag, a quiet
 /// change) is lost.
 pub fn write_back_evicted(world: &mut World) {
+    world.active_monsters.apply_rereads();
     world.active_monsters.note_evictions();
     let evictions = std::mem::take(world.active_monsters.evictions.get_mut());
     for e in evictions {
