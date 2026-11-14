@@ -3280,6 +3280,7 @@ fn monster_slot(
     match out {
         Outcome::Silly => silly(world, id, spl, "Monster"),
         Outcome::Lasting(o) => {
+            mark_spell_slot(world, mon, o);
             if !was_told {
                 lasting_monster_lines(world, told, id, tgtname, spl, value, o);
             }
