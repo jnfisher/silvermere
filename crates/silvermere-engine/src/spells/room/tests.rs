@@ -366,7 +366,13 @@ fn scatter_into_the_same_room_loses_the_coins() {
     }
     let n = add_spell(
         &mut w,
-        room_spell(962, SpellTarget::Single, ROOM as i16, 0, &[(Ability::Scatter, 0)]),
+        room_spell(
+            962,
+            SpellTarget::Single,
+            ROOM as i16,
+            0,
+            &[(Ability::Scatter, 0)],
+        ),
     );
     room_cast_on_user(&mut w, a, n);
     let rs = &w.room_state[&fx::key(ROOM)];

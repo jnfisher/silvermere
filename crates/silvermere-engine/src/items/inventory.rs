@@ -103,7 +103,8 @@ impl Found {
     /// char, so a key found on the key ring (no slot, 255) is never the readied light,
     /// not even when nothing is readied (-1).
     pub fn is_readied(&self, readied: i8) -> bool {
-        self.slot.is_some_and(|s| i16::from(s as u8) == i16::from(readied))
+        self.slot
+            .is_some_and(|s| i16::from(s as u8) == i16::from(readied))
     }
 }
 

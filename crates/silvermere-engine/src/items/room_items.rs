@@ -298,7 +298,11 @@ mod tests {
         assert!(dispose_of_item_in_trail(&mut w, a, ItemNo(1), -1));
         assert_eq!(w.empty_room_slot.items.len(), 1);
         assert_eq!(w.empty_room_slot.items[0].count, 1);
-        assert!(w.room_state.values().all(|r| r.items.iter().all(|s| s.item != ItemNo(1))));
+        assert!(
+            w.room_state
+                .values()
+                .all(|r| r.items.iter().all(|s| s.item != ItemNo(1)))
+        );
         w.room_cache_free = false;
         assert!(!dispose_of_item_in_trail(&mut w, a, ItemNo(1), -1));
     }
