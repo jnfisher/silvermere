@@ -224,7 +224,7 @@ impl ActiveMonsters {
             self.evictions
                 .get_mut()
                 .retain(|e| !matches!(e, Eviction::Kept(k) if *k == n));
-            let Some(was) = self.saved.get(&n).cloned() else {
+            let Some(was) = self.written(n) else {
                 continue;
             };
             if let Some(slot) = self.slot_of(n)
@@ -272,15 +272,38 @@ impl ActiveMonsters {
     }
 
     /// The monsters the cache pushed out since the last call, noted as they are now.
+    /// Monster `n` as last written: the latest write still to be sent, or the copy
+    /// written before.
+    fn written(&self, n: ActiveMonsterId) -> Option<ActiveMonster> {
+        let evictions = self.evictions.borrow();
+        let pending = evictions.iter().rev().find_map(|e| match e {
+            Eviction::Written(m) if m.number == n => Some((**m).clone()),
+            _ => None,
+        });
+        pending.or_else(|| self.saved.get(&n).cloned())
+    }
+
     fn note_evictions(&self) {
+        // a monster read in again and not changed since is as written: what it holds from
+        // before it was pushed out is read back at its next change
+        let as_read = |n: ActiveMonsterId| -> Option<(bool, ActiveMonster)> {
+            if self.reread.borrow().contains(&n) {
+                let was = self.written(n)?;
+                Some((self.marked.borrow().contains(&n), was))
+            } else {
+                let m = self.peek(n)?.clone();
+                Some((self.is_dirty(n), m))
+            }
+        };
         let evicted = self.cache.borrow_mut().take_evicted();
         for n in evicted {
-            let Some(m) = self.peek(n) else { continue };
-            let dirty = self.is_dirty(n);
+            let Some((dirty, m)) = as_read(n) else { continue };
+            // pushed out again: the read back waiting for it is the eviction's now
+            self.reread.borrow_mut().retain(|r| *r != n);
             self.quiet.borrow_mut().remove(&n);
             let e = if dirty {
                 self.marked.borrow_mut().remove(&n);
-                Eviction::Written(Box::new(m.clone()))
+                Eviction::Written(Box::new(m))
             } else {
                 Eviction::Kept(n)
             };
@@ -289,12 +312,11 @@ impl ActiveMonsters {
         // written back in place: a changed one counts as written, as it is now
         let flushed = self.cache.borrow_mut().take_flushed();
         for n in flushed {
-            let Some(m) = self.peek(n) else { continue };
-            if self.is_dirty(n) {
+            let Some((dirty, m)) = as_read(n) else { continue };
+            if dirty {
                 self.quiet.borrow_mut().remove(&n);
                 self.marked.borrow_mut().remove(&n);
-                let e = Eviction::Written(Box::new(m.clone()));
-                self.evictions.borrow_mut().push(e);
+                self.evictions.borrow_mut().push(Eviction::Written(Box::new(m)));
             }
         }
     }
@@ -337,6 +359,10 @@ impl ActiveMonsters {
         };
         if self.marked.borrow().contains(&n) {
             return true;
+        }
+        // read in again and not changed since: as written
+        if self.reread.borrow().contains(&n) {
+            return false;
         }
         // written when it was pushed out of the cache, if it was since
         let evictions = self.evictions.borrow();
