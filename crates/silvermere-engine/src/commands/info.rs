@@ -20,6 +20,7 @@ use crate::display::{RoomMode, can_see, describe, display_room, spells, status, 
 use crate::help::{help_text, matches_any_word};
 use crate::items::inventory::show_options;
 use crate::movement::exits::live_exit;
+use crate::movement::move_user::user_allowed_in_room;
 use crate::tell::{Noise, TellBlind, tell_room, tell_user};
 use crate::world::World;
 
@@ -203,6 +204,11 @@ pub fn look_direction(world: &mut World, id: SessionId, dir: usize) {
         room: exit.target,
     };
     set_location(world, id, beyond);
+    // its entry checks in look-only mode: the room is readied, and an arena too high for
+    // him says so, but he sees it all the same
+    if let Some(from) = world.room(old).map(|r| r.room_type) {
+        user_allowed_in_room(world, id, beyond, from, true);
+    }
     display_room(world, id, RoomMode::LONG);
     // (sic) where he stands: still his own room when the one beyond is missing
     let here = world
