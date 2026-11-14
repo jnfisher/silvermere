@@ -499,6 +499,20 @@ fn first_march(h: &mut Harness, leader: SessionId, follower: SessionId, to: u32)
 
 const DRAG_REFUSAL: &str = "You may not drag someone while in a party!";
 
+/// `text` with the hidden " \x08" taken out of its departure lines: the game says "just left
+/// to the ..." one of three ways at random, which differ only in where it goes.
+fn any_departure(text: &str) -> String {
+    text.split_inclusive('\n')
+        .map(|l| {
+            if l.contains("just left to") {
+                l.replace(" \x08", "")
+            } else {
+                l.to_owned()
+            }
+        })
+        .collect()
+}
+
 // clear_player zeroes the record, and neither load_player nor create_player sets `dragging`
 // back to -1: a new character drags "channel 0", so his first marched step is refused (seen
 // on the original in m3/party, step 16). `dragging` is saved with the record, so the -1 that
@@ -520,15 +534,15 @@ fn the_drag_refusal_comes_once_in_a_characters_life() {
     assert_eq!(h.w().session(b).unwrap().party.dragging, Some(SessionId(0)));
     let bytes = first_march(&mut h, a, b, EAST_END);
     assert_eq!(
-        String::from_utf8_lossy(&bytes),
-        "\x1b[79D\x1b[K\x1b[1;31mAldric\x1b[0;32m just left to  \x08the ea \x08st.\r\n\
+        any_departure(&String::from_utf8_lossy(&bytes)),
+        any_departure("\x1b[79D\x1b[K\x1b[1;31mAldric\x1b[0;32m just left to  \x08the ea \x08st.\r\n\
          \x1b[79D\x1b[K\x1b[0;37m[HP=10\x1b[0;37m]:\
          \x1b[79D\x1b[K\x1b[1;37mYou may not drag someone while in a party!\r\n\
          \x1b[79D\x1b[K\x1b[0;37m -- Following your Party leader e \x08ast --\r\n\
          \x1b[0;37;40m\x1b[79D\x1b[K\x1b[1;36mEast End\r\n\
          \x1b[0;35mAlso here: \x1b[1;35mAldric\x1b[0;35m.\r\n\
          \x1b[0m\x1b[0;32mObvious exits: e \x08ast, w \x08est\r\n\
-         \x1b[79D\x1b[K\x1b[0;37m[HP=10\x1b[0;37m]:"
+         \x1b[79D\x1b[K\x1b[0;37m[HP=10\x1b[0;37m]:")
     );
     assert_eq!(h.w().session(b).unwrap().party.dragging, None);
 
