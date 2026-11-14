@@ -645,6 +645,11 @@ impl<C: Clock, R: Rng> Engine<C, R> {
             EngineInput::Custom { run, .. } => run(world),
             EngineInput::Shutdown => {}
         }
+        // the empty lines an attack interrupt handed out, read as the next input
+        let today = self.world.today;
+        for (id, outcome) in session::read_injected(&mut self.world, today) {
+            self.finish_outcome(id, outcome);
+        }
         // the monsters the cache pushed out are written back or read back
         write_back_evicted(&mut self.world);
     }

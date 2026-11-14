@@ -349,6 +349,9 @@ pub struct World {
     pub(crate) outbox_first: Vec<crate::event_loop::EngineOutput>,
     /// Sessions that leave at the end of the event, after their last write went out.
     pub(crate) logoffs: Vec<SessionId>,
+    /// Sessions the attack interrupt handed an empty line, read after the current input
+    /// ([`crate::session::read_injected`]).
+    pub(crate) injected: Vec<SessionId>,
 }
 
 impl World {
@@ -433,6 +436,7 @@ impl World {
             outbox: Vec::new(),
             outbox_first: Vec::new(),
             logoffs: Vec::new(),
+            injected: Vec::new(),
         };
         world.room_state = snapshot
             .rooms
