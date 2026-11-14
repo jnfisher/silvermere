@@ -27,7 +27,9 @@ use silvermere_types::records::{KnownMonster, Spell};
 
 use super::spell_support::monster_display_spell_success;
 use crate::combat::{self, user_ability, user_has};
-use crate::spells::cast::{mark_spell_slot, report_ended, strip_worn, teleport, user_element_resist};
+use crate::spells::cast::{
+    mark_spell_slot, report_ended, strip_worn, teleport, user_element_resist,
+};
 use crate::tell::{Noise, TellBlind, tell_room};
 use crate::world::World;
 

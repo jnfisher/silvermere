@@ -262,7 +262,11 @@ impl ActiveMonsters {
         let found = self.cache.borrow_mut().get(monnum, exists);
         if matches!(found, Lookup::Loaded(_)) {
             let n = ActiveMonsterId(monnum as i32);
-            let kept = self.evictions.borrow().iter().any(|e| matches!(e, Eviction::Kept(k) if *k == n));
+            let kept = self
+                .evictions
+                .borrow()
+                .iter()
+                .any(|e| matches!(e, Eviction::Kept(k) if *k == n));
             if kept {
                 self.reread.borrow_mut().push(n);
             }
@@ -297,7 +301,9 @@ impl ActiveMonsters {
         };
         let evicted = self.cache.borrow_mut().take_evicted();
         for n in evicted {
-            let Some((dirty, m)) = as_read(n) else { continue };
+            let Some((dirty, m)) = as_read(n) else {
+                continue;
+            };
             // pushed out again: the read back waiting for it is the eviction's now
             self.reread.borrow_mut().retain(|r| *r != n);
             self.quiet.borrow_mut().remove(&n);
@@ -312,11 +318,15 @@ impl ActiveMonsters {
         // written back in place: a changed one counts as written, as it is now
         let flushed = self.cache.borrow_mut().take_flushed();
         for n in flushed {
-            let Some((dirty, m)) = as_read(n) else { continue };
+            let Some((dirty, m)) = as_read(n) else {
+                continue;
+            };
             if dirty {
                 self.quiet.borrow_mut().remove(&n);
                 self.marked.borrow_mut().remove(&n);
-                self.evictions.borrow_mut().push(Eviction::Written(Box::new(m)));
+                self.evictions
+                    .borrow_mut()
+                    .push(Eviction::Written(Box::new(m)));
             }
         }
     }
