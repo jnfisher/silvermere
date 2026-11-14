@@ -93,6 +93,18 @@ pub fn on_line(world: &mut World, id: SessionId, line: &str, today: i64) -> Outc
     }
 }
 
+/// The empty lines the attack interrupt handed out ([`World::injected`]), read as typed:
+/// the outcomes, by session.
+pub fn read_injected(world: &mut World, today: i64) -> Vec<(SessionId, Outcome)> {
+    let mut outcomes = Vec::new();
+    while !world.injected.is_empty() {
+        for id in std::mem::take(&mut world.injected) {
+            outcomes.push((id, on_line(world, id, "", today)));
+        }
+    }
+    outcomes
+}
+
 /// One keystroke in character mode (the host's status `INBLK` in the status callback).
 /// The line editor is the transport's; the paged
 /// lists end on any key (`commands::input::on_key`, T-024); the full-screen stat editor
