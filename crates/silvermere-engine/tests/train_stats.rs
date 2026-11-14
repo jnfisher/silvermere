@@ -587,7 +587,12 @@ mod training {
             (c.totalcp, c.cp) = (100, 100);
             let out = h.bytes(id, "train stats");
             let got = block(&out, start);
-            assert_eq!(esc(got), esc(block(CAPTURE, start)));
+            // the original prints 0 for each race maximum, silvermere the maximum (D8)
+            let any_max = |b: &[u8]| {
+                let re = regex::Regex::new(r"(?m)^([A-Za-z]+ +\d+) - \d+\\r\\n$").unwrap();
+                re.replace_all(&esc(b), "$1 - #\\r\\n").into_owned()
+            };
+            assert_eq!(any_max(got), any_max(block(CAPTURE, start)));
             // CR LF exactly once per line: no bare CR or LF, no doubled CR
             for (i, w) in got.windows(2).enumerate() {
                 assert_eq!(w[0] == b'\r', w[1] == b'\n', "at {i}");

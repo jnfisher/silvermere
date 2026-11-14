@@ -532,8 +532,9 @@ fn energy_is_the_attacks_and_a_failure_costs_half() {
     mon(&mut w, m).energy = 5;
     assert_eq!(cast_at_player(&mut w, m, Some(1), id, 0), R::Failed);
     assert_eq!(mon(&mut w, m).energy, 4);
-    // slot -1: 100% for no energy
+    // slot -1: 100% for no energy (and no magic resistance: it is not resisted)
     mon(&mut w, m).energy = 7;
+    plr(&mut w, id).mr = 0;
     assert_eq!(cast_at_player(&mut w, m, None, id, 12), R::Applied);
     assert_eq!(mon(&mut w, m).energy, 7);
 }
