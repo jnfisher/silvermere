@@ -29,13 +29,12 @@ use super::profile::{self, Retire};
 use super::secondary::{CalcMode, recalculate};
 use crate::event_loop::{EchoMode, EngineOutput, GameEvent};
 use crate::items::equip::unequip_record;
-use crate::items::inventory::max_weight;
+use crate::items::inventory::update_weight_carried;
 use crate::items::limited::{self, Holder};
 use crate::items::room_items::{dispose_of_item_in_room, dispose_of_item_in_trail};
 use crate::state::login::show_menu;
 use crate::tell::{Noise, TellBlind, tell_room};
 use crate::world::World;
-use silvermere_rules::economy::encumbrance_pct;
 
 /// `NO_CHARGES`: an empty inventory or worn slot's uses.
 const NO_CHARGES: i16 = -1;
@@ -324,15 +323,9 @@ pub fn commit_suicide(world: &mut World, id: SessionId, today: i64) -> Suicide {
         c.mana = c.maxmana as i16;
         c.map = newmap;
         c.room = newroom;
-        // the carried weight: the loyal and cursed items kept still weigh
-        c.wgt = c
-            .items
-            .iter()
-            .filter_map(|n| world.items.get(n))
-            .map(|itm| itm.weight.max(0) as u16)
-            .fold(0u16, u16::saturating_add);
-        // and the encumbrance from it, as the game's weight recount ends
-        c.encumpct = encumbrance_pct(c.wgt, c.coins, max_weight(world, &c));
+        // the load recounted (the loyal and cursed items kept still weigh) and their
+        // use counts put in order
+        update_weight_carried(world, &mut c);
         recalculate(world, &mut c, CalcMode::KeepCurrent);
         if let Some(s) = world.session_mut(id) {
             s.character = Some(c);
