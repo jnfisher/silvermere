@@ -1194,7 +1194,9 @@ pub fn cast_no_target(
             teleport(world, id, dest, kind == SpellTarget::FullParty);
         }
     }
-    // the room's players' stats again
+    // the stats again of the players it may still hit: none left behind by a caster
+    // the spell teleported
+    targets.refresh_players(world, id, &spl);
     for &(tid, _) in &targets.players {
         crate::items::equip::recalc(world, tid);
     }
