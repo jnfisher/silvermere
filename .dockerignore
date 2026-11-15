@@ -1,7 +1,7 @@
 target/
 .git/
 data/
-docs/
+# docs/ is part of the build: silvermere-web embeds it as the server's web pages
 
 # Local compose secrets and the mounted legacy game files
 docker/.env
