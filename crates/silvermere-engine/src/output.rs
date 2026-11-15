@@ -37,6 +37,9 @@ pub struct OutputBatch {
     items: Vec<Item>,
     /// Append the session's own prompt after everything else at flush time.
     pub reprompt: bool,
+    /// The prompts sent together with the item before them, as one message (a
+    /// `tell_room` with its prompt), by index into `items`.
+    joined: Vec<usize>,
 }
 
 impl OutputBatch {
@@ -65,12 +68,51 @@ impl OutputBatch {
     /// they were queued.
     pub fn truncate(&mut self, len: usize) {
         self.items.truncate(len);
+        self.joined.retain(|&i| i < len);
     }
 
     /// Drops everything queued.
     pub fn clear(&mut self) {
         self.items.clear();
+        self.joined.clear();
         self.reprompt = false;
+    }
+
+    /// Appends a prompt sent as one message with the item before it.
+    pub fn push_joined_prompt(&mut self, state: Option<PromptState>) {
+        self.joined.push(self.items.len());
+        self.push_prompt(state);
+    }
+
+    /// The attack interrupt's clear (the line's `btuclo`): every prompt ends its message
+    /// with a mark that the clear keeps, so what is kept runs from the message of the first
+    /// prompt to the last prompt; the rest goes.
+    pub fn interrupt_clear(&mut self) {
+        self.reprompt = false;
+        let mut prompts = self
+            .items
+            .iter()
+            .enumerate()
+            .filter(|(_, i)| matches!(i, Item::Prompt(_)))
+            .map(|(n, _)| n);
+        let Some(first) = prompts.next() else {
+            self.clear();
+            return;
+        };
+        let last = prompts.last().unwrap_or(first);
+        let start = if first > 0 && self.joined.contains(&first) {
+            first - 1
+        } else {
+            first
+        };
+        self.items.truncate(last + 1);
+        self.items.drain(..start);
+        self.joined = self
+            .joined
+            .iter()
+            .filter(|&&i| i >= start && i <= last)
+            .map(|&i| i - start)
+            .collect();
     }
 
     /// Drops the last item when it is `msg` with no colour. `true` when dropped.

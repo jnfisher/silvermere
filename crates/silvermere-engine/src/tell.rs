@@ -217,7 +217,8 @@ fn deliver(world: &mut World, id: SessionId, msg: &Msg, prompt: bool, sound: Sou
     };
     s.output.push_coloured(msg.clone(), colour);
     if prompt {
-        s.push_prompt();
+        let state = PromptState::capture(s);
+        s.output.push_joined_prompt(state);
     }
 }
 
