@@ -20,10 +20,11 @@ pub mod hangup;
 
 use std::time::Instant;
 
-use silvermere_types::enums::{InGame, SessionState};
+use silvermere_types::enums::{InGame, NewCharStep, SessionState};
 use silvermere_types::ids::SessionId;
 
 use crate::player_session::{Caps, PlayerSession};
+use crate::state::newchar::on_form_key;
 use crate::state::{self, Input, Outcome};
 use crate::world::World;
 
@@ -111,11 +112,18 @@ pub fn read_injected(world: &mut World, today: i64) -> Vec<(SessionId, Outcome)>
 /// takes its keys while it is open (T-063).
 pub fn on_key(world: &mut World, id: SessionId, byte: u8) -> Outcome {
     let fullscreen = world.session(id).is_some_and(|s| {
-        s.state == SessionState::NewChar(silvermere_types::enums::NewCharStep::Stats)
+        s.state == SessionState::NewChar(NewCharStep::Stats)
             && s.editor.as_ref().is_some_and(|e| e.fullscreen.is_some())
     });
     if fullscreen {
         return crate::commands::fullscreen_editor::on_key(world, id, byte);
+    }
+    let form = world.session(id).is_some_and(|s| {
+        s.state == SessionState::NewChar(NewCharStep::Stats)
+            && s.editor.as_ref().is_some_and(|e| e.line.is_some())
+    });
+    if form {
+        return on_form_key(world, id, byte);
     }
     crate::commands::input::on_key(world, id, byte)
 }

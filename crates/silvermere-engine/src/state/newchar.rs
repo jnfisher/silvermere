@@ -22,6 +22,7 @@
 //! entry; T-047): no first-name field, and [`editor_done`] sends the character back into
 //! the realm. `RaceChange(..)` is [`race_change`]'s (T-047).
 
+pub mod line_form;
 pub mod race_change;
 pub mod stat_editor;
 pub mod suicide_pw;
@@ -37,6 +38,7 @@ use crate::commands::fullscreen_editor;
 use crate::state::login::{menu_bytes, show_menu};
 use crate::state::{Input, Outcome};
 use crate::world::World;
+use line_form::LineForm;
 use stat_editor::{EditorDone, Exit, StatEditor};
 
 pub use crate::player::STARTSTAT;
@@ -419,10 +421,47 @@ pub fn edit_character_stats(world: &mut World, id: SessionId, newchar: bool) {
     s.output.push(Msg::CpToDistribute {
         cp: i32::from(plr.cp),
     });
-    s.output.push_raw(editor.prompt());
+    // the form's fields one by one, a key at a time
+    let form = LineForm::open(&mut editor, &mut s.output);
+    editor.line = Some(Box::new(form));
     s.editor = Some(editor);
     s.state = SessionState::NewChar(NewCharStep::Stats);
+    world
+        .outbox
+        .push(crate::EngineOutput::SetCharMode { id, on: true });
     world.touch(id);
+}
+
+/// One key typed into the line by line form. SAVE and QUIT finish the editor.
+pub fn on_form_key(world: &mut World, id: SessionId, byte: u8) -> Outcome {
+    let left = {
+        let Some(s) = world.session_mut(id) else {
+            return Outcome::Logoff;
+        };
+        let Some(editor) = s.editor.as_mut() else {
+            return Outcome::Continue;
+        };
+        let Some(mut form) = editor.line.take() else {
+            return Outcome::Continue;
+        };
+        // a key on its own: what the last one sent has gone
+        form.drained();
+        let left = form.key(editor, byte, &mut s.output);
+        editor.line = Some(form);
+        left
+    };
+    if let Some(exit) = left {
+        leave_form(world, id, exit);
+    }
+    Outcome::Continue
+}
+
+/// The form left: back to lines, then the editor's end.
+fn leave_form(world: &mut World, id: SessionId, exit: Exit) {
+    world
+        .outbox
+        .push(crate::EngineOutput::SetCharMode { id, on: false });
+    editor_done(world, id, exit == Exit::Save);
 }
 
 /// One line typed into the editor: the field is checked, then the next prompt; SAVE and
@@ -437,6 +476,22 @@ pub fn on_stats(world: &mut World, input: Input<'_>) -> Outcome {
         back_to_menu(world, id);
         return Outcome::Continue;
     };
+    // a whole line into the form: its keys, then Enter, all arriving together
+    if let Some(mut form) = editor.line.take() {
+        form.drained();
+        let mut left = None;
+        for &b in input.line.as_bytes().iter().chain(b"\r") {
+            left = form.key(editor, b, &mut s.output);
+            if left.is_some() {
+                break;
+            }
+        }
+        editor.line = Some(form);
+        if let Some(exit) = left {
+            leave_form(world, id, exit);
+        }
+        return Outcome::Continue;
+    }
     match editor.on_line(input.line, &mut s.output) {
         None => {}
         Some(Exit::Save) => editor_done(world, id, true),

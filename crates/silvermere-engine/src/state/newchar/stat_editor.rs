@@ -25,6 +25,7 @@ use silvermere_types::names::{EYE_COLOURS, HAIR_COLOURS, HAIR_LENGTHS};
 use silvermere_types::records::{Character, Race};
 
 use crate::output::OutputBatch;
+use crate::state::newchar::line_form::LineForm;
 use crate::state::newchar::{capitalise, leading_int};
 
 /// The six stats in the form's field order: the `TOT_*` fields 6, 9, 12, 15, 18 and 21.
@@ -217,6 +218,8 @@ pub struct StatEditor {
     /// The full-screen form's own state when the editor runs full screen (T-063);
     /// `None` in line mode.
     pub fullscreen: Option<Box<crate::commands::fullscreen_editor::FullScreen>>,
+    /// The line by line form's own state when the editor runs line by line.
+    pub line: Option<Box<LineForm>>,
 }
 
 impl StatEditor {
@@ -254,6 +257,7 @@ impl StatEditor {
             show_first_name: true,
             on_done: EditorDone::Creation,
             fullscreen: None,
+            line: None,
         }
     }
 
@@ -406,8 +410,12 @@ impl StatEditor {
         if answer.chars().count() > 10 {
             return Verdict::Reject(Msg::GivenNameTooLong);
         }
-        // strip blanks, capitalise, letters only
-        let trimmed = answer.trim();
+        // white space taken out, letters only, capitalised
+        let trimmed: String = answer
+            .chars()
+            .filter(|c| !c.is_ascii_whitespace())
+            .collect();
+        let trimmed = trimmed.as_str();
         if !trimmed.chars().all(|c| c.is_ascii_alphabetic()) {
             return Verdict::Reject(Msg::NameNotAlpha);
         }
@@ -428,7 +436,11 @@ impl StatEditor {
             }
             return Verdict::Reject(Msg::LastNameRequired);
         }
-        let trimmed = answer.trim();
+        let trimmed: String = answer
+            .chars()
+            .filter(|c| !c.is_ascii_whitespace())
+            .collect();
+        let trimmed = trimmed.as_str();
         if trimmed.chars().count() > 18 {
             return Verdict::Reject(Msg::FamilyNameTooLong);
         }
