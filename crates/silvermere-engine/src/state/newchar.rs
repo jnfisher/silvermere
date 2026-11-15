@@ -510,7 +510,7 @@ pub fn on_stats(world: &mut World, input: Input<'_>) -> Outcome {
 ///
 /// Not carried: the full-screen teardown, the paying-account flag and the unpaid-account
 /// texts, the secondary stats and `save_player` (T-023: a record that is not validated is
-/// never saved), the last-played day (T-023), the user list rebuild (T-027).
+/// never saved), the user list rebuild (T-027).
 pub fn editor_done(world: &mut World, id: SessionId, save: bool) {
     let blanklast = world.config.blank_lastname_allowed;
     let max_in_game = usize::from(world.ids.max());
@@ -546,6 +546,7 @@ pub fn editor_done(world: &mut World, id: SessionId, save: bool) {
         if let Some(s) = world.session_mut(id) {
             s.output.push_raw(menu);
         }
+        stamp_lastdate(world, id);
         return;
     }
     apply_stats(plr, &editor);
@@ -623,6 +624,7 @@ pub fn editor_done(world: &mut World, id: SessionId, save: bool) {
     // a new name is checked in the background
     s.output.push(Msg::NameValidating);
     validate_name::begin(world, id);
+    stamp_lastdate(world, id);
 }
 
 /// The six totals become the base and current stats, and their cost above the race
@@ -662,7 +664,7 @@ fn apply_stats(plr: &mut Character, editor: &StatEditor) {
 /// the realm gets the prompt.
 ///
 /// Not carried: the paying-account branch (unpaid accounts are deleted outright), the
-/// last-played day (the next save at the menu or logoff carries the day), the polling
+/// polling
 /// start (the cycles run for every session in the realm) and the user list rebuild
 /// (T-027).
 fn existing_done(
@@ -736,11 +738,20 @@ fn existing_done(
         // the stats were reset and are still to be spent
         back_to_menu(world, id);
     }
+    stamp_lastdate(world, id);
     if let Some(s) = world.session_mut(id)
         && validated
         && s.state != SessionState::MainMenu
     {
         s.push_prompt();
+    }
+}
+
+/// The day the player was last on: today, as the editor's end leaves it.
+fn stamp_lastdate(world: &mut World, id: SessionId) {
+    let today = world.today;
+    if let Some(plr) = world.session_mut(id).and_then(|s| s.character.as_mut()) {
+        plr.lastdate = today;
     }
 }
 
