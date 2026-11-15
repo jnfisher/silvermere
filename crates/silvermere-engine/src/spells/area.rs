@@ -107,7 +107,8 @@ fn player_candidate(world: &World, caster: SessionId, tid: SessionId) -> Option<
         // `should_give_evil` (T-038)
         attack_gives_evil: crate::evil::timers::should_give_evil(world, caster, tid)
             != crate::evil::timers::Give::None,
-        pvp_range_ok: caster == tid || combat::attack::pvp_level_range_ok(world, caster, tid),
+        // asked about the caster too: a low level, or no player killing, keeps him out
+        pvp_range_ok: combat::attack::pvp_level_range_ok(world, caster, tid),
         arena_safe: arena_safe(world, c),
         sysop_debug: combat::debug_on(world, caster),
     })
