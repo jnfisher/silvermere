@@ -1433,39 +1433,43 @@ text = "{@ANSI_CLRLINE}{@ANSI_BROWN}You notice {who} sneak in from the {dir}{dra
 pattern = "sneak_seen_in"
 example = { who = "Bob", dir = "west", drag = "" }
 
+[messages.move_line_end]
+text = "\r"
+note = "The line end of a walk's lines (left_*, arrive_*), told with the listener's prompt."
+
 [messages.left_up]
-text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} just left up \bwards{drag}.{@COL_LINEEND}\r"
+text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} just left up \bwards{drag}.{@COL_LINEEND}"
 example = { who = "Bob", drag = "" }
-note = "The game sends the line in four pieces: ANSI_CLRLINE uncoloured, the name after COL_MOVENAME, the text after COL_MOVETEXT, the line end after COL_LINEEND with the listener's prompt. One message with the colour rows in place sends the same bytes. The ` \\b` (space, backspace) inside the word is the game's anti-script byte pair; the pattern registry needs it stripped, so no pattern is named."
+note = "The game sends the line in four pieces: ANSI_CLRLINE uncoloured, the name after COL_MOVENAME, the text after COL_MOVETEXT, the line end after COL_LINEEND with the listener's prompt. This message is the first three with the colour rows in place; move_line_end, with the prompt, is the fourth (the attack interrupt's clear keeps only that one). The ` \\b` (space, backspace) inside the word is the game's anti-script byte pair; the pattern registry needs it stripped, so no pattern is named."
 
 [messages.left_down]
-text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} just left down \bwards{drag}.{@COL_LINEEND}\r"
+text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} just left down \bwards{drag}.{@COL_LINEEND}"
 example = { who = "Bob", drag = "" }
 
 [messages.left_dir_1]
-text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} just left to t \bhe {dir}{drag}.{@COL_LINEEND}\r"
+text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} just left to t \bhe {dir}{drag}.{@COL_LINEEND}"
 example = { who = "Bob", dir = "north", drag = "" }
 
 [messages.left_dir_2]
-text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} just left to  \bthe {dir}{drag}.{@COL_LINEEND}\r"
+text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} just left to  \bthe {dir}{drag}.{@COL_LINEEND}"
 example = { who = "Bob", dir = "north", drag = "" }
 
 [messages.left_dir_3]
-text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} just left to th \be {dir}{drag}.{@COL_LINEEND}\r"
+text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} just left to th \be {dir}{drag}.{@COL_LINEEND}"
 example = { who = "Bob", dir = "north", drag = "" }
 
 [messages.arrive_above]
-text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} walks into the room from above{drag}.{@COL_LINEEND}\r"
+text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} walks into the room from above{drag}.{@COL_LINEEND}"
 pattern = "player_arrives"
 example = { who = "Bob", drag = "" }
 
 [messages.arrive_below]
-text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} walks into the room from below{drag}.{@COL_LINEEND}\r"
+text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} walks into the room from below{drag}.{@COL_LINEEND}"
 pattern = "player_arrives"
 example = { who = "Bob", drag = "" }
 
 [messages.arrive_dir]
-text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} walks into the room from the {dir}{drag}.{@COL_LINEEND}\r"
+text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} walks into the room from the {dir}{drag}.{@COL_LINEEND}"
 pattern = "player_arrives"
 example = { who = "Bob", dir = "south", drag = "" }
 
