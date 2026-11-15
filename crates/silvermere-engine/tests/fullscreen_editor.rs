@@ -7,7 +7,7 @@
 //! (attribute 0x70, `ESC[0;7m`), a refusal goes to the `!` help area on row 23 in the
 //! area's colour (bright red, `ESC[0;1;31;40m`) with a bell, and the CP display is the
 //! game's own at row 20, column 33. The T-005 capture `tests/captures/creation-fsd` is an
-//! MBBSEmu session, whose form library differs; its comparisons are kept, ignored.
+//! MBBSEmu session, whose form library differs, so it is not compared.
 
 use crate::common;
 
@@ -27,8 +27,6 @@ use silvermere_types::ids::{AccountId, ClassNo, ItemNo, RaceNo, RoomKey, ShopNo}
 use silvermere_types::names::{EYE_COLOURS, HAIR_COLOURS, HAIR_LENGTHS};
 use silvermere_types::records::{Character, Shop, ShopSlot};
 
-const RAW: &[u8] = include_bytes!("../../../tests/captures/creation-fsd/raw.bin");
-const SCRIPT: &str = include_str!("../../../tests/captures/creation-fsd/script.json");
 const TRAINER: u32 = 1376;
 
 type TestEngine = Engine<TestClock, SeededRng>;
@@ -187,30 +185,6 @@ fn to_form(
     (id, outs)
 }
 
-/// The capture's steps: what was sent (escapes decoded) and the offset of its answer.
-fn steps() -> Vec<(Vec<u8>, usize)> {
-    let script: serde_json::Value = serde_json::from_str(SCRIPT).unwrap();
-    script["steps"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|s| {
-            let send = s["send"].as_str().unwrap_or("");
-            let send = send.replace("\\r", "\r").replace("\\e", "\x1b");
-            (
-                send.into_bytes(),
-                s["result"]["offset"].as_u64().unwrap() as usize,
-            )
-        })
-        .collect()
-}
-
-/// The original's answer to step `i`, without the transport's echo of a typed line.
-fn answer(i: usize) -> &'static [u8] {
-    let st = steps();
-    &RAW[st[i].1..st[i + 1].1]
-}
-
 fn default_caps() -> Caps {
     Caps::default()
 }
@@ -300,19 +274,6 @@ fn last_cursor(bytes: &[u8]) -> String {
         .unwrap_or_default()
 }
 
-// The EDITCHA1 form with its answers and background drawn; the capture's step 7 (the
-// lawful answer) after the transport's `N\r\n`
-#[test]
-#[ignore = "MBBSEmu capture: the real library draws the form filled in; re-recorded from the C"]
-fn first_frame_equals_the_capture() {
-    let (mut engine, rx) = new_engine();
-    let (id, outs) = to_form(&mut engine, &rx, default_caps());
-    let got = writes(&outs, id);
-    let want = &answer(7)[3..];
-    assert_eq!(answer(7)[..3], *b"N\r\n");
-    assert_eq!(escape(&got), escape(want));
-}
-
 // fsdbkg, fsdego, then the game's CP display: the template with every answer in place
 // (the race, the class and the race limits too, as they are avoided only after the
 // background), the given name under the cursor, and the cursor left at the CP display
@@ -346,57 +307,6 @@ fn first_frame_is_the_filled_template() {
         SessionState::NewChar(NewCharStep::Stats)
     );
     insta::assert_snapshot!("new_character_form", crate::common::redact(&escape(&got)));
-}
-
-// Character creation through the form, with its quirks (the active field varies between
-// sessions, the name check answers late): the capture's steps 8-27, one key at a time,
-// each answer byte for byte
-#[test]
-#[ignore = "MBBSEmu capture: the real library draws the form filled in; re-recorded from the C"]
-fn scripted_session_equals_the_capture() {
-    let (mut engine, rx) = new_engine();
-    let (id, _) = to_form(&mut engine, &rx, default_caps());
-    let st = steps();
-    let mut cursors = Vec::new();
-    for (i, (send, _)) in st.iter().enumerate().take(27).skip(8) {
-        let got = key_bytes(&mut engine, &rx, id, send);
-        assert_eq!(escape(&got), escape(answer(i)), "step {i} {send:?}");
-        cursors.push(last_cursor(&got));
-    }
-    // given name 4;20 .. Exit 20;14 (and back up with the arrows)
-    assert_eq!(
-        cursors
-            .iter()
-            .filter(|c| !c.is_empty())
-            .cloned()
-            .collect::<Vec<_>>(),
-        [
-            "5;20", "9;34", "9;34", "10;34", "9;34", "10;34", "11;34", "12;34", "13;34", "13;34",
-            "14;34", "16;22", "16;22", "17;22", "18;22", "20;14"
-        ]
-    );
-    // step 27, SAVE: the form is left, then the save's own output
-    let outs = keys(&mut engine, &rx, id, b"\r");
-    let got = writes(&outs, id);
-    let leave = b"\x1b[24;0f\x1b[0m";
-    let at = got.windows(leave.len()).position(|w| w == leave).unwrap() + leave.len();
-    let want = answer(27);
-    let want_at = want.windows(leave.len()).position(|w| w == leave).unwrap() + leave.len();
-    assert_eq!(escape(&got[..at]), escape(&want[..want_at]));
-    assert!(plain(&got[at..]).contains("To prevent accidental suicide or reroll"));
-    assert!(plain(&got[at..]).contains("Please wait - Validating your name."));
-    assert_eq!(char_mode(&outs, id), Some(false));
-    assert_eq!(
-        engine.world.session(id).unwrap().state,
-        SessionState::NewChar(NewCharStep::Validating)
-    );
-    // the capture's `st` screen: Str 50, Hea 50, 80 of 100 CP left
-    let plr = engine.world.session(id).unwrap().player().unwrap();
-    assert_eq!(
-        [plr.str, plr.intel, plr.wil, plr.agi, plr.hea, plr.cha],
-        [50, 40, 40, 40, 50, 40],
-        "{plr:?}"
-    );
 }
 
 /// Drives a new Human Warrior with Str 69 and Hea 64, the rest at the minimum, through
