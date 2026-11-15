@@ -1,0 +1,20 @@
+[package]
+name = "silvermere-fsd"
+description = "The host's full-screen form library (FSD.C, FSDBBS.C): templates, answers, entry."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+# one test binary for all of tests/ (tests/all.rs), not one per file (T-129)
+autotests = false
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
