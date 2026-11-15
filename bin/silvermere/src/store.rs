@@ -379,7 +379,7 @@ async fn handle(
                         .into_iter()
                         .map(|r| (r.account, r.character))
                         .collect();
-                    GangAnswer::Members(report_order(rows).into())
+                    GangAnswer::Members(report_order(rows))
                 }
                 GangQuery::Offline { name, .. } => GangAnswer::Offline(
                     by_first_name(db, persist, name)

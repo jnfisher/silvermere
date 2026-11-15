@@ -219,10 +219,10 @@ pub fn display_spell_success(
         && world.session(t).and_then(|s| s.player()).is_some()
     {
         tell_user(world, t, coloured_line(spell, text));
-        if let Some(s) = world.session_mut(t) {
-            if t != caster {
-                s.push_prompt();
-            }
+        if t != caster
+            && let Some(s) = world.session_mut(t)
+        {
+            s.push_prompt();
         }
     }
     if !told.room

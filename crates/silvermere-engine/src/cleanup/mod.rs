@@ -678,8 +678,8 @@ fn sweep_room(world: &mut World, key: RoomKey, gh: &mut [HouseLedger; GH_WHITE +
     }
     // a crowded room loses its cheap unlimited items
     if nitems > CROWDED && ganghouse == 0 {
-        for i in 0..NROOMITEMS {
-            let slot = state.items[i];
+        for entry in state.items.iter_mut().take(NROOMITEMS) {
+            let slot = *entry;
             if slot.item == ItemNo(0) {
                 continue;
             }
@@ -692,15 +692,15 @@ fn sweep_room(world: &mut World, key: RoomKey, gh: &mut [HouseLedger; GH_WHITE +
             let dear = itm.currency.code() > Currency::Gold.code()
                 || (itm.currency == Currency::Gold && itm.cost > 14);
             if !dear && itm.limit == 0 {
-                state.items[i] = empty_slot();
+                *entry = empty_slot();
                 changed = true;
             }
         }
     }
     // the hidden items of a RF_CLEANUP room
     if flags.contains(RoomFlags::CLEANUP) && ganghouse == 0 {
-        for i in 0..NHIDITEMS {
-            let slot = state.hiditems[i];
+        for (i, entry) in state.hiditems.iter_mut().enumerate().take(NHIDITEMS) {
+            let slot = *entry;
             if slot.item == ItemNo(0) {
                 continue;
             }
@@ -713,7 +713,7 @@ fn sweep_room(world: &mut World, key: RoomKey, gh: &mut [HouseLedger; GH_WHITE +
             if itm.limit != 0 {
                 removals.push((name30(&itm.name), i, true));
             } else {
-                state.hiditems[i] = empty_slot();
+                *entry = empty_slot();
                 changed = true;
             }
         }
@@ -724,8 +724,8 @@ fn sweep_room(world: &mut World, key: RoomKey, gh: &mut [HouseLedger; GH_WHITE +
     }
     // free or "Delete at cleanup" unlimited hidden items of an ordinary room
     if ganghouse == 0 {
-        for i in 0..NHIDITEMS {
-            let slot = state.hiditems[i];
+        for entry in state.hiditems.iter_mut().take(NHIDITEMS) {
+            let slot = *entry;
             if slot.item == ItemNo(0) {
                 continue;
             }
@@ -736,7 +736,7 @@ fn sweep_room(world: &mut World, key: RoomKey, gh: &mut [HouseLedger; GH_WHITE +
                 && (itm.cost == 0 || item_has_ability(itm, Ability::DelCleanup))
                 && itm.limit == 0
             {
-                state.hiditems[i] = empty_slot();
+                *entry = empty_slot();
                 changed = true;
             }
         }
