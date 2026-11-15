@@ -2213,6 +2213,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "silvermere-fsd"
+version = "0.1.17"
+dependencies = [
+ "proptest",
+]
+
+[[package]]
 name = "silvermere-import"
 version = "0.1.17"
 dependencies = [

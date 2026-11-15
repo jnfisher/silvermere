@@ -6,6 +6,7 @@ members = [
     "crates/silvermere-auth",
     "crates/silvermere-db",
     "crates/silvermere-engine",
+    "crates/silvermere-fsd",
     "crates/silvermere-import",
     "crates/silvermere-net",
     "crates/silvermere-rules",
@@ -33,6 +34,7 @@ silvermere-api = { path = "crates/silvermere-api" }
 silvermere-auth = { path = "crates/silvermere-auth" }
 silvermere-db = { path = "crates/silvermere-db" }
 silvermere-engine = { path = "crates/silvermere-engine" }
+silvermere-fsd = { path = "crates/silvermere-fsd" }
 silvermere-import = { path = "crates/silvermere-import" }
 silvermere-net = { path = "crates/silvermere-net" }
 silvermere-rules = { path = "crates/silvermere-rules" }
