@@ -4289,6 +4289,10 @@ example = { name = "vine strike" }
 [messages.learn_spell_refused]
 text = "{@ANSI_CLRLINE}You don't know what to do with this!\r"
 
+[messages.learn_spell_too_powerful]
+text = "{@ANSI_CLRLINE}This spell is too powerful for you - You don't know what to do with this!\r"
+note = "The level test's prefix, then the refusal."
+
 [messages.monster_nothing_to_tell]
 text = "{@ANSI_CLRLINE}{name} has nothing to tell you!\r"
 example = { name = "troll" }

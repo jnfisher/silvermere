@@ -4,7 +4,7 @@
 
 use silvermere_rules::economy;
 use silvermere_rules::progression::BILLION;
-use silvermere_rules::spells::{LegalBand, can_use_spell};
+use silvermere_rules::spells::{CannotUse, LegalBand, can_use_spell};
 use silvermere_text::Msg;
 use silvermere_types::enums::{Ability, DebugLevel, ExitType};
 use silvermere_types::flags::{ExitFlags, PlayerFlags};
@@ -678,10 +678,16 @@ fn learn_spell(world: &mut World, id: SessionId, spell: i16) -> Step {
     if plr.spellbook.contains(&n) {
         return OK;
     }
-    // The spell's class, level and alignment test
-    let can = world.classes.get(&plr.class).is_some_and(|cls| {
-        can_use_spell(&spl, cls, plr.level, LegalBand::of_evil(plr.evil)).is_ok()
-    });
+    // The spell's class, level and alignment test; the level's refusal has its prefix
+    let can = world
+        .classes
+        .get(&plr.class)
+        .map(|cls| can_use_spell(&spl, cls, plr.level, LegalBand::of_evil(plr.evil)));
+    if let Some(Err(CannotUse::TooPowerful)) = can {
+        tell_user(world, id, Msg::LearnSpellTooPowerful);
+        return STOP;
+    }
+    let can = can.is_some_and(|c| c.is_ok());
     let learnt = can && player_mut(world, id).is_some_and(|p| add_spell_to_spellbook(p, n));
     if learnt {
         tell_user(world, id, Msg::LearnSpell { name: spl.name });
