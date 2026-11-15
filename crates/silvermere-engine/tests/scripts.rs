@@ -979,7 +979,10 @@ mod scripts {
         t.w.spells.get_mut(&SpellNo(SPELL)).unwrap().level = 50;
         t.plr().spellbook.fill(SpellNo(0));
         assert_eq!(t.run(&format!("learnspell {SPELL}")), Stop);
-        assert_eq!(t.out(), "You don't know what to do with this!\r\n");
+        assert_eq!(
+            t.out(),
+            "This spell is too powerful for you - You don't know what to do with this!\r\n"
+        );
     }
 
     // A clause with no keyword is skipped and the line goes on

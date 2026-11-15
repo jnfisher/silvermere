@@ -101,8 +101,9 @@ fn room_cast_lines() {
     crate::monsters::following::fast_update_monster(&mut w, rat);
     out.push(format!("dazed: {:?}", lines(&mut w, b)));
     insta::assert_snapshot!(out.join("\n"));
-    // the colour rows: General and the others
+    // the colour rows: General and the others (Alf healed, so magma heat leaves him up)
     lines(&mut w, a);
+    plr(&mut w, a).hp = 1000;
     room_cast_on_user(&mut w, a, SMITE);
     room_cast_on_user(&mut w, a, MAGMA);
     let msgs: Vec<_> = w

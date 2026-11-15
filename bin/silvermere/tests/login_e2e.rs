@@ -109,7 +109,32 @@ async fn new_account_reaches_the_module_menu() {
 // reaches the `characters` table.
 #[tokio::test]
 async fn new_account_creates_a_character_and_enters_the_realm() {
-    let (_t, url) = common::seeded(&[]).await;
+    let (t, url) = common::seeded(&[]).await;
+    // the form takes no stat under 10: the test race's are 10 to 100
+    let mut race = t
+        .db()
+        .races()
+        .get(RaceNo(1))
+        .await
+        .unwrap()
+        .expect("race 1");
+    (
+        race.minstr,
+        race.minint,
+        race.minwil,
+        race.minagi,
+        race.minhea,
+        race.mincha,
+    ) = (10, 10, 10, 10, 10, 10);
+    (
+        race.maxstr,
+        race.maxint,
+        race.maxwil,
+        race.maxagi,
+        race.maxhea,
+        race.maxcha,
+    ) = (100, 100, 100, 100, 100, 100);
+    t.db().races().put(&race).await.unwrap();
     let r = server(url.clone()).await;
     // a 79-column window: the line-mode stat editor (80x23 ANSI gets the full-screen
     // form, T-063)
@@ -129,27 +154,27 @@ async fn new_account_creates_a_character_and_enters_the_realm() {
         ("E", r"Please choose your race"),
         ("1", r"Please choose your class"),
         ("1", r"Do you want to be Lawful\?"),
-        ("n", r"Given name \[Brenna\]: "),
-        ("", r"Family name \[\]: "),
-        ("Stone", r"Strength \(0-0\) \[0\]: "),
+        ("n", "Given Name  Brenna"),
+        ("", "Family Name "),
+        ("Stone", r"Strength: +10"),
         ("", "Intellect"),
         ("", "Willpower"),
         ("", "Agility"),
         ("", "Health"),
         ("", "Charm"),
-        ("", "Hair length"),
-        ("", "Hair colour"),
-        ("", "Eye colour"),
-        ("", r"SAVE or QUIT\? \[SAVE\]: "),
+        ("", "Hair Length"),
+        ("", "Hair Colour"),
+        ("", "Eye Colour"),
+        ("", "Exit: SAVE"),
     ];
     for (line, next) in script {
         client.send_line(line).await.unwrap();
         client.until(next, WAIT).await.unwrap();
     }
-    // SAVE: the name check runs and is answered; the realm prompt follows. The zeroed
-    // test race and class give 0/2 + (0-50)*1/16 = -3 hit points.
+    // SAVE: the name check runs and is answered; the realm prompt follows. The health
+    // of 10 and the zeroed test class give 10/2 + (10-50)*1/16 = 3 hit points.
     client.send_line("").await.unwrap();
-    let got = client.until(r"\[HP=-3\]:", WAIT).await.unwrap();
+    let got = client.until(r"\[HP=3\]:", WAIT).await.unwrap();
     assert!(got.plain.contains("Please wait - Validating your name."));
     r.stop().await.unwrap();
 

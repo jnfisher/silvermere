@@ -556,7 +556,10 @@ mod training {
                     assert_eq!(out.matches("[MAJORMUD]:").count(), 2, "{out}");
                     assert_eq!(h.plr(id).cp, -1);
                     let again = h.line(id, "e");
-                    assert!(again.contains("Please TRAIN STATS as soon as possible"), "{again}");
+                    assert!(
+                        again.contains("Please TRAIN STATS as soon as possible"),
+                        "{again}"
+                    );
                 } else {
                     assert!(out.ends_with("]:"), "{out}");
                     assert_eq!(h.state(id), SessionState::Playing);
