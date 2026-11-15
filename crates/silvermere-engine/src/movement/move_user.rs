@@ -25,7 +25,7 @@ use super::{GenerateSpec, HOOKS, direction, dirname};
 use crate::combat::monster;
 use crate::display::display_entry_movement;
 use crate::scheduler::Rng;
-use crate::tell::tell_user;
+use crate::tell::{Noise, TellBlind, tell_room, tell_user};
 use crate::world::{RoomState, World};
 
 /// The `how` argument of `move_user`.
@@ -421,7 +421,7 @@ fn perform_move(
                     },
                 },
             };
-            tell_room_all(world, from, [Some(id), dragvictim], left);
+            tell_walk(world, from, [Some(id), dragvictim], left);
             let arrive = match rev {
                 Direction::Up => Msg::ArriveAbove { who, drag },
                 Direction::Down => Msg::ArriveBelow { who, drag },
@@ -431,7 +431,7 @@ fn perform_move(
                     drag,
                 },
             };
-            tell_room_all(world, target, [Some(id), dragvictim], arrive);
+            tell_walk(world, target, [Some(id), dragvictim], arrive);
         }
         tell_user(world, id, Msg::AnsiNormal);
         if movedrag && let Some(v) = dragvictim {
@@ -462,6 +462,14 @@ fn perform_move(
     }
     if !unseen {
         handle_following_monsters(world, id, from, dir);
+    }
+}
+
+/// A walk's line to the room: the line, then its end with each listener's prompt, two
+/// messages as the game sends them.
+fn tell_walk(world: &mut World, room: RoomKey, except: [Option<SessionId>; 2], msg: Msg) {
+    for (msg, prompt) in [(msg, false), (Msg::MoveLineEnd, true)] {
+        tell_room(world, room, except, Noise::Always, TellBlind::All, prompt, None, &msg);
     }
 }
 
