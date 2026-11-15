@@ -44,7 +44,7 @@ use silvermere_types::flags::{
     ActiveMonsterFlags, PlayerSettings, PlayerStatus, PlayerStatus2, RoomFlags,
 };
 use silvermere_types::ids::{ActiveMonsterId, ItemNo, RoomKey, SessionId, SpellNo};
-use silvermere_types::records::{Character, Spell};
+use silvermere_types::records::{Character, ExitParams, Spell};
 use silvermere_types::sizes::NDIRS;
 
 use super::active::end_player_spell;
@@ -805,11 +805,13 @@ fn bash_room_exits(world: &mut World, id: SessionId, key: RoomKey, chance: i32) 
     };
     let mut opened = 0;
     for (i, exit) in rm.exits.iter().enumerate().take(NDIRS) {
-        use silvermere_types::enums::ExitType;
-        if exit.target.0 == 0 || !matches!(exit.kind, ExitType::Door | ExitType::Gate) {
+        let (ExitParams::Door(door) | ExitParams::Gate(door)) = exit.params() else {
+            continue;
+        };
+        if exit.target.0 == 0 {
             continue;
         }
-        let need = chance + i32::from(exit.par2);
+        let need = chance + i32::from(door.bonus);
         if world.rng.range(0, 100) < need {
             opened += 1;
             if let Ok(dir) = silvermere_types::enums::Direction::COMPASS

@@ -233,9 +233,7 @@ mod scripts {
     use silvermere_engine::commands::pending::fast_update_delay;
     use silvermere_engine::cycles::slow::perform_random_event;
     use silvermere_engine::items::inventory::add_item_to_inventory;
-    use silvermere_engine::movement::exits::{
-        LOCK_CLOSED, LOCK_LOCKED, LOCK_OPEN, live_exit, set_par2,
-    };
+    use silvermere_engine::movement::exits::{LOCK_LOCKED, LOCK_OPEN, live_exit, set_exit_state};
     use silvermere_engine::player::save::save_player;
     use silvermere_engine::player_session::AccountRef;
     use silvermere_engine::scripts::{
@@ -253,7 +251,7 @@ mod scripts {
         SpellNo, TextBlockNo,
     };
     use silvermere_types::records::{
-        ActiveMonster, ActiveSpell, Coins, Exit, Message, RoomItem, TextBlock,
+        ActiveMonster, ActiveSpell, Coins, Exit, Lock, Message, RoomItem, TextBlock,
     };
     use silvermere_types::sizes::{NAMTRAIL, NMONITEMS, NMONSPELLS};
 
@@ -638,7 +636,12 @@ mod scripts {
                 (exit.kind, exit.par1, exit.par2),
                 (ExitType::Key, item as u32, LOCK_LOCKED as i16)
             );
-            set_par2(&mut self.w, room, dir, LOCK_CLOSED as i16);
+            set_exit_state(
+                &mut self.w,
+                room,
+                dir,
+                exit.params().with_lock(Lock::Closed),
+            );
             let out = self.go(&format!(
                 "open {}",
                 ["n", "s", "e", "w"][usize::from(dir.code())]

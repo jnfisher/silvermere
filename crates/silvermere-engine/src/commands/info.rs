@@ -5,10 +5,11 @@
 //! (`status`, `who`, `topten`, `spells`, `describe`) and `crate::help`.
 
 use silvermere_text::{Msg, cp437};
-use silvermere_types::enums::{CommandCode, Direction, ExitType};
+use silvermere_types::enums::{CommandCode, Direction};
 use silvermere_types::flags::{ExitFlags, PlayerStatus};
-use silvermere_types::ids::{ActiveMonsterId, ItemNo, MapId, RoomKey, SessionId, SpellNo};
+use silvermere_types::ids::{ActiveMonsterId, ItemNo, RoomKey, SessionId, SpellNo};
 use silvermere_types::names::{COIN_DESCRIPTIONS, CURRENCY_NAMES};
+use silvermere_types::records::{ExitParams, Lock, TrapState};
 
 use super::cast::{ANYTHING, Found, find_action_target};
 use super::dispatch::Handled;
@@ -137,40 +138,36 @@ pub fn look_direction(world: &mut World, id: SessionId, dir: usize) {
         return;
     }
     let mut destmap = old.map;
-    match exit.kind {
+    match exit.params() {
         // a shut Key exit has the closed-door message
-        ExitType::Key if exit.par2 != 0 => {
+        ExitParams::Key(k) if k.lock != Lock::Open => {
             push(world, id, Msg::LookDoorClosed);
             return;
         }
         // a Hidden exit only when visible but blocked (sic: the flag is tested twice)
-        ExitType::Hidden
-            if ExitFlags::from_bits_retain(exit.par1).contains(ExitFlags::VISBLOCKED) => {}
-        ExitType::Hidden | ExitType::Text | ExitType::RemoteAction => {
+        ExitParams::Hidden(h) if h.flags.contains(ExitFlags::VISBLOCKED) => {}
+        ExitParams::Hidden(_) | ExitParams::Text(_) | ExitParams::Remote(_) => {
             let m = no_exit(world, dir);
             push(world, id, m);
             return;
         }
         // a shut Door exit
-        ExitType::Door if exit.par1 != 0 => {
+        ExitParams::Door(d) if d.lock != Lock::Open => {
             push(world, id, Msg::LookDoorClosed);
             return;
         }
         // a Map Change exit looks onto its own map
-        ExitType::MapChange => destmap = MapId(exit.par1),
+        ExitParams::MapChange { map } => destmap = map,
         // a Cast exit with a message shows it instead
-        ExitType::Cast if exit.par4 != 0 => {
-            let text = world
-                .messages
-                .get(&silvermere_types::ids::MessageNo(exit.par4))
-                .map(|m| m.msgs[0].clone());
+        ExitParams::Cast(cx) if cx.look.0 != 0 => {
+            let text = world.messages.get(&cx.look).map(|m| m.msgs[0].clone());
             if let Some(text) = text {
                 push(world, id, Msg::LookCastExit { text });
             }
             return;
         }
-        // a Trap exit of kind 2 is no exit
-        ExitType::Trap if exit.par2 == 2 => {
+        // a hidden Trap exit is no exit
+        ExitParams::Trap(t) if t.state == TrapState::Hidden => {
             let m = no_exit(world, dir);
             push(world, id, m);
             return;

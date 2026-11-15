@@ -8,11 +8,10 @@
 use silvermere_rules::Rng;
 use silvermere_rules::combat::Move;
 use silvermere_text::Msg;
-use silvermere_types::enums::{
-    Ability, ExitType, RoomType, SessionState, StatlineMode, SuicideStep,
-};
+use silvermere_types::enums::{Ability, RoomType, SessionState, StatlineMode, SuicideStep};
 use silvermere_types::flags::{PlayerSettings, PlayerStatus, PlayerStatus2};
 use silvermere_types::ids::{ActiveMonsterId, MessageNo, RoomId, RoomKey, SessionId};
+use silvermere_types::records::{ExitParams, TrapState};
 use silvermere_types::sizes::{NAMTRAIL, NTRAIL};
 
 use super::combat::{Found, find_action_target};
@@ -26,7 +25,7 @@ use crate::gangs::{Target, find_any_action_target, find_monster_in_memory};
 use crate::items::equip;
 use crate::items::inventory::show_options;
 use crate::movement::exits::{
-    Arg, fmt_msg, green_name, live_exit, live_exits, set_par2, tell_room_all,
+    Arg, fmt_msg, green_name, live_exit, live_exits, set_exit_state, tell_room_all,
 };
 use crate::movement::move_user::{MoveType, calc_hide_sneak_chance};
 use crate::movement::timed_exits::add_exit_to_list;
@@ -495,11 +494,17 @@ pub fn cmd_disarm(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLin
         map: here.map,
         room: exit.target,
     };
-    let armed = matches!(exit.par2, 0 | 3);
-    let spell = match exit.kind {
-        ExitType::SpellTrap if armed => true,
-        ExitType::SpellTrap => return Handled::Done,
-        ExitType::Trap if armed => false,
+    // an armed trap: its state, its message on a disarm (a Spell Trap's), its message when
+    // it goes off, and its harm (a Spell Trap's spell, a Trap's damage)
+    let p = exit.params();
+    let (state, disarmed, failed, harm, spell) = match p {
+        ExitParams::SpellTrap(t) if t.state.armed() => {
+            (t.state, Some(t.disarmed), t.message, t.spell, true)
+        }
+        ExitParams::SpellTrap(_) => return Handled::Done,
+        ExitParams::Trap(t) if t.state.armed() => {
+            (t.state, None, t.disarm_failed, t.damage as i32, false)
+        }
         _ => {
             tell_user(world, id, Msg::DisarmFailed { dir: dname });
             return Handled::Done;
@@ -509,9 +514,14 @@ pub fn cmd_disarm(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLin
     if skill > roll {
         // disarmed
         tell_user(world, id, Msg::DisarmOk { dir: dname });
-        set_par2(world, here, dir, if exit.par2 == 0 { 1 } else { 4 });
-        if spell {
-            trap_message(world, id, &name, here, beyond, exit.par3);
+        let off = if state == TrapState::Armed {
+            TrapState::Disarmed
+        } else {
+            TrapState::DisarmedThrows
+        };
+        set_exit_state(world, here, dir, p.with_trap_state(off));
+        if let Some(m) = disarmed {
+            trap_message(world, id, &name, here, beyond, m);
         }
         add_exit_to_list(world, here, dir, 1);
         return Handled::Done;
@@ -524,17 +534,16 @@ pub fn cmd_disarm(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLin
         return Handled::Done;
     }
     // the trap goes off
-    trap_message(world, id, &name, here, beyond, exit.par4);
-    if exit.par2 == 3 {
+    trap_message(world, id, &name, here, beyond, failed);
+    if state == TrapState::ArmedThrows {
         crate::movement::move_user(world, id, dir.code() as i16, MoveType::TrapOnPurpose.code());
         return Handled::Done;
     }
     let wasup = player(world, id).is_some_and(|p| p.hp > 0);
     if spell {
-        HOOKS.spells.room_cast_on_user(world, id, exit.par1 as i32);
+        HOOKS.spells.room_cast_on_user(world, id, harm);
     } else {
-        let par1 = exit.par1 as i32;
-        let damage = world.rng.range(par1 / 2, par1 + 1);
+        let damage = world.rng.range(harm / 2, harm + 1);
         if let Some(p) = player_mut(world, id) {
             p.hp = (i32::from(p.hp) - damage) as _;
         }
@@ -554,9 +563,9 @@ fn trap_message(
     name: &str,
     here: RoomKey,
     beyond: RoomKey,
-    n: i32,
+    n: MessageNo,
 ) {
-    let Some(m) = world.messages.get(&MessageNo(n)).map(|m| m.msgs.clone()) else {
+    let Some(m) = world.messages.get(&n).map(|m| m.msgs.clone()) else {
         return;
     };
     let who = green_name(name);

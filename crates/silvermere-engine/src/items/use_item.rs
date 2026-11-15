@@ -19,11 +19,11 @@
 use silvermere_text::Msg;
 use silvermere_types::enums::{Ability, Direction, ExitType, ItemType, Magery};
 use silvermere_types::ids::{ActiveMonsterId, ItemNo, RoomKey, SessionId, SpellNo};
-use silvermere_types::records::{Exit, Item, Spell};
+use silvermere_types::records::{Exit, ExitParams, Item, Lock, Spell};
 
 use crate::combat::{self, Combatant};
 use crate::items::equip::add_spell_to_spellbook;
-use crate::movement::exits::{LOCK_CLOSED, LOCK_LOCKED, door_word, live_exit, set_par1, set_par2};
+use crate::movement::exits::{door_word, live_exit, set_lock};
 use crate::movement::timed_exits::add_exit_to_list;
 use crate::scheduler::Rng;
 use crate::spells::cast::{CastMode, CastOpts, CastTarget, Caster, apply_engage, cast};
@@ -264,30 +264,27 @@ fn use_key(
     let Some(exit) = live_exit(world, room, dir).filter(|e| e.target.0 != 0) else {
         return false;
     };
-    let key = itm.number.0;
-    let fits_key_exit = exit.kind == ExitType::Key && exit.par1 as i32 == key;
-    let fits_door = matches!(exit.kind, ExitType::Door | ExitType::Gate) && exit.par4 == key;
-    if !fits_key_exit && !fits_door {
-        out.push(Msg::KeyNoFit {
-            item: itm.name.clone(),
-        });
-        return false;
-    }
+    let (lock, steps) = match exit.params() {
+        ExitParams::Key(k) if k.key == itm.number => (k.lock, k.open_steps),
+        ExitParams::Door(d) | ExitParams::Gate(d) if d.key == itm.number => (d.lock, d.open_steps),
+        _ => {
+            out.push(Msg::KeyNoFit {
+                item: itm.name.clone(),
+            });
+            return false;
+        }
+    };
+    let fits_key_exit = exit.kind == ExitType::Key;
     let what = if fits_key_exit {
         "door"
     } else {
         door_word(exit.kind)
     };
-    let state = if fits_key_exit {
-        exit.par2 as u32
-    } else {
-        exit.par1
-    };
-    if state != LOCK_LOCKED {
+    if lock != Lock::Locked {
         out.push(Msg::KeyNotLocked { what: what.into() });
         return true;
     }
-    unlock(world, room, dir, &exit);
+    unlock(world, room, dir, &exit, steps);
     // the same exit seen from the other room, if it leads straight back here and is of
     // the same family (Key for Key; Door or Gate for Door or Gate)
     if let Some(rev) = dir.reverse() {
@@ -298,9 +295,9 @@ fn use_key(
         if let Some(back) = live_exit(world, orm, rev)
             && back.target == room.room
             && (back.kind == ExitType::Key) == fits_key_exit
-            && matches!(back.kind, ExitType::Key | ExitType::Door | ExitType::Gate)
+            && let Some((_, back_steps)) = back.params().lock()
         {
-            unlock(world, orm, rev, &back);
+            unlock(world, orm, rev, &back, back_steps);
         }
     }
     out.push(Msg::Unlocked { what: what.into() });
@@ -308,14 +305,8 @@ fn use_key(
 }
 
 /// One side of an exit unlocked and queued to lock again (`add_exit_to_list`).
-fn unlock(world: &mut World, room: RoomKey, dir: Direction, exit: &Exit) {
-    let steps = if exit.kind == ExitType::Key {
-        set_par2(world, room, dir, LOCK_CLOSED as i16);
-        exit.par4
-    } else {
-        set_par1(world, room, dir, LOCK_CLOSED);
-        exit.par3
-    };
+fn unlock(world: &mut World, room: RoomKey, dir: Direction, exit: &Exit, steps: i32) {
+    set_lock(world, room, dir, exit, Lock::Closed);
     add_exit_to_list(world, room, dir, i32::from(steps as i16).max(1));
 }
 

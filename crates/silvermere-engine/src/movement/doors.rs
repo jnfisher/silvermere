@@ -11,11 +11,9 @@ use silvermere_text::Msg;
 use silvermere_types::enums::{Direction, ExitType, RoomType};
 use silvermere_types::flags::{PlayerStatus, PlayerStatus2};
 use silvermere_types::ids::{RoomKey, SessionId};
-use silvermere_types::records::Exit;
+use silvermere_types::records::{Exit, ExitParams, Lock};
 
-use super::exits::{
-    LOCK_CLOSED, LOCK_LOCKED, LOCK_OPEN, door_word, live_exit, set_par1, set_par2, tell_room_all,
-};
+use super::exits::{door_word, live_exit, set_lock, tell_room_all};
 use super::timed_exits::add_exit_to_list;
 use super::{HOOKS, direction, dirname};
 use crate::commands::dispatch::Handled;
@@ -74,33 +72,13 @@ fn other_side(
     (back.target == room.room).then_some((orm, rev, back))
 }
 
-/// The exit's open time in steps: `exitpar3s` for a Door or Gate, `exitpar4s` for a Key
-/// exit, at least 1.
-fn open_steps(exit: &Exit) -> i32 {
-    let steps = if exit.kind == ExitType::Key {
-        exit.par4
-    } else {
-        exit.par3
-    };
-    steps.max(1)
-}
-
-/// Sets the lock state of `exit` in `room` (`exitpar1s` for a Door or Gate, `exitpar2s`
-/// for a Key exit).
-fn set_lock(world: &mut World, room: RoomKey, dir: Direction, exit: &Exit, state: u32) {
-    if exit.kind == ExitType::Key {
-        set_par2(world, room, dir, state as i16);
-    } else {
-        set_par1(world, room, dir, state);
-    }
-}
-
-/// The lock state of `exit` (`exitpar1s` or `exitpar2s`).
-fn lock_state(exit: &Exit) -> u32 {
-    if exit.kind == ExitType::Key {
-        exit.par2 as u32
-    } else {
-        exit.par1
+/// The open time (at least 1) of the exit back, when `here` opens or unlocks it too: a
+/// door or gate, or a key exit from a key exit.
+fn opens_with(here: &Exit, back: &Exit) -> Option<i32> {
+    match back.params() {
+        ExitParams::Door(d) | ExitParams::Gate(d) => Some(d.open_steps.max(1)),
+        ExitParams::Key(k) if here.kind == ExitType::Key => Some(k.open_steps.max(1)),
+        _ => None,
     }
 }
 
@@ -144,38 +122,33 @@ pub fn cmd_open(world: &mut World, id: SessionId, line: &CommandLine) -> Handled
         return Handled::Done;
     };
     give_away(world, id);
-    if !matches!(exit.kind, ExitType::Door | ExitType::Gate | ExitType::Key) {
+    let Some((lock, steps)) = exit.params().lock() else {
         tell_user(world, id, Msg::NotADoor);
         return Handled::Done;
-    }
+    };
     let what = door_word(exit.kind).to_owned();
-    match lock_state(&exit) {
-        LOCK_OPEN => tell_user(world, id, Msg::DoorWasOpen { what }),
-        LOCK_CLOSED => {
-            set_lock(world, room, dir, &exit, LOCK_OPEN);
+    match lock {
+        Lock::Open => tell_user(world, id, Msg::DoorWasOpen { what }),
+        Lock::Closed => {
+            set_lock(world, room, dir, &exit, Lock::Open);
             add_delay(world, id, 1);
-            add_exit_to_list(world, room, dir, open_steps(&exit));
+            add_exit_to_list(world, room, dir, steps.max(1));
             // the other side: a door or gate leading straight back (a key exit too, for
             // a key exit here)
-            if let Some((orm, rev, back)) = other_side(world, room, dir, &exit) {
-                let opens = match back.kind {
-                    ExitType::Door | ExitType::Gate => true,
-                    ExitType::Key => exit.kind == ExitType::Key,
-                    _ => false,
+            if let Some((orm, rev, back)) = other_side(world, room, dir, &exit)
+                && let Some(back_steps) = opens_with(&exit, &back)
+            {
+                set_lock(world, orm, rev, &back, Lock::Open);
+                add_exit_to_list(world, orm, rev, back_steps);
+                let line = Msg::DoorRemoteOpened {
+                    what: if back.kind == ExitType::Key {
+                        "door".to_owned()
+                    } else {
+                        what.clone()
+                    },
+                    dir: dirname(world, rev),
                 };
-                if opens {
-                    set_lock(world, orm, rev, &back, LOCK_OPEN);
-                    add_exit_to_list(world, orm, rev, open_steps(&back));
-                    let line = Msg::DoorRemoteOpened {
-                        what: if back.kind == ExitType::Key {
-                            "door".to_owned()
-                        } else {
-                            what.clone()
-                        },
-                        dir: dirname(world, rev),
-                    };
-                    tell_room_all(world, orm, [Some(id), None], line);
-                }
+                tell_room_all(world, orm, [Some(id), None], line);
             }
             let seen = Msg::DoorSeenOpen {
                 who: name,
@@ -216,12 +189,12 @@ pub fn cmd_close(world: &mut World, id: SessionId, line: &CommandLine) -> Handle
         return Handled::Done;
     };
     give_away(world, id);
-    if !matches!(exit.kind, ExitType::Door | ExitType::Gate | ExitType::Key) {
+    let Some((lock, _)) = exit.params().lock() else {
         tell_user(world, id, Msg::NotADoor);
         return Handled::Done;
-    }
+    };
     let what = door_word(exit.kind).to_owned();
-    if lock_state(&exit) != LOCK_OPEN {
+    if lock != Lock::Open {
         // for a Key exit the ternary always says "gate" (sic)
         let what = if exit.kind == ExitType::Key {
             "gate".to_owned()
@@ -231,7 +204,7 @@ pub fn cmd_close(world: &mut World, id: SessionId, line: &CommandLine) -> Handle
         tell_user(world, id, Msg::DoorNotOpen { what });
         return Handled::Done;
     }
-    set_lock(world, room, dir, &exit, LOCK_CLOSED);
+    set_lock(world, room, dir, &exit, Lock::Closed);
     add_delay(world, id, 1);
     if let Some((orm, rev, back)) = other_side(world, room, dir, &exit) {
         let closes = match back.kind {
@@ -240,7 +213,7 @@ pub fn cmd_close(world: &mut World, id: SessionId, line: &CommandLine) -> Handle
             _ => false,
         };
         if closes {
-            set_lock(world, orm, rev, &back, LOCK_CLOSED);
+            set_lock(world, orm, rev, &back, Lock::Closed);
             let line = Msg::DoorRemoteClosed {
                 what: what.clone(),
                 dir: dirname(world, rev),
@@ -286,25 +259,24 @@ pub fn cmd_lock(world: &mut World, id: SessionId, line: &CommandLine) -> Handled
     };
     give_away(world, id);
     add_delay(world, id, 1);
-    let lockable = match exit.kind {
-        ExitType::Door | ExitType::Gate => exit.par2 <= 0,
-        ExitType::Key => true,
-        _ => false,
+    let lock = match exit.params() {
+        ExitParams::Door(d) | ExitParams::Gate(d) if d.bonus <= 0 => d.lock,
+        ExitParams::Key(k) => k.lock,
+        _ => {
+            tell_user(world, id, Msg::LockNoBenefit);
+            return Handled::Done;
+        }
     };
-    if !lockable {
-        tell_user(world, id, Msg::LockNoBenefit);
-        return Handled::Done;
-    }
     let what = door_word(exit.kind).to_owned();
-    if lock_state(&exit) != LOCK_CLOSED {
+    if lock != Lock::Closed {
         tell_user(world, id, Msg::LockNeedClose { what });
         return Handled::Done;
     }
-    set_lock(world, room, dir, &exit, LOCK_LOCKED);
+    set_lock(world, room, dir, &exit, Lock::Locked);
     if let Some((orm, rev, back)) = other_side(world, room, dir, &exit)
         && back.kind == exit.kind
     {
-        set_lock(world, orm, rev, &back, LOCK_LOCKED);
+        set_lock(world, orm, rev, &back, Lock::Locked);
     }
     tell_user(world, id, Msg::DoorNowLocked { what });
     add_delay(world, id, 1);
@@ -357,30 +329,26 @@ pub fn cmd_picklock(world: &mut World, id: SessionId, line: &CommandLine) -> Han
         .and_then(|s| s.player())
         .map_or(0, |p| i32::from(p.picklocks));
     let what = door_word(exit.kind).to_owned();
-    let (lockable, bonus) = match exit.kind {
-        ExitType::Key => (true, exit.par3),
-        ExitType::Door | ExitType::Gate => (exit.par1 == LOCK_LOCKED, i32::from(exit.par2)),
-        _ => (false, 0),
+    let (bonus, steps) = match exit.params() {
+        ExitParams::Key(k) => (k.pick_bonus, k.open_steps),
+        ExitParams::Door(d) | ExitParams::Gate(d) if d.lock == Lock::Locked => {
+            (i32::from(d.bonus), d.open_steps)
+        }
+        _ => {
+            tell_user(world, id, Msg::PicklockFail);
+            return Handled::Done;
+        }
     };
-    if !lockable {
-        tell_user(world, id, Msg::PicklockFail);
-        return Handled::Done;
-    }
     // no skill, no roll
     if picklocks > 0 && world.rng.range(0, 100) < bonus.wrapping_add(picklocks) {
-        set_lock(world, room, dir, &exit, LOCK_CLOSED);
-        add_exit_to_list(world, room, dir, open_steps(&exit));
-        if let Some((orm, rev, back)) = other_side(world, room, dir, &exit) {
-            // a Key exit over there is unlocked only from a Key exit
-            let unlocks = match back.kind {
-                ExitType::Door | ExitType::Gate => true,
-                ExitType::Key => exit.kind == ExitType::Key,
-                _ => false,
-            };
-            if unlocks {
-                set_lock(world, orm, rev, &back, LOCK_CLOSED);
-                add_exit_to_list(world, orm, rev, open_steps(&back));
-            }
+        set_lock(world, room, dir, &exit, Lock::Closed);
+        add_exit_to_list(world, room, dir, steps.max(1));
+        // a Key exit over there is unlocked only from a Key exit
+        if let Some((orm, rev, back)) = other_side(world, room, dir, &exit)
+            && let Some(back_steps) = opens_with(&exit, &back)
+        {
+            set_lock(world, orm, rev, &back, Lock::Closed);
+            add_exit_to_list(world, orm, rev, back_steps);
         }
         let seen = match dir {
             Direction::Up => Msg::PicklockSeenUp {
@@ -433,16 +401,16 @@ pub fn cmd_bash_door(world: &mut World, id: SessionId, line: &CommandLine) -> Op
         .and_then(|s| s.player())
         .map_or(0, |p| i32::from(p.str));
     give_away(world, id);
-    let chance = str.wrapping_add(i32::from(exit.par2));
     if HOOKS.combat.in_autocombat(world, id) {
         HOOKS.combat.display_autocombat_broken(world, id);
     }
     HOOKS.combat.kill_autocombat(world, id);
-    if !matches!(exit.kind, ExitType::Door | ExitType::Gate) {
+    let (ExitParams::Door(door) | ExitParams::Gate(door)) = exit.params() else {
         return None;
-    }
+    };
+    let chance = str.wrapping_add(i32::from(door.bonus));
     let what = door_word(exit.kind).to_owned();
-    if exit.par1 == LOCK_OPEN {
+    if door.lock == Lock::Open {
         tell_user(world, id, Msg::BashAlreadyOpen { what });
     } else {
         add_delay(world, id, 2);
@@ -503,16 +471,22 @@ pub fn open_door_by_force(world: &mut World, room: RoomKey, dir: Direction, unum
     let Some(exit) = live_exit(world, room, dir) else {
         return;
     };
-    set_par1(world, room, dir, LOCK_OPEN);
-    add_exit_to_list(world, room, dir, exit.par3.max(1));
+    // the type of this side is not checked: it is read as a door
+    let mut door = exit;
+    door.kind = ExitType::Door;
+    let ExitParams::Door(this) = door.params() else {
+        return;
+    };
+    set_lock(world, room, dir, &door, Lock::Open);
+    add_exit_to_list(world, room, dir, this.open_steps.max(1));
     let Some((orm, rev, back)) = other_side(world, room, dir, &exit) else {
         return;
     };
-    if !matches!(back.kind, ExitType::Door | ExitType::Gate) {
+    let (ExitParams::Door(far) | ExitParams::Gate(far)) = back.params() else {
         return;
-    }
-    add_exit_to_list(world, orm, rev, back.par3.max(1));
-    set_par1(world, orm, rev, LOCK_OPEN);
+    };
+    add_exit_to_list(world, orm, rev, far.open_steps.max(1));
+    set_lock(world, orm, rev, &back, Lock::Open);
     let what = door_word(exit.kind).to_owned();
     // (sic) "above" and "below" read reversed for the far room
     let line = match dir {

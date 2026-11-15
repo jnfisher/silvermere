@@ -23,10 +23,11 @@
 //! and the host's profanity check at stage 10 (a BBS option, not game logic).
 
 use silvermere_text::Msg;
-use silvermere_types::enums::{Direction, ExitType, StatlineMode};
+use silvermere_types::enums::{Direction, StatlineMode};
 use silvermere_types::flags::{PlayerSettings, PlayerStatus, PlayerStatus2, SessionFlags};
-use silvermere_types::ids::{MessageNo, RoomKey, SessionId};
+use silvermere_types::ids::{RoomKey, SessionId};
 use silvermere_types::names::DIRECTION_NAMES;
+use silvermere_types::records::ExitParams;
 use silvermere_types::sizes::NDIRS;
 
 use super::dispatch::{Handled, handle_commands};
@@ -271,10 +272,13 @@ fn text_exit(
     line: &str,
 ) -> bool {
     for (i, exit) in rm.exits.iter().enumerate().take(NDIRS) {
-        if exit.target.0 == 0 || exit.kind != ExitType::Text {
+        let ExitParams::Text(text) = exit.params() else {
+            continue;
+        };
+        if exit.target.0 == 0 {
             continue;
         }
-        let Some(msg) = world.messages.get(&MessageNo(exit.par1 as i32)) else {
+        let Some(msg) = world.messages.get(&text.words) else {
             continue;
         };
         if !msg.msgs.iter().any(|t| eq_ignore_case(line, t)) {

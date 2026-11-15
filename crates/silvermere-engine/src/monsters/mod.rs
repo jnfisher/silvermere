@@ -35,13 +35,13 @@ pub mod visibility;
 
 pub use active::{ActiveMonsters, FreeList};
 
-use silvermere_types::enums::{Ability, Direction, ExitType, RoomType};
+use silvermere_types::enums::{Ability, Direction, RoomType};
 use silvermere_types::flags::ExitFlags;
 use silvermere_types::ids::{ActiveMonsterId, MonsterNo, RoomKey};
-use silvermere_types::records::ActiveMonster;
+use silvermere_types::records::{ActiveMonster, ExitParams, HiddenExit, Lock, TrapState};
 use silvermere_types::sizes::NDIRS;
 
-use crate::movement::exits::{LOCK_LOCKED, live_exits, set_par1, set_par2};
+use crate::movement::exits::{live_exits, set_exit_state};
 use crate::movement::timed_exits::{add_exit_to_list, blocked_upto, drop_exit_changes};
 use crate::movement::{GenerateSpec, MonsterHooks};
 use crate::world::World;
@@ -588,45 +588,41 @@ pub fn preload_exits(world: &mut World, key: RoomKey) -> u32 {
         }
         let dir = Direction::COMPASS[i];
         drop_exit_changes(world, key, dir.code() as u8);
-        let par1 = |v: u32| (exit.par1 != v).then_some(v);
-        let (p1, p2) = match exit.kind {
-            ExitType::Key if exit.par2 != 2 => (None, Some(2)),
-            ExitType::Trap | ExitType::SpellTrap => match exit.par2 {
-                1 => (None, Some(0)),
-                4 => (None, Some(3)),
-                _ => (None, None),
+        // the exit back in its start state, where that changes it
+        let p = exit.params();
+        let reset_to = match p {
+            ExitParams::Key(k) if k.lock != Lock::Locked => Some(p.with_lock(Lock::Locked)),
+            ExitParams::Trap(_) | ExitParams::SpellTrap(_) => match p.trap_state() {
+                Some(TrapState::Disarmed) => Some(p.with_trap_state(TrapState::Armed)),
+                Some(TrapState::DisarmedThrows) => Some(p.with_trap_state(TrapState::ArmedThrows)),
+                _ => None,
             },
-            ExitType::Timed => {
-                add_exit_to_list(world, key, dir, i32::from(exit.par2));
-                (None, None)
+            ExitParams::Timed(t) => {
+                add_exit_to_list(world, key, dir, i32::from(t.steps));
+                None
             }
-            ExitType::Hidden => {
-                let f = ExitFlags::from_bits_retain(exit.par1);
-                if f.contains(ExitFlags::VISSEARCHED) {
-                    (par1(ExitFlags::NEEDSEARCH.bits()), None)
-                } else if f.contains(ExitFlags::VISBLOCKED) {
-                    let n = exit.par2.unsigned_abs();
-                    if (1..=10).contains(&n) {
-                        (par1(blocked_upto(u32::from(n))), None)
-                    } else {
-                        (None, None)
-                    }
+            ExitParams::Hidden(h) => {
+                let flags = if h.flags.contains(ExitFlags::VISSEARCHED) {
+                    Some(ExitFlags::NEEDSEARCH)
+                } else if h.flags.contains(ExitFlags::VISBLOCKED) {
+                    let n = h.blocks.unsigned_abs();
+                    (1..=10)
+                        .contains(&n)
+                        .then(|| ExitFlags::from_bits_retain(blocked_upto(u32::from(n))))
                 } else {
-                    (None, None)
-                }
+                    None
+                };
+                flags
+                    .filter(|&f| f != h.flags)
+                    .map(|flags| ExitParams::Hidden(HiddenExit { flags, ..h }))
             }
-            ExitType::Door | ExitType::Gate if exit.par1 != LOCK_LOCKED => {
-                (Some(LOCK_LOCKED), None)
+            ExitParams::Door(d) | ExitParams::Gate(d) if d.lock != Lock::Locked => {
+                Some(p.with_lock(Lock::Locked))
             }
-            _ => (None, None),
+            _ => None,
         };
-        if let Some(v) = p1 {
-            set_par1(world, key, dir, v);
-        }
-        if let Some(v) = p2 {
-            set_par2(world, key, dir, v);
-        }
-        if p1.is_some() || p2.is_some() {
+        if let Some(p) = reset_to {
+            set_exit_state(world, key, dir, p);
             reset += 1;
         }
     }

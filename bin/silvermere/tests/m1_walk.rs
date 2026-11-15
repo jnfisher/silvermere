@@ -505,18 +505,19 @@ fn load_route(name: &str) -> Route {
 
 /// A locked Door or Gate exit becomes a shut one.
 fn unlock_exit(w: &mut silvermere_engine::World, map: u32, room: u32, d: usize) {
-    use silvermere_engine::movement::exits::{LOCK_CLOSED, LOCK_LOCKED, live_exit, set_par1};
-    use silvermere_types::enums::{Direction, ExitType};
+    use silvermere_engine::movement::exits::{live_exit, set_exit_state};
+    use silvermere_types::enums::Direction;
+    use silvermere_types::records::{ExitParams, Lock};
     let key = silvermere_types::ids::RoomKey {
         map: silvermere_types::ids::MapId(map),
         room: silvermere_types::ids::RoomId(room),
     };
     let dir = Direction::COMPASS[d];
     if let Some(e) = live_exit(w, key, dir)
-        && matches!(e.kind, ExitType::Door | ExitType::Gate)
-        && e.par1 == LOCK_LOCKED
+        && let p @ (ExitParams::Door(door) | ExitParams::Gate(door)) = e.params()
+        && door.lock == Lock::Locked
     {
-        set_par1(w, key, dir, LOCK_CLOSED);
+        set_exit_state(w, key, dir, p.with_lock(Lock::Closed));
     }
 }
 

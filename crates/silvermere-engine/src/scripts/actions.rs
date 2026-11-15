@@ -6,12 +6,14 @@ use silvermere_rules::economy;
 use silvermere_rules::progression::BILLION;
 use silvermere_rules::spells::{CannotUse, LegalBand, can_use_spell};
 use silvermere_text::Msg;
-use silvermere_types::enums::{Ability, DebugLevel, ExitType};
+use silvermere_types::enums::{Ability, DebugLevel, Direction};
 use silvermere_types::flags::{ExitFlags, PlayerFlags};
 use silvermere_types::ids::{
     ItemNo, MessageNo, MonsterNo, RoomId, RoomKey, SessionId, SpellNo, TextBlockNo,
 };
-use silvermere_types::records::{Character, RoomItem};
+use silvermere_types::records::{
+    Character, DoorExit, Exit, ExitParams, HiddenExit, Lock, RoomItem, TrapState,
+};
 use silvermere_types::sizes::{NDIRS, NHIDITEMS, NROOMITEMS};
 
 use super::special::{HOOKS, perform_random_text_block, run_text_block};
@@ -27,7 +29,7 @@ use crate::items::inventory::{
 };
 use crate::items::limited::{self, Holder};
 use crate::items::room_items::{add_item_to_room, mark_changed};
-use crate::movement::exits::{Arg, LOCK_LOCKED, LOCK_OPEN, fmt_msg, live_exit, set_par1, trap};
+use crate::movement::exits::{Arg, fmt_msg, live_exit, set_exit_state, set_lock};
 use crate::movement::move_user::{MoveType, move_user, set_user_location};
 use crate::movement::timed_exits::add_exit_to_list;
 use crate::movement::{self, GenerateSpec, direction, dirname};
@@ -863,9 +865,10 @@ pub fn run_room_exit_action(
     if let Some(dir) = dir
         && let Some(exit) = live_exit(world, room, dir)
     {
-        match exit.kind {
-            ExitType::Door | ExitType::Gate => {
-                swap_door(world, room, dir, exit.par1, exit.par3);
+        let p = exit.params();
+        match p {
+            ExitParams::Door(d) | ExitParams::Gate(d) => {
+                swap_door(world, room, dir, &exit, d);
                 // the same door from the other side: it must lead back here
                 let far = RoomKey {
                     map: room.map,
@@ -874,13 +877,13 @@ pub fn run_room_exit_action(
                 if let Some(rev) = dir.reverse()
                     && let Some(back) = live_exit(world, far, rev)
                     && back.target == room.room
-                    && matches!(back.kind, ExitType::Door | ExitType::Gate)
+                    && let ExitParams::Door(bd) | ExitParams::Gate(bd) = back.params()
                 {
-                    swap_door(world, far, rev, back.par1, back.par3);
+                    swap_door(world, far, rev, &back, bd);
                 }
             }
-            ExitType::Trap | ExitType::SpellTrap => {
-                if exit.par2 != trap::HIDDEN {
+            ExitParams::Trap(_) | ExitParams::SpellTrap(_) => {
+                if p.trap_state() != Some(TrapState::Hidden) {
                     prompt(world, id);
                     return;
                 }
@@ -902,7 +905,7 @@ pub fn run_room_exit_action(
                 }
                 return;
             }
-            ExitType::Hidden => hidden_action(world, room, dir, exit, actnum),
+            ExitParams::Hidden(h) => hidden_action(world, room, dir, h, actnum),
             _ => {}
         }
     }
@@ -918,20 +921,15 @@ fn prompt(world: &mut World, id: SessionId) {
 /// A Door or Gate between open and locked, queued to swap back after `exitpar3s` steps,
 /// at least one. (sic) Under the original a negative time never comes round; here it is
 /// taken as the longest delay.
-fn swap_door(
-    world: &mut World,
-    room: RoomKey,
-    dir: silvermere_types::enums::Direction,
-    par1: u32,
-    par3: i32,
-) {
-    let v = if par1 == LOCK_OPEN {
-        LOCK_LOCKED
+fn swap_door(world: &mut World, room: RoomKey, dir: Direction, exit: &Exit, door: DoorExit) {
+    let lock = if door.lock == Lock::Open {
+        Lock::Locked
     } else {
-        LOCK_OPEN
+        Lock::Open
     };
-    set_par1(world, room, dir, v);
-    let steps = if par3 < 0 { i32::MAX } else { par3.max(1) };
+    set_lock(world, room, dir, exit, lock);
+    let steps = door.open_steps;
+    let steps = if steps < 0 { i32::MAX } else { steps.max(1) };
     add_exit_to_list(world, room, dir, steps);
 }
 
@@ -950,15 +948,9 @@ const BLOCKS: [ExitFlags; 10] = [
 ];
 
 /// The Hidden exit case of [`run_room_exit_action`].
-fn hidden_action(
-    world: &mut World,
-    room: RoomKey,
-    dir: silvermere_types::enums::Direction,
-    exit: silvermere_types::records::Exit,
-    actnum: i32,
-) {
-    let inorder = exit.par2 >= 0;
-    let mut flags = ExitFlags::from_bits_retain(exit.par1);
+fn hidden_action(world: &mut World, room: RoomKey, dir: Direction, h: HiddenExit, actnum: i32) {
+    let inorder = h.blocks >= 0;
+    let mut flags = h.flags;
     match actnum {
         // every block, then (falling through) the tenth
         0 => {
@@ -979,8 +971,8 @@ fn hidden_action(
     if BLOCKS.iter().all(|b| !flags.contains(*b)) {
         flags = ExitFlags::VISBLOCKED;
         add_exit_to_list(world, room, dir, 1);
-        let own = (exit.par3 != 0)
-            .then(|| world.messages.get(&MessageNo(exit.par3)).cloned())
+        let own = (h.opened.0 != 0)
+            .then(|| world.messages.get(&h.opened).cloned())
             .flatten();
         let name = dirname(world, dir);
         let msg = match own {
@@ -1004,7 +996,12 @@ fn hidden_action(
             &msg,
         );
     }
-    set_par1(world, room, dir, flags.bits());
+    set_exit_state(
+        world,
+        room,
+        dir,
+        ExitParams::Hidden(HiddenExit { flags, ..h }),
+    );
 }
 
 /// Stage 7's Remote Action exits: an exit whose WCCMSG record
@@ -1024,17 +1021,20 @@ impl RemoteExits for RemoteExitWords {
             return false;
         };
         for exit in rm.exits.iter().take(NDIRS) {
-            if exit.target.0 == 0 || exit.kind != ExitType::RemoteAction {
+            let ExitParams::Remote(remote) = exit.params() else {
+                continue;
+            };
+            if exit.target.0 == 0 {
                 continue;
             }
-            let Some(m) = world.messages.get(&MessageNo(exit.par1 as i32)) else {
+            let Some(m) = world.messages.get(&remote.words) else {
                 continue;
             };
             if !m.msgs.iter().any(|t| eq_ignore_case(line, t)) {
                 continue;
             }
-            if exit.par4 != 0 {
-                let Some(name) = world.items.get(&ItemNo(exit.par4)).map(|i| i.name.clone()) else {
+            if remote.item.0 != 0 {
+                let Some(name) = world.items.get(&remote.item).map(|i| i.name.clone()) else {
                     continue;
                 };
                 let Some(plr) = player(world, id) else {
@@ -1055,9 +1055,9 @@ impl RemoteExits for RemoteExitWords {
                     world,
                     id,
                     dest,
-                    exit.par3,
-                    i32::from(exit.par2 / 10),
-                    exit.par2 % 10,
+                    remote.message.0,
+                    remote.action(),
+                    remote.exit(),
                 );
                 return true;
             }
