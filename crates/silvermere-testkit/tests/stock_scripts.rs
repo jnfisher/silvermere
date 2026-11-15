@@ -698,20 +698,24 @@ mod scripts {
         // the door is bashed (or picked)
         let out = k.go("open n");
         assert!(out.contains("The door is locked."), "{out:?}");
-        // A door that bursts open takes the basher through (BASH, T-026)
+        // The door bursts open in time (BASH, T-026); the basher stays, as in the game,
+        // and walks through
+        let mut opened = false;
         for _ in 0..200 {
-            if k.at() != 834 {
-                break;
-            }
             k.w.session_mut(k.me)
                 .unwrap()
                 .character
                 .as_mut()
                 .unwrap()
                 .hp = 100;
-            k.go("bash n");
+            if k.go("bash n").contains("You bashed the door open.") {
+                opened = true;
+                break;
+            }
         }
-        assert_eq!(k.at(), 835);
+        assert!(opened, "the door gives way");
+        assert_eq!(k.at(), 834);
+        assert_eq!(k.walk("n"), 835);
         k.walk("d");
         assert_eq!(k.name(), "Crypt, Lower Level");
         // the first level: a lever at the bottom of each side corridor

@@ -591,7 +591,9 @@ fn happy_path_creates_a_kang_witchunter() {
         [79, 30, 45, 42, 74, 30]
     );
     assert_eq!((plr.cp, plr.totalcp), (2, 100));
-    assert_eq!((plr.hairlen, plr.haircol, plr.eyecol), (1, 0, 13));
+    // (sic) "hazel" typed in full ends on Lavender: the H alone picks Hazel, and the L
+    // after it begins a new choice
+    assert_eq!((plr.hairlen, plr.haircol, plr.eyecol), (1, 0, 15));
     assert_eq!((plr.lawful, plr.evil), (-10, -51));
     // the new character state (create_player)
     assert_eq!(plr.level, 1);
