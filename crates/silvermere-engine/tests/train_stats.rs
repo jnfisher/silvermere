@@ -551,7 +551,12 @@ mod training {
                 if menu {
                     assert!(out.contains("[MAJORMUD]:"), "{out}");
                     assert_eq!(h.state(id), SessionState::MainMenu);
-                    assert!(h.plr(id).status2.contains(PlayerStatus2::STATRESET));
+                    // the menu twice (sic), and the stored record back: the next entry
+                    // resets the stats again
+                    assert_eq!(out.matches("[MAJORMUD]:").count(), 2, "{out}");
+                    assert_eq!(h.plr(id).cp, -1);
+                    let again = h.line(id, "e");
+                    assert!(again.contains("Please TRAIN STATS as soon as possible"), "{again}");
                 } else {
                     assert!(out.ends_with("]:"), "{out}");
                     assert_eq!(h.state(id), SessionState::Playing);

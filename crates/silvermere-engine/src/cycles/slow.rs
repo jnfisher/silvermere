@@ -144,7 +144,8 @@ pub fn slow_update_character(world: &mut World, id: SessionId) {
     let Some(plr) = s.character.as_mut() else {
         return;
     };
-    if i32::from(plr.mana) < i32::from(plr.maxmana) {
+    // compared unsigned, as `maxmana` is: (sic) mana below 0 never comes back
+    if (plr.mana as u16) < plr.maxmana {
         if let Some(cls) = world.classes.get(&plr.class) {
             changed = true;
             let stat = regen::class_stat(cls.magery, plr.intel, plr.wil, plr.cha);

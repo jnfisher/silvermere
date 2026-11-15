@@ -735,8 +735,16 @@ fn existing_done(
             announce_entry(world, id, name);
         }
     } else {
-        // the stats were reset and are still to be spent
+        // the stats were reset and are still to be spent: the menu, twice (sic), as for a
+        // new character, and the next entry loads the stored record again
+        if let (Some(s), Some(row)) = (world.session_mut(id), editor.stored.clone()) {
+            s.character = Some(*row);
+        }
         back_to_menu(world, id);
+        let menu = menu_bytes(world, id);
+        if let Some(s) = world.session_mut(id) {
+            s.output.push_raw(menu);
+        }
     }
     stamp_lastdate(world, id);
     if let Some(s) = world.session_mut(id)

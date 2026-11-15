@@ -143,7 +143,8 @@ fn meditate_tick(world: &mut World, id: SessionId) {
         return;
     }
     let mut wake = true;
-    if i32::from(plr.mana) < i32::from(plr.maxmana) {
+    // compared unsigned, as `maxmana` is: (sic) mana below 0 never comes back
+    if (plr.mana as u16) < plr.maxmana {
         if let Some(cls) = world.classes.get(&plr.class) {
             let stat = regen::class_stat(cls.magery, plr.intel, plr.wil, plr.cha);
             let r = regen::meditate_mana_regen(cls.magery, stat, plr.level, cls.magelvl);

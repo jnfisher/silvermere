@@ -220,6 +220,9 @@ pub struct StatEditor {
     pub fullscreen: Option<Box<crate::commands::fullscreen_editor::FullScreen>>,
     /// The line by line form's own state when the editor runs line by line.
     pub line: Option<Box<LineForm>>,
+    /// The record as stored, when entering opened the editor: leaving it unsaved leaves the
+    /// stored record, which the next entry loads again.
+    pub stored: Option<Box<Character>>,
 }
 
 impl StatEditor {
@@ -258,6 +261,7 @@ impl StatEditor {
             on_done: EditorDone::Creation,
             fullscreen: None,
             line: None,
+            stored: None,
         }
     }
 

@@ -60,7 +60,7 @@ pub fn enter_realm(world: &mut World, id: SessionId, today: i64) {
         return;
     };
     let row = plr.clone();
-    if let Err(e) = load_player(world, id, row, today) {
+    if let Err(e) = load_player(world, id, row.clone(), today) {
         tracing::warn!(?id, %e, "character not loaded");
         super::show_menu(world, id);
         return;
@@ -75,6 +75,9 @@ pub fn enter_realm(world: &mut World, id: SessionId, today: i64) {
         .is_some_and(|c| c.status2.contains(PlayerStatus2::STATRESET))
     {
         crate::state::newchar::edit_character_stats(world, id, false);
+        if let Some(e) = world.session_mut(id).and_then(|s| s.editor.as_mut()) {
+            e.stored = Some(Box::new(row));
+        }
         return;
     }
     let name = s
