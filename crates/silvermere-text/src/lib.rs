@@ -17,7 +17,6 @@ pub mod catalogue;
 pub mod colour;
 pub mod component;
 pub mod cp437;
-pub mod editor_screen;
 pub mod menu;
 pub mod msg;
 pub mod package;

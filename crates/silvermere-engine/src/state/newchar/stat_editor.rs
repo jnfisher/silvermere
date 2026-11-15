@@ -1,31 +1,20 @@
-//! The line-mode character editor: the form's fields prompted one per line, with the
-//! original's field checks on every answer.
+//! The character editor's session: the race limits, the character's stats when it opened,
+//! the answers the editor's end reads, and the game's field checks.
 //!
-//! The original shows the `EDITCHA1` full-screen form, or `EDTCHAN2` line by line on a
-//! small or non-ANSI terminal. The host's full-screen library is not carried, so this
-//! struct is the session: the race limits, the values as answered so far, the cursor, and
-//! the unspent CP (`totalcp - used`). The full-screen form (T-063,
-//! [`crate::commands::fullscreen_editor`]) is a view over the same struct: it keeps its
-//! own state in [`StatEditor::fullscreen`] and checks answers with
-//! [`StatEditor::verify_field`].
+//! The editor itself is the host's form library ([`crate::state::newchar::form`]): the
+//! game's `EDITCHA1` form full screen, or `EDTCHAN2` line by line. Its verify routine runs
+//! [`StatEditor::verify_field`] on the names and the six totals; the editor's end
+//! ([`crate::state::newchar::editor_done`]) reads the answers from here.
 //!
-//! The per-field prompt wording is this crate's own; it lives in [`PROMPTS`] and
-//! [`StatEditor::prompt`] only, so it can change in one place. The validation texts are
-//! the original's, and the semantics are the form's: Enter keeps the field's current
-//! value, a stat answer is a number, the looks are picked from the three name tables, and
-//! the last field is `SAVE`, `EDIT` (back to the first field) or `QUIT`.
-//!
-//! Two callers open it, as in the original: a new character ([`EditorDone::Creation`],
+//! Two callers open it, as in the game: a new character ([`EditorDone::Creation`],
 //! T-022) and `TRAIN STATS` or a stat reset ([`EditorDone::TrainStats`], T-047). The
-//! second has no first-name field: the original shows it display-only.
+//! second has no first-name field: the game shows it display-only.
 
 use silvermere_rules::progression::cp_cost;
 use silvermere_text::Msg;
-use silvermere_types::names::{EYE_COLOURS, HAIR_COLOURS, HAIR_LENGTHS};
 use silvermere_types::records::{Character, Race};
 
-use crate::output::OutputBatch;
-use crate::state::newchar::line_form::LineForm;
+use crate::state::newchar::form::StatForm;
 use crate::state::newchar::{capitalise, leading_int};
 
 /// The six stats in the form's field order: the `TOT_*` fields 6, 9, 12, 15, 18 and 21.
@@ -69,8 +58,7 @@ impl Stat {
     }
 }
 
-/// The fields the cursor visits, in the form's order; the race, class and the
-/// `BASE_*`/`MAX_*` fields were display-only and are shown in the stat prompts instead.
+/// The fields the game's check looks at.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Field {
     /// `LOCALNAME`: the given name (field 0).
@@ -79,64 +67,6 @@ pub enum Field {
     FamilyName,
     /// `TOT_*`: one stat.
     Stat(Stat),
-    /// `HAIR_LEN`.
-    HairLength,
-    /// `HAIR_COL`.
-    HairColour,
-    /// `EYE_COL`.
-    EyeColour,
-    /// `SAVE(ALT=SAVE ALT=EDIT ALT=QUIT)`.
-    Exit,
-}
-
-impl Field {
-    /// The field after this one.
-    pub const fn next(self) -> Field {
-        match self {
-            Field::GivenName => Field::FamilyName,
-            Field::FamilyName => Field::Stat(Stat::Strength),
-            Field::Stat(Stat::Strength) => Field::Stat(Stat::Intellect),
-            Field::Stat(Stat::Intellect) => Field::Stat(Stat::Willpower),
-            Field::Stat(Stat::Willpower) => Field::Stat(Stat::Agility),
-            Field::Stat(Stat::Agility) => Field::Stat(Stat::Health),
-            Field::Stat(Stat::Health) => Field::Stat(Stat::Charm),
-            Field::Stat(Stat::Charm) => Field::HairLength,
-            Field::HairLength => Field::HairColour,
-            Field::HairColour => Field::EyeColour,
-            Field::EyeColour => Field::Exit,
-            Field::Exit => Field::Exit,
-        }
-    }
-
-    /// The field before this one.
-    pub const fn prev(self) -> Field {
-        match self {
-            Field::GivenName | Field::FamilyName => Field::GivenName,
-            Field::Stat(Stat::Strength) => Field::FamilyName,
-            Field::Stat(Stat::Intellect) => Field::Stat(Stat::Strength),
-            Field::Stat(Stat::Willpower) => Field::Stat(Stat::Intellect),
-            Field::Stat(Stat::Agility) => Field::Stat(Stat::Willpower),
-            Field::Stat(Stat::Health) => Field::Stat(Stat::Agility),
-            Field::Stat(Stat::Charm) => Field::Stat(Stat::Health),
-            Field::HairLength => Field::Stat(Stat::Charm),
-            Field::HairColour => Field::HairLength,
-            Field::EyeColour => Field::HairColour,
-            Field::Exit => Field::EyeColour,
-        }
-    }
-
-    /// The field's `SF_*` number.
-    pub const fn sf(self) -> usize {
-        match self {
-            Field::GivenName => 0,
-            Field::FamilyName => 1,
-            Field::Stat(stat) => 6 + 3 * stat.index(),
-            Field::HairLength => 22,
-            Field::HairColour => 23,
-            Field::EyeColour => 24,
-            Field::Exit => 25,
-        }
-    }
 }
 
 /// Who opened the editor, and so what happens when it is left.
@@ -149,42 +79,8 @@ pub enum EditorDone {
     TrainStats,
 }
 
-/// How the editor was left.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Exit {
-    /// `SAVE`.
-    Save,
-    /// `QUIT`.
-    Quit,
-}
-
-/// The prompt wording, the one place it is written. `{cur}` is the field's current
-/// value, `{min}`/`{max}` the race limits of a stat, `{choices}` the slash-separated
-/// words of a looks table.
-pub const PROMPTS: Prompts = Prompts {
-    given_name: "Given name [{cur}]: ",
-    family_name: "Family name [{cur}]: ",
-    stat: "{stat} ({min}-{max}) [{cur}]: ",
-    hair_length: "Hair length ({choices}) [{cur}]: ",
-    hair_colour: "Hair colour ({choices}) [{cur}]: ",
-    eye_colour: "Eye colour ({choices}) [{cur}]: ",
-    exit: "SAVE or QUIT? [{cur}]: ",
-};
-
-/// The templates of [`PROMPTS`].
-#[derive(Debug, Clone, Copy)]
-pub struct Prompts {
-    pub given_name: &'static str,
-    pub family_name: &'static str,
-    pub stat: &'static str,
-    pub hair_length: &'static str,
-    pub hair_colour: &'static str,
-    pub eye_colour: &'static str,
-    pub exit: &'static str,
-}
-
 /// The editor session.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct StatEditor {
     /// The race minimum of each stat (`minstr` ..), the base of the CP ladder.
     pub min: [u16; 6],
@@ -193,7 +89,8 @@ pub struct StatEditor {
     /// The character's current stats when the editor opened (`str` ..): a stat may not go
     /// below them. For a new character these are the minimums.
     pub floor: [u16; 6],
-    /// The totals as answered so far (`TOT_*`), in [`Stat`] order.
+    /// The six totals (`TOT_*`), in [`Stat`] order: as the form holds them when a field is
+    /// checked, and as saved at the end.
     pub values: [u16; 6],
     /// `totalcp`: the CP the character has to spend in all.
     pub totalcp: u16,
@@ -201,32 +98,27 @@ pub struct StatEditor {
     pub given_name: String,
     /// `LASTNAME`.
     pub family_name: String,
-    /// `HAIR_LEN`, an index into [`HAIR_LENGTHS`].
+    /// `HAIR_LEN`, an index into the hair lengths.
     pub hairlen: u8,
-    /// `HAIR_COL`, an index into [`HAIR_COLOURS`].
+    /// `HAIR_COL`, an index into the hair colours.
     pub haircol: u8,
-    /// `EYE_COL`, an index into [`EYE_COLOURS`].
+    /// `EYE_COL`, an index into the eye colours.
     pub eyecol: u8,
-    /// The field being answered.
-    pub field: Field,
     /// `blanklast` (`BLANK_LASTNAME_ALLOWED`): an empty family name is allowed.
     pub blanklast: bool,
     /// The first name is offered (`SF_FIRSTNAME` not display-only).
     pub show_first_name: bool,
     /// What leaving the editor does.
     pub on_done: EditorDone,
-    /// The full-screen form's own state when the editor runs full screen (T-063);
-    /// `None` in line mode.
-    pub fullscreen: Option<Box<crate::commands::fullscreen_editor::FullScreen>>,
-    /// The line by line form's own state when the editor runs line by line.
-    pub line: Option<Box<LineForm>>,
+    /// The form while it is open.
+    pub form: Option<Box<StatForm>>,
     /// The record as stored, when entering opened the editor: leaving it unsaved leaves the
     /// stored record, which the next entry loads again.
     pub stored: Option<Box<Character>>,
 }
 
 impl StatEditor {
-    /// The form filled as the original fills it on opening:
+    /// The session as the game fills the form on opening:
     /// the names, the race limits, the current stats and the looks.
     pub fn open(plr: &Character, rac: &Race, blanklast: bool) -> Self {
         let u = |n: i16| n.max(0) as u16;
@@ -255,33 +147,21 @@ impl StatEditor {
             hairlen: plr.hairlen.min(5),
             haircol: plr.haircol.min(9),
             eyecol: plr.eyecol.min(16),
-            field: Field::GivenName,
             blanklast,
             show_first_name: true,
             on_done: EditorDone::Creation,
-            fullscreen: None,
-            line: None,
+            form: None,
             stored: None,
         }
     }
 
-    /// An existing character: the form of [`StatEditor::open`]
-    /// with the first name locked; the cursor starts at the family name.
+    /// An existing character: the session of [`StatEditor::open`] with the first name
+    /// locked.
     pub fn open_existing(plr: &Character, rac: &Race, blanklast: bool) -> Self {
         let mut e = Self::open(plr, rac, blanklast);
         e.show_first_name = false;
         e.on_done = EditorDone::TrainStats;
-        e.field = e.first_field();
         e
-    }
-
-    /// The first field the cursor visits.
-    pub fn first_field(&self) -> Field {
-        if self.show_first_name {
-            Field::GivenName
-        } else {
-            Field::FamilyName
-        }
     }
 
     /// The CP the six totals cost above the race minimums (as the field check and the
@@ -295,114 +175,15 @@ impl StatEditor {
         i32::from(self.totalcp) - i32::try_from(self.used()).unwrap_or(i32::MAX)
     }
 
-    /// The prompt for the current field, as bytes for the wire (no line end follows).
-    pub fn prompt(&self) -> Vec<u8> {
-        let text = match self.field {
-            Field::GivenName => PROMPTS.given_name.replace("{cur}", &self.given_name),
-            Field::FamilyName => PROMPTS.family_name.replace("{cur}", &self.family_name),
-            Field::Stat(stat) => {
-                let i = stat.index();
-                PROMPTS
-                    .stat
-                    .replace("{stat}", stat.name())
-                    .replace("{min}", &self.min[i].to_string())
-                    .replace("{max}", &self.max[i].to_string())
-                    .replace("{cur}", &self.values[i].to_string())
-            }
-            Field::HairLength => PROMPTS
-                .hair_length
-                .replace("{choices}", &HAIR_LENGTHS.join("/"))
-                .replace("{cur}", HAIR_LENGTHS[usize::from(self.hairlen)]),
-            Field::HairColour => PROMPTS
-                .hair_colour
-                .replace("{choices}", &HAIR_COLOURS.join("/"))
-                .replace("{cur}", HAIR_COLOURS[usize::from(self.haircol)]),
-            Field::EyeColour => PROMPTS
-                .eye_colour
-                .replace("{choices}", &EYE_COLOURS.join("/"))
-                .replace("{cur}", EYE_COLOURS[usize::from(self.eyecol)]),
-            Field::Exit => PROMPTS.exit.replace("{cur}", "SAVE"),
-        };
-        silvermere_text::cp437::encode(&text)
-    }
-
-    /// One answer for the current field. Appends the validation message (if refused) or
-    /// the CP line (after an accepted stat or family name) and the next prompt to `out`;
-    /// returns how the editor was left when the answer was SAVE or QUIT.
-    pub fn on_line(&mut self, line: &str, out: &mut OutputBatch) -> Option<Exit> {
-        let answer = line.trim();
-        let outcome = match self.field {
-            // Enter keeps the field's current value
-            Field::GivenName | Field::FamilyName | Field::Stat(_) => {
-                let answer = if answer.is_empty() {
-                    self.current(self.field)
-                } else {
-                    answer.to_string()
-                };
-                self.verify_field(self.field, &answer)
-            }
-            Field::HairLength => self.choice_field(answer, HAIR_LENGTHS, |e, i| e.hairlen = i),
-            Field::HairColour => self.choice_field(answer, HAIR_COLOURS, |e, i| e.haircol = i),
-            Field::EyeColour => self.choice_field(answer, EYE_COLOURS, |e, i| e.eyecol = i),
-            Field::Exit => {
-                let answer = if answer.is_empty() { "SAVE" } else { answer };
-                match answer.as_bytes()[0].to_ascii_uppercase() {
-                    b'S' => return Some(Exit::Save),
-                    b'Q' => return Some(Exit::Quit),
-                    b'E' => {
-                        // ALT=EDIT: back to the first field the cursor visits
-                        self.field = self.first_field();
-                        Verdict::Again
-                    }
-                    _ => Verdict::Again,
-                }
-            }
-        };
-        match outcome {
-            Verdict::Reject(msg) => {
-                // the refusal, shown by the kernel on its error line; here a line of its own
-                out.push(msg);
-                out.push_raw(b"\r\n".to_vec());
-            }
-            Verdict::ShowCp => {
-                // the CP display
-                out.push(Msg::CpToDistribute { cp: self.unspent() });
-                self.field = self.field.next();
-            }
-            Verdict::Accept => {
-                // the kernel's own check passed, on to the next field
-                self.field = self.field.next();
-            }
-            // refused by the kernel's own check, or the cursor was moved: prompt again
-            Verdict::Again => {}
-        }
-        out.push_raw(self.prompt());
-        None
-    }
-
-    /// The text a name or stat field holds now: what the form shows, and what Enter
-    /// on an untouched field answers. Empty for the looks and the exit field.
-    pub fn current(&self, field: Field) -> String {
-        match field {
-            Field::GivenName => self.given_name.clone(),
-            Field::FamilyName => self.family_name.clone(),
-            Field::Stat(stat) => self.values[stat.index()].to_string(),
-            _ => String::new(),
-        }
-    }
-
-    /// The field check on one answer, shared by the line-mode and the full-screen editor
-    /// (T-063): the given name (field 0), the family name (field 1) and the six totals. An
-    /// accepted answer is stored; the cursor is not moved. The looks and the exit field
-    /// are checked by the kernel and always pass here.
+    /// The game's check of one answer: the given name (field 0), the family name (field 1)
+    /// and the six totals, against [`StatEditor::values`] as the form holds them. An
+    /// accepted answer is stored here: a name as the game rewrites it (blanks taken out,
+    /// the first letter capitalised), a total in [`StatEditor::values`].
     pub fn verify_field(&mut self, field: Field, answer: &str) -> Verdict {
         match field {
             Field::GivenName => self.given_name_field(answer),
             Field::FamilyName => self.family_name_field(answer),
             Field::Stat(stat) => self.stat_field(stat, answer),
-            Field::HairLength | Field::HairColour | Field::EyeColour | Field::Exit => {
-                Verdict::Accept
-            }
         }
     }
 
@@ -460,8 +241,8 @@ impl StatEditor {
     /// the race maximum, or over the CP in hand is refused.
     fn stat_field(&mut self, stat: Stat, answer: &str) -> Verdict {
         let i = stat.index();
-        let value = leading_int(answer);
-        let value = u16::try_from(value.clamp(0, i64::from(u16::MAX))).unwrap_or(0);
+        // `atol` into the game's unsigned (a minus cannot reach it: MIN=10 keeps it out)
+        let value = leading_int(answer.trim_start()) as u16;
         let mut used = self.used();
         used -= cp_cost(self.min[i], self.values[i]);
         used += cp_cost(self.min[i], value);
@@ -485,34 +266,6 @@ impl StatEditor {
         self.values[i] = value;
         Verdict::ShowCp
     }
-
-    /// A `MULTICHOICE` field: the answer names an entry of `table` (case does not
-    /// matter) or gives its 1-based number; Enter keeps the current one.
-    fn choice_field(
-        &mut self,
-        answer: &str,
-        table: &[&str],
-        set: impl FnOnce(&mut Self, u8),
-    ) -> Verdict {
-        if answer.is_empty() {
-            return Verdict::Accept;
-        }
-        let by_name = table
-            .iter()
-            .position(|name| name.eq_ignore_ascii_case(answer));
-        let by_number = answer
-            .parse::<usize>()
-            .ok()
-            .filter(|n| (1..=table.len()).contains(n))
-            .map(|n| n - 1);
-        match by_name.or(by_number) {
-            Some(i) => {
-                set(self, i as u8);
-                Verdict::Accept
-            }
-            None => Verdict::Again,
-        }
-    }
 }
 
 /// The CP to raise a stat from `from` to `to` over the race minimum `min`: the difference
@@ -531,9 +284,6 @@ pub enum Verdict {
     ShowCp,
     /// Accepted.
     Accept,
-    /// The kernel's own check refused the answer (not a table word), or EDIT moved the
-    /// cursor: prompt the current field again.
-    Again,
 }
 
 #[cfg(test)]
@@ -575,9 +325,17 @@ mod tests {
         StatEditor::open(&plr, &kang(), false)
     }
 
-    fn text(out: &OutputBatch) -> String {
-        let bytes = out.render(Default::default(), b"");
-        silvermere_text::cp437::decode(&silvermere_text::strip::strip_ansi(&bytes))
+    fn strength(stat: &str, n: u16) -> Msg {
+        match stat {
+            "low" => Msg::StatTooLow {
+                stat: "Strength".into(),
+                n,
+            },
+            _ => Msg::StatTooHigh {
+                stat: "Strength".into(),
+                n,
+            },
+        }
     }
 
     // the CP ladder over the six totals
@@ -594,85 +352,71 @@ mod tests {
     #[test]
     fn stat_refusals() {
         let mut e = editor();
-        e.field = Field::Stat(Stat::Strength);
-        let mut out = OutputBatch::default();
-        assert_eq!(e.on_line("54", &mut out), None);
-        assert!(text(&out).starts_with("Strength may not be lower than 55.\r\n"));
-        out.clear();
-        e.on_line("121", &mut out);
-        assert!(text(&out).starts_with("Strength may not be higher than 120.\r\n"));
-        out.clear();
-        e.on_line("120", &mut out);
-        assert!(text(&out).starts_with("You may not assign that much to Strength\r\n"));
-        assert_eq!(e.field, Field::Stat(Stat::Strength));
-        out.clear();
-        e.on_line("79", &mut out);
-        assert!(text(&out).starts_with("\r\nYou have 58 CP to distribute.\r\n"));
-        assert_eq!(e.field, Field::Stat(Stat::Intellect));
+        let s = Field::Stat(Stat::Strength);
+        assert_eq!(
+            e.verify_field(s, "54"),
+            Verdict::Reject(strength("low", 55))
+        );
+        assert_eq!(
+            e.verify_field(s, "121"),
+            Verdict::Reject(strength("high", 120))
+        );
+        // atol into an unsigned: a negative number is above the maximum
+        assert_eq!(
+            e.verify_field(s, "-3"),
+            Verdict::Reject(strength("high", 120))
+        );
+        assert_eq!(
+            e.verify_field(s, "120"),
+            Verdict::Reject(Msg::StatTooMuch {
+                stat: "Strength".into()
+            })
+        );
+        assert_eq!(e.values[0], 55);
+        assert_eq!(e.verify_field(s, "79"), Verdict::ShowCp);
+        assert_eq!(e.values[0], 79);
+        assert_eq!(e.unspent(), 58);
     }
 
     // the family name (field 1): a blank family name needs BLANK_LASTNAME_ALLOWED
     #[test]
     fn blank_family_name_by_option() {
         let mut e = editor();
-        e.field = Field::FamilyName;
-        let mut out = OutputBatch::default();
-        e.on_line("", &mut out);
-        assert!(text(&out).starts_with("You must enter a last name!\r\n"));
-        assert_eq!(e.field, Field::FamilyName);
+        assert_eq!(
+            e.verify_field(Field::FamilyName, ""),
+            Verdict::Reject(Msg::LastNameRequired)
+        );
         e.blanklast = true;
-        out.clear();
-        e.on_line("", &mut out);
-        assert!(text(&out).starts_with("\r\nYou have 100 CP to distribute.\r\n"));
-        assert_eq!(e.field, Field::Stat(Stat::Strength));
-    }
-
-    #[test]
-    fn enter_keeps_the_current_value() {
-        let mut e = editor();
-        let mut out = OutputBatch::default();
-        e.on_line("", &mut out);
-        assert_eq!(e.given_name, "KASIMIR");
-        assert_eq!(e.field, Field::FamilyName);
+        assert_eq!(e.verify_field(Field::FamilyName, ""), Verdict::ShowCp);
+        assert_eq!(
+            e.verify_field(Field::FamilyName, "van dyke"),
+            Verdict::ShowCp
+        );
+        assert_eq!(e.family_name, "Vandyke");
     }
 
     // the given name (field 0)
     #[test]
     fn given_name_rules() {
         let mut e = editor();
-        let mut out = OutputBatch::default();
-        e.on_line("Bartholomew", &mut out);
-        assert!(text(&out).starts_with("Your given name can only be 10 characters long!"));
-        out.clear();
-        e.on_line("k4simir", &mut out);
-        assert!(text(&out).starts_with("Only ALPHA characters are allowed in a name!"));
-        out.clear();
-        e.on_line("kasimir", &mut out);
+        let g = Field::GivenName;
+        assert_eq!(
+            e.verify_field(g, "Bartholomew"),
+            Verdict::Reject(Msg::GivenNameTooLong)
+        );
+        assert_eq!(
+            e.verify_field(g, "k4simir"),
+            Verdict::Reject(Msg::NameNotAlpha)
+        );
+        assert_eq!(
+            e.verify_field(g, ""),
+            Verdict::Reject(Msg::NameInvalidField)
+        );
+        assert_eq!(e.verify_field(g, "kasimir"), Verdict::Accept);
         assert_eq!(e.given_name, "Kasimir");
-        assert_eq!(e.field, Field::FamilyName);
     }
 
-    #[test]
-    fn looks_by_name_or_number_and_the_exit_field() {
-        let mut e = editor();
-        e.field = Field::HairLength;
-        let mut out = OutputBatch::default();
-        e.on_line("LONG", &mut out);
-        assert_eq!(e.hairlen, 3);
-        e.on_line("10", &mut out);
-        assert_eq!(e.haircol, 9);
-        e.on_line("violet", &mut out);
-        assert_eq!(e.eyecol, 14);
-        assert_eq!(e.field, Field::Exit);
-        assert_eq!(e.on_line("edit", &mut out), None);
-        assert_eq!(e.field, Field::GivenName);
-        e.field = Field::Exit;
-        assert_eq!(e.on_line("q", &mut out), Some(Exit::Quit));
-        assert_eq!(e.on_line("", &mut out), Some(Exit::Save));
-    }
-
-    // an existing character has the first name locked; EDIT goes back
-    // to the first field the cursor visits
+    // an existing character has the first name locked
     #[test]
     fn existing_character_has_no_first_name_field() {
         let mut plr = clear_player();
@@ -685,17 +429,11 @@ mod tests {
         plr.hea = 50;
         plr.cha = 30;
         plr.totalcp = 20;
-        let mut e = StatEditor::open_existing(&plr, &kang(), false);
+        let e = StatEditor::open_existing(&plr, &kang(), false);
         assert_eq!(e.on_done, EditorDone::TrainStats);
         assert!(!e.show_first_name);
-        assert_eq!(e.prompt(), b"Family name [Stonefist]: ");
         assert_eq!(e.floor[0], 60, "never below the current value");
         assert_eq!(e.unspent(), 15);
-        e.field = Field::Exit;
-        let mut out = OutputBatch::default();
-        assert_eq!(e.on_line("edit", &mut out), None);
-        assert_eq!(e.field, Field::FamilyName);
-        assert_eq!(e.given_name, "Kasimir");
     }
 
     // the CP ladder: the band totals 10, 30, 60, 100, 150
@@ -719,16 +457,5 @@ mod tests {
             let steps: u32 = (from..to).map(|v| raise_cost(min, v, v + 1)).sum();
             proptest::prop_assert_eq!(steps, raise_cost(min, from, to));
         }
-    }
-
-    #[test]
-    fn prompts_come_from_one_table() {
-        let e = editor();
-        assert_eq!(e.prompt(), b"Given name [KASIMIR]: ");
-        let mut s = e.clone();
-        s.field = Field::Stat(Stat::Health);
-        assert_eq!(s.prompt(), b"Health (50-110) [50]: ");
-        s.field = Field::Exit;
-        assert_eq!(s.prompt(), b"SAVE or QUIT? [SAVE]: ");
     }
 }

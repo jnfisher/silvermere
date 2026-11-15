@@ -6,7 +6,7 @@ use silvermere_fsd::{Form, Mode, State, Verdict};
 use crate::support::{begun, key_with, show};
 
 const SPEC: &[u8] = b"A(MAX=50) B";
-const SCREEN: &[u8] = b"A: $$\rB: ????\r!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
+const SCREEN: &[u8] = b"A: $$\r\nB: ????\r\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
 
 fn enter(f: &mut Form, text: &str, verdict: Verdict, msg: &str) -> Vec<u8> {
     let mut verify = |_: &mut Form, _: usize, _: &mut Vec<u8>, _: &mut Vec<u8>| {
@@ -91,7 +91,7 @@ fn a_message_with_an_accepted_entry_is_shown_without_the_alarm() {
 
 #[test]
 fn the_routine_may_change_the_answer_and_write_output() {
-    let (mut f, _) = begun(b"A: ??\rB: ????", b"A B", Mode::FullScreen, b"\0");
+    let (mut f, _) = begun(b"A: ??\r\nB: ????", b"A B", Mode::FullScreen, b"\0");
     let mut seen = Vec::new();
     let mut verify = |f: &mut Form, n: usize, a: &mut Vec<u8>, o: &mut Vec<u8>| {
         seen.push((n, a.clone()));
@@ -128,7 +128,12 @@ fn blanks_are_dropped_before_the_check() {
 #[test]
 fn bytes_above_ascii_are_kept() {
     // FSD.C keeps answers as C strings: any byte but NUL
-    let (mut f, _) = begun(b"A: ????\rB: ??", b"A B", Mode::FullScreen, b"A=\x82t\0\0");
+    let (mut f, _) = begun(
+        b"A: ????\r\nB: ??",
+        b"A B",
+        Mode::FullScreen,
+        b"A=\x82t\0\0",
+    );
     assert_eq!(f.answer(0), b"\x82t");
     let mut seen = Vec::new();
     let mut verify = |f: &mut Form, n: usize, a: &mut Vec<u8>, o: &mut Vec<u8>| {

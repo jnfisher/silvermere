@@ -13,16 +13,15 @@
 //! | `NewCharStep::Validating`, `NewCharStep::Name` | the name check | [`validate_name`] |
 //! | `Suicide(..)` | the suicide password | [`suicide_pw`] |
 //!
-//! The editor runs as the original's full-screen form (`EDITCHA1`) on an ANSI terminal of
-//! at least 80x23 ([`crate::commands::fullscreen_editor`], T-063) and as the original's
-//! line-mode path (the field prompts [`stat_editor`]'s) otherwise. Both are views over the
-//! same [`StatEditor`] and its field check.
+//! The editor is the game's form on the host's form library ([`form`], T-063): `EDITCHA1`
+//! full screen on an ANSI terminal of at least 80x23, `EDTCHAN2` line by line otherwise,
+//! both checked by [`StatEditor`]'s field check.
 //!
 //! The same editor serves an existing character (`TRAIN STATS`, and a stat reset at
 //! entry; T-047): no first-name field, and [`editor_done`] sends the character back into
 //! the realm. `RaceChange(..)` is [`race_change`]'s (T-047).
 
-pub mod line_form;
+pub mod form;
 pub mod race_change;
 pub mod stat_editor;
 pub mod suicide_pw;
@@ -34,12 +33,11 @@ use silvermere_types::flags::{PlayerFlags, PlayerSettings, PlayerStatus2};
 use silvermere_types::ids::{ClassNo, RaceNo, SessionId};
 use silvermere_types::records::Character;
 
-use crate::commands::fullscreen_editor;
 use crate::state::login::{menu_bytes, show_menu};
 use crate::state::{Input, Outcome};
 use crate::world::World;
-use line_form::LineForm;
-use stat_editor::{EditorDone, Exit, StatEditor};
+use form::StatForm;
+use stat_editor::{EditorDone, StatEditor};
 
 pub use crate::player::STARTSTAT;
 pub use crate::player::create::{NEW_PLAYER_ENERGY, NEW_PLAYER_HP};
@@ -360,16 +358,15 @@ pub fn roll_stats(world: &mut World, id: SessionId) {
     }
 }
 
-/// The stat editor. On an ANSI screen of at least 80x23 the full-screen form opens and
-/// the session goes to character mode (T-063); otherwise the line-mode path: the looks
-/// are kept inside the tables, the CP cost chart and the race's range of every stat are
-/// printed, and the editor's first field is prompted. The session is at
-/// [`NewCharStep::Stats`] until SAVE, EDIT or QUIT; that state is not `Playing`, so the
-/// character is out of the realm meanwhile, as in the original.
+/// The stat editor (`edit_character_stats`). On an ANSI screen of at least 80x23 the
+/// `EDITCHA1` form is drawn with its answers; otherwise the CP cost chart, the race's range
+/// of every stat and the CP line are printed and `EDTCHAN2` prompts its first field. Either
+/// way the session goes to character mode at [`NewCharStep::Stats`] until the form is
+/// left; that state is not `Playing`, so the character is out of the realm meanwhile, as in
+/// the game.
 ///
 /// `newchar` false (`TRAIN STATS`, a stat reset) locks the first name:
-/// [`StatEditor::open_existing`]. The chart, the ranges and the CP line are the same
-/// bytes either way.
+/// [`StatEditor::open_existing`].
 pub fn edit_character_stats(world: &mut World, id: SessionId, newchar: bool) {
     let blanklast = world.config.blank_lastname_allowed;
     let Some(s) = world.sessions.get_mut(&id) else {
@@ -390,40 +387,35 @@ pub fn edit_character_stats(world: &mut World, id: SessionId, newchar: bool) {
     } else {
         StatEditor::open_existing(plr, rac, blanklast)
     };
-    // the EDITCHA1 form on an ANSI screen of at least 80x23 (T-063)
-    if fullscreen_editor::fits(&s.caps) && fullscreen_editor::installed() {
-        fullscreen_editor::open(&mut editor, &rac.name, &cls.name, &mut s.output);
-        s.editor = Some(editor);
-        s.state = SessionState::NewChar(NewCharStep::Stats);
-        world
-            .outbox
-            .push(crate::EngineOutput::SetCharMode { id, on: true });
-        world.touch(id);
-        return;
-    }
-    s.output.push(Msg::StatEditorPreamble);
-    // Fixed: the game's format has a stray '\0' after each number, so its maximum prints 0
-    for (label, min, max) in [
-        ("Strength  ", rac.minstr, rac.maxstr),
-        ("Intellect ", rac.minint, rac.maxint),
-        ("Willpower ", rac.minwil, rac.maxwil),
-        ("Agility   ", rac.minagi, rac.maxagi),
-        ("Health    ", rac.minhea, rac.maxhea),
-        ("Charm     ", rac.mincha, rac.maxcha),
-    ] {
-        s.output.push(Msg::StatRange {
-            label: label.to_string(),
-            min: min.max(0) as u16,
-            max: max.max(0) as u16,
+    let mut sf = StatForm::prepare(plr, rac, cls, form::fits(&s.caps));
+    if sf.is_full_screen() {
+        s.output.push_raw(sf.background());
+    } else {
+        s.output.push(Msg::StatEditorPreamble);
+        // Fixed: the game's format has a stray '\0' after each number, so its maximum prints 0
+        for (label, min, max) in [
+            ("Strength  ", rac.minstr, rac.maxstr),
+            ("Intellect ", rac.minint, rac.maxint),
+            ("Willpower ", rac.minwil, rac.maxwil),
+            ("Agility   ", rac.minagi, rac.maxagi),
+            ("Health    ", rac.minhea, rac.maxhea),
+            ("Charm     ", rac.mincha, rac.maxcha),
+        ] {
+            s.output.push(Msg::StatRange {
+                label: label.to_string(),
+                min: min.max(0) as u16,
+                max: max.max(0) as u16,
+            });
+        }
+        // the CP left: totalcp - (totalcp - cp)
+        s.output.push(Msg::CpToDistribute {
+            cp: i32::from(plr.cp),
         });
     }
-    // the CP left: totalcp - (totalcp - cp)
-    s.output.push(Msg::CpToDistribute {
-        cp: i32::from(plr.cp),
-    });
-    // the form's fields one by one, a key at a time
-    let form = LineForm::open(&mut editor, &mut s.output);
-    editor.line = Some(Box::new(form));
+    let mut out = Vec::new();
+    sf.begin(newchar, i32::from(plr.cp), &mut out);
+    s.output.push_raw(out);
+    editor.form = Some(Box::new(sf));
     s.editor = Some(editor);
     s.state = SessionState::NewChar(NewCharStep::Stats);
     world
@@ -432,72 +424,19 @@ pub fn edit_character_stats(world: &mut World, id: SessionId, newchar: bool) {
     world.touch(id);
 }
 
-/// One key typed into the line by line form. SAVE and QUIT finish the editor.
-pub fn on_form_key(world: &mut World, id: SessionId, byte: u8) -> Outcome {
-    let left = {
-        let Some(s) = world.session_mut(id) else {
-            return Outcome::Logoff;
-        };
-        let Some(editor) = s.editor.as_mut() else {
-            return Outcome::Continue;
-        };
-        let Some(mut form) = editor.line.take() else {
-            return Outcome::Continue;
-        };
-        // a key on its own: what the last one sent has gone
-        form.drained();
-        let left = form.key(editor, byte, &mut s.output);
-        editor.line = Some(form);
-        left
-    };
-    if let Some(exit) = left {
-        leave_form(world, id, exit);
-    }
-    Outcome::Continue
-}
-
-/// The form left: back to lines, then the editor's end.
-fn leave_form(world: &mut World, id: SessionId, exit: Exit) {
-    world
-        .outbox
-        .push(crate::EngineOutput::SetCharMode { id, on: false });
-    editor_done(world, id, exit == Exit::Save);
-}
-
-/// One line typed into the editor: the field is checked, then the next prompt; SAVE and
-/// QUIT finish the editor.
+/// One line typed into the editor: its keys, then Return, into the form.
 pub fn on_stats(world: &mut World, input: Input<'_>) -> Outcome {
     let id = input.id;
-    let Some(s) = world.session_mut(id) else {
+    let Some(s) = world.session(id) else {
         return Outcome::Logoff;
     };
-    let Some(editor) = s.editor.as_mut() else {
+    let open = s.editor.as_ref().is_some_and(|e| e.form.is_some());
+    if !open {
         // No editor open in the editor state: back out to the menu.
         back_to_menu(world, id);
         return Outcome::Continue;
-    };
-    // a whole line into the form: its keys, then Enter, all arriving together
-    if let Some(mut form) = editor.line.take() {
-        form.drained();
-        let mut left = None;
-        for &b in input.line.as_bytes().iter().chain(b"\r") {
-            left = form.key(editor, b, &mut s.output);
-            if left.is_some() {
-                break;
-            }
-        }
-        editor.line = Some(form);
-        if let Some(exit) = left {
-            leave_form(world, id, exit);
-        }
-        return Outcome::Continue;
     }
-    match editor.on_line(input.line, &mut s.output) {
-        None => {}
-        Some(Exit::Save) => editor_done(world, id, true),
-        Some(Exit::Quit) => editor_done(world, id, false),
-    }
-    Outcome::Continue
+    form::on_line(world, id, input.line)
 }
 
 /// The editor finished, for a new character.
@@ -508,7 +447,7 @@ pub fn on_stats(world: &mut World, input: Input<'_>) -> Outcome {
 /// suicide-password reminder is printed, the "game full" check runs against
 /// `max_sessions` and the name check starts. Without `save`: the menu (twice, sic).
 ///
-/// Not carried: the full-screen teardown, the paying-account flag and the unpaid-account
+/// Not carried: the paying-account flag and the unpaid-account
 /// texts, the secondary stats and `save_player` (T-023: a record that is not validated is
 /// never saved), the user list rebuild (T-027).
 pub fn editor_done(world: &mut World, id: SessionId, save: bool) {

@@ -6,7 +6,6 @@
 
 use sha2::{Digest, Sha256};
 use silvermere_text::catalogue::TemplatePiece;
-use silvermere_text::editor_screen::{CellKind, EditorScreen};
 use silvermere_text::package::{self, MOVED_KEYS, NOT_INSTALLED, PackageText};
 use silvermere_text::{Msg, Palette, render};
 
@@ -399,66 +398,24 @@ fn a_stray_percent_in_a_realms_help_prints_as_written() {
     );
 }
 
-// ---- the EDITCHA1 form --------------------------------------------------------------
+// ---- the creation forms as bytes ---------------------------------------------------
 
-fn editcha1() -> &'static EditorScreen {
-    crate::package();
-    EditorScreen::editcha1().expect("installed")
-}
-
-// 26 fields, then the error line
+// the bytes the form library is given: the message file's CP437, CR line ends
 #[test]
-fn editcha1_has_the_26_fields_and_the_error_line() {
-    let s = editcha1();
-    assert_eq!(s.field_count(), 26);
-    let m = s.message_field();
-    assert_eq!((m.row, m.col, m.width), (23, 1, 61));
-    assert_eq!(m.attr, b"\x1b[1;31m");
-    let kinds: Vec<CellKind> = (0..26).map(|n| s.field(n).kind).collect();
-    assert!(kinds[..4].iter().all(|k| *k == CellKind::Text));
-    assert!(kinds[4..22].iter().all(|k| *k == CellKind::Numeric));
-    assert!(kinds[22..].iter().all(|k| *k == CellKind::Text));
-}
-
-// the observed cursor positions of character creation; the capture
-// (tests/captures/creation-fsd/script.json until_cursor) agrees
-#[test]
-fn positions_match_the_observed_cursor() {
-    let s = editcha1();
-    assert_eq!(s.field_pos(0), (4, 20));
-    assert_eq!(s.field_pos(1), (5, 20));
-    for (i, row) in (9..=14).enumerate() {
-        assert_eq!(s.field_pos(6 + 3 * i), (row, 34), "stat {i}");
-        assert_eq!(s.field_pos(4 + 3 * i), (row, 19));
-        assert_eq!(s.field_pos(5 + 3 * i), (row, 27));
+fn form_bytes_are_the_message_file_bytes() {
+    let package = crate::package();
+    for (bytes, text) in [
+        (package.editcha1_bytes(), package.editcha1()),
+        (package.edtchan2_bytes(), package.edtchan2()),
+    ] {
+        // one byte a character, no replacement
+        assert_eq!(bytes.len(), text.chars().count());
+        assert_eq!(
+            bytes.iter().filter(|&&b| b == b'?').count(),
+            text.matches('?').count()
+        );
+        assert!(!bytes.contains(&b'\n'));
     }
-    assert_eq!(s.field_pos(22), (16, 22));
-    assert_eq!(s.field_pos(23), (17, 22));
-    assert_eq!(s.field_pos(24), (18, 22));
-    assert_eq!(s.field_pos(25), (20, 14));
-    assert_eq!(s.field(0).width, 18);
-    assert_eq!(s.field(6).width, 4);
-    assert_eq!(s.field(22).width, 15);
-    assert_eq!(s.field(25).width, 4);
-}
-
-#[test]
-fn field_bytes_match_the_capture() {
-    let s = editcha1();
-    assert_eq!(
-        s.draw(6, "50"),
-        b"\x1b[0;1m\x1b[9;34f\x1b[1m    \x1b[9;34f50".to_vec()
-    );
-    assert_eq!(
-        s.draw(5, "100"),
-        b"\x1b[0;1m\x1b[9;27f    \x1b[9;27f100".to_vec()
-    );
-    assert_eq!(
-        s.focus(22, "SHORT"),
-        b"\x1b[16;22f\x1b[0;1;7m               \x1b[16;22fSHORT\x1b[16;22f".to_vec()
-    );
-    let mut clear = b"\x1b[0;1m\x1b[23;1f\x1b[1;31m".to_vec();
-    clear.extend([b' '; 61]);
-    assert_eq!(s.message(""), clear);
-    assert_eq!(s.cp_left(90), b"\x1b[20;33f\x1b[0m  90".to_vec());
+    // EDITCHA1's box drawing as the CP437 byte
+    assert!(package.editcha1_bytes().contains(&0xC4));
 }

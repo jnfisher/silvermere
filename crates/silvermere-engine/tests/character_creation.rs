@@ -623,25 +623,9 @@ fn blank_last_name_refused_then_allowed_by_config() {
         "\r\n\r\nYou must enter a last name!\u{7}\r\n\r\nFamily Name "
     );
     insta::assert_snapshot!("last_name_required", escape(&out));
-    // the SAVE-time check for a family name that is blank when SAVE runs
-    for a in ["Stonefist", "", "", "", "", "", "", "", "", ""] {
-        line(&mut engine, &rx, id, a);
-    }
-    engine.handle(EngineInput::Custom {
-        session: Some(id),
-        run: Box::new(move |w| {
-            w.session_mut(id)
-                .unwrap()
-                .editor
-                .as_mut()
-                .unwrap()
-                .family_name
-                .clear();
-        }),
-    });
-    common::drain(&rx);
-    // `s` picks SAVE (the whole word would end on EDIT: its `e` picks that)
-    let out = line(&mut engine, &rx, id, "s");
+    // the SAVE-time check (ljndun) for a family name that is blank when SAVE runs: ^U
+    // back to the given name, ^G saves from there, the family name never checked
+    let out = line(&mut engine, &rx, id, "\x15\x07");
     assert!(
         plain(&out).ends_with(
             "You MUST have a last name!\r\nYou will have to start over again.\r\nPress Enter."
@@ -649,7 +633,10 @@ fn blank_last_name_refused_then_allowed_by_config() {
         "{:?}",
         plain(&out)
     );
-    insta::assert_snapshot!("last_name_must_start_over", escape(&out));
+    insta::assert_snapshot!(
+        "last_name_must_start_over",
+        crate::common::redact(&escape(&out))
+    );
     assert_eq!(state(&engine, id), SessionState::MainMenu);
     assert!(
         engine.world.session(id).unwrap().player().is_none(),
