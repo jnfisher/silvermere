@@ -211,6 +211,15 @@ fn writes(outs: &[EngineOutput], id: SessionId) -> Vec<u8> {
         .collect()
 }
 
+fn contains(hay: &[u8], needle: &[u8]) -> bool {
+    hay.windows(needle.len()).any(|w| w == needle)
+}
+
+/// `n` characters rubbed out: the form blanking the answer shown before the first key.
+fn rub(n: usize) -> String {
+    "\u{8} \u{8}".repeat(n)
+}
+
 /// The bytes as text: ANSI stripped, CP437 decoded.
 fn plain(bytes: &[u8]) -> String {
     cp437::decode(&strip_ansi(bytes))
@@ -417,7 +426,11 @@ fn editor_preamble() {
     // the race's minimum and maximum (the original prints 0 for the maximum: D8)
     assert!(text.contains("Strength  55 - 120\r\nIntellect 30 - 90\r\nWillpower 45 - 110\r\nAgility   30 - 90\r\nHealth    50 - 110\r\nCharm     30 - 85\r\n"));
     assert!(text.contains("\r\nYou have 100 CP to distribute.\r\n"));
-    assert!(text.ends_with("Given name [KASIMIR]: "));
+    // the form's head, then its first field with the answer shown
+    assert!(
+        text.ends_with("+31-40 points costs 4 CP each\r\n\r\nGiven Name  KASIMIR"),
+        "{text:?}"
+    );
     insta::assert_snapshot!("editor_preamble", crate::common::redact(&escape(&out)));
     // roll_stats: the stats start at the race minimums, cp = totalcp = basecp
     let plr = engine.world.session(id).unwrap().player().unwrap().clone();
@@ -435,35 +448,39 @@ fn editor_preamble() {
 fn stat_refusals_in_the_editor() {
     let (mut engine, rx) = new_engine(4);
     let id = to_editor(&mut engine, &rx);
-    line(&mut engine, &rx, id, "Kasimir");
+    let out = line(&mut engine, &rx, id, "Kasimir");
+    // the first key blanks the answer shown
+    assert_eq!(plain(&out), rub(7) + "Kasimir\r\nFamily Name ");
     let out = line(&mut engine, &rx, id, "Stonefist");
     assert_eq!(
         plain(&out),
-        "\r\nYou have 100 CP to distribute.\r\nStrength (55-120) [55]: "
+        "Stonefist\r\nYou have 100 CP to distribute.\r\n\r\n Strength:  55"
     );
+    // a refusal on lines of its own, with the bell, then the field again as stored
+    let refused = |msg: &str, field: &str| format!("\r\n\r\n{msg}\u{7}\r\n\r\n {field}");
     let under = line(&mut engine, &rx, id, "40");
     assert_eq!(
         plain(&under),
-        "Strength may not be lower than 55.\r\nStrength (55-120) [55]: "
+        rub(2) + "40" + &refused("Strength may not be lower than 55.", "Strength:  55")
     );
     insta::assert_snapshot!("stat_under_minimum", escape(&under));
     let over = line(&mut engine, &rx, id, "121");
     assert_eq!(
         plain(&over),
-        "Strength may not be higher than 120.\r\nStrength (55-120) [55]: "
+        rub(2) + "121" + &refused("Strength may not be higher than 120.", "Strength:  55")
     );
     insta::assert_snapshot!("stat_over_maximum", escape(&over));
     let budget = line(&mut engine, &rx, id, "110");
     assert_eq!(
         plain(&budget),
-        "You may not assign that much to Strength\r\nStrength (55-120) [55]: "
+        rub(2) + "110" + &refused("You may not assign that much to Strength", "Strength:  55")
     );
     insta::assert_snapshot!("stat_over_budget", escape(&budget));
     // accepted: the CP line is reprinted
     let ok = line(&mut engine, &rx, id, "79");
     assert_eq!(
         plain(&ok),
-        "\r\nYou have 58 CP to distribute.\r\nIntellect (30-90) [30]: "
+        rub(2) + "79\r\nYou have 58 CP to distribute.\r\n\r\n Intellect: 30"
     );
     insta::assert_snapshot!("stat_accepted", escape(&ok));
     // the budget is what is left after the other stats: Health 74 costs 42, 16 left
@@ -473,12 +490,12 @@ fn stat_refusals_in_the_editor() {
     let out = line(&mut engine, &rx, id, "74");
     assert_eq!(
         plain(&out),
-        "\r\nYou have 2 CP to distribute.\r\nCharm (30-85) [30]: "
+        rub(2) + "74\r\nYou have 2 CP to distribute.\r\n\r\n Charm:     30"
     );
     let out = line(&mut engine, &rx, id, "33");
     assert_eq!(
         plain(&out),
-        "You may not assign that much to Charm\r\nCharm (30-85) [30]: "
+        rub(2) + "33" + &refused("You may not assign that much to Charm", "Charm:     30")
     );
 }
 
@@ -494,13 +511,19 @@ fn happy_path_creates_a_kang_witchunter() {
     );
     let id = to_editor(&mut engine, &rx);
     let out = fill_kasimir(&mut engine, &rx, id, "Stonefist");
-    assert!(plain(&out).ends_with("SAVE or QUIT? [SAVE]: "));
+    assert!(
+        plain(&out).ends_with("\r\n\r\n Exit: SAVE"),
+        "{:?}",
+        plain(&out)
+    );
     // SAVE: the suicide notice, then the name check starts
     let outs = line_all(&mut engine, &rx, id, "");
     let text = plain(&writes(&outs, id));
+    // the form's line end as it is left, then the editor's end
     assert_eq!(
         text,
-        plain(&crate::common::moved_bytes("suicide_pw_notice"))
+        "\r\n".to_string()
+            + &plain(&crate::common::moved_bytes("suicide_pw_notice"))
             + "Please wait - Validating your name.\r\n "
     );
     insta::assert_snapshot!(
@@ -595,7 +618,7 @@ fn blank_last_name_refused_then_allowed_by_config() {
     let out = line(&mut engine, &rx, id, "");
     assert_eq!(
         plain(&out),
-        "You must enter a last name!\r\nFamily name []: "
+        "\r\n\r\nYou must enter a last name!\u{7}\r\n\r\nFamily Name "
     );
     insta::assert_snapshot!("last_name_required", escape(&out));
     // the SAVE-time check for a family name that is blank when SAVE runs
@@ -615,10 +638,14 @@ fn blank_last_name_refused_then_allowed_by_config() {
         }),
     });
     common::drain(&rx);
-    let out = line(&mut engine, &rx, id, "save");
-    assert_eq!(
-        plain(&out),
-        "You MUST have a last name!\r\nYou will have to start over again.\r\nPress Enter."
+    // `s` picks SAVE (the whole word would end on EDIT: its `e` picks that)
+    let out = line(&mut engine, &rx, id, "s");
+    assert!(
+        plain(&out).ends_with(
+            "You MUST have a last name!\r\nYou will have to start over again.\r\nPress Enter."
+        ),
+        "{:?}",
+        plain(&out)
     );
     insta::assert_snapshot!("last_name_must_start_over", escape(&out));
     assert_eq!(state(&engine, id), SessionState::MainMenu);
@@ -631,7 +658,7 @@ fn blank_last_name_refused_then_allowed_by_config() {
     engine.world.config.blank_lastname_allowed = true;
     let id = to_editor(&mut engine, &rx);
     fill_kasimir(&mut engine, &rx, id, "");
-    let outs = line_all(&mut engine, &rx, id, "save");
+    let outs = line_all(&mut engine, &rx, id, "s");
     assert_eq!(
         state(&engine, id),
         SessionState::NewChar(NewCharStep::Validating)
@@ -652,15 +679,11 @@ fn family_name_rules() {
     let out = line(&mut engine, &rx, id, "Stone-fist");
     assert_eq!(
         plain(&out),
-        "Only ALPHA characters are allowed in a name!\r\nFamily name []: "
+        "Stone-fist\r\n\r\nOnly ALPHA characters are allowed in a name!\u{7}\r\n\r\nFamily Name "
     );
-    let out = line(&mut engine, &rx, id, "Abcdefghijklmnopqrs");
-    assert_eq!(
-        plain(&out),
-        "Your family name can only be 18 characters long!\r\nFamily name []: "
-    );
-    let out = line(&mut engine, &rx, id, "stonefist");
-    assert!(plain(&out).starts_with("\r\nYou have 100 CP to distribute.\r\n"));
+    // blanks are taken out, then capitalised
+    let out = line(&mut engine, &rx, id, "stone fist");
+    assert!(plain(&out).starts_with("stone fist\r\nYou have 100 CP to distribute.\r\n"));
     assert_eq!(
         engine
             .world
@@ -672,6 +695,27 @@ fn family_name_rules() {
             .family_name,
         "Stonefist"
     );
+    // the field holds 18: a 19th letter is not taken, so the length refusal cannot come
+    let (mut engine, rx) = new_engine(4);
+    let id = to_editor(&mut engine, &rx);
+    line(&mut engine, &rx, id, "Kasimir");
+    let out = line(&mut engine, &rx, id, "Abcdefghijklmnopqrs");
+    assert!(
+        plain(&out).starts_with("Abcdefghijklmnopqr\r\nYou have"),
+        "{:?}",
+        plain(&out)
+    );
+    assert_eq!(
+        engine
+            .world
+            .session(id)
+            .unwrap()
+            .editor
+            .as_ref()
+            .unwrap()
+            .family_name,
+        "Abcdefghijklmnopqr"
+    );
 }
 
 // a given name that parses as a command bounces to the menu
@@ -682,12 +726,11 @@ fn given_name_sysop_bounces_to_the_menu() {
     for a in ["sysop", "Stonefist", "", "", "", "", "", "", "", "", ""] {
         line(&mut engine, &rx, id, a);
     }
-    let out = line(&mut engine, &rx, id, "SAVE");
-    assert_eq!(
-        plain(&out),
+    let out = line(&mut engine, &rx, id, "S");
+    assert!(plain(&out).ends_with(
         "The name you have chosen is already in use!\r\nYou will have to start over again.\r\nPress Enter."
-    );
-    assert!(out.starts_with(b"\x1b[1;31m"), "ANSI_LTRED");
+    ), "{:?}", plain(&out));
+    assert!(contains(&out, b"\x1b[1;31mThe name you"), "ANSI_LTRED");
     insta::assert_snapshot!("given_name_is_a_command", escape(&out));
     assert_eq!(state(&engine, id), SessionState::MainMenu);
     assert!(engine.world.session(id).unwrap().player().is_none());
@@ -782,26 +825,28 @@ fn clash_with_an_existing_character_loops_to_new_name() {
 fn clash_with_a_monster_name_loops_to_new_name() {
     let (mut engine, rx) = new_engine(4);
     let id = to_editor(&mut engine, &rx);
-    // `giant rat` cannot be a given name at all: a blank is not a letter
+    // `giant rat` is taken as `Giantrat`: the blanks are taken out, as the game does
     let out = line(&mut engine, &rx, id, "giant rat");
+    assert_eq!(plain(&out), rub(7) + "giant rat\r\nFamily Name ");
     assert_eq!(
-        plain(&out),
-        "Only ALPHA characters are allowed in a name!\r\nGiven name [KASIMIR]: "
+        engine
+            .world
+            .session(id)
+            .unwrap()
+            .editor
+            .as_ref()
+            .unwrap()
+            .given_name,
+        "Giantrat"
     );
-    for a in [
-        "kobold",
-        "Stonefist",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-    ] {
+    // Ctrl-U back to the given name, shown as stored; then the monster's name
+    let out = line(&mut engine, &rx, id, "\u{15}kobold");
+    assert!(
+        plain(&out).contains("Given Name  Giantrat"),
+        "{:?}",
+        plain(&out)
+    );
+    for a in ["Stonefist", "", "", "", "", "", "", "", "", "", ""] {
         line(&mut engine, &rx, id, a);
     }
     assert_eq!(

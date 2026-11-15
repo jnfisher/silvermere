@@ -459,10 +459,12 @@ fn opens_line_mode(caps: Caps) {
         crate::common::holds_moved(&text, "stat_editor_preamble"),
         "{text}"
     );
-    assert!(text.ends_with("Given name [Aldric]: "), "{text}");
-    assert_eq!(char_mode(&outs, id), None);
+    // the line by line form, its first field with its answer
+    assert!(text.ends_with("Given Name  Aldric"), "{text}");
+    assert_eq!(char_mode(&outs, id), Some(true));
     let s = engine.world.session(id).unwrap();
     assert!(s.editor.as_ref().unwrap().fullscreen.is_none());
+    assert!(s.editor.as_ref().unwrap().line.is_some());
 }
 
 // 80 columns are needed

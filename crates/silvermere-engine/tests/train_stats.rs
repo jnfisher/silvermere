@@ -301,6 +301,11 @@ fn plain(b: &[u8]) -> String {
     strip_ansi_str(&String::from_utf8_lossy(b)).replace("\r\n", "\n")
 }
 
+/// `n` characters rubbed out: the form blanking the answer shown before the first key.
+fn rub(n: usize) -> String {
+    "\u{8} \u{8}".repeat(n)
+}
+
 fn esc(b: &[u8]) -> String {
     String::from_utf8_lossy(b)
         .replace('\x1b', "\\x1b")
@@ -337,7 +342,7 @@ mod training {
             assert!(crate::common::holds_moved(&out, "stat_editor_preamble"));
             assert!(out.contains("\nYou have 15 CP to distribute.\n"));
             // no first-name field: the cursor starts at the family name
-            assert!(out.ends_with("Family name [Stonefist]: "), "{out}");
+            assert!(out.ends_with("\nFamily Name Stonefist"), "{out}");
             assert_eq!(
                 plain(&h.written(from, watcher)),
                 "Kraag just left the Realm.\n[HP=31]:"
@@ -348,14 +353,15 @@ mod training {
 
             assert_eq!(
                 h.line(id, ""),
-                "\nYou have 15 CP to distribute.\nStrength (55-120) [60]: "
+                "\nYou have 15 CP to distribute.\n\n Strength:  60"
             );
             assert_eq!(
                 h.line(id, "70"),
-                "\nYou have 0 CP to distribute.\nIntellect (30-90) [30]: "
+                rub(2) + "70\nYou have 0 CP to distribute.\n\n Intellect: 30"
             );
             let from = h.log.len();
-            let out = finish(&mut h, id, "SAVE");
+            // `S` picks SAVE (the whole word would end on EDIT: its `E` picks that)
+            let out = finish(&mut h, id, "S");
             assert!(out.contains("Kraag"), "show_status: {out}");
             assert!(out.ends_with("[HP=31]:"), "{out}");
             assert_eq!(
@@ -447,7 +453,7 @@ mod training {
             let from = h.log.len();
             h.line(id, "");
             h.line(id, "");
-            finish(&mut h, id, "save");
+            finish(&mut h, id, "s");
             assert!(plain(&h.written(from, watcher)).contains("Kraag just entered the Realm."));
             let rec = h.saves(from).pop().expect("saved");
             assert_eq!(stats(&rec), [65, 30, 45, 30, 50, 30]);
@@ -464,8 +470,9 @@ mod training {
             h.line(id, "");
             h.line(id, "70");
             let from = h.log.len();
+            // `q` picks QUIT, the rest of the word matches no choice
             let out = finish(&mut h, id, "quit");
-            assert_eq!(out, "[HP=31]:");
+            assert_eq!(out, rub(4) + "QUIT\n[HP=31]:");
             assert_eq!(
                 plain(&h.written(from, watcher)),
                 "Kraag just entered the Realm.\n[HP=31]:"
@@ -485,15 +492,15 @@ mod training {
             h.line(id, "");
             assert_eq!(
                 h.line(id, "59"),
-                "Strength may not be lower than 60.\nStrength (55-120) [60]: "
+                rub(2) + "59\n\nStrength may not be lower than 60.\u{7}\n\n Strength:  60"
             );
             assert_eq!(
                 h.line(id, "71"),
-                "You may not assign that much to Strength\nStrength (55-120) [60]: "
+                rub(2) + "71\n\nYou may not assign that much to Strength\u{7}\n\n Strength:  60"
             );
             h.line(id, "62");
             let from = h.log.len();
-            finish(&mut h, id, "save");
+            finish(&mut h, id, "s");
             let rec = h.saves(from).pop().expect("saved");
             assert_eq!(rec.str, 62);
             assert_eq!(rec.cp, 13, "15 - 2: 60 -> 62 at 1 CP each");
@@ -508,7 +515,7 @@ mod training {
             h.line(id, "train stats");
             h.line(id, "");
             h.line(id, "");
-            let out = finish(&mut h, id, "save");
+            let out = finish(&mut h, id, "s");
             let pos = |s: &str| out.find(s).unwrap_or_else(|| panic!("{s}: {out}"));
             let notice = crate::common::moved_lines("suicide_pw_notice");
             assert!(pos(notice.last().unwrap()) < pos("[HP=31]:"));
@@ -519,7 +526,7 @@ mod training {
         // enters, QUIT goes back to the menu.
         #[test]
         fn stat_reset_goes_through_the_editor_at_entry() {
-            for (exit, menu) in [("save", false), ("quit", true)] {
+            for (exit, menu) in [("s", false), ("quit", true)] {
                 let mut h = Harness::new();
                 let id = h.player("Kraag", TRAINER);
                 h.plr_mut(id).cp = -1;
@@ -533,7 +540,7 @@ mod training {
                     crate::common::holds_moved(&out, "stat_editor_preamble"),
                     "{out}"
                 );
-                assert!(out.ends_with("Family name [Stonefist]: "), "{out}");
+                assert!(out.ends_with("\nFamily Name Stonefist"), "{out}");
                 assert!(
                     h.plr(id).status2.contains(PlayerStatus2::STATRESET),
                     "load_player marks it"
