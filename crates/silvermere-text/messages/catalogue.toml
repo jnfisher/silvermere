@@ -83,6 +83,10 @@ example = { gang = "Raiders" }
 text = "\r(This text is not installed: run `silvermere import`.)\r"
 note = "Goes out as one message. (sic) The parenthesis is never closed. The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 
+[messages.enter_quest7_stripped]
+text = "You have been stripped of 35,000,000 exp, and need to recomplete the red dragon ruby quest.\rYou will need to exit and re-enter the realm to be retrained so your stats can be verified.."
+note = "On entry, when the character's Quest type seven ability is at 2 and there is experience to take: the red dragon ruby quest's reward is taken back. No line end after the second sentence (sic)."
+
 [messages.enter_life_ebbing]
 text = "You feel your life-force ebbing.\r"
 
