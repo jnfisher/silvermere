@@ -14,10 +14,10 @@
 //! The sneak and drag state of SNEAK and DRAG are the arguments of [`move_user_with`].
 
 use silvermere_text::Msg;
-use silvermere_types::enums::{Ability, Alignment, Direction, ExitType, MonsterType, RoomType};
+use silvermere_types::enums::{Ability, Alignment, Direction, MonsterType, RoomType};
 use silvermere_types::flags::{PlayerSettings, PlayerStatus, PlayerStatus2, RoomFlags};
 use silvermere_types::ids::{RoomKey, SessionId};
-use silvermere_types::records::Character;
+use silvermere_types::records::{CastExit, Character, ExitParams};
 use silvermere_types::sizes::{NROOMMONS, NTRAIL};
 
 use super::exits::{Gate, GateCtx, exit_gate, live_exit, prompt, show_room, tell_room_all};
@@ -257,8 +257,8 @@ pub fn move_user_with(
             }
         }
         // the usual ending: the Cast exit's epilogue
-        if finish && exit.kind == ExitType::Cast {
-            cast_epilogue(world, id, &name, &exit);
+        if finish && let ExitParams::Cast(cx) = exit.params() {
+            cast_epilogue(world, id, &name, cx);
         }
     } else {
         tell_user(world, id, Msg::NoExitClr);
@@ -273,25 +273,14 @@ pub fn move_user_with(
 
 /// The Cast exit's epilogue after any attempt: spell `exitpar2s` too, and `msgs[2]` of
 /// message `exitpar3s` to the room the player is in now.
-fn cast_epilogue(
-    world: &mut World,
-    id: SessionId,
-    name: &str,
-    exit: &silvermere_types::records::Exit,
-) {
-    if exit.par2 != 0 {
-        HOOKS
-            .spells
-            .room_cast_on_user(world, id, i32::from(exit.par2));
+fn cast_epilogue(world: &mut World, id: SessionId, name: &str, cx: CastExit) {
+    if cx.after != 0 {
+        HOOKS.spells.room_cast_on_user(world, id, cx.after);
     }
-    if exit.par3 == 0 {
+    if cx.message.0 == 0 {
         return;
     }
-    let Some(m) = world
-        .messages
-        .get(&silvermere_types::ids::MessageNo(exit.par3))
-        .map(|m| m.msgs.clone())
-    else {
+    let Some(m) = world.messages.get(&cx.message).map(|m| m.msgs.clone()) else {
         return;
     };
     if m[2].is_empty() {

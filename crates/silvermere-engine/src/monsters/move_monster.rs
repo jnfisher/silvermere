@@ -14,7 +14,7 @@ use silvermere_text::Msg;
 use silvermere_types::enums::{Ability, Direction, ExitType, GroupRole, MonsterType, RoomType};
 use silvermere_types::flags::{ActiveMonsterFlags, RoomFlags};
 use silvermere_types::ids::{ActiveMonsterId, RoomId, RoomKey, SessionId};
-use silvermere_types::records::{ActiveMonster, KnownMonster};
+use silvermere_types::records::{ActiveMonster, ExitParams, KnownMonster, Lock, TrapState};
 use silvermere_types::sizes::{NAMTRAIL, NDIRS, NROOMMONS};
 
 use super::active::{add_monster_to_room, save_room, take_monster_from_room};
@@ -173,38 +173,45 @@ pub fn move_monster(
         }
     }
     // the kind of exit
-    let trap_damage = |rng: &mut crate::scheduler::SeededRng| -> i16 {
-        let p1 = i32::try_from(exit.par1).unwrap_or(i32::MAX);
+    let trap_damage = |rng: &mut crate::scheduler::SeededRng, damage: u32| -> i16 {
+        let p1 = i32::try_from(damage).unwrap_or(i32::MAX);
         rng.range(p1 / 2, p1.saturating_add(1)) as i16
     };
-    match exit.kind {
-        ExitType::Trap if matches!(exit.par2, 0 | 2 | 3) => {
-            let d = trap_damage(&mut world.rng);
+    let springs = |s: TrapState| {
+        matches!(
+            s,
+            TrapState::Armed | TrapState::Hidden | TrapState::ArmedThrows
+        )
+    };
+    match exit.params() {
+        ExitParams::Trap(t) if springs(t.state) => {
+            let d = trap_damage(&mut world.rng, t.damage);
             if let Some(m) = world.active_monsters.by_number_mut(monnum) {
                 m.hp = m.hp.wrapping_sub(d);
             }
         }
-        ExitType::SpellTrap if matches!(exit.par2, 0 | 2 | 3) => {
-            let d = trap_damage(&mut world.rng);
+        ExitParams::SpellTrap(t) if springs(t.state) => {
+            // (sic) the spell number is taken as the damage, as for a Trap
+            let d = trap_damage(&mut world.rng, t.spell as u32);
             if let Some(m) = world.active_monsters.by_number_mut(monnum) {
                 m.hp = m.hp.wrapping_sub(d).max(0);
             }
         }
-        ExitType::Key if exit.par2 != 0 && mon.montype != MonsterType::Quest => {
+        ExitParams::Key(k) if k.lock != Lock::Open && mon.montype != MonsterType::Quest => {
             return Moved::No;
         }
-        ExitType::Gate | ExitType::Door
-            if exit.par1 != 0
+        ExitParams::Gate(d) | ExitParams::Door(d)
+            if d.lock != Lock::Open
                 && !matches!(mon.montype, MonsterType::Guard | MonsterType::Quest) =>
         {
             return Moved::No;
         }
-        ExitType::Spell
-        | ExitType::Item
-        | ExitType::Toll
-        | ExitType::Hidden
-        | ExitType::MapChange
-        | ExitType::RemoteAction => return Moved::No,
+        ExitParams::Spell
+        | ExitParams::Item(_)
+        | ExitParams::Toll { .. }
+        | ExitParams::Hidden(_)
+        | ExitParams::MapChange { .. }
+        | ExitParams::Remote(_) => return Moved::No,
         _ => {}
     }
     // the move; marked even when it lands back on its saved room and trail

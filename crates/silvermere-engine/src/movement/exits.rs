@@ -9,10 +9,14 @@
 use silvermere_rules::economy;
 use silvermere_text::Msg;
 use silvermere_text::ansi;
-use silvermere_types::enums::{Currency, Direction, ExitType, RoomType};
-use silvermere_types::flags::{ExitFlags, PlayerStatus, PlayerStatus2};
-use silvermere_types::ids::{ItemNo, MapId, MessageNo, RoomKey, SessionId};
-use silvermere_types::records::{Exit, Room};
+use silvermere_types::enums::{Ability, Currency, Direction, ExitType, RoomType};
+use silvermere_types::flags::{PlayerStatus, PlayerStatus2};
+use silvermere_types::ids::{MapId, MessageNo, RoomId, RoomKey, SessionId};
+use silvermere_types::records::{
+    AbilityExit, AlignmentExit, CastExit, ClassOrRaceExit, DoorExit, Exit, ExitParams, HiddenExit,
+    ItemExit, KeyExit, LevelExit, Lock, Room, SpellTrapExit, TextExit, TimedExit, TrapExit,
+    TrapState,
+};
 use silvermere_types::sizes::NDIRS;
 
 use super::move_user::{clear_search_flags, set_user_location, user_allowed_in_room};
@@ -28,20 +32,6 @@ pub const LOCK_OPEN: u32 = 0;
 pub const LOCK_CLOSED: u32 = 1;
 /// Shut and locked.
 pub const LOCK_LOCKED: u32 = 2;
-
-/// The trap kinds in a Trap or Spell Trap exit's second parameter.
-pub mod trap {
-    /// Armed; a failed disarm hurts.
-    pub const HURT: i16 = 0;
-    /// Disarmed (was `HURT`).
-    pub const HURTOFF: i16 = 1;
-    /// Not among the visible exits; springs only when walked into on purpose.
-    pub const HIDDEN: i16 = 2;
-    /// Armed; a failed disarm throws the player through.
-    pub const THROW: i16 = 3;
-    /// Disarmed (was `THROW`).
-    pub const THROWOFF: i16 = 4;
-}
 
 /// The live values of an exit's parameters where they differ from the content.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -104,24 +94,53 @@ pub fn live_room(world: &World, room: RoomKey) -> Option<Room> {
 }
 
 /// Sets the live `exitpar1s` of the exit and marks the room changed.
-pub fn set_par1(world: &mut World, room: RoomKey, dir: Direction, v: u32) {
+fn set_par1(world: &mut World, room: RoomKey, dir: Direction, v: u32) {
     if let Some(s) = world.room_state.get_mut(&room) {
         s.exit_overrides[usize::from(dir.code())].par1 = Some(v);
     }
 }
 
 /// Sets the live `exitpar2s` of the exit and marks the room changed.
-pub fn set_par2(world: &mut World, room: RoomKey, dir: Direction, v: i16) {
+fn set_par2(world: &mut World, room: RoomKey, dir: Direction, v: i16) {
     if let Some(s) = world.room_state.get_mut(&room) {
         s.exit_overrides[usize::from(dir.code())].par2 = Some(v);
     }
 }
 
 /// Sets the live `exitpar3s` of the exit and marks the room changed.
-pub fn set_par3(world: &mut World, room: RoomKey, dir: Direction, v: i32) {
+fn set_par3(world: &mut World, room: RoomKey, dir: Direction, v: i32) {
     if let Some(s) = world.room_state.get_mut(&room) {
         s.exit_overrides[usize::from(dir.code())].par3 = Some(v);
     }
+}
+
+/// Lays the live state in `p` over the exit: a Door's, Gate's or Key exit's lock, a trap's
+/// state, a Hidden exit's flags or a Timed exit's phase. The rest of `p` stays the content's.
+pub fn set_exit_state(world: &mut World, room: RoomKey, dir: Direction, p: ExitParams) {
+    let mut e = Exit {
+        target: RoomId(0),
+        kind: p.kind(),
+        par1: 0,
+        par2: 0,
+        par3: 0,
+        par4: 0,
+    };
+    e.set_params(p);
+    match p {
+        ExitParams::Door(_) | ExitParams::Gate(_) | ExitParams::Hidden(_) => {
+            set_par1(world, room, dir, e.par1);
+        }
+        ExitParams::Key(_) | ExitParams::Trap(_) | ExitParams::SpellTrap(_) => {
+            set_par2(world, room, dir, e.par2);
+        }
+        ExitParams::Timed(_) => set_par3(world, room, dir, e.par3),
+        _ => {}
+    }
+}
+
+/// Sets the lock state of a Door, Gate or Key exit.
+pub fn set_lock(world: &mut World, room: RoomKey, dir: Direction, exit: &Exit, lock: Lock) {
+    set_exit_state(world, room, dir, exit.params().with_lock(lock));
 }
 
 /// `"door"` or `"gate"` for the messages: everything that is not a Gate is a door, as the
@@ -144,18 +163,12 @@ pub fn exit_is_available(world: &World, room: RoomKey, dir: Direction) -> bool {
     if exit.target.0 == 0 {
         return false;
     }
-    match exit.kind {
-        ExitType::Spell | ExitType::Text | ExitType::RemoteAction => false,
-        ExitType::Hidden => hidden_passable(exit.par1),
-        ExitType::Trap => matches!(exit.par2, 0 | 1 | 3 | 4),
+    match exit.params() {
+        ExitParams::Spell | ExitParams::Text(_) | ExitParams::Remote(_) => false,
+        ExitParams::Hidden(h) => h.passable(),
+        ExitParams::Trap(t) => !matches!(t.state, TrapState::Hidden | TrapState::Other(_)),
         _ => true,
     }
-}
-
-/// A Hidden exit that is passable, found or visible-but-blocked.
-pub fn hidden_passable(par1: u32) -> bool {
-    ExitFlags::from_bits_retain(par1)
-        .intersects(ExitFlags::PASSABLE | ExitFlags::VISSEARCHED | ExitFlags::VISBLOCKED)
 }
 
 /// The exit types that refuse a dragged player.
@@ -314,35 +327,35 @@ pub enum Gate {
 
 /// The exit-type check of `move_user`. Each type is its own function below.
 pub fn exit_gate(world: &mut World, c: &GateCtx) -> Gate {
-    match c.exit.kind {
-        ExitType::Spell => spell(world, c),
-        ExitType::Key => key(world, c),
-        ExitType::Item => item(world, c),
-        ExitType::Toll => toll(world, c),
-        ExitType::Action => action(world, c),
-        ExitType::Gate => gate_or_door(world, c, Msg::GateClosedLocked, Msg::GateClosed),
-        ExitType::Door => gate_or_door(world, c, Msg::DoorClosedLocked, Msg::DoorClosed),
-        ExitType::Text => text(world, c),
-        ExitType::Trap => trap_exit(world, c),
-        ExitType::SpellTrap => spell_trap(world, c),
-        ExitType::Hidden => hidden(world, c),
-        ExitType::RemoteAction => remote(world, c),
-        ExitType::Class => class_or_race(world, c, true),
-        ExitType::Race => class_or_race(world, c, false),
-        ExitType::Level => level(world, c),
-        ExitType::Alignment => alignment(world, c),
-        ExitType::MapChange => map_change(world, c),
-        ExitType::Timed => timed(world, c),
-        ExitType::Cast => cast(world, c),
-        ExitType::Ability => ability(world, c),
+    match c.exit.params() {
+        ExitParams::Spell => spell(world, c),
+        ExitParams::Key(k) => key(world, c, k),
+        ExitParams::Item(i) => item(world, c, i),
+        ExitParams::Toll { gold } => toll(world, c, gold),
+        ExitParams::Action { message } => action(world, c, message),
+        ExitParams::Gate(d) => gate_or_door(world, c, d, Msg::GateClosedLocked, Msg::GateClosed),
+        ExitParams::Door(d) => gate_or_door(world, c, d, Msg::DoorClosedLocked, Msg::DoorClosed),
+        ExitParams::Text(t) => text(world, c, t),
+        ExitParams::Trap(t) => trap_exit(world, c, t),
+        ExitParams::SpellTrap(t) => spell_trap(world, c, t),
+        ExitParams::Hidden(h) => hidden(world, c, h),
+        ExitParams::Remote(_) => remote(world, c),
+        ExitParams::Class(r) => class_or_race(world, c, r, true),
+        ExitParams::Race(r) => class_or_race(world, c, r, false),
+        ExitParams::Level(lv) => level(world, c, lv),
+        ExitParams::Alignment(al) => alignment(world, c, al),
+        ExitParams::MapChange { map } => map_change(world, c, map),
+        ExitParams::Timed(t) => timed(world, c, t),
+        ExitParams::Cast(cx) => cast(world, c, cx),
+        ExitParams::Ability(ab) => ability(world, c, ab),
         // Normal, and Ticket, User Count, Block Guard and Delay (17-19, 21), which have no
         // case and pass like ordinary exits.
-        ExitType::Normal
-        | ExitType::Ticket
-        | ExitType::UserCount
-        | ExitType::BlockGuard
-        | ExitType::Delay
-        | ExitType::Unknown(_) => pass(c),
+        ExitParams::Normal
+        | ExitParams::Ticket
+        | ExitParams::UserCount
+        | ExitParams::BlockGuard
+        | ExitParams::Delay
+        | ExitParams::Unknown(_) => pass(c),
     }
 }
 
@@ -376,8 +389,7 @@ const ADDONS: [(u32, &str); 12] = [
 
 /// A Map Change exit into map `par1`. An add-on's map is open only when its pack is
 /// loaded (the target room is in the world); maps 1, 5, 7, 10 and 11 need no pack.
-fn map_change(world: &mut World, c: &GateCtx) -> Gate {
-    let newmap = MapId(c.exit.par1);
+fn map_change(world: &mut World, c: &GateCtx, newmap: MapId) -> Gate {
     let free = matches!(newmap.0, 1 | 5 | 7 | 10 | 11);
     if !free
         && world
@@ -420,8 +432,8 @@ fn tournament(world: &mut World, c: &GateCtx) -> Option<Gate> {
 }
 
 /// The message record `n`, if any.
-fn message(world: &World, n: i32) -> Option<[String; 3]> {
-    world.messages.get(&MessageNo(n)).map(|m| m.msgs.clone())
+fn message(world: &World, n: MessageNo) -> Option<[String; 3]> {
+    world.messages.get(&n).map(|m| m.msgs.clone())
 }
 
 /// A Spell exit.
@@ -436,11 +448,11 @@ fn spell(world: &mut World, c: &GateCtx) -> Gate {
 }
 
 /// A Key exit: `exitpar2s` is the lock; only a bash (how 5) gets through a shut one.
-fn key(world: &mut World, c: &GateCtx) -> Gate {
+fn key(world: &mut World, c: &GateCtx, k: KeyExit) -> Gate {
     if let Some(g) = no_drag(world, c) {
         return g;
     }
-    if c.exit.par2 != 0 && c.how != 5 {
+    if k.lock != Lock::Open && c.how != 5 {
         return refuse(world, c.id, Msg::ExitKeyClosed);
     }
     pass(c)
@@ -448,17 +460,17 @@ fn key(world: &mut World, c: &GateCtx) -> Gate {
 
 /// An Item exit: the item `exitpar1s` carried moves the player through with message
 /// `exitpar3s` and spends one use; otherwise message `exitpar2s` or the standard refusal.
-fn item(world: &mut World, c: &GateCtx) -> Gate {
+fn item(world: &mut World, c: &GateCtx, item: ItemExit) -> Gate {
     if let Some(g) = no_drag(world, c) {
         return g;
     }
-    let wanted = ItemNo(c.exit.par1 as i32);
+    let wanted = item.item;
     let slot = world
         .session(c.id)
         .and_then(|s| s.player())
         .and_then(|p| p.items.iter().position(|&i| i == wanted && i.0 != 0));
     if let Some(slot) = slot {
-        let msg = message(world, c.exit.par3);
+        let msg = message(world, item.message);
         let target = RoomKey {
             map: c.room.map,
             room: c.exit.target,
@@ -500,7 +512,7 @@ fn item(world: &mut World, c: &GateCtx) -> Gate {
         HOOKS.items.deduct_item_charge(world, c.id, slot);
         return Gate::Carried { out: true };
     }
-    match message(world, i32::from(c.exit.par2)) {
+    match message(world, item.refused) {
         Some(m) => {
             if !m[0].is_empty() {
                 tell_user(world, c.id, Msg::ExitTextYellow { text: m[0].clone() });
@@ -531,11 +543,10 @@ pub fn show_room(world: &mut World, id: SessionId) {
 
 /// A Toll exit: `exitpar1s` gold crowns, paid by value, listed after "You just paid";
 /// paying gives a sneaker away.
-fn toll(world: &mut World, c: &GateCtx) -> Gate {
+fn toll(world: &mut World, c: &GateCtx, gold: u32) -> Gate {
     if let Some(g) = no_drag(world, c) {
         return g;
     }
-    let gold = c.exit.par1;
     let price = economy::amount_to_copper(gold, Currency::Gold);
     let Some(coins) = world
         .session(c.id)
@@ -605,8 +616,8 @@ pub fn coin_list(world: &World, paid: silvermere_types::records::Coins) -> Strin
 
 /// An Action exit: message `exitpar1s` (0: a plain exit) moves a seen player itself, same
 /// map, and tells both rooms.
-fn action(world: &mut World, c: &GateCtx) -> Gate {
-    if c.exit.par1 == 0 || c.unseen {
+fn action(world: &mut World, c: &GateCtx, msg: MessageNo) -> Gate {
+    if msg.0 == 0 || c.unseen {
         return pass(c);
     }
     let target = RoomKey {
@@ -616,7 +627,7 @@ fn action(world: &mut World, c: &GateCtx) -> Gate {
     if !user_allowed_in_room(world, c.id, target, c.room_type, false) {
         return refuse(world, c.id, Msg::NotPermitted);
     }
-    let Some(m) = message(world, c.exit.par1 as i32) else {
+    let Some(m) = message(world, msg) else {
         return pass(c);
     };
     set_user_location(world, c.id, target, false);
@@ -665,25 +676,25 @@ fn action(world: &mut World, c: &GateCtx) -> Gate {
     Gate::Carried { out: false }
 }
 
-/// A Gate or Door exit: `exitpar1s` 1 is `Closed!`, 2 is `closed!`.
-fn gate_or_door(world: &mut World, c: &GateCtx, one: Msg, two: Msg) -> Gate {
-    match c.exit.par1 {
-        1 => refuse(world, c.id, one),
-        2 => refuse(world, c.id, two),
+/// A Gate or Door exit: closed is `Closed!`, locked is `closed!`.
+fn gate_or_door(world: &mut World, c: &GateCtx, d: DoorExit, one: Msg, two: Msg) -> Gate {
+    match d.lock {
+        Lock::Closed => refuse(world, c.id, one),
+        Lock::Locked => refuse(world, c.id, two),
         _ => pass(c),
     }
 }
 
 /// A Text exit: by typed words (how 4) or behind a leader (how 3), with message
 /// `exitpar3s`; otherwise there is no exit.
-fn text(world: &mut World, c: &GateCtx) -> Gate {
+fn text(world: &mut World, c: &GateCtx, t: TextExit) -> Gate {
     if c.how != 4 && c.how != 3 {
         return refuse(world, c.id, Msg::NoExit);
     }
-    if c.exit.par3 == 0 {
+    if t.message.0 == 0 {
         return pass(c);
     }
-    let Some(m) = message(world, c.exit.par3) else {
+    let Some(m) = message(world, t.message) else {
         return pass(c);
     };
     let target = RoomKey {
@@ -749,24 +760,24 @@ pub fn prompt(world: &mut World, id: SessionId) {
 
 /// The trap kind decides: `Some(true)` springs, `Some(false)` is an ordinary exit, `None`
 /// refused as no exit or nothing.
-fn trap_springs(world: &mut World, c: &GateCtx) -> Result<bool, Gate> {
-    match c.exit.par2 {
-        trap::HURTOFF | trap::THROWOFF => Ok(false),
-        trap::HIDDEN if c.how != 7 => Err(refuse(world, c.id, Msg::NoExit)),
-        trap::HIDDEN | trap::HURT | trap::THROW => Ok(true),
-        _ => Err(Gate::Stay),
+fn trap_springs(world: &mut World, c: &GateCtx, state: TrapState) -> Result<bool, Gate> {
+    match state {
+        TrapState::Disarmed | TrapState::DisarmedThrows => Ok(false),
+        TrapState::Hidden if c.how != 7 => Err(refuse(world, c.id, Msg::NoExit)),
+        TrapState::Hidden | TrapState::Armed | TrapState::ArmedThrows => Ok(true),
+        TrapState::Other(_) => Err(Gate::Stay),
     }
 }
 
 /// A Trap exit: `exitpar1s / 2` to `exitpar1s + 1` damage, message `exitpar3s`, and through
 /// the exit he goes.
-fn trap_exit(world: &mut World, c: &GateCtx) -> Gate {
-    match trap_springs(world, c) {
+fn trap_exit(world: &mut World, c: &GateCtx, t: TrapExit) -> Gate {
+    match trap_springs(world, c, t.state) {
         Ok(false) => return pass(c),
         Err(g) => return g,
         Ok(true) => {}
     }
-    let base = c.exit.par1 as i32;
+    let base = t.damage as i32;
     let dmg = world.rng.range(base / 2, base + 1);
     if let Some(p) = world.session_mut(c.id).and_then(|s| s.character.as_mut()) {
         p.hp = p.hp.wrapping_sub(dmg as i16);
@@ -775,7 +786,7 @@ fn trap_exit(world: &mut World, c: &GateCtx) -> Gate {
         map: c.room.map,
         room: c.exit.target,
     };
-    let msg = message(world, c.exit.par3);
+    let msg = message(world, t.message);
     if let Some(m) = &msg {
         if !m[1].is_empty() {
             let text = fmt_msg(&m[1], &[Arg::S(&green_name(&c.name))]);
@@ -814,8 +825,8 @@ fn trap_exit(world: &mut World, c: &GateCtx) -> Gate {
 
 /// A Spell Trap exit: message `exitpar4s` (room texts with a blank line after), spell
 /// `exitpar1s` on the player, then through unless the spell moved him.
-fn spell_trap(world: &mut World, c: &GateCtx) -> Gate {
-    match trap_springs(world, c) {
+fn spell_trap(world: &mut World, c: &GateCtx, t: SpellTrapExit) -> Gate {
+    match trap_springs(world, c, t.state) {
         Ok(false) => return pass(c),
         Err(g) => return g,
         Ok(true) => {}
@@ -824,7 +835,7 @@ fn spell_trap(world: &mut World, c: &GateCtx) -> Gate {
         map: c.room.map,
         room: c.exit.target,
     };
-    let msg = message(world, c.exit.par4);
+    let msg = message(world, t.message);
     if let Some(m) = &msg {
         if !m[1].is_empty() {
             let text = fmt_msg(&m[1], &[Arg::S(&green_name(&c.name))]);
@@ -850,9 +861,7 @@ fn spell_trap(world: &mut World, c: &GateCtx) -> Gate {
             tell_user(world, c.id, Msg::ExitTextGreen { text });
         }
     }
-    HOOKS
-        .spells
-        .room_cast_on_user(world, c.id, c.exit.par1 as i32);
+    HOOKS.spells.room_cast_on_user(world, c.id, t.spell);
     let still_here = world
         .session(c.id)
         .and_then(|s| s.room_key())
@@ -868,8 +877,8 @@ fn spell_trap(world: &mut World, c: &GateCtx) -> Gate {
 }
 
 /// A Hidden exit: passable, found or visible-but-blocked; otherwise there is no exit.
-fn hidden(world: &mut World, c: &GateCtx) -> Gate {
-    if hidden_passable(c.exit.par1) {
+fn hidden(world: &mut World, c: &GateCtx, h: HiddenExit) -> Gate {
+    if h.passable() {
         return pass(c);
     }
     refuse(world, c.id, Msg::NoExit)
@@ -882,7 +891,7 @@ fn remote(world: &mut World, c: &GateCtx) -> Gate {
 
 /// A Class or Race exit: `exitpar1s` the only class (race) allowed, else `exitpar2s` the
 /// one barred.
-fn class_or_race(world: &mut World, c: &GateCtx, class: bool) -> Gate {
+fn class_or_race(world: &mut World, c: &GateCtx, r: ClassOrRaceExit, class: bool) -> Gate {
     if let Some(g) = no_drag(world, c) {
         return g;
     }
@@ -897,10 +906,10 @@ fn class_or_race(world: &mut World, c: &GateCtx, class: bool) -> Gate {
     } else {
         u32::from(plr.race.0)
     };
-    let barred = if c.exit.par1 != 0 {
-        mine != c.exit.par1
+    let barred = if r.only != 0 {
+        mine != r.only
     } else {
-        c.exit.par2 != 0 && mine == c.exit.par2 as u32
+        r.barred != 0 && mine == r.barred as u32
     };
     if barred {
         return refuse(world, c.id, Msg::ExitForbidden);
@@ -909,7 +918,7 @@ fn class_or_race(world: &mut World, c: &GateCtx, class: bool) -> Gate {
 }
 
 /// A Level exit: `exitpar1s` the lowest level, `exitpar2s` the highest (0: no limit).
-fn level(world: &mut World, c: &GateCtx) -> Gate {
+fn level(world: &mut World, c: &GateCtx, lv: LevelExit) -> Gate {
     if let Some(g) = no_drag(world, c) {
         return g;
     }
@@ -923,17 +932,17 @@ fn level(world: &mut World, c: &GateCtx) -> Gate {
     else {
         return Gate::Refused;
     };
-    if c.exit.par1 != 0 && level < i64::from(c.exit.par1) {
+    if lv.min != 0 && level < i64::from(lv.min) {
         return refuse(world, c.id, Msg::ExitLevelLow);
     }
-    if c.exit.par2 != 0 && level > i64::from(c.exit.par2) {
+    if lv.max != 0 && level > i64::from(lv.max) {
         return refuse(world, c.id, Msg::ExitLevelHigh);
     }
     pass(c)
 }
 
 /// An Alignment exit: evil points between `exitpar1s` (read as signed) and `exitpar2s`.
-fn alignment(world: &mut World, c: &GateCtx) -> Gate {
+fn alignment(world: &mut World, c: &GateCtx, al: AlignmentExit) -> Gate {
     if let Some(g) = no_drag(world, c) {
         return g;
     }
@@ -943,11 +952,10 @@ fn alignment(world: &mut World, c: &GateCtx) -> Gate {
     let Some(evil) = world.session(c.id).and_then(|s| s.player()).map(|p| p.evil) else {
         return Gate::Refused;
     };
-    // `exitpar1s` read as a signed int: the low word
-    if evil < c.exit.par1 as u16 as i16 {
+    if evil < al.min_evil() {
         return refuse(world, c.id, Msg::ExitTooGood);
     }
-    if evil > c.exit.par2 {
+    if evil > al.max {
         return refuse(world, c.id, Msg::ExitTooEvil);
     }
     pass(c)
@@ -955,11 +963,11 @@ fn alignment(world: &mut World, c: &GateCtx) -> Gate {
 
 /// A Timed exit: closed while `exitpar3s` is not 0; the refusal is `msgs[2]` of message
 /// `exitpar1s` with the direction, or the standard text.
-fn timed(world: &mut World, c: &GateCtx) -> Gate {
-    if c.exit.par3 == 0 {
+fn timed(world: &mut World, c: &GateCtx, t: TimedExit) -> Gate {
+    if !t.closed() {
         return pass(c);
     }
-    let own = message(world, c.exit.par1 as i32).filter(|m| !m[2].is_empty());
+    let own = message(world, t.message).filter(|m| !m[2].is_empty());
     let msg = match own {
         Some(m) => Msg::ExitTextPlain {
             text: fmt_msg(&m[2], &[Arg::S(&dirname(world, c.dir))]),
@@ -971,13 +979,11 @@ fn timed(world: &mut World, c: &GateCtx) -> Gate {
 
 /// A Cast exit: spell `exitpar1s` on the player first; dead, held or stunned he stays; else
 /// message `exitpar3s` and on.
-fn cast(world: &mut World, c: &GateCtx) -> Gate {
-    if c.exit.par1 == 0 {
+fn cast(world: &mut World, c: &GateCtx, cx: CastExit) -> Gate {
+    if cx.spell == 0 {
         return pass(c);
     }
-    HOOKS
-        .spells
-        .room_cast_on_user(world, c.id, c.exit.par1 as i32);
+    HOOKS.spells.room_cast_on_user(world, c.id, cx.spell);
     let felled = world
         .session(c.id)
         .and_then(|s| s.player())
@@ -989,10 +995,10 @@ fn cast(world: &mut World, c: &GateCtx) -> Gate {
     if felled {
         return Gate::Stay;
     }
-    if c.exit.par3 == 0 {
+    if cx.message.0 == 0 {
         return pass(c);
     }
-    let Some(m) = message(world, c.exit.par3) else {
+    let Some(m) = message(world, cx.message) else {
         return pass(c);
     };
     if !m[0].is_empty() {
@@ -1012,21 +1018,18 @@ fn cast(world: &mut World, c: &GateCtx) -> Gate {
 
 /// An Ability exit: ability `exitpar1s` between `exitpar2s` and `exitpar3s` (the top
 /// compared unsigned); else message `exitpar4s`, if any.
-fn ability(world: &mut World, c: &GateCtx) -> Gate {
-    let abl = silvermere_types::enums::Ability::from_code(c.exit.par1 as u16);
-    if c.exit.par1 != 0 && HOOKS.abilities.has(world, c.id, abl) {
+fn ability(world: &mut World, c: &GateCtx, ab: AbilityExit) -> Gate {
+    let abl = Ability::from_code(ab.ability as u16);
+    if ab.ability != 0 && HOOKS.abilities.has(world, c.id, abl) {
         let value = HOOKS.abilities.value(world, c.id, abl).unwrap_or(0);
-        if i64::from(c.exit.par2) <= i64::from(value)
-            && (value as u32) <= c.exit.par3 as u32
-            && value >= 0
-        {
+        if i64::from(ab.min) <= i64::from(value) && (value as u32) <= ab.max as u32 && value >= 0 {
             return pass(c);
         }
     }
-    if c.exit.par4 == 0 {
+    if ab.refused.0 == 0 {
         return Gate::Stay;
     }
-    let Some(m) = message(world, c.exit.par4) else {
+    let Some(m) = message(world, ab.refused) else {
         return Gate::Stay;
     };
     if !m[0].is_empty() {
