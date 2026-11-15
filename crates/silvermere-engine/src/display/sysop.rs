@@ -621,8 +621,10 @@ fn display_evil_timers(world: &mut World, id: SessionId, attacker: SessionId, na
         .map(|t| (t.victim, t.robbed, t.rounds))
         .collect();
     for (victim, robbed, rounds) in mine {
+        // the victim's slot, which leaving the game clears (sic): no name then
         let victim = world
             .session(victim)
+            .filter(|_| world.is_in_game(victim))
             .and_then(|s| s.player())
             .map_or("", |v| v.firstname.as_str())
             .to_string();
