@@ -648,11 +648,12 @@ pub fn auto_use(world: &mut World, id: SessionId, item: ItemNo, target: Combatan
 }
 
 /// The attack-interrupt flush: the victim's waiting output is thrown away so the warning is
-/// seen at once, and he is handed an empty line, which the game reads after the current
-/// input (the kernel's injected line, with what he was typing cleared).
+/// seen at once (all but its prompts' messages, which the line keeps), and he is handed an
+/// empty line, which the game reads after the current input (the kernel's injected line,
+/// with what he was typing cleared).
 pub fn interrupt_output(world: &mut World, id: SessionId) {
     if let Some(s) = world.session_mut(id) {
-        s.output.clear();
+        s.output.interrupt_clear();
     }
     world.injected.push(id);
 }
