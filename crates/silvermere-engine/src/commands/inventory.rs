@@ -17,8 +17,9 @@ use silvermere_types::ids::{ItemNo, RoomKey, SessionId};
 use silvermere_types::records::{Character, Coins};
 use silvermere_types::sizes::NINVITEMS;
 
+use super::combat::{Found as Searched, find_action_target};
 use super::dispatch::Handled;
-use super::{Cmd, CommandLine, eq_ignore_case, starts_with_ignore_case};
+use super::{Cmd, CommandLine, starts_with_ignore_case};
 use crate::items::equip::{self, remove_armour, tell_others, user_can_use};
 use crate::items::inventory::{
     Found, Search, add_item_to_inventory, find_item_in_inventory, load, matches_any_word,
@@ -689,71 +690,16 @@ enum Target {
     Multiple,
 }
 
-/// The monster and player steps of the action target search as GIVE asks for them: active
-/// monsters in the room whose name fits, then players in the room (not the giver) whose
-/// first name fits the first word; a hidden player only for a giver who sees hidden things.
-/// A full name ends the search at once. With more than one candidate and the last kind found a
-/// player, the list is shown.
-///
-/// TODO(T-033): the monster step's word dropping belongs to the full action target search;
-/// GIVE only needs to know a monster is not a player.
-fn find_receiver(world: &mut World, id: SessionId, room: RoomKey, name: &str) -> Target {
-    let mut count = 0usize;
-    let mut options = Vec::new();
-    let mut found: Option<SessionId> = None;
-    let mut monster = false;
-    // a search brings the room's monsters into the cache (T-086)
-    if let Some(st) = world.room_state.get(&room) {
-        for &m in st.monsters.iter().filter(|m| m.0 != 0) {
-            world.active_monsters.touch(m);
+/// The action target search as GIVE asks it (monsters and the other players): a monster
+/// is not a player to give to; several candidates show the list.
+fn find_receiver(world: &mut World, id: SessionId, name: &str) -> Target {
+    match find_action_target(world, id, name, false) {
+        Searched::User(t) => Target::User(t),
+        Searched::Multiple(options) => {
+            show_options(world, id, &options);
+            Target::Multiple
         }
-    }
-    for m in world.active_monsters.values() {
-        if m.map == room.map && m.room == room.room && matches_any_word(name, &m.name) {
-            count += 1;
-            monster = true;
-            if eq_ignore_case(name, &m.name) {
-                return Target::NotAPlayer;
-            }
-            options.push(m.name.clone());
-        }
-    }
-    // only the first word can name a player
-    let first = name.split(' ').next().unwrap_or("");
-    let sees_hidden = player(world, id).is_some_and(|p| p.status.contains(PlayerStatus::SEEHIDDEN));
-    let mut ids: Vec<SessionId> = world.session_ids();
-    ids.sort();
-    for other in ids {
-        if other == id || !world.is_in_game(other) {
-            continue;
-        }
-        let Some(vplr) = player(world, other) else {
-            continue;
-        };
-        if vplr.room != room.room
-            || vplr.map != room.map
-            || !matches_any_word(first, &vplr.firstname)
-        {
-            continue;
-        }
-        if vplr.hidden != 0 && !sees_hidden {
-            continue;
-        }
-        found = Some(other);
-        monster = false;
-        count += 1;
-        if eq_ignore_case(first, &vplr.firstname) {
-            return Target::User(other);
-        }
-        options.push(vplr.firstname.clone());
-    }
-    if count > 1 && !monster {
-        show_options(world, id, &options);
-        return Target::Multiple;
-    }
-    match found {
-        Some(t) if !monster => Target::User(t),
-        _ => Target::NotAPlayer,
+        Searched::Monster(_) | Searched::None => Target::NotAPlayer,
     }
 }
 
@@ -794,7 +740,7 @@ fn give_coins(
         tell_user(world, id, Msg::GiveSyntax);
         return Handled::Done;
     }
-    let tgt = find_receiver(world, id, room, line.rest_from(4));
+    let tgt = find_receiver(world, id, line.rest_from(4));
     let tgt = match tgt {
         Target::Multiple => return Handled::Done,
         Target::NotAPlayer => {
@@ -949,7 +895,7 @@ fn give_item(world: &mut World, id: SessionId, room: RoomKey, line: &CommandLine
     if !starts_with_ignore_case(line.arg(f.words + 1), "to") {
         return Handled::NotCommand;
     }
-    let tgt = match find_receiver(world, id, room, line.rest_from(f.words + 2)) {
+    let tgt = match find_receiver(world, id, line.rest_from(f.words + 2)) {
         Target::Multiple => return Handled::Done,
         Target::NotAPlayer => return Handled::NotCommand,
         Target::User(t) => t,
