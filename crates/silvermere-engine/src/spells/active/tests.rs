@@ -67,8 +67,8 @@ fn world(msgnum: i16) -> World {
 /// filler, and marks the character confused.
 fn cast_on(w: &mut World, id: SessionId, spell: SpellNo, slot: usize) {
     let c = plr(w, id);
-    for i in 0..slot {
-        c.spells[i] = FILLER;
+    for s in c.spells.iter_mut().take(slot) {
+        *s = FILLER;
     }
     c.spells[slot] = spell;
     c.status |= PlayerStatus::CONFUSED;

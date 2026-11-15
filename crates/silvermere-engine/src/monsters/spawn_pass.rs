@@ -183,8 +183,8 @@ pub fn generate_monsters_near_users(world: &mut World) {
             // entry turns up after it, which then becomes the slot: with free entries
             // left, a neighbour in the table is not skipped
             let mut slot: i32 = 1000;
-            for j in 0..NOCCROOMS {
-                let e = world.occupied[j].room.room;
+            for (j, o) in world.occupied.iter().enumerate().take(NOCCROOMS) {
+                let e = o.room.room;
                 if e.0 == 0 {
                     slot = j as i32;
                     break;

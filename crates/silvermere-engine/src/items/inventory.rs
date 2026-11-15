@@ -637,10 +637,10 @@ pub fn deduct_item_charge(world: &mut World, id: SessionId, item: ItemNo, charge
                     unequip += 1;
                     plr.weapon = ItemNo(0);
                 }
-                for j in 0..NWORN {
-                    if plr.worn[j] == item {
+                for worn in plr.worn.iter_mut().take(NWORN) {
+                    if *worn == item {
                         unequip += 1;
-                        plr.worn[j] = ItemNo(0);
+                        *worn = ItemNo(0);
                     }
                 }
                 if plr.readied == i as i8 {
@@ -658,10 +658,10 @@ pub fn deduct_item_charge(world: &mut World, id: SessionId, item: ItemNo, charge
             if gone {
                 plr.wgt = plr.wgt.wrapping_sub(itm.weight as u16);
                 plr.keys[i] = ItemNo(0);
-                for j in 0..NWORN {
-                    if plr.worn[j] == item {
+                for worn in plr.worn.iter_mut().take(NWORN) {
+                    if *worn == item {
                         unequip += 1;
-                        plr.worn[j] = ItemNo(0);
+                        *worn = ItemNo(0);
                     }
                 }
             }

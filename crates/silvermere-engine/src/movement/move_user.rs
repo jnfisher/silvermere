@@ -469,7 +469,16 @@ fn perform_move(
 /// messages as the game sends them.
 fn tell_walk(world: &mut World, room: RoomKey, except: [Option<SessionId>; 2], msg: Msg) {
     for (msg, prompt) in [(msg, false), (Msg::MoveLineEnd, true)] {
-        tell_room(world, room, except, Noise::Always, TellBlind::All, prompt, None, &msg);
+        tell_room(
+            world,
+            room,
+            except,
+            Noise::Always,
+            TellBlind::All,
+            prompt,
+            None,
+            &msg,
+        );
     }
 }
 

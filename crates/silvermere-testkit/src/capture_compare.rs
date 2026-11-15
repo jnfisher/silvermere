@@ -7,7 +7,6 @@
 //! (names and unmasked fields) always, and the masked lines byte for byte when the scenario
 //! is deterministic.
 
-
 use crate::captures::{Capture, ScriptMask, apply_script_masks, text_to_lines};
 use crate::normalise::{Difference, MaskSpec, diff_events, normalise};
 use crate::patterns::{Event, PatternSet, Rx};

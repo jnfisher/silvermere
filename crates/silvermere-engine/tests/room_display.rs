@@ -163,8 +163,8 @@ fn snapshot() -> WorldSnapshot {
     bank.desc = desc(&["A quiet counting house."]);
     s.rooms.push(bank);
     let mut litter = room(LITTER, "Junk Heap");
-    for i in 0..12 {
-        litter.items[i] = RoomItem {
+    for (i, slot) in litter.items.iter_mut().enumerate().take(12) {
+        *slot = RoomItem {
             item: ItemNo(100 + i as i32),
             uses: -1,
             count: (i % 3) as i16,

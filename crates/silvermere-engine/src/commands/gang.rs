@@ -780,18 +780,18 @@ pub fn cmd_stock(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLine
     };
     // a slot already selling it with room, else the first empty one
     let mut slot = None;
-    for i in 0..GANG_SLOTS {
+    for (i, stock) in shp.stock.iter().enumerate().take(GANG_SLOTS) {
         if debug {
             tell_user(
                 world,
                 id,
                 Msg::GangStockDebugSlot {
                     slot: i as i32,
-                    item: shp.stock[i].item.0 as u32,
+                    item: stock.item.0 as u32,
                 },
             );
         }
-        if slot.is_none() && shp.stock[i].item == itm.number && shp.stock[i].qty < GANGMAXQTY {
+        if slot.is_none() && stock.item == itm.number && stock.qty < GANGMAXQTY {
             slot = Some((i, false));
         }
     }
@@ -944,8 +944,7 @@ pub fn cmd_unstock(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLi
     if let Some(itm) = found.item.and_then(|n| world.items.get(&n)).cloned() {
         let mut pick = None;
         let mut lowqty = GANGMAXQTY;
-        for i in 0..GANG_SLOTS {
-            let s = &shp.stock[i];
+        for (i, s) in shp.stock.iter().enumerate().take(GANG_SLOTS) {
             if s.item == itm.number && s.qty > 0 {
                 if s.qty <= lowqty {
                     pick = Some(i);

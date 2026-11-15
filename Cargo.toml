@@ -20,7 +20,7 @@ exclude = ["crates/_template"]
 [workspace.package]
 version = "0.1.17"
 edition = "2024"
-rust-version = "1.99.1"
+rust-version = "1.100.0"
 publish = false
 license = "MIT"
 repository = "https://github.com/jnfisher/silvermere"

@@ -30,8 +30,8 @@ use super::{EVIL_OUTLAW, PLAYER_VERSION, RANK_MIDDLE};
 use crate::evil::update_allowed_worn_items;
 use crate::items::inventory::update_weight_carried;
 use crate::player_session::Party;
-use crate::spells::active::end_player_spell;
 use crate::scripts::actions::add_user_ability;
+use crate::spells::active::end_player_spell;
 use crate::tell::tell_user;
 use crate::world::World;
 

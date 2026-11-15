@@ -249,7 +249,7 @@ impl LineForm {
         match n {
             0 => editor.show_first_name,
             1 | 22..=25 => true,
-            6..=21 => (n - 6) % 3 == 0,
+            6..=21 => (n - 6).is_multiple_of(3),
             _ => false,
         }
     }

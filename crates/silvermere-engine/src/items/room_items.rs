@@ -103,8 +103,7 @@ pub(crate) fn dispose_of_item_in_room(
         {
             return true;
         }
-        for dir in 0..NDIRS {
-            let exit = &rm.exits[dir];
+        for exit in rm.exits.iter().take(NDIRS) {
             if exit.target.0 != 0
                 && !matches!(exit.kind, ExitType::RemoteAction | ExitType::MapChange)
                 && go(

@@ -99,7 +99,7 @@ impl OutputBatch {
             self.clear();
             return;
         };
-        let last = prompts.last().unwrap_or(first);
+        let last = prompts.next_back().unwrap_or(first);
         let start = if first > 0 && self.joined.contains(&first) {
             first - 1
         } else {
