@@ -45,3 +45,12 @@ pub const CTRLPGDN: u16 = 0x176;
 pub const CTRLHOME: u16 = 0x177;
 /// Ctrl-PgUp: first field.
 pub const CTRLPGUP: u16 = 0x184;
+/// F1 to F8, from `ESC O` sequences; the form takes them as no key.
+pub const F1: u16 = 0x13B;
+pub const F2: u16 = 0x13C;
+pub const F3: u16 = 0x13D;
+pub const F4: u16 = 0x13E;
+pub const F5: u16 = 0x13F;
+pub const F6: u16 = 0x140;
+pub const F7: u16 = 0x141;
+pub const F8: u16 = 0x142;

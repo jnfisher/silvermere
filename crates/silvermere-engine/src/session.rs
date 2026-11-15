@@ -24,7 +24,7 @@ use silvermere_types::enums::{InGame, NewCharStep, SessionState};
 use silvermere_types::ids::SessionId;
 
 use crate::player_session::{Caps, PlayerSession};
-use crate::state::newchar::on_form_key;
+use crate::state::newchar::form;
 use crate::state::{self, Input, Outcome};
 use crate::world::World;
 
@@ -108,22 +108,15 @@ pub fn read_injected(world: &mut World, today: i64) -> Vec<(SessionId, Outcome)>
 
 /// One keystroke in character mode (the host's status `INBLK` in the status callback).
 /// The line editor is the transport's; the paged
-/// lists end on any key (`commands::input::on_key`, T-024); the full-screen stat editor
-/// takes its keys while it is open (T-063).
+/// lists end on any key (`commands::input::on_key`, T-024); the stat editor's form takes
+/// its keys while it is open (T-063).
 pub fn on_key(world: &mut World, id: SessionId, byte: u8) -> Outcome {
-    let fullscreen = world.session(id).is_some_and(|s| {
-        s.state == SessionState::NewChar(NewCharStep::Stats)
-            && s.editor.as_ref().is_some_and(|e| e.fullscreen.is_some())
-    });
-    if fullscreen {
-        return crate::commands::fullscreen_editor::on_key(world, id, byte);
-    }
     let form = world.session(id).is_some_and(|s| {
         s.state == SessionState::NewChar(NewCharStep::Stats)
-            && s.editor.as_ref().is_some_and(|e| e.line.is_some())
+            && s.editor.as_ref().is_some_and(|e| e.form.is_some())
     });
     if form {
-        return on_form_key(world, id, byte);
+        return form::on_key(world, id, byte);
     }
     crate::commands::input::on_key(world, id, byte)
 }

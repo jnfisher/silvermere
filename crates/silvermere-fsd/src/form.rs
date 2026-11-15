@@ -122,7 +122,7 @@ pub struct Form {
 
 impl Form {
     /// Prepares a session (as `FSDBBS.C`'s `fsdroom` and `fsdapr`): reads `template` (CP437
-    /// message text), the field specification `spec` and the default `answers` (an answer
+    /// message text as the host's `getasc` hands it over, CR LF line ends), the field specification `spec` and the default `answers` (an answer
     /// string), each default cut to its field's width. Both stop at a NUL.
     pub fn prepare(template: &[u8], spec: &[u8], mode: Mode, answers: &[u8]) -> Self {
         let end = template.iter().position(|&b| b == 0);
@@ -245,6 +245,11 @@ impl Form {
     /// field.
     pub fn is_changed(&self, field: usize) -> bool {
         self.fields[field].changed
+    }
+
+    /// How the session is entered.
+    pub fn mode(&self) -> Mode {
+        self.mode
     }
 
     /// The session state.

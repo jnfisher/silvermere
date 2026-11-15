@@ -7,7 +7,7 @@ use silvermere_fsd::{Mode, Outcome, State};
 use crate::support::{begun, key, show, typed};
 
 const SPEC: &[u8] = b"NAME NUM(MIN=10, MAX=99) DONE(ALT=SAVE ALT=QUIT MULTICHOICE)";
-const SCREEN: &[u8] = b"Name: ??????\rNum:  $$$$\r!!!!!!!!!!!!!!!!!!!!\rDone: ????";
+const SCREEN: &[u8] = b"Name: ??????\r\nNum:  $$$$\r\n!!!!!!!!!!!!!!!!!!!!\r\nDone: ????";
 const ANSWERS: &[u8] = b"NAME=Bob\0NUM=42\0DONE=SAVE\0\0";
 
 /// Cursor-attribute and normal-attribute colour sequences.

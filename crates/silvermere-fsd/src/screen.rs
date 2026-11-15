@@ -88,10 +88,11 @@ impl Screen {
             self.ansiarg[1] = 1;
         } else {
             match ch {
-                // The original's `docr()` only returns to column 0, but the host's field
-                // positions come out as if CR were a newline too.
-                b'\n' | b'\r' => self.newline(),
+                b'\n' => self.newline(),
+                b'\r' => self.dx = (self.dx & 0xFF00) | u16::from(self.ulx),
                 0x0C => self.dx = (u16::from(self.uly) << 8) | u16::from(self.ulx),
+                0x07 => {}
+                0x08 => self.back(),
                 _ => {
                     if self.col() == self.lrx {
                         self.newline();
@@ -214,6 +215,19 @@ impl Screen {
         self.dx = (u16::from(row) << 8) | u16::from(col);
     }
 
+    /// Backspace: a column left, to the end of the row above from the first column, not
+    /// past the top left (as `doback`).
+    fn back(&mut self) {
+        if self.col() == self.ulx {
+            if self.row() == self.uly {
+                return;
+            }
+            self.dx = ((u16::from(self.row()) - 1) << 8) | u16::from(self.lrx);
+        } else {
+            self.dx -= 1;
+        }
+    }
+
     /// Column 0 and down a row, staying on the bottom row.
     fn newline(&mut self) {
         self.dx = (self.dx & 0xFF00) | u16::from(self.ulx);
@@ -231,11 +245,14 @@ mod tests {
     #[test]
     fn text_and_newlines_move_the_cursor() {
         let mut s = Screen::new();
-        s.print(b"abc\rde");
+        s.print(b"abc\r\nde");
         assert_eq!((s.row(), s.col()), (1, 2));
-        // CR and LF each start a new line
-        s.print(b"\r\nx");
-        assert_eq!((s.row(), s.col()), (3, 1));
+        // CR returns to the first column only, LF starts a new line
+        s.print(b"\rx\ny");
+        assert_eq!((s.row(), s.col()), (2, 1));
+        // backspace from the first column goes to the end of the row above
+        s.print(b"\x08\x08\x07");
+        assert_eq!((s.row(), s.col()), (1, 79));
     }
 
     #[test]

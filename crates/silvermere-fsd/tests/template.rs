@@ -3,7 +3,7 @@
 use silvermere_fsd::{Form, Mode};
 
 const SPEC: &[u8] = b"NAME NUM(MIN=10, MAX=99) DONE(ALT=SAVE ALT=QUIT MULTICHOICE)";
-const SCREEN: &[u8] = b"Name: ??????\rNum:  $$$$\r!!!!!!!!!!!!!!!!!!!!\rDone: ????";
+const SCREEN: &[u8] = b"Name: ??????\r\nNum:  $$$$\r\n!!!!!!!!!!!!!!!!!!!!\r\nDone: ????";
 
 fn background(template: &[u8], spec: &[u8], answers: &[u8]) -> Vec<u8> {
     let mut out = Vec::new();

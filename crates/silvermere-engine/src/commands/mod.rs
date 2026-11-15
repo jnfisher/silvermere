@@ -19,7 +19,6 @@
 //! | [`social`] | actions | T-046 |
 //! | [`sysop`] | `cmd_sysop` and the in-game sysop commands | T-055 |
 //! | [`evil`] | forgive | T-038 |
-//! | [`fullscreen_editor`] | the full-screen character editor's keys (`EDITCHA1`) | T-063 |
 //! | [`misc`] | rest, meditate, search, hide, sneak, quit, everything else | T-024 onwards |
 //! | [`rest`] | the REST and MEDITATE bodies `misc` calls | T-037 |
 //!
@@ -35,7 +34,6 @@ pub mod combat;
 pub mod comms;
 pub mod dispatch;
 pub mod evil;
-pub mod fullscreen_editor;
 pub mod gang;
 pub mod group;
 pub mod info;

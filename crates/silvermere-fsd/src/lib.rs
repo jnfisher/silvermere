@@ -3,7 +3,7 @@
 //!
 //! A form is three pieces of bytes:
 //!
-//! - the *template*, the screen as message text (CR line ends, ANSI colour and cursor
+//! - the *template*, the screen as message text (CR LF line ends, ANSI colour and cursor
 //!   sequences allowed) with field markers in it: a run of `?` is a text field, a run of
 //!   `$` a right-justified number, a run of `!` the help area where messages appear;
 //! - the *field specification*, the fields in template order, each a name with options:
@@ -21,7 +21,7 @@
 //! ```
 //! use silvermere_fsd::{Form, Mode, Outcome, key};
 //!
-//! let template = b"Name: ??????\rDone? ????";
+//! let template = b"Name: ??????\r\nDone? ????";
 //! let spec = b"NAME DONE(ALT=SAVE ALT=QUIT MULTICHOICE)";
 //! let mut form = Form::prepare(template, spec, Mode::FullScreen, b"DONE=SAVE\0\0");
 //! let mut out = Vec::new();

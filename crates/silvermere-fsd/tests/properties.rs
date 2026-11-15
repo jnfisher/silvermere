@@ -47,9 +47,9 @@ proptest! {
         let mut template = String::from("\x1B[2J");
         for (i, (opts, markers)) in fields.iter().enumerate() {
             fldspc.push_str(&format!("F{i}{opts} "));
-            template.push_str(&format!("\rField {i}: {markers}"));
+            template.push_str(&format!("\r\nField {i}: {markers}"));
         }
-        template.push_str("\r!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        template.push_str("\r\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
         let mut f = Form::prepare(template.as_bytes(), fldspc.as_bytes(), mode, b"\0");
         let mut out = Vec::new();
         f.background(&mut out);

@@ -16,14 +16,14 @@ fn background(f: &Form) -> Vec<u8> {
 #[test]
 fn fields_are_justified_by_type_and_the_help_area_blanked() {
     let f = Form::prepare(
-        b"Name: ??????\rNum:  $$$$\r!!!!!!!!!!!!!!!!!!!!\rDone: ????",
+        b"Name: ??????\r\nNum:  $$$$\r\n!!!!!!!!!!!!!!!!!!!!\r\nDone: ????",
         b"NAME NUM DONE",
         Mode::FullScreen,
         b"NAME=Bob\0NUM=42\0DONE=SAVE\0\0",
     );
     assert_eq!(
         show(&background(&f)),
-        show(b"Name: Bob   \rNum:    42\r                    \rDone: SAVE")
+        show(b"Name: Bob   \r\nNum:    42\r\n                    \r\nDone: SAVE")
     );
 }
 

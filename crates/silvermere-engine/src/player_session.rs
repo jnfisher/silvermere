@@ -110,7 +110,7 @@ pub struct PlayerSession {
     pub party: Party,
     /// The auto-combat ring for this player's combat rounds.
     pub autocmb: AutoCombat,
-    /// The line-mode character editor while it is open (T-022).
+    /// The character editor while it is open (T-022).
     pub editor: Option<crate::state::newchar::stat_editor::StatEditor>,
     /// Output waiting for the end of the event.
     pub output: OutputBatch,

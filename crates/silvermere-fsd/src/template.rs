@@ -113,7 +113,7 @@ mod tests {
 
     #[test]
     fn runs_are_fields_and_single_markers_text() {
-        let layout = scan(b"? $ ! # Y/N\x1B[1;33m\rA: ???? $$\r!!!!! ??", 2, true);
+        let layout = scan(b"? $ ! # Y/N\x1B[1;33m\r\nA: ???? $$\r\n!!!!! ??", 2, true);
         let found: Vec<_> = layout
             .places
             .iter()
@@ -122,12 +122,12 @@ mod tests {
         assert_eq!(
             found,
             [
-                (Kind::Text, 22, 4, b"\x1B[2;4f".to_vec(), 0x0E),
-                (Kind::Number, 27, 2, b"\x1B[2;9f".to_vec(), 0x0E),
+                (Kind::Text, 23, 4, b"\x1B[2;4f".to_vec(), 0x0E),
+                (Kind::Number, 28, 2, b"\x1B[2;9f".to_vec(), 0x0E),
             ]
         );
         let help = layout.help.unwrap();
-        assert_eq!((help.offset, help.width), (30, 5));
+        assert_eq!((help.offset, help.width), (32, 5));
         assert_eq!(help.goto, b"\x1B[3;1f");
         // the third run is past the specification's fields
         assert_eq!(layout.places.len(), 2);
