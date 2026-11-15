@@ -10,8 +10,7 @@
 //!
 //! - the record-version conversions for versions 0 to 21, with the wealth cap and the
 //!   evil-point notices that only ran inside them;
-//! - the restructuring of pre-1.11 experience and the old-ability conversion, whose
-//!   quest-ability retrofit is a one-time data fix;
+//! - the restructuring of pre-1.11 experience;
 //! - the move out of an add-on map the BBS has not activated.
 
 use silvermere_rules::Rng;
@@ -32,6 +31,7 @@ use crate::evil::update_allowed_worn_items;
 use crate::items::inventory::update_weight_carried;
 use crate::player_session::Party;
 use crate::spells::active::end_player_spell;
+use crate::scripts::actions::add_user_ability;
 use crate::tell::tell_user;
 use crate::world::World;
 
@@ -89,6 +89,97 @@ pub fn reduce_level_to_exp(world: &World, c: &mut Character) {
         if c.level <= 1 {
             break;
         }
+    }
+}
+
+/// The abilities a character carries himself, rebuilt from his quest abilities on every
+/// entry: the old bonus abilities are emptied, then each quest far enough along gives its
+/// reward again (quests two to four by class number). Quest seven at stage 2 takes the red
+/// dragon ruby quest's reward back: 35,000,000 experience when there is that much (a
+/// billion borrowed, (sic) adding 1,060,065,408 to the rest), the levels no longer paid
+/// for, and the quest ability itself.
+pub fn convert_old_abilities(world: &World, c: &mut Character, notices: &mut Vec<Msg>) {
+    let mut quest = [0i16; 8];
+    for slot in c.abils.iter_mut() {
+        match slot.0 {
+            Ability::Defence
+            | Ability::Damage
+            | Ability::AvBless
+            | Ability::Stealth
+            | Ability::Dodge
+            | Ability::Critical
+            | Ability::Mana
+            | Ability::Spellcasting
+            | Ability::BackstabMin
+            | Ability::BackstabMax => *slot = (Ability::None, 0),
+            Ability::Quest1 => quest[0] = slot.1,
+            Ability::Quest2 => quest[1] = slot.1,
+            Ability::Quest3 => quest[2] = slot.1,
+            Ability::Quest4 => quest[3] = slot.1,
+            Ability::Quest5 => quest[4] = slot.1,
+            Ability::Quest6 => quest[5] = slot.1,
+            Ability::Quest7 => quest[6] = slot.1,
+            Ability::Quest8 => quest[7] = slot.1,
+            _ => {}
+        }
+    }
+    if quest[0] == 2 {
+        add_user_ability(c, Ability::Defence, 1);
+    }
+    if quest[1] >= 8 || quest[2] >= 8 || quest[3] >= 4 {
+        match c.class.0 {
+            1 | 2 | 3 | 15 => {
+                add_user_ability(c, Ability::Damage, 1);
+            }
+            4 | 11 => {
+                add_user_ability(c, Ability::Defence, 1);
+                add_user_ability(c, Ability::Mana, 6);
+            }
+            5 | 12 | 13 => {
+                add_user_ability(c, Ability::Spellcasting, 1);
+                add_user_ability(c, Ability::Mana, 10);
+            }
+            6 | 9 | 10 => {
+                add_user_ability(c, Ability::BackstabMin, 6);
+                add_user_ability(c, Ability::BackstabMax, 6);
+                add_user_ability(c, Ability::Stealth, 1);
+                add_user_ability(c, Ability::Mana, 4);
+            }
+            7 | 8 | 14 => {
+                add_user_ability(c, Ability::BackstabMin, 10);
+                add_user_ability(c, Ability::BackstabMax, 10);
+                add_user_ability(c, Ability::Stealth, 2);
+            }
+            _ => {}
+        }
+    }
+    if quest[4] == 2 {
+        add_user_ability(c, Ability::Spellcasting, 1);
+    }
+    if quest[5] == 2 {
+        add_user_ability(c, Ability::AvBless, 3);
+    }
+    if quest[6] == 3 {
+        add_user_ability(c, Ability::Critical, 1);
+        add_user_ability(c, Ability::Spellcasting, 2);
+    }
+    if quest[6] == 2 {
+        if c.exprem > 35_000_000 {
+            notices.push(Msg::EnterQuest7Stripped);
+            c.exprem -= 35_000_000;
+            reduce_level_to_exp(world, c);
+        } else if c.expbil >= 1 {
+            notices.push(Msg::EnterQuest7Stripped);
+            c.expbil -= 1;
+            c.exprem = c.exprem.wrapping_add(1_060_065_408);
+            reduce_level_to_exp(world, c);
+        }
+        for slot in c.abils.iter_mut().filter(|s| s.0 == Ability::Quest7) {
+            *slot = (Ability::None, 0);
+        }
+    }
+    if quest[7] == 2 {
+        add_user_ability(c, Ability::Dodge, 1);
     }
 }
 
@@ -364,6 +455,7 @@ pub fn load_player(
     }
     recalculate(world, &mut c, CalcMode::KeepCurrent);
     update_weight_carried(world, &mut c);
+    convert_old_abilities(world, &mut c, &mut notices);
     // (`INACTWARN` went with the session flags cleared above).
     c.version = PLAYER_VERSION;
     c.moves = 0;
