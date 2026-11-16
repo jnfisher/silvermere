@@ -855,7 +855,8 @@ fn spell_trap(world: &mut World, c: &GateCtx, t: SpellTrapExit) -> Gate {
                 Msg::ExitTextBareDouble { text },
             );
         }
-        // (sic) msgs[0] takes `dmg`, which only a Trap exit sets; 0 here
+        // (sic) msgs[0] takes `dmg`, which only a Trap exit sets (0 here), and the game
+        // reads it even with no message; no shipped exit is a Spell Trap
         if !m[0].is_empty() {
             let text = fmt_msg(&m[0], &[Arg::D(0)]);
             tell_user(world, c.id, Msg::ExitTextGreen { text });
