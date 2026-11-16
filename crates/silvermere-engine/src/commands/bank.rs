@@ -8,7 +8,7 @@
 //! A bankbook is made when a deposit first touches it, so the engine holds a book only after a
 //! deposit: a lookup of a missing one is a balance of 0, which is what the original shows.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use silvermere_rules::economy;
 use silvermere_text::Msg;
@@ -75,7 +75,7 @@ pub trait BankBooks {
     }
 }
 
-impl BankBooks for HashMap<(AccountId, ShopNo), BankBook> {
+impl BankBooks for BTreeMap<(AccountId, ShopNo), BankBook> {
     fn book(&self, acct: AccountId, bank: ShopNo) -> Option<&BankBook> {
         self.get(&(acct, bank))
     }
@@ -398,7 +398,7 @@ mod tests {
 
     #[test]
     fn deposit_and_withdraw_limits() {
-        let mut b: HashMap<(AccountId, ShopNo), BankBook> = HashMap::new();
+        let mut b: BTreeMap<(AccountId, ShopNo), BankBook> = BTreeMap::new();
         assert_eq!(b.withdraw(ACCT, BANK, 1), Err(WithdrawError::NoBook));
         assert_eq!(b.deposit(ACCT, "ANN", BANK, u32::MAX), Ok(u32::MAX));
         assert_eq!(b.deposit(ACCT, "ANN", BANK, 1), Err(DepositError::Overflow));
@@ -410,7 +410,7 @@ mod tests {
 
     #[test]
     fn books_list_in_bank_order() {
-        let mut b: HashMap<(AccountId, ShopNo), BankBook> = HashMap::new();
+        let mut b: BTreeMap<(AccountId, ShopNo), BankBook> = BTreeMap::new();
         for n in [9, 7, 12] {
             b.deposit(ACCT, "ANN", ShopNo(n), 1).unwrap();
         }

@@ -300,7 +300,7 @@ pub fn hangup(world: &mut World, id: SessionId) {
 /// record exists, Loyal or not (sic). An item's 20 abilities are read.
 fn drop_items(
     plr: &mut Character,
-    items: &std::collections::HashMap<ItemNo, silvermere_types::records::Item>,
+    items: &std::collections::BTreeMap<ItemNo, silvermere_types::records::Item>,
     mut room: Option<&mut RoomState>,
     max: u32,
 ) {

@@ -18,7 +18,7 @@
 //! The title, description, items, `Also here:` and exits lines wrap at 79 columns
 //! (`Msg::wrap`).
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use silvermere_text::colour::{ColRow, Colour, Palette};
@@ -72,7 +72,7 @@ impl RoomMode {
 /// once from `data/assets/` and kept in memory.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Assets {
-    files: HashMap<String, Vec<u8>>,
+    files: BTreeMap<String, Vec<u8>>,
 }
 
 impl Assets {
@@ -244,9 +244,9 @@ pub fn desc_file_error(file: &str) -> Msg {
 /// player standing in such a room would log a line per keystroke: warn once per file name
 /// per process (T-025 review, silvermere#30).
 fn warn_missing_file_once(file: &str) {
-    use std::collections::HashSet;
+    use std::collections::BTreeSet;
     use std::sync::{Mutex, OnceLock};
-    static SEEN: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    static SEEN: OnceLock<Mutex<BTreeSet<String>>> = OnceLock::new();
     let first = SEEN
         .get_or_init(Mutex::default)
         .lock()

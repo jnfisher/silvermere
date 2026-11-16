@@ -11,7 +11,7 @@
 //! list, evil timers, gang invites) are fields here with the original's sizes.
 
 use silvermere_rules::combat::Move;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, VecDeque};
 
 use silvermere_types::config::GameConfig;
 use silvermere_types::flags::RoomFlags;
@@ -211,43 +211,43 @@ pub struct World {
     /// The `[compat]` settings (T-021).
     pub compat: Compat,
     /// Rooms: the static content record.
-    pub rooms: HashMap<RoomKey, Room>,
+    pub rooms: BTreeMap<RoomKey, Room>,
     /// Rooms: the live part.
-    pub room_state: HashMap<RoomKey, RoomState>,
-    pub items: HashMap<ItemNo, Item>,
-    pub monsters: HashMap<MonsterNo, KnownMonster>,
-    pub spells: HashMap<SpellNo, Spell>,
-    pub classes: HashMap<ClassNo, Class>,
-    pub races: HashMap<RaceNo, Race>,
-    pub shops: HashMap<ShopNo, Shop>,
-    pub messages: HashMap<MessageNo, Message>,
+    pub room_state: BTreeMap<RoomKey, RoomState>,
+    pub items: BTreeMap<ItemNo, Item>,
+    pub monsters: BTreeMap<MonsterNo, KnownMonster>,
+    pub spells: BTreeMap<SpellNo, Spell>,
+    pub classes: BTreeMap<ClassNo, Class>,
+    pub races: BTreeMap<RaceNo, Race>,
+    pub shops: BTreeMap<ShopNo, Shop>,
+    pub messages: BTreeMap<MessageNo, Message>,
     /// Text blocks by `(part, number)`.
-    pub text_blocks: HashMap<(i16, TextBlockNo), TextBlock>,
+    pub text_blocks: BTreeMap<(i16, TextBlockNo), TextBlock>,
     /// Social actions by name (ASCII upper case).
-    pub actions: HashMap<String, Action>,
+    pub actions: BTreeMap<String, Action>,
     /// The verbs in WCCACTS record order, white space removed, which the ACTION list
     /// prints.
     pub action_order: Vec<String>,
     /// Active monsters with their numbers' free list (T-035).
     pub active_monsters: crate::monsters::ActiveMonsters,
     /// Sessions online, by id.
-    pub sessions: HashMap<SessionId, PlayerSession>,
+    pub sessions: BTreeMap<SessionId, PlayerSession>,
     /// The id allocator.
     pub ids: SessionIds,
     /// Gangs by key (`gang.key`, upper case name).
-    pub gangs: HashMap<String, Gang>,
+    pub gangs: BTreeMap<String, Gang>,
     /// Each gang's place in the game's gang file among gangs of equal experience, by key
     /// (lower is earlier; see [`crate::gangs::place_gang_last`]).
-    pub gang_order: HashMap<String, u64>,
+    pub gang_order: BTreeMap<String, u64>,
     /// The move of the attack in progress, kept between attacks: the last attack (or round)
     /// left it, and a spell's engage takes it for its entry.
     pub atkmove: Move,
     /// Bank books by account and bank.
-    pub bank_books: HashMap<(AccountId, ShopNo), BankBook>,
+    pub bank_books: BTreeMap<(AccountId, ShopNo), BankBook>,
     /// Limited-item ownership by row id.
-    pub item_ownership: HashMap<i32, ItemOwnership>,
-    pub profiles: HashMap<AccountId, PermanentRecord>,
-    pub evil_points: HashMap<AccountId, EvilRecord>,
+    pub item_ownership: BTreeMap<i32, ItemOwnership>,
+    pub profiles: BTreeMap<AccountId, PermanentRecord>,
+    pub evil_points: BTreeMap<AccountId, EvilRecord>,
     /// The top list (`NTOPLIST` entries), kept by `progression::topten` (T-039).
     pub topten: TopTen,
     /// The timer queue.
@@ -308,14 +308,14 @@ pub struct World {
     pub cleanup: crate::cleanup::CleanupState,
     /// Account deletions waiting for the store's read of the account (T-069), with the
     /// admin requests to answer.
-    pub account_deletes: std::collections::HashMap<
+    pub account_deletes: std::collections::BTreeMap<
         silvermere_types::ids::AccountId,
         Vec<std::sync::mpsc::Sender<crate::session::AccountDeletion>>,
     >,
     /// Accounts deleted in this run (T-072). The gate reads a login's character from the
     /// store before the engine sees it, so a login racing a deletion can bring a stale
     /// character; [`crate::state::login::logged_in`] closes any login for these.
-    pub deleted_accounts: std::collections::HashSet<silvermere_types::ids::AccountId>,
+    pub deleted_accounts: std::collections::BTreeSet<silvermere_types::ids::AccountId>,
     /// The character record the engine last queued for each account, `None` for a
     /// deletion (T-075; [`crate::player::queue_character`]). The store writes behind, and
     /// the gate reads a login's character before the engine sees the login, so a login
@@ -328,8 +328,10 @@ pub struct World {
     /// its write ([`crate::player::on_characters_written`]); the store answers a read
     /// before it acknowledges any write queued after the read, so an answer always finds
     /// the entries of the writes it missed.
-    pub queued_characters:
-        std::collections::HashMap<silvermere_types::ids::AccountId, crate::player::QueuedCharacter>,
+    pub queued_characters: std::collections::BTreeMap<
+        silvermere_types::ids::AccountId,
+        crate::player::QueuedCharacter,
+    >,
     /// How many character writes and deletions the engine has queued
     /// ([`crate::player::QueuedCharacter::seq`]); the store counts the same requests in the
     /// same order to acknowledge them (T-088).
@@ -384,28 +386,28 @@ impl World {
             rng: SeededRng::new(seed),
             config,
             compat: Compat::default(),
-            rooms: HashMap::new(),
-            room_state: HashMap::new(),
-            items: HashMap::new(),
-            monsters: HashMap::new(),
-            spells: HashMap::new(),
-            classes: HashMap::new(),
-            races: HashMap::new(),
-            shops: HashMap::new(),
-            messages: HashMap::new(),
-            text_blocks: HashMap::new(),
-            actions: HashMap::new(),
+            rooms: BTreeMap::new(),
+            room_state: BTreeMap::new(),
+            items: BTreeMap::new(),
+            monsters: BTreeMap::new(),
+            spells: BTreeMap::new(),
+            classes: BTreeMap::new(),
+            races: BTreeMap::new(),
+            shops: BTreeMap::new(),
+            messages: BTreeMap::new(),
+            text_blocks: BTreeMap::new(),
+            actions: BTreeMap::new(),
             action_order: Vec::new(),
             active_monsters: crate::monsters::ActiveMonsters::default(),
-            sessions: HashMap::new(),
+            sessions: BTreeMap::new(),
             ids: SessionIds::new(max_sessions),
-            gangs: HashMap::new(),
-            gang_order: HashMap::new(),
+            gangs: BTreeMap::new(),
+            gang_order: BTreeMap::new(),
             atkmove: Move::Attack,
-            bank_books: HashMap::new(),
-            item_ownership: HashMap::new(),
-            profiles: HashMap::new(),
-            evil_points: HashMap::new(),
+            bank_books: BTreeMap::new(),
+            item_ownership: BTreeMap::new(),
+            profiles: BTreeMap::new(),
+            evil_points: BTreeMap::new(),
             topten: TopTen::new(),
             occupied: vec![OccRoom::default(); NOCCROOMS],
             room_cache_free: true,
@@ -426,9 +428,9 @@ impl World {
             boot_minute: 0,
             display: crate::display::DisplayGlobals::default(),
             cleanup: crate::cleanup::CleanupState::default(),
-            account_deletes: std::collections::HashMap::new(),
-            deleted_accounts: std::collections::HashSet::new(),
-            queued_characters: std::collections::HashMap::new(),
+            account_deletes: std::collections::BTreeMap::new(),
+            deleted_accounts: std::collections::BTreeSet::new(),
+            queued_characters: std::collections::BTreeMap::new(),
             character_writes: 0,
             characters_written: Vec::new(),
             sysop: crate::commands::sysop::SysopState::default(),
@@ -502,7 +504,7 @@ impl World {
             return Err(e);
         }
         // the live stock (`shop_stock`) outlives a content reload
-        let stock: HashMap<ShopNo, [u16; silvermere_types::sizes::NSHOPITEMS]> = self
+        let stock: BTreeMap<ShopNo, [u16; silvermere_types::sizes::NSHOPITEMS]> = self
             .shops
             .iter()
             .map(|(&n, s)| (n, std::array::from_fn(|i| s.stock[i].qty)))
