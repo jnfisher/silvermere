@@ -5,7 +5,7 @@
 //! is made on the loaded copy only, so an existing database needs no re-import and nothing a
 //! player owns is written.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use silvermere_types::ids::TextBlockNo;
 use silvermere_types::records::TextBlock;
@@ -50,7 +50,7 @@ fn fix_text(text: &str, fault: &Fault) -> Option<String> {
 }
 
 /// Applies the known faults to the loaded text blocks, logging each one fixed.
-pub fn apply(blocks: &mut HashMap<(i16, TextBlockNo), TextBlock>) {
+pub fn apply(blocks: &mut BTreeMap<(i16, TextBlockNo), TextBlock>) {
     for fault in FAULTS {
         let mut fixed = false;
         for block in blocks.values_mut().filter(|b| b.number.0 == fault.block) {
@@ -73,14 +73,14 @@ pub fn apply(blocks: &mut HashMap<(i16, TextBlockNo), TextBlock>) {
 mod tests {
     use super::*;
 
-    fn block(number: i32, text: &str) -> HashMap<(i16, TextBlockNo), TextBlock> {
+    fn block(number: i32, text: &str) -> BTreeMap<(i16, TextBlockNo), TextBlock> {
         let b = TextBlock {
             part: 0,
             number: TextBlockNo(number),
             link: TextBlockNo(0),
             text: text.to_owned(),
         };
-        HashMap::from([((0, b.number), b)])
+        BTreeMap::from([((0, b.number), b)])
     }
 
     #[test]

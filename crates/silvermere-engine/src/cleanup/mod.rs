@@ -36,7 +36,7 @@
 //! the store could not answer is dropped ([`on_scan_failed`]) and the next run scans
 //! again.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 
 use silvermere_rules::abilities::{item_ability_value, item_has_ability};
 use silvermere_text::Msg;
@@ -136,7 +136,7 @@ pub struct CleanupState {
     /// Set while the store is answering: the record each account whose session ended
     /// since was saved with (`on_logoff`). The stored row may be older than that save, so
     /// the run uses this record instead.
-    pub pending: Option<HashMap<AccountId, Character>>,
+    pub pending: Option<BTreeMap<AccountId, Character>>,
     /// The last run's report.
     pub last: Option<CleanupReport>,
 }
@@ -204,7 +204,7 @@ pub fn begin(world: &mut World) {
     if world.cleanup.pending.is_some() {
         tracing::warn!("daily cleanup: the last character scan was never answered; asking again");
     } else {
-        world.cleanup.pending = Some(HashMap::new());
+        world.cleanup.pending = Some(BTreeMap::new());
     }
     world.outbox.push(EngineOutput::CleanupScan);
 }
@@ -235,7 +235,7 @@ pub fn on_scan(world: &mut World, rows: Vec<(AccountId, Character)>) -> Option<C
         tracing::warn!("daily cleanup: a character scan answer with no run waiting; dropped");
         return None;
     };
-    let online: HashSet<AccountId> = world
+    let online: BTreeSet<AccountId> = world
         .sessions
         .values()
         .filter_map(|s| s.account.as_ref().map(|a| a.id))

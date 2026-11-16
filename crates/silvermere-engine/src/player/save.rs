@@ -327,7 +327,7 @@ pub fn with_queued(
     world: &World,
     rows: Vec<(AccountId, Character)>,
 ) -> Vec<(AccountId, Character)> {
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = std::collections::BTreeSet::new();
     let mut out: Vec<(AccountId, Character)> = rows
         .into_iter()
         .filter_map(|(account, c)| {

@@ -39,18 +39,18 @@ use MonsterCastResult as R;
 trait Put<V> {
     fn put(&mut self, v: V);
 }
-impl Put<Spell> for std::collections::HashMap<SpellNo, Spell> {
+impl Put<Spell> for std::collections::BTreeMap<SpellNo, Spell> {
     fn put(&mut self, v: Spell) {
         self.insert(v.number, v);
     }
 }
-impl Put<KnownMonster> for std::collections::HashMap<MonsterNo, KnownMonster> {
+impl Put<KnownMonster> for std::collections::BTreeMap<MonsterNo, KnownMonster> {
     fn put(&mut self, v: KnownMonster) {
         self.insert(v.number, v);
     }
 }
 impl Put<silvermere_types::records::Item>
-    for std::collections::HashMap<ItemNo, silvermere_types::records::Item>
+    for std::collections::BTreeMap<ItemNo, silvermere_types::records::Item>
 {
     fn put(&mut self, v: silvermere_types::records::Item) {
         self.insert(v.number, v);

@@ -4,7 +4,7 @@
 //! The ten directions differ only in their words, which [`WORDS`] keeps direction by
 //! direction, the sic capitalisation included.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use silvermere_text::Msg;
 use silvermere_types::enums::ExitType;
@@ -166,7 +166,7 @@ pub fn exit_word(
     dir: usize,
     exit: &Exit,
     dirnames: &DirNames,
-    messages: &HashMap<MessageNo, Message>,
+    messages: &BTreeMap<MessageNo, Message>,
 ) -> String {
     let words = &WORDS[dir];
     // closed while the lock state is not open
@@ -190,7 +190,7 @@ pub fn exit_word(
 pub fn exit_list(
     room: &Room,
     dirnames: &DirNames,
-    messages: &HashMap<MessageNo, Message>,
+    messages: &BTreeMap<MessageNo, Message>,
 ) -> Option<String> {
     let words: Vec<String> = room
         .exits
@@ -204,7 +204,7 @@ pub fn exit_list(
 
 /// The visible exits as one message: the label in `COL_EXITS`, the list or `NONE!!!`,
 /// wrapped at 79 columns.
-pub fn exits_msg(room: &Room, dirnames: &DirNames, messages: &HashMap<MessageNo, Message>) -> Msg {
+pub fn exits_msg(room: &Room, dirnames: &DirNames, messages: &BTreeMap<MessageNo, Message>) -> Msg {
     match exit_list(room, dirnames, messages) {
         Some(exits) => Msg::RoomExits { exits },
         None => Msg::RoomExitsNone,

@@ -168,7 +168,7 @@ struct Harness {
     engine: Engine<TestClock, SeededRng>,
     clock: TestClock,
     rx: Receiver<EngineOutput>,
-    text: std::collections::HashMap<SessionId, String>,
+    text: std::collections::BTreeMap<SessionId, String>,
 }
 
 impl Harness {

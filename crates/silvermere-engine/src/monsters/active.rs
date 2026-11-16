@@ -12,7 +12,7 @@
 //! ([`save_active_monsters`]) upserts every monster changed since its last write.
 
 use std::cell::{Ref, RefCell, RefMut};
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use silvermere_types::flags::ActiveMonsterFlags;
 use silvermere_types::ids::{ActiveMonsterId, MonsterNo, RoomKey};
@@ -40,7 +40,7 @@ impl FreeList {
     /// every number from 1 below the highest that has no record, lowest at the tail
     /// (reused first). 65535 is never listed.
     pub fn build<'a>(in_use: impl Iterator<Item = &'a ActiveMonsterId>) -> Self {
-        let used: std::collections::HashSet<i32> = in_use.map(|n| n.0).collect();
+        let used: std::collections::BTreeSet<i32> = in_use.map(|n| n.0).collect();
         let last = used.iter().copied().max().unwrap_or(0).max(0);
         let mut free = VecDeque::new();
         for n in 1..last {
@@ -90,21 +90,21 @@ enum Eviction {
 #[derive(Debug, Clone, Default)]
 pub struct ActiveMonsters {
     slots: slotmap::SlotMap<ActiveSlot, ActiveMonster>,
-    by_number: HashMap<ActiveMonsterId, ActiveSlot>,
+    by_number: BTreeMap<ActiveMonsterId, ActiveSlot>,
     /// The number allocator.
     pub numbers: FreeList,
-    saved: HashMap<ActiveMonsterId, ActiveMonster>,
+    saved: BTreeMap<ActiveMonsterId, ActiveMonster>,
     /// Monsters the game marked changed (`dirty`) since they were last written, whatever
     /// their record holds now: a wounded monster that regenerates is marked even when it
     /// is back to the hit points written.
-    marked: RefCell<HashSet<ActiveMonsterId>>,
+    marked: RefCell<BTreeSet<ActiveMonsterId>>,
     /// The monsters pushed out of the cache and not yet written back, as they were then:
     /// the game writes a changed one the moment it is pushed out, so later changes to it
     /// (read back in) are changes again.
     evictions: RefCell<Vec<Eviction>>,
     /// Monsters changed without being marked changed (the game sets a few fields that
     /// way): the record that counts as unchanged until it is next written or pushed out.
-    quiet: RefCell<HashMap<ActiveMonsterId, ActiveMonster>>,
+    quiet: RefCell<BTreeMap<ActiveMonsterId, ActiveMonster>>,
     /// Monsters pushed out unchanged and read into the cache again since: each is read
     /// back as written before it is next changed.
     reread: RefCell<Vec<ActiveMonsterId>>,
@@ -415,7 +415,7 @@ pub(crate) fn persist(world: &mut World, req: PersistRequest) {
 /// row leaves what all of them in order leave; the others keep their places. What the
 /// store holds once the outbox is written does not change, only the number of writes.
 pub fn coalesce_saves(outbox: &mut Vec<EngineOutput>, from: usize) {
-    #[derive(PartialEq, Eq, Hash)]
+    #[derive(PartialEq, Eq, PartialOrd, Ord)]
     enum Row {
         Room(RoomKey),
         Active(ActiveMonsterId),
@@ -434,7 +434,7 @@ pub fn coalesce_saves(outbox: &mut Vec<EngineOutput>, from: usize) {
         _ => None,
     };
     let from = from.min(outbox.len());
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = std::collections::BTreeSet::new();
     let mut keep = vec![true; outbox.len() - from];
     for (i, o) in outbox[from..].iter().enumerate().rev() {
         if let Some(r) = row(o)
