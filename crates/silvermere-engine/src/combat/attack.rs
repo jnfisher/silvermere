@@ -1300,8 +1300,9 @@ pub fn attack_user_user(
                 if !p.status2.contains(PlayerStatus2::KNOCKEDDOWN) {
                     return None;
                 }
+                // (sic) unsigned: one down from 0 is 255 more blows
                 p.pvptimer = p.pvptimer.wrapping_sub(1);
-                if (p.pvptimer as i8) <= 0 {
+                if p.pvptimer == 0 {
                     p.status2.remove(PlayerStatus2::KNOCKEDDOWN);
                     Some((p.firstname.clone(), room_of(p)))
                 } else {
