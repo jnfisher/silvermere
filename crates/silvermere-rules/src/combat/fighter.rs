@@ -374,7 +374,8 @@ pub fn player_fighter(
         // a backstab counts the average of stealth and agility, 5 more with both
         // race and class stealth, 15 less with race stealth alone, plus half the Backstab
         // AV ability, and 10 less when the player has been spotted.
-        let mut av = (i32::from(plr.stealth) + agi) / 2;
+        // in 16 unsigned bits, as the game adds them
+        let mut av = i32::from((plr.stealth as u16).wrapping_add(plr.agi) / 2);
         if plr.flags.contains(PlayerFlags::RACESTEALTH) {
             if plr.flags.contains(PlayerFlags::CLASSSTEALTH) {
                 av += 5;
@@ -382,7 +383,7 @@ pub fn player_fighter(
                 av -= 15;
             }
         }
-        f.av = abilities.backstab_av / 2 + av;
+        f.av = abilities.backstab_av / 2 + i32::from(av as i16);
         if plr.status.contains(PlayerStatus::SPOTTED) {
             f.av -= 10;
         }
@@ -502,7 +503,8 @@ pub fn player_fighter(
     // player not too heavily loaded and strong enough for the weapon raises the critical
     // chance by up to 20 (the faster the blow the more; half as much from 33% up).
     if f.energy < 200 && encumpct <= 66 && !tooweak {
-        let n = (200 - f.energy as i32 + (agi - 50) / 10).min(20);
+        // agility read signed: one drained below 0 lowers the bonus
+        let n = (200 - f.energy as i32 + signed_less(plr.agi, 50) / 10).min(20);
         if encumpct < 33 {
             f.crit += n;
         } else {
