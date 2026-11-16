@@ -31,6 +31,7 @@ use silvermere_types::records::Room;
 use super::exits::{DirNames, exits_msg};
 use super::light::can_see;
 use super::room_items::items_msg;
+use super::who::UserList;
 use crate::world::World;
 
 /// Evil points from which a character is an Outlaw.
@@ -112,6 +113,8 @@ pub struct DisplayGlobals {
     pub dirnames: DirNames,
     /// The `FILE DESCRIPTION` files.
     pub assets: Assets,
+    /// The user list as last ranked, for the WHO name column.
+    pub user_list: UserList,
 }
 
 impl Default for DisplayGlobals {
@@ -120,6 +123,7 @@ impl Default for DisplayGlobals {
             arena_safe: true,
             dirnames: DirNames::default(),
             assets: Assets::default(),
+            user_list: UserList::default(),
         }
     }
 }
