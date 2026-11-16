@@ -398,7 +398,13 @@ pub fn load_player(
         if c.spells.iter().any(|&s| s != SpellNo(0)) {
             c = in_session(world, id, c, &mut notices, |w| end_every_spell(w, id))?;
         }
-        let sex = c.sex;
+        // the roll takes the account's sex, as a new character's does, so a character whose
+        // sex was changed in the game goes back to the account's
+        let sex = world
+            .sessions
+            .get(&id)
+            .and_then(|s| s.account.as_ref())
+            .map_or(b'M', |a| a.sex);
         roll_stats(world, &mut c, sex);
         // the points of every level since 1; the running maxima stop a wrap.
         let (mut lastcp, mut lasttotcp) = (0i32, 0i32);
