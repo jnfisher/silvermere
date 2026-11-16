@@ -182,6 +182,9 @@ fn to_form(
     line(engine, rx, id, "1");
     line(engine, rx, id, "1");
     let outs = line(engine, rx, id, "N");
+    // the background goes out before the keyboard unlocks
+    engine.handle(EngineInput::Tick);
+    common::drain(rx);
     (id, outs)
 }
 
@@ -707,6 +710,9 @@ fn train_stats_on_the_form() {
         "existing_character_form",
         crate::common::redact(&escape(&got))
     );
+    // the background goes out before the keyboard unlocks
+    engine.handle(EngineInput::Tick);
+    common::drain(&rx);
     // Up from the family name: the first name is avoided, so the cursor goes round to the
     // exit field (movfld wraps); Down goes round again to the family name
     let got = key_bytes(&mut engine, &rx, id, b"\x1b[A");

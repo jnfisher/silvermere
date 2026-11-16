@@ -390,6 +390,7 @@ pub fn edit_character_stats(world: &mut World, id: SessionId, newchar: bool) {
     let mut sf = StatForm::prepare(plr, rac, cls, form::fits(&s.caps));
     if sf.is_full_screen() {
         s.output.push_raw(sf.background());
+        sf.lock_keyboard();
     } else {
         s.output.push(Msg::StatEditorPreamble);
         // Fixed: the game's format has a stray '\0' after each number, so its maximum prints 0
