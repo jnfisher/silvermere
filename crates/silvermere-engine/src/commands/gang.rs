@@ -24,8 +24,8 @@ use super::{Cmd, CommandLine, eq_ignore_case, starts_with_ignore_case};
 use crate::comms::forget::is_user_forgotten;
 use crate::display::gang::{display_gang_members, display_online_gang_members};
 use crate::gangs::{
-    GANG_MINEXP, GANGNAMELEN, GangQuery, OfflineOp, Target, ask, find_any_action_target,
-    find_room_user, gang_key, gang_shop_item_value, get_gang, invite_to_gang, place_gang_last,
+    GANG_MINEXP, GANGNAMELEN, OfflineOp, Target, ask, find_any_action_target, find_room_user,
+    gang_key, gang_shop_item_value, get_gang, invite_to_gang, offline_query, place_gang_last,
     remove_from_gang, save_gang, save_gang_shop, set_gang_shop_owner,
 };
 use crate::items::inventory::{
@@ -330,15 +330,8 @@ pub fn uninvite_member(world: &mut World, id: SessionId, line: &CommandLine) -> 
     let tgt = match target {
         Target::None | Target::Monster => {
             // a member not in the game: the answer comes from the store
-            ask(
-                world,
-                id,
-                GangQuery::Offline {
-                    name,
-                    gang: plr.gang.clone(),
-                    op: OfflineOp::Uninvite,
-                },
-            );
+            let query = offline_query(world, &name, &plr.gang, OfflineOp::Uninvite);
+            ask(world, id, query);
             return Some(Handled::Wait);
         }
         Target::Multiple(_) => {
@@ -596,15 +589,8 @@ pub fn cmd_promote(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLi
             Handled::Done
         }
         Some(RankTarget::Offline) => {
-            ask(
-                world,
-                id,
-                GangQuery::Offline {
-                    name: line.arg(1).to_string(),
-                    gang: plr.gang,
-                    op: OfflineOp::Promote,
-                },
-            );
+            let query = offline_query(world, line.arg(1), &plr.gang, OfflineOp::Promote);
+            ask(world, id, query);
             Handled::Wait
         }
     }
@@ -647,15 +633,8 @@ pub fn cmd_demote(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLin
             Handled::Done
         }
         Some(RankTarget::Offline) => {
-            ask(
-                world,
-                id,
-                GangQuery::Offline {
-                    name: line.arg(1).to_string(),
-                    gang: plr.gang,
-                    op: OfflineOp::Demote,
-                },
-            );
+            let query = offline_query(world, line.arg(1), &plr.gang, OfflineOp::Demote);
+            ask(world, id, query);
             Handled::Wait
         }
     }
