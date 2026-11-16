@@ -584,7 +584,8 @@ mod gang {
                 GangQuery::Offline {
                     name: "dan".into(),
                     gang: "Wolves".into(),
-                    op: OfflineOp::Promote
+                    op: OfflineOp::Promote,
+                    in_game: false
                 }
             )]
         );
@@ -619,6 +620,7 @@ mod gang {
             name: "dan".into(),
             gang: "Wolves".into(),
             op: OfflineOp::Promote,
+            in_game: false,
         };
         let q2 = q.clone();
         assert_eq!(
@@ -658,6 +660,7 @@ mod gang {
             name: "dan".into(),
             gang: "Wolves".into(),
             op: OfflineOp::Demote,
+            in_game: false,
         };
         let d = dan.clone();
         assert_eq!(
@@ -697,6 +700,7 @@ mod gang {
             name: "zed".into(),
             gang: "Wolves".into(),
             op: OfflineOp::Uninvite,
+            in_game: false,
         };
         assert_eq!(
             h.answer(bob, move |w| gangs::on_query_answer(
@@ -1019,6 +1023,7 @@ mod gang {
             name: "bOB jR".into(),
             gang: "Wolves".into(),
             op: OfflineOp::Uninvite,
+            in_game: false,
         };
         assert_eq!(
             h.answer(bob, move |w| gangs::on_query_answer(
@@ -1033,6 +1038,7 @@ mod gang {
             name: "zed".into(),
             gang: "Wolves".into(),
             op: OfflineOp::Demote,
+            in_game: false,
         };
         assert_eq!(
             h.answer(bob, move |w| gangs::on_query_answer(

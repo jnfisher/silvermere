@@ -1121,6 +1121,7 @@ fn a_gang_offline_edit_after_a_hang_up_keeps_the_hang_up() {
                     name: "aldric".into(),
                     gang: "Wolves".into(),
                     op: OfflineOp::Promote,
+                    in_game: false,
                 },
                 GangAnswer::Offline(Some((account, Box::new(stale)))),
             )
