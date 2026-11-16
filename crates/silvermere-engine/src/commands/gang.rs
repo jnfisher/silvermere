@@ -549,6 +549,8 @@ fn rank_command(world: &World, id: SessionId, line: &CommandLine) -> Option<Rank
         Target::User(t) if t.0 == 0 => RankTarget::Offline,
         Target::User(t) => RankTarget::Online(t),
         Target::Monster => RankTarget::Monster,
+        // (sic) nobody is target 0 too, which a leader on channel 0 takes for himself
+        Target::None | Target::Multiple(_) if id.0 == 0 => RankTarget::Myself,
         Target::None | Target::Multiple(_) => RankTarget::Offline,
     })
 }

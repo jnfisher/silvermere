@@ -570,6 +570,8 @@ mod gang {
     #[test]
     fn offline_members_through_the_store() {
         let mut h = Harness::new();
+        // the leader is not on channel 0, where naming nobody means himself
+        h.player("Cid", "Ray");
         let (bob, _ann) = wolves(&mut h);
         h.w().gangs.get_mut("WOLVES").unwrap().members = 3;
         let from = h.log.len();
