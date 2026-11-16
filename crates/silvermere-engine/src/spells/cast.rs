@@ -1828,8 +1828,13 @@ fn area_slot(
                 known.map_or(0, |k| k.magicres),
                 None,
             );
-            if matches!(effect, E::Damage { .. } | E::StealHp) {
-                // marked changed whether it resists or not
+            // marked changed whatever the effect does to it (a Poison spares the immune)
+            let marks = match effect {
+                E::Damage { .. } | E::StealHp | E::Energy | E::CurePoison => true,
+                E::Poison => !monster_has(world, m, Ability::PoisonImmune),
+                _ => false,
+            };
+            if marks {
                 world.active_monsters.mark_dirty(mon);
             }
             if matches!(effect, E::Damage { .. }) {
