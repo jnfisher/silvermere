@@ -219,7 +219,6 @@ pub fn player_fighter(
     let level = i32::from(plr.level);
     let str = i32::from(plr.str);
     let agi = i32::from(plr.agi);
-    let cha = i32::from(plr.cha);
     let combat = i32::from(class.combat);
     let encumpct = i32::from(plr.encumpct);
     let maxenergy = u32::from(plr.maxenergy);
@@ -259,7 +258,10 @@ pub fn player_fighter(
     // dodge: the ability plus a fifth of charm above 50, a fifth of the level and
     // a third of agility above 50. The dead cannot dodge.
     if plr.hp > 0 {
-        f.dodge = abilities.dodge + (cha - 50) / 5 + level / 5 + (agi - 50) / 3;
+        f.dodge = abilities.dodge
+            + signed_less(plr.cha, 50) / 5
+            + level / 5
+            + signed_less(plr.agi, 50) / 3;
     } else {
         f.dodge = -1;
     }
@@ -322,8 +324,8 @@ pub fn player_fighter(
 
     // strength: every 10 points above 50 add 1 to the most damage, every 10 above
     // 100 add 2 to the least. The least never exceeds the most, and neither goes below 0.
-    f.maxdmg += (str - 50) / 10;
-    let strmin = (str - 100) / 10 * 2;
+    f.maxdmg += signed_less(plr.str, 50) / 10;
+    let strmin = signed_less(plr.str, 100) / 10 * 2;
     if strmin > 0 {
         f.mindmg += strmin;
     }
@@ -622,4 +624,10 @@ pub fn monster_fighter(
         f.dv = (f.dv - SMASH_PENALTY).max(0);
     }
     f
+}
+
+/// A stat less `n`, as the game works it in 16 bits: (sic) the stat read signed, so one
+/// that went below 0 (and wrapped) counts as negative, not as a huge value.
+fn signed_less(stat: u16, n: i16) -> i32 {
+    i32::from((stat as i16).wrapping_sub(n))
 }

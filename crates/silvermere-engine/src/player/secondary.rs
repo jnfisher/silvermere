@@ -210,8 +210,16 @@ pub fn secondary(
         + abilities.value(Ability::AlterHp)
         + i32::from(c.hpbonus as i16);
 
-    // the martial-arts base, kept in 1..=75.
-    let mabase = (level / 10 + (intel - 50) / 10 + (agi - 50) / 20 + (cha - 50) / 30).clamp(1, 75);
+    // the martial-arts base, kept in 1..=75. (sic) The game works it in 16 bits, a stat
+    // read signed (a stat above 32767 counts as negative) and the sum wrapping.
+    let signed = |v: u16| v as i16;
+    let mabase = i32::from(
+        ((c.level / 10) as i16)
+            .wrapping_add(signed(c.intel).wrapping_sub(50) / 10)
+            .wrapping_add(signed(c.agi).wrapping_sub(50) / 20)
+            .wrapping_add(signed(c.cha).wrapping_sub(50) / 30),
+    )
+    .clamp(1, 75);
     let mut martial = mabase
         + i32::from(c.critbonus)
         + abilities.value(Ability::Dodge)
