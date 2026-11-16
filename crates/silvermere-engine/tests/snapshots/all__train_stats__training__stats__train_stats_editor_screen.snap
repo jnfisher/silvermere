@@ -2,7 +2,7 @@
 source: crates/silvermere-engine/tests/train_stats.rs
 expression: "crate::common::redact(&esc(&out))"
 ---
-\r\n
+\x1b[0;37;40m\r\n
      [package text]\r\n
 \r\n
      [package text]\r\n
@@ -21,12 +21,13 @@ expression: "crate::common::redact(&esc(&out))"
 [package text]\r\n
 [package text]\r\n
 \r\n
-Strength  35 - 0\r\n
-Intellect 50 - 0\r\n
-Willpower 40 - 0\r\n
-Agility   50 - 0\r\n
-Health    30 - 0\r\n
-Charm     50 - 0\r\n
+Strength  35 - 90\r\n
+Intellect 50 - 120\r\n
+Willpower 40 - 100\r\n
+Agility   50 - 120\r\n
+Health    30 - 70\r\n
+Charm     50 - 120\r\n
 \r\n
 You have 100 CP to distribute.\r\n
-Family name [Stonefist]:
+\r\n
+Family Name Stonefist

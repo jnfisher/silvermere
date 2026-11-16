@@ -2,4 +2,4 @@
 source: crates/silvermere-engine/tests/character_creation.rs
 expression: escape(&out)
 ---
-You must enter a last name!\r\nFamily name []:
+\r\n\r\nYou must enter a last name!\x07\r\n\r\nFamily Name
