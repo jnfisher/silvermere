@@ -117,10 +117,10 @@
   },
   {
    "send": "N",
-   "until_cursor": "4;20",
+   "until": "Left:",
    "timeout": 15,
    "required": true,
-   "note": "not lawful; the editor opens on the given name",
+   "note": "not lawful; the editor opens on the given name (the wait is for the form's CP Left label, which both form libraries send: MBBSEmu's leaves the cursor on the given name, the game's at the CP display)",
    "result": {
     "offset": 5092,
     "waited": 0.32,
