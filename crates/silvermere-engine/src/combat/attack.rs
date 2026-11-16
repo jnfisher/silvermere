@@ -446,6 +446,7 @@ pub fn attack_user_monster(
             && m.energy as i32 == i32::from(m.maxenergy)
         {
             m.energy = 0;
+            world.active_monsters.mark_dirty(monnum);
         }
         engage_autocombat(world, id, AutoTarget::Monster(monnum), mv);
         // the monster may follow
