@@ -1574,30 +1574,42 @@ fn summon(world: &mut World, id: SessionId, n: i32, what: Summoned) {
                 .map(|p| p.firstname.clone())
                 .unwrap_or_default();
             let servant = matches!(what, Summoned::Servant);
-            if let Some(m) = crate::combat::monster_mut(world, newmon) {
-                m.following = name;
-                m.friendly = u8::from(servant);
-                if servant {
-                    m.flags
-                        .insert(silvermere_types::flags::ActiveMonsterFlags::CHARMED);
-                }
+            // read into the cache, and (sic) set without marking it changed
+            if crate::combat::monster_slot(world, newmon).is_some() {
+                world.active_monsters.set_quietly(newmon, |m| {
+                    m.following = name;
+                    m.friendly = u8::from(servant);
+                    if servant {
+                        m.flags
+                            .insert(silvermere_types::flags::ActiveMonsterFlags::CHARMED);
+                    }
+                });
             }
         }
         Summoned::Hunts(target) => {
-            // only when both monsters are still there
-            if crate::combat::monster(world, target).is_none() {
+            // only when both monsters are still there; the target is the record the game
+            // holds already, not looked up again
+            if world.active_monsters.peek(target).is_none()
+                || crate::combat::monster_slot(world, newmon).is_none()
+            {
                 return;
             }
-            if let Some(m) = crate::combat::monster_mut(world, newmon) {
+            world.active_monsters.mark_dirty(newmon);
+            if let Some(m) = world.active_monsters.peek_mut(newmon) {
                 m.hunting = target;
                 m.friendly = 0;
             }
             // (sic) the new monster goes into every free hunter slot of the target, not
             // only the first
-            if let Some(t) = crate::combat::monster_mut(world, target) {
+            let mut hunted = false;
+            if let Some(t) = world.active_monsters.peek_mut(target) {
                 for h in t.hunters.iter_mut().filter(|h| h.0 == 0) {
                     *h = newmon;
+                    hunted = true;
                 }
+            }
+            if hunted {
+                world.active_monsters.mark_dirty(target);
             }
         }
     }
