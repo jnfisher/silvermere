@@ -70,6 +70,7 @@ pub fn on_login(world: &mut World, id: SessionId) {
 /// `rng` and `today` (the UTC midnight, [`crate::event_loop::day_start`]) come from the
 /// engine for the handlers that need them: entering the realm runs `load_player`.
 pub fn on_line(world: &mut World, id: SessionId, line: &str, today: i64) -> Outcome {
+    form::unlock_keyboards(world, Some(id));
     let Some(s) = world.sessions.get_mut(&id) else {
         return Outcome::Logoff;
     };
@@ -111,6 +112,7 @@ pub fn read_injected(world: &mut World, today: i64) -> Vec<(SessionId, Outcome)>
 /// lists end on any key (`commands::input::on_key`, T-024); the stat editor's form takes
 /// its keys while it is open (T-063).
 pub fn on_key(world: &mut World, id: SessionId, byte: u8) -> Outcome {
+    form::unlock_keyboards(world, Some(id));
     let form = world.session(id).is_some_and(|s| {
         s.state == SessionState::NewChar(NewCharStep::Stats)
             && s.editor.as_ref().is_some_and(|e| e.form.is_some())
@@ -124,6 +126,7 @@ pub fn on_key(world: &mut World, id: SessionId, byte: u8) -> Outcome {
 /// Keys arriving together in character mode, as [`on_key`] for each, but the stat
 /// editor's form does their work once, after the last.
 pub fn on_keys(world: &mut World, id: SessionId, bytes: &[u8]) -> Outcome {
+    form::unlock_keyboards(world, Some(id));
     let form = world.session(id).is_some_and(|s| {
         s.state == SessionState::NewChar(NewCharStep::Stats)
             && s.editor.as_ref().is_some_and(|e| e.form.is_some())

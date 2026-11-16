@@ -12,8 +12,10 @@
 //! | a check | `ljnvfy`, then `vfyadn` | [`ljnvfy`] |
 //! | the end | `goback`, then `ljndun` | [`newchar::editor_done`] |
 //!
-//! Not carried: the sub-BBS client's screen start and end codes (`send_screen_start_code`),
-//! the keyboard lock while the background goes out.
+//! The keyboard is locked while the background goes out (`fsdbkg`'s `btulok`, lifted at the
+//! host's next pass by the output-empty status): keys typed before then are dropped.
+//!
+//! Not carried: the sub-BBS client's screen start and end codes (`send_screen_start_code`).
 
 use silvermere_fsd::key::{
     CRSRDN, CRSRLF, CRSRRT, CRSRUP, END, F1, F2, F3, F4, F5, F6, F7, F8, HOME,
@@ -82,6 +84,8 @@ pub fn fits(caps: &Caps) -> bool {
 pub struct StatForm {
     form: Form,
     ain: Ain,
+    /// The keyboard locked while the background goes out.
+    locked: bool,
 }
 
 impl StatForm {
@@ -98,7 +102,13 @@ impl StatForm {
         Self {
             form,
             ain: Ain::default(),
+            locked: false,
         }
+    }
+
+    /// `btulok`: the keyboard locked until the background has gone out.
+    pub fn lock_keyboard(&mut self) {
+        self.locked = true;
     }
 
     /// Whether the form runs full screen.
@@ -320,6 +330,18 @@ impl Ain {
     }
 }
 
+/// The output-empty status of the host's next pass: the background has gone out and the
+/// keyboard is unlocked, for every form but `except`'s (whose keys come first).
+pub fn unlock_keyboards(world: &mut World, except: Option<SessionId>) {
+    for (&id, s) in &mut world.sessions {
+        if Some(id) != except
+            && let Some(sf) = s.editor.as_mut().and_then(|e| e.form.as_mut())
+        {
+            sf.locked = false;
+        }
+    }
+}
+
 /// One keystroke in character mode: the key, the work it left, then the output counted
 /// as sent.
 pub fn on_key(world: &mut World, id: SessionId, byte: u8) -> Outcome {
@@ -352,6 +374,14 @@ fn type_keys(world: &mut World, id: SessionId, bytes: &[u8], each_sent: bool) {
     let Some(editor) = s.editor.as_mut() else {
         return;
     };
+    // keys typed while the background goes out are dropped; the host's pass after them
+    // lifts the lock
+    if let Some(sf) = editor.form.as_mut()
+        && sf.locked
+    {
+        sf.locked = false;
+        return;
+    }
     let Some(mut sf) = editor.form.take() else {
         return;
     };

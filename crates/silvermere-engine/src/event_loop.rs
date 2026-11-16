@@ -22,6 +22,7 @@ use crate::player_session::Caps;
 use crate::scheduler::{self, Clock, Rng, TickReport};
 use crate::session;
 use crate::state::Outcome;
+use crate::state::newchar::form::unlock_keyboards;
 use crate::tell::{palette_of, prompt_bytes};
 use crate::world::{World, WorldSnapshot};
 
@@ -627,6 +628,8 @@ impl<C: Clock, R: Rng> Engine<C, R> {
                 // Wall time on purpose: the tick duration metric measures the host, and
                 // nothing in the game reads it.
                 let started = Instant::now();
+                // the stat forms' backgrounds have gone out
+                unlock_keyboards(world, None);
                 let report = scheduler::on_fast_tick(world);
                 // the paged lists the per-poll routine advanced (T-027)
                 crate::state::listing::on_tick(world);
