@@ -690,10 +690,14 @@ enum Target {
     Multiple,
 }
 
-/// The action target search as GIVE asks it (monsters and the other players): a monster
-/// is not a player to give to; several candidates show the list.
-fn find_receiver(world: &mut World, id: SessionId, name: &str) -> Target {
-    match find_action_target(world, id, name, false) {
+/// The action target search as GIVE asks it, for the name from word `i` on (monsters and the
+/// other players): a monster is not a player to give to; several candidates show the list.
+/// Fixed: the game looked up a stale word when no name followed TO; now that finds nobody.
+fn find_receiver(world: &mut World, id: SessionId, line: &CommandLine, i: usize) -> Target {
+    if line.argc() <= i {
+        return Target::NotAPlayer;
+    }
+    match find_action_target(world, id, line.rest_from(i), false) {
         Searched::User(t) => Target::User(t),
         Searched::Multiple(options) => {
             show_options(world, id, &options);
@@ -740,7 +744,7 @@ fn give_coins(
         tell_user(world, id, Msg::GiveSyntax);
         return Handled::Done;
     }
-    let tgt = find_receiver(world, id, line.rest_from(4));
+    let tgt = find_receiver(world, id, line, 4);
     let tgt = match tgt {
         Target::Multiple => return Handled::Done,
         Target::NotAPlayer => {
@@ -895,7 +899,7 @@ fn give_item(world: &mut World, id: SessionId, room: RoomKey, line: &CommandLine
     if !starts_with_ignore_case(line.arg(f.words + 1), "to") {
         return Handled::NotCommand;
     }
-    let tgt = match find_receiver(world, id, line.rest_from(f.words + 2)) {
+    let tgt = match find_receiver(world, id, line, f.words + 2) {
         Target::Multiple => return Handled::Done,
         Target::NotAPlayer => return Handled::NotCommand,
         Target::User(t) => t,
