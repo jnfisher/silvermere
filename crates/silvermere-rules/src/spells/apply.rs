@@ -676,6 +676,10 @@ fn apply_to_user(
             if lasting {
                 return add_lasting_to_user(cast, user, amount, true, state, rng);
             }
+            // the area loop skips the immune
+            if area && user.poison_immune {
+                return Outcome::Immune;
+            }
             // the first poison spell ends, then the level falls, never below 0; the area loop
             // has no floor (sic).
             Outcome::Ended {
@@ -1316,7 +1320,8 @@ fn apply_to_monster(
             if i32::from(target.monster.poison) < level {
                 target.monster.poison = level as i16;
             }
-            if path == P::Single {
+            // the instant area form takes the roll too
+            if path == P::Single || !lasting {
                 aggro(target, caster_name, rng);
             }
             if lasting {
