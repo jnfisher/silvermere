@@ -2,7 +2,7 @@
 source: crates/silvermere-testkit/tests/stock_scripts.rs
 expression: "out.replace('\\r', \"\")"
 ---
-[79D[K[0;32mThe witchunter spirit greets you with a bow, saying "Welcome young one. Thy 
+[0;37;40m[79D[K[0;32mThe witchunter spirit greets you with a bow, saying "Welcome young one. Thy 
 travels have brought thee far, to find me in this cursed tomb where I am 
 bound. The dark one was cruel indeed to keep my spirit in this plane after we 
 were vanquished, but even in defeat there can be hope. I have little left to 

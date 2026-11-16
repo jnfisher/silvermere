@@ -2,4 +2,4 @@
 source: crates/silvermere-engine/tests/character_creation.rs
 expression: "crate::common::redact(&escape(&writes(&outs, id)))"
 ---
-\x1b[1;37m\r\n[package text]\r\n[package text]\r\n[package text]\r\n[package text]\r\n\x1b[1;36mPlease wait - Validating your name.\r\n
+\r\n\x1b[0;1;32m\x1b[1;37m\r\n[package text]\r\n[package text]\r\n[package text]\r\n[package text]\r\n\x1b[1;36mPlease wait - Validating your name.\r\n
