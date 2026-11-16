@@ -1828,6 +1828,10 @@ fn area_slot(
                 known.map_or(0, |k| k.magicres),
                 None,
             );
+            if matches!(effect, E::Damage { .. } | E::StealHp) {
+                // marked changed whether it resists or not
+                world.active_monsters.mark_dirty(mon);
+            }
             if matches!(effect, E::Damage { .. }) {
                 // the resistance die is rolled but never wins (sic)
                 monster_resists_area(spl, mr, &mut world.rng);

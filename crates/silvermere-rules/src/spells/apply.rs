@@ -1246,17 +1246,16 @@ fn apply_to_monster(
                     return Outcome::Silly;
                 }
                 // the one area case where a monster resists, and a
-                // resist zeroes the share for every later monster (sic).
-                if state.area_stealhp_zeroed {
-                    let out = damage_monster(target, 0, caster_name, rng);
-                    return monster_stolen(out, 0);
-                }
+                // resist zeroes the share for every later monster (sic);
+                // each still rolls, and one that resists still turns on him
                 let chance =
                     super::resist::resist_chance(target.magic_resistance, super::MAXCHANCE);
                 if rng.range(1, 100) <= chance {
                     state.area_stealhp_zeroed = true;
+                    let _ = damage_monster(target, 0, caster_name, rng);
                     return Outcome::Resisted;
                 }
+                let amount = if state.area_stealhp_zeroed { 0 } else { amount };
                 let out = damage_monster(target, amount, caster_name, rng);
                 monster_stolen(out, amount)
             }
