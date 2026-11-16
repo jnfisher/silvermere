@@ -466,11 +466,14 @@ fn summon(world: &mut World, id: SessionId, n: i32) {
         ally: false,
         force: true,
     };
+    // read into the cache, and (sic) set without marking the monster changed
     if let Some(mon) = crate::monsters::generate::generate_monster(world, key, req)
-        && let Some(m) = combat::monster_mut(world, mon)
+        && combat::monster_slot(world, mon).is_some()
     {
-        m.following = name;
-        m.friendly = 0;
+        world.active_monsters.set_quietly(mon, |m| {
+            m.following = name;
+            m.friendly = 0;
+        });
     }
 }
 
