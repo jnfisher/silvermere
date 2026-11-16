@@ -16,6 +16,7 @@ use silvermere_text::ansi::ANSI_CLRLINE;
 use silvermere_text::{Msg, cp437, finish};
 use silvermere_types::ids::SessionId;
 
+use crate::display::who::rebuild_user_list;
 use crate::monsters::active::write_back_evicted;
 use crate::output::{PromptText, render_items};
 use crate::player_session::Caps;
@@ -655,6 +656,8 @@ impl<C: Clock, R: Rng> Engine<C, R> {
         }
         // the monsters the cache pushed out are written back or read back
         write_back_evicted(&mut self.world);
+        // the user list, when the players in the game changed
+        rebuild_user_list(&mut self.world);
     }
 
     fn finish_outcome(&mut self, id: SessionId, outcome: Outcome) {
