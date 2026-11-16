@@ -624,8 +624,10 @@ fn blank_last_name_refused_then_allowed_by_config() {
     );
     insta::assert_snapshot!("last_name_required", escape(&out));
     // the SAVE-time check (ljndun) for a family name that is blank when SAVE runs: ^U
-    // back to the given name, ^G saves from there, the family name never checked
-    let out = line(&mut engine, &rx, id, "\x15\x07");
+    // back to the given name, ^G saves from there, the family name never checked (each
+    // its own line: the keys a line holds after one that ends an entry are dropped)
+    let mut out = line(&mut engine, &rx, id, "\x15");
+    out.extend(line(&mut engine, &rx, id, "\x07"));
     assert!(
         plain(&out).ends_with(
             "You MUST have a last name!\r\nYou will have to start over again.\r\nPress Enter."
@@ -829,13 +831,26 @@ fn clash_with_a_monster_name_loops_to_new_name() {
         "Giantrat"
     );
     // Ctrl-U back to the given name, shown as stored; then the monster's name
-    let out = line(&mut engine, &rx, id, "\u{15}kobold");
+    let out = line(&mut engine, &rx, id, "\u{15}");
     assert!(
         plain(&out).contains("Given Name  Giantrat"),
         "{:?}",
         plain(&out)
     );
-    for a in ["Stonefist", "", "", "", "", "", "", "", "", "", ""] {
+    for a in [
+        "kobold",
+        "Stonefist",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+    ] {
         line(&mut engine, &rx, id, a);
     }
     assert_eq!(
