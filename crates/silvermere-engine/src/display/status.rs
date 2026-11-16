@@ -209,26 +209,27 @@ pub fn show_status(world: &mut World, shown: SessionId, to: SessionId) {
     msgs.push(Msg::StPicklocks {
         picklocks: num(plr.picklocks, 5, false),
     });
-    // A red star for a stat away from its base value
+    // A red star for a stat away from its base value. The stats print signed (%d): (sic)
+    // one that went below 0 shows as negative.
     msgs.push(Msg::StStr {
         mark1: stat_mark(plr.str == plr.basstr),
-        stat1: num(plr.str, 5, true),
+        stat1: num(plr.str as i16, 5, true),
         mark2: stat_mark(plr.agi == plr.basagi),
-        stat2: num(plr.agi, 5, true),
+        stat2: num(plr.agi as i16, 5, true),
         stat3: num(plr.tracking, 5, false),
     });
     msgs.push(Msg::StInt {
         mark1: stat_mark(plr.intel == plr.basint),
-        stat1: num(plr.intel, 5, true),
+        stat1: num(plr.intel as i16, 5, true),
         mark2: stat_mark(plr.hea == plr.bashea),
-        stat2: num(plr.hea, 5, true),
+        stat2: num(plr.hea as i16, 5, true),
         stat3: num(plr.martial, 5, false),
     });
     msgs.push(Msg::StWil {
         mark1: stat_mark(plr.wil == plr.baswil),
-        stat1: num(plr.wil, 5, true),
+        stat1: num(plr.wil as i16, 5, true),
         mark2: stat_mark(plr.cha == plr.bascha),
-        stat2: num(plr.cha, 5, true),
+        stat2: num(plr.cha as i16, 5, true),
         stat3: num(plr.mr, 5, false),
     });
     if plr.poison > 0 {
