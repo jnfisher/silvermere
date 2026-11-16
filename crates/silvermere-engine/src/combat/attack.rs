@@ -53,11 +53,11 @@ pub const MIN_PVP_LEVEL: u16 = 4;
 /// Evil points from which a player is a FIEND.
 const FIEND_EVIL: i16 = 210;
 
-/// The message, then the prompt, to one player.
+/// The message, then the prompt, to one player, in one message.
 fn say_prompt(world: &mut World, id: SessionId, msg: Msg) {
     if let Some(s) = world.session_mut(id) {
         s.output.push(msg);
-        s.push_prompt();
+        s.push_joined_prompt();
     }
 }
 

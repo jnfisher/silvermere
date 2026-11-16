@@ -251,7 +251,10 @@ pub fn execute_input(world: &mut World, id: SessionId, line: &str, queued: bool)
 
     // Stage 11: speech, of the line as `rstrin()` left it (no blanks after its last word)
     speech(world, id, room.as_ref(), cl.restored());
-    prompt(world, id);
+    // in one message with what the speaker is told
+    if let Some(s) = world.session_mut(id) {
+        s.push_joined_prompt();
+    }
     Outcome::Continue
 }
 

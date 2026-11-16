@@ -134,6 +134,14 @@ impl PlayerSession {
         self.output.push_prompt(state);
     }
 
+    /// The prompt sent in one message with what was queued just before it (the game's
+    /// text, `prf_prompt` and `tell_user` together), which the attack interrupt's clear keeps
+    /// with the prompt.
+    pub fn push_joined_prompt(&mut self) {
+        let state = crate::tell::PromptState::capture(self);
+        self.output.push_joined_prompt(state);
+    }
+
     /// A session that has just connected: nothing loaded, at [`SessionState::Start`].
     pub fn new(id: SessionId, caps: Caps, now: Instant) -> Self {
         Self {
