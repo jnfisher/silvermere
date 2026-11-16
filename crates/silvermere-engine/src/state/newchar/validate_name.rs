@@ -11,6 +11,7 @@ use silvermere_types::enums::{InGame, NewCharStep, SessionState};
 use silvermere_types::flags::PlayerSettings;
 use silvermere_types::ids::SessionId;
 
+use crate::display::status::show_status;
 use crate::event_loop::EngineOutput;
 use crate::state::newchar::{ENTRY_MASK, capitalise, tell, words};
 use crate::state::{Input, Outcome};
@@ -117,11 +118,14 @@ pub fn on_checked(world: &mut World, id: SessionId, taken: bool) {
     // announce the arrival (invisible sysops are not carried)
     let entered = Msg::PlayerEntered { who: name };
     tell_game(world, Some(id), ENTRY_MASK, true, None, &entered);
-    // set up the screen and show the prompt
-    // TODO T-025: show_status (the room display) between the backspace and the prompt;
+    // set up the screen (the split screen needs a setting nothing makes), the statistics
+    // sheet, the prompt
     // TODO T-027: rebuild the user list.
     if let Some(s) = world.session_mut(id) {
         s.output.push(Msg::Backspace);
+    }
+    show_status(world, id, id);
+    if let Some(s) = world.session_mut(id) {
         s.push_prompt();
     }
 }
