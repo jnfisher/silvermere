@@ -177,7 +177,8 @@ fn stun_tick(world: &mut World, id: SessionId) {
     if !plr.status2.contains(PlayerStatus2::KNOCKEDDOWN) {
         return;
     }
-    plr.pvptimer = plr.pvptimer.saturating_sub(1);
+    // (sic) unsigned: one down from 0 is 255 more ticks
+    plr.pvptimer = plr.pvptimer.wrapping_sub(1);
     if plr.pvptimer > 0 {
         return;
     }
