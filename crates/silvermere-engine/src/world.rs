@@ -32,6 +32,7 @@ use crate::movement::exits::ExitOverride;
 use crate::player_session::PlayerSession;
 use crate::progression::TopTen;
 use crate::scheduler::{Periods, Scheduler, SeededRng};
+use crate::stock_faults::{apply_messages, apply_spells};
 
 /// `NOCCROOMS`: entries of the occupied-room table.
 pub const NOCCROOMS: usize = silvermere_rules::spawn::NOCCROOMS;
@@ -542,6 +543,8 @@ impl World {
             .map(|t| ((t.part, t.number), t.clone()))
             .collect();
         crate::stock_faults::apply(&mut self.text_blocks);
+        apply_spells(&mut self.spells);
+        apply_messages(&mut self.messages);
         self.action_order = s
             .actions
             .iter()
