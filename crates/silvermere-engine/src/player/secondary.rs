@@ -79,6 +79,12 @@ fn skill_level(level: i32) -> i32 {
     }
 }
 
+/// A sum of the unsigned 16-bit stats as the game works it out: wrapped at 65536 (sic) before
+/// it is divided.
+fn u16w(x: i32) -> i32 {
+    i32::from(x as u16)
+}
+
 /// The figures of the secondary-stats calculation.
 ///
 /// `c.critbonus` must already be the dynamic value ([`recalculate`] refreshes it first),
@@ -105,7 +111,7 @@ pub fn secondary(
 
     // one pass totals Perception and, into `extra`, Stealth.
     let (perc_abil, stealth_abil) = abilities.pair(Ability::Perception, Ability::Stealth);
-    let perception = (intel * 5 + wil * 2 + cha) / 8 + perc_abil;
+    let perception = u16w(intel * 5 + wil * 2 + cha) / 8 + perc_abil;
 
     let cls_stealth = abilities.has(Ability::ClassStealth);
     let rac_stealth = abilities.has(Ability::RaceStealth);
@@ -144,7 +150,7 @@ pub fn secondary(
 
     let (traps, disarm) = if abilities.has(Ability::FindTraps) {
         let lvl = skill_level(level);
-        let base = (intel + agi + cha * 2 + lvl * 28) / 7;
+        let base = u16w(intel + agi + cha * 2 + lvl * 28) / 7;
         let (find, disarm_abil) = abilities.pair(Ability::FindTraps, Ability::DisarmTraps);
         let traps = base + find + abilities.value(Ability::FindTrapsVal);
         (
@@ -158,7 +164,7 @@ pub fn secondary(
     let picklocks = if abilities.has(Ability::Picklocks) {
         let lvl = skill_level(level);
         let (p, val) = abilities.pair(Ability::Picklocks, Ability::PicklocksVal);
-        let t = (agi + intel + lvl * 10) * 2 / 7 + p + val;
+        let t = u16w(u16w(agi + intel + lvl * 10) * 2) / 7 + p + val;
         i32::from(t as i16).max(0)
     } else {
         0
@@ -166,7 +172,7 @@ pub fn secondary(
 
     let tracking = if abilities.has(Ability::Tracking) {
         let lvl = skill_level(level);
-        let t = (intel * 2 + wil + cha + lvl * 40) / 8 + abilities.value(Ability::Tracking);
+        let t = (u16w(intel * 2) + wil + cha + lvl * 40) / 8 + abilities.value(Ability::Tracking);
         i32::from(t as i16).max(0)
     } else {
         0
@@ -178,10 +184,10 @@ pub fn secondary(
     let manabonus = i32::from(c.manabonus as i16);
     let caster_mana = || abilities.value(Ability::Mana) + (magelvl * level + 3) * 2 + manabonus;
     let (maxmana, castbase) = match class.magery {
-        Magery::Mage => (caster_mana(), (intel * 3 + wil) / 6),
-        Magery::Priest => (caster_mana(), (wil * 3 + intel) / 6),
-        Magery::Druid => (caster_mana(), (intel + wil) / 3),
-        Magery::Bard => (caster_mana(), (cha * 3 + wil) / 6),
+        Magery::Mage => (caster_mana(), u16w(intel * 3 + wil) / 6),
+        Magery::Priest => (caster_mana(), u16w(wil * 3 + intel) / 6),
+        Magery::Druid => (caster_mana(), u16w(intel + wil) / 3),
+        Magery::Bard => (caster_mana(), u16w(cha * 3 + wil) / 6),
         Magery::Kai => (level - 1, 500),
         _ => (0, -150), // no magery
     };
@@ -191,7 +197,7 @@ pub fn secondary(
     // one pass totals Spellcasting and, into `extra`, Magic Resistance.
     let (cast_abil, mr_abil) = abilities.pair(Ability::Spellcasting, Ability::MagicResist);
     let spellcast = level * 2 + castbase + magelvl * 5 + cast_abil;
-    let maxmr = (intel + wil * 3) / 4 + mr_abil;
+    let maxmr = u16w(intel + wil * 3) / 4 + mr_abil;
 
     // base Health, not the buffed value.
     let bashea = i32::from(c.bashea);
