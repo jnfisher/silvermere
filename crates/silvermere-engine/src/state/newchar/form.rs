@@ -327,6 +327,13 @@ pub fn on_key(world: &mut World, id: SessionId, byte: u8) -> Outcome {
     Outcome::Continue
 }
 
+/// Keys arriving together in character mode: each byte's output counted as sent, the work
+/// they leave done once after the last.
+pub fn on_keys(world: &mut World, id: SessionId, bytes: &[u8]) -> Outcome {
+    type_keys(world, id, bytes, true);
+    Outcome::Continue
+}
+
 /// A whole line: its keys, then Return, all arriving together; what the previous input
 /// sent has gone.
 pub fn on_line(world: &mut World, id: SessionId, line: &str) -> Outcome {
@@ -352,23 +359,28 @@ fn type_keys(world: &mut World, id: SessionId, bytes: &[u8], each_sent: bool) {
     if !each_sent {
         sf.form.output_sent(&mut out);
     }
-    let mut outcome = FormOutcome::Continue;
-    for &b in bytes {
+    // the keys all go in before the work they leave is done (the host's cycle), so the
+    // keys after one that finishes an entry are dropped (`fsdpch`)
+    let mut keyed = false;
+    for (n, &b) in bytes.iter().enumerate() {
         let c = sf.ain.chr(b);
         if c != 0 {
-            let c = if c < 0x100 { c & EURMSK } else { c };
-            sf.form.key(c, &mut out);
-            let mut verify = |f: &mut Form, n: usize, a: &mut Vec<u8>, o: &mut Vec<u8>| {
-                ljnvfy(editor, f, n, a, o)
-            };
-            outcome = sf.form.process(&mut verify, &mut out);
+            sf.form
+                .key(if c < 0x100 { c & EURMSK } else { c }, &mut out);
+            keyed = true;
         }
-        if outcome != FormOutcome::Continue {
-            break;
-        }
-        if each_sent {
+        if each_sent && n + 1 < bytes.len() {
             sf.form.output_sent(&mut out);
         }
+    }
+    let mut outcome = FormOutcome::Continue;
+    if keyed {
+        let mut verify =
+            |f: &mut Form, n: usize, a: &mut Vec<u8>, o: &mut Vec<u8>| ljnvfy(editor, f, n, a, o);
+        outcome = sf.form.process(&mut verify, &mut out);
+    }
+    if each_sent && outcome == FormOutcome::Continue {
+        sf.form.output_sent(&mut out);
     }
     if outcome == FormOutcome::Continue {
         editor.form = Some(sf);

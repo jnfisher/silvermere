@@ -121,6 +121,23 @@ pub fn on_key(world: &mut World, id: SessionId, byte: u8) -> Outcome {
     crate::commands::input::on_key(world, id, byte)
 }
 
+/// Keys arriving together in character mode, as [`on_key`] for each, but the stat
+/// editor's form does their work once, after the last.
+pub fn on_keys(world: &mut World, id: SessionId, bytes: &[u8]) -> Outcome {
+    let form = world.session(id).is_some_and(|s| {
+        s.state == SessionState::NewChar(NewCharStep::Stats)
+            && s.editor.as_ref().is_some_and(|e| e.form.is_some())
+    });
+    if form {
+        return form::on_keys(world, id, bytes);
+    }
+    let mut outcome = Outcome::Continue;
+    for &b in bytes {
+        outcome = crate::commands::input::on_key(world, id, b);
+    }
+    outcome
+}
+
 /// The per-user cycle (status 240 in the status callback). T-037 fills it.
 pub fn on_cycle(_world: &mut World, _id: SessionId) {}
 
