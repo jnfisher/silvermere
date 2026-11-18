@@ -20,7 +20,6 @@ use crate::commands::{Cmd, CommandLine};
 use crate::items::inventory::{
     add_item_to_inventory, add_item_to_inventory_telling, remove_item_from_inventory, show_options,
 };
-use crate::output::clear_output;
 use crate::tell::tell_user;
 use crate::world::World;
 
@@ -38,11 +37,7 @@ pub fn cmd_rob(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLine) 
         tell_user(world, id, Msg::RobSyntax);
         return Handled::Done;
     }
-    let found = find_action_target(world, id, line.rest_from(1), true);
-    // the pending output is cleared unless the name was ambiguous
-    if !matches!(found, Found::Multiple(_)) {
-        clear_output(world, id);
-    }
+    let found = find_action_target(world, id, line.rest_from(1), false);
     match found {
         Found::Multiple(options) => show_options(world, id, &options),
         Found::User(target) => {

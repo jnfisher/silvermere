@@ -7,6 +7,8 @@
 //! (names and unmasked fields) always, and the masked lines byte for byte when the scenario
 //! is deterministic.
 
+use silvermere_text::wrap::from_mbbsemu;
+
 use crate::captures::{Capture, ScriptMask, apply_script_masks, text_to_lines};
 use crate::normalise::{Difference, MaskSpec, diff_events, normalise};
 use crate::patterns::{Event, PatternSet, Rx};
@@ -110,8 +112,15 @@ pub fn compare_bytes(expected: &[u8], actual: &[u8], masks: &[ScriptMask]) -> Re
     }
 }
 
+/// The command's colour reset (`ANSI_NORMAL`), escapes made visible.
+const COMMAND_RESET: &str = "<ESC>[0;37;40m";
+
 /// Like [`compare_bytes`] but with the ANSI colour sequences kept: only the line cut (CR LF)
 /// and the masks apply. `Err` carries the first differing line, escapes made visible.
+///
+/// Approved difference: the first kept line that starts with the command's colour reset
+/// loses it, on both sides. silvermere always sends the reset ahead of a command's reply; the original
+/// lost it whenever its shared output buffer was cleared, or sent to another player first.
 pub fn compare_with_colour(
     expected: &[u8],
     actual: &[u8],
@@ -127,6 +136,7 @@ pub fn compare_with_colour(
         // a line the capture masks whole is a monster line: drop it (its colour codes too)
         // (its terminator's reset, `ESC[0m`, leads the next line: dropped with it)
         let mut kept = Vec::with_capacity(lines.len());
+        let mut reset_seen = false;
         let mut dropped = false;
         let mut after_noise = false;
         for mut l in lines {
@@ -149,11 +159,16 @@ pub fn compare_with_colour(
                 dropped = true;
                 continue;
             }
-            kept.push(if dropped {
+            let mut l = if dropped {
                 l.strip_prefix("<ESC>[0m").unwrap_or(&l).to_owned()
             } else {
                 l
-            });
+            };
+            if !reset_seen && let Some(rest) = l.strip_prefix(COMMAND_RESET) {
+                reset_seen = true;
+                l = rest.to_owned();
+            }
+            kept.push(l);
             dropped = false;
         }
         kept
@@ -209,7 +224,7 @@ pub fn assert_matches_capture(
     extra_masks: &[&str],
 ) {
     let masks = masks_for(capture, extra_masks);
-    let expected = step_output(capture, step);
+    let expected = from_mbbsemu(&step_output(capture, step));
     assert!(
         !expected.is_empty(),
         "capture {} step {step} has no output",
@@ -297,7 +312,7 @@ pub async fn replay_steps(
         }
         if problem.is_none() {
             let actual = client.raw()[at..].to_vec();
-            let expected = step_output(capture, index);
+            let expected = from_mbbsemu(&step_output(capture, index));
             let diffs = compare_events(&expected, &actual, &masks, &patterns, &fields);
             // text first; then, with the ANSI colours kept, the escapes too
             let bytes = compare_bytes(&expected, &actual, &masks).err().or_else(|| {

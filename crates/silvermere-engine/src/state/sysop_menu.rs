@@ -19,6 +19,8 @@ use silvermere_types::ids::{AccountId, ItemNo, SessionId};
 use silvermere_types::records::Character;
 
 use crate::commands::sysop::{audit, leading_int};
+use crate::display::bank::display_users_bankbooks_to;
+use crate::display::sysop::{report_order, show_report};
 use crate::event_loop::{EngineOutput, PersistRequest};
 use crate::state::login::{key, show_menu};
 use crate::state::{Input, Outcome};
@@ -270,8 +272,13 @@ fn begin_user_xref(world: &mut World, id: SessionId, items: bool) {
 pub fn on_roster(world: &mut World, id: SessionId, chars: Vec<(AccountId, Character)>) {
     // T-088: the records queued since the store read stand for their rows
     let mut chars = crate::player::with_queued(world, chars);
-    if let Some(r) = world.sysop.reports.get_mut(&id) {
-        r.rows = Some(crate::display::sysop::report_order(chars));
+    if let Some(r) = world.sysop.reports.remove(&id) {
+        if world
+            .session(id)
+            .is_some_and(|s| s.state == SessionState::UserReport)
+        {
+            show_report(world, id, &r, report_order(chars));
+        }
         return;
     }
     if let Some(Job::Xref(x)) = world.sysop.jobs.get_mut(&id) {
@@ -308,25 +315,32 @@ pub fn on_tick(world: &mut World) {
             .is_none_or(|s| s.state != SessionState::UserReport)
         {
             world.sysop.reports.remove(&id);
-            continue;
         }
-        // the whole remaining list in one tick, as the polls between two ticks would
-        while crate::display::sysop::next_reported_user(world, id) {}
-    }
-    let ids: Vec<(SessionId, (u8, SessionId))> =
-        world.sysop.info.iter().map(|(k, v)| (*k, *v)).collect();
-    for (id, (part, shown)) in ids {
-        god_info_part(world, id, part, shown);
     }
 }
 
-/// The GOD user INFO display, one part a poll: the spells and the powers, the profile,
-/// the abilities, then the prompt. The bank books of part 0 are not shown:
-/// `display_users_bankbooks` writes to its own player (TODO(T-042)).
+/// The polls since the last tick: each GOD user INFO display is shown to its end, one part
+/// a poll (after the TOPTEN lists, as the game's per-poll routine takes them).
+pub fn page_god_info(world: &mut World) {
+    let ids: Vec<SessionId> = world.sysop.info.keys().copied().collect();
+    for id in ids {
+        // the four parts, then the display is over
+        for _ in 0..4 {
+            let Some(&(part, shown)) = world.sysop.info.get(&id) else {
+                break;
+            };
+            god_info_part(world, id, part, shown);
+        }
+    }
+}
+
+/// The GOD user INFO display, one part a poll: the bank books, the spells and the
+/// powers, the profile, the abilities, then the prompt.
 fn god_info_part(world: &mut World, id: SessionId, part: u8, shown: SessionId) {
     use silvermere_types::enums::CommandCode as Cmd;
     match part {
         0 => {
+            display_users_bankbooks_to(world, shown, id);
             crate::display::spells::display_users_spells(world, shown, id, Cmd::Spells);
             crate::display::spells::display_users_spells(world, shown, id, Cmd::Powers);
         }

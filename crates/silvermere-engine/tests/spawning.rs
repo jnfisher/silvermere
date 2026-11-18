@@ -16,7 +16,7 @@ use silvermere_engine::monsters::active::remove_active_monster;
 use silvermere_engine::monsters::following::fast_update_monster;
 use silvermere_engine::monsters::generate::{Request, generate_monster};
 use silvermere_engine::monsters::move_monster::{Moved, move_monster};
-use silvermere_engine::movement::exits::live_exit;
+use silvermere_engine::movement::exits::{live_exit, set_exit_state};
 use silvermere_engine::movement::move_user::handle_following_monsters;
 use silvermere_engine::tell::palette_of;
 use silvermere_engine::world::blank;
@@ -29,7 +29,7 @@ use silvermere_types::enums::{
 };
 use silvermere_types::flags::{ActiveMonsterFlags, RoomFlags};
 use silvermere_types::ids::{ActiveMonsterId, MessageNo, MonsterNo, RoomId, RoomKey, TextBlockNo};
-use silvermere_types::records::{Exit, KnownMonster, Message, Room, TextBlock};
+use silvermere_types::records::{Exit, KnownMonster, Lock, Message, Room, TextBlock};
 
 const ARENA: u32 = 2150;
 const NORMAL: u32 = 2200;
@@ -641,7 +641,11 @@ fn closed_doors_stop_wanderers() {
     add_room(&mut w, A, 6, RoomFlags::PATROL, &[(0, B, ExitType::Door)]);
     add_room(&mut w, B, 6, RoomFlags::PATROL, &[(1, A, ExitType::Door)]);
     let k = RoomKey::new(1, A);
-    silvermere_engine::movement::exits::set_par1(&mut w, k, Direction::North, 2);
+    let locked = live_exit(&w, k, Direction::North)
+        .unwrap()
+        .params()
+        .with_lock(Lock::Locked);
+    set_exit_state(&mut w, k, Direction::North, locked);
     add_known(&mut w, 62, MonsterType::Group1, 0);
     add_known(&mut w, 63, MonsterType::Guard, 0);
     add_known(&mut w, 64, MonsterType::Quest, 0);
@@ -1178,11 +1182,12 @@ fn a_full_cache_writes_the_evicted_monster_back() {
     }
     w.active_monsters.peek_mut(ms[1]).unwrap().hp -= 1;
     assert!(w.active_monsters.is_dirty(ms[1]));
+    // written as it is pushed out; the store sees it at the next poll
     w.active_monsters.touch(ms[5]);
-    assert!(w.active_monsters.is_dirty(ms[1]));
-    w.poll_monster_passes();
     assert!(!w.active_monsters.is_dirty(ms[1]));
     assert_eq!(w.active_monsters.cache().slot_of(ms[1]), None);
+    w.poll_monster_passes();
+    assert!(!w.active_monsters.is_dirty(ms[1]));
 }
 
 // MAXMOVERS (3) places a medium pass, handed out in

@@ -98,7 +98,7 @@ pub fn tiny_snapshot() -> WorldSnapshot {
 /// pass reaches rooms numbered that high: it ends a map's scan at its 50th missing room
 /// number (`MAXMISSROOMS`), and the stock maps have no gaps.
 pub fn dense_map1(s: &mut WorldSnapshot, upto: u32) {
-    let have: std::collections::HashSet<RoomKey> = s.rooms.iter().map(|r| r.key).collect();
+    let have: std::collections::BTreeSet<RoomKey> = s.rooms.iter().map(|r| r.key).collect();
     for n in 1..=upto {
         let k = RoomKey::new(1, n);
         if !have.contains(&k) {

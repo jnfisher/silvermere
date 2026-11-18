@@ -16,11 +16,14 @@ use silvermere_text::ansi::ANSI_CLRLINE;
 use silvermere_text::{Msg, cp437, finish};
 use silvermere_types::ids::SessionId;
 
+use crate::display::who::rebuild_user_list;
+use crate::monsters::active::write_back_evicted;
 use crate::output::{PromptText, render_items};
 use crate::player_session::Caps;
 use crate::scheduler::{self, Clock, Rng, TickReport};
 use crate::session;
 use crate::state::Outcome;
+use crate::state::newchar::form::unlock_keyboards;
 use crate::tell::{palette_of, prompt_bytes};
 use crate::world::{World, WorldSnapshot};
 
@@ -598,7 +601,6 @@ impl<C: Clock, R: Rng> Engine<C, R> {
             EngineInput::Line { id, text } => {
                 if let Some(s) = world.sessions.get_mut(&id) {
                     s.idle_since = now;
-                    s.ust.lastinput.clone_from(&text);
                 }
                 let today = day_start(self.clock.wall().as_second());
                 let outcome = session::on_line(world, id, &text, today);
@@ -627,6 +629,8 @@ impl<C: Clock, R: Rng> Engine<C, R> {
                 // Wall time on purpose: the tick duration metric measures the host, and
                 // nothing in the game reads it.
                 let started = Instant::now();
+                // the stat forms' backgrounds have gone out
+                unlock_keyboards(world, None);
                 let report = scheduler::on_fast_tick(world);
                 // the paged lists the per-poll routine advanced (T-027)
                 crate::state::listing::on_tick(world);
@@ -645,6 +649,15 @@ impl<C: Clock, R: Rng> Engine<C, R> {
             EngineInput::Custom { run, .. } => run(world),
             EngineInput::Shutdown => {}
         }
+        // the empty lines an attack interrupt handed out, read as the next input
+        let today = self.world.today;
+        for (id, outcome) in session::read_injected(&mut self.world, today) {
+            self.finish_outcome(id, outcome);
+        }
+        // the monsters the cache pushed out are written back or read back
+        write_back_evicted(&mut self.world);
+        // the user list, when the players in the game changed
+        rebuild_user_list(&mut self.world);
     }
 
     fn finish_outcome(&mut self, id: SessionId, outcome: Outcome) {

@@ -46,11 +46,12 @@ pub fn slow_cycle_end(world: &mut World) {
     perform_random_event(world, roll);
 }
 
-/// A new session order: the identity order of the sessions,
-/// then `nterms` swaps of two random slots.
+/// A new session order: every session slot (`nterms`, connected or not) in
+/// identity order, then `nterms` swaps of two random slots.
 pub fn shuffle_mappings(world: &mut World) {
-    let mut order = world.session_ids();
-    let n = order.len() as i32;
+    let n = world.ids.max();
+    let mut order: Vec<SessionId> = (0..n).map(SessionId).collect();
+    let n = i32::from(n);
     for _ in 0..n {
         let a = world.rng.range(0, n) as usize;
         let b = world.rng.range(0, n) as usize;
@@ -143,7 +144,8 @@ pub fn slow_update_character(world: &mut World, id: SessionId) {
     let Some(plr) = s.character.as_mut() else {
         return;
     };
-    if i32::from(plr.mana) < i32::from(plr.maxmana) {
+    // compared unsigned, as `maxmana` is: (sic) mana below 0 never comes back
+    if (plr.mana as u16) < plr.maxmana {
         if let Some(cls) = world.classes.get(&plr.class) {
             changed = true;
             let stat = regen::class_stat(cls.magery, plr.intel, plr.wil, plr.cha);

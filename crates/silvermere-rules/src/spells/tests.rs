@@ -1732,9 +1732,10 @@ fn heal_is_capped_at_max_hp() {
     assert_eq!(c.hp, 60);
 }
 
-// Heal mana: capped at the maximum, floored at 0.
+// Heal mana: capped at the maximum. A drain past 0 counts as over the (unsigned) maximum,
+// so it fills the mana instead.
 #[test]
-fn heal_mana_is_capped_and_floored() {
+fn heal_mana_is_capped_and_a_drain_past_0_fills() {
     let s = spell(1, &[(Ability::HealMana, 0)]);
     let caster = caster_at(10);
     let mut c = player(10, 10);
@@ -1757,8 +1758,29 @@ fn heal_mana_is_capped_and_floored() {
         &mut state,
         &mut Fixed::of(&[0]),
     );
-    assert_eq!(applied(&out[0]), -100);
-    assert_eq!(c.mana, 0);
+    assert_eq!(applied(&out[0]), 0);
+    assert_eq!(c.mana, 40);
+    c.mana = 10;
+    let mut t = Target::User(user(&mut c));
+    let out = apply_spell(
+        &effects_of(&s),
+        &single(&s, &caster, -100),
+        &mut t,
+        &mut state,
+        &mut Fixed::of(&[0]),
+    );
+    assert_eq!(applied(&out[0]), 30);
+    assert_eq!(c.mana, 40);
+    let mut t = Target::User(user(&mut c));
+    let out = apply_spell(
+        &effects_of(&s),
+        &single(&s, &caster, -15),
+        &mut t,
+        &mut state,
+        &mut Fixed::of(&[0]),
+    );
+    assert_eq!(applied(&out[0]), -15);
+    assert_eq!(c.mana, 25);
 }
 
 // Poison: immune targets are skipped; the level is raised to the amount if lower; the
@@ -2020,6 +2042,15 @@ fn per_round_effects_on_a_player() {
     );
     let out = apply_round(&mut c, &effects_of(&s), 10, &mut Fixed::of(&[50]));
     assert!(!out.flee);
+    // Energy is unsigned: a drain past 0 wraps, which is over the maximum, so it fills.
+    let drain = spell(7, &[(Ability::Energy, -300)]);
+    let mut c = player(45, 50);
+    c.energy = 100;
+    apply_round(&mut c, &effects_of(&drain), 10, &mut Fixed::of(&[0]));
+    assert_eq!(c.energy, c.maxenergy);
+    c.energy = 500;
+    apply_round(&mut c, &effects_of(&drain), 10, &mut Fixed::of(&[0]));
+    assert_eq!(c.energy, 200);
     // Damage over time knocks out; a negative cure is ignored.
     let dot = spell(
         6,

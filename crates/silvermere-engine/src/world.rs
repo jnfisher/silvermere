@@ -10,7 +10,8 @@
 //! occupied-room table, the monster quick reference, the exit revert queue, the restock
 //! list, evil timers, gang invites) are fields here with the original's sizes.
 
-use std::collections::{HashMap, VecDeque};
+use silvermere_rules::combat::Move;
+use std::collections::{BTreeMap, VecDeque};
 
 use silvermere_types::config::GameConfig;
 use silvermere_types::flags::RoomFlags;
@@ -25,11 +26,13 @@ use silvermere_types::records::{
 };
 use silvermere_types::sizes::{NDIRS, NHIDITEMS, NROOMITEMS, NROOMMONS};
 
+use crate::gangs::place_gang_last;
 use crate::ids::SessionIds;
 use crate::movement::exits::ExitOverride;
 use crate::player_session::PlayerSession;
 use crate::progression::TopTen;
 use crate::scheduler::{Periods, Scheduler, SeededRng};
+use crate::stock_faults::{apply_messages, apply_spells};
 
 /// `NOCCROOMS`: entries of the occupied-room table.
 pub const NOCCROOMS: usize = silvermere_rules::spawn::NOCCROOMS;
@@ -198,37 +201,43 @@ pub struct World {
     /// The `[compat]` settings (T-021).
     pub compat: Compat,
     /// Rooms: the static content record.
-    pub rooms: HashMap<RoomKey, Room>,
+    pub rooms: BTreeMap<RoomKey, Room>,
     /// Rooms: the live part.
-    pub room_state: HashMap<RoomKey, RoomState>,
-    pub items: HashMap<ItemNo, Item>,
-    pub monsters: HashMap<MonsterNo, KnownMonster>,
-    pub spells: HashMap<SpellNo, Spell>,
-    pub classes: HashMap<ClassNo, Class>,
-    pub races: HashMap<RaceNo, Race>,
-    pub shops: HashMap<ShopNo, Shop>,
-    pub messages: HashMap<MessageNo, Message>,
+    pub room_state: BTreeMap<RoomKey, RoomState>,
+    pub items: BTreeMap<ItemNo, Item>,
+    pub monsters: BTreeMap<MonsterNo, KnownMonster>,
+    pub spells: BTreeMap<SpellNo, Spell>,
+    pub classes: BTreeMap<ClassNo, Class>,
+    pub races: BTreeMap<RaceNo, Race>,
+    pub shops: BTreeMap<ShopNo, Shop>,
+    pub messages: BTreeMap<MessageNo, Message>,
     /// Text blocks by `(part, number)`.
-    pub text_blocks: HashMap<(i16, TextBlockNo), TextBlock>,
+    pub text_blocks: BTreeMap<(i16, TextBlockNo), TextBlock>,
     /// Social actions by name (ASCII upper case).
-    pub actions: HashMap<String, Action>,
+    pub actions: BTreeMap<String, Action>,
     /// The verbs in WCCACTS record order, white space removed, which the ACTION list
     /// prints.
     pub action_order: Vec<String>,
     /// Active monsters with their numbers' free list (T-035).
     pub active_monsters: crate::monsters::ActiveMonsters,
     /// Sessions online, by id.
-    pub sessions: HashMap<SessionId, PlayerSession>,
+    pub sessions: BTreeMap<SessionId, PlayerSession>,
     /// The id allocator.
     pub ids: SessionIds,
     /// Gangs by key (`gang.key`, upper case name).
-    pub gangs: HashMap<String, Gang>,
+    pub gangs: BTreeMap<String, Gang>,
+    /// Each gang's place in the game's gang file among gangs of equal experience, by key
+    /// (lower is earlier; see [`crate::gangs::place_gang_last`]).
+    pub gang_order: BTreeMap<String, u64>,
+    /// The move of the attack in progress, kept between attacks: the last attack (or round)
+    /// left it, and a spell's engage takes it for its entry.
+    pub atkmove: Move,
     /// Bank books by account and bank.
-    pub bank_books: HashMap<(AccountId, ShopNo), BankBook>,
+    pub bank_books: BTreeMap<(AccountId, ShopNo), BankBook>,
     /// Limited-item ownership by row id.
-    pub item_ownership: HashMap<i32, ItemOwnership>,
-    pub profiles: HashMap<AccountId, PermanentRecord>,
-    pub evil_points: HashMap<AccountId, EvilRecord>,
+    pub item_ownership: BTreeMap<i32, ItemOwnership>,
+    pub profiles: BTreeMap<AccountId, PermanentRecord>,
+    pub evil_points: BTreeMap<AccountId, EvilRecord>,
     /// The top list (`NTOPLIST` entries), kept by `progression::topten` (T-039).
     pub topten: TopTen,
     /// The timer queue.
@@ -237,12 +246,12 @@ pub struct World {
     /// thread's one `Rng`. `World::load` seeds it from the OS; `Engine::new` reseeds it
     /// from the engine's `Rng`; tests replace it with a fixed seed.
     pub rng: SeededRng,
-    /// The session while `handle_commands` runs a command: the player whose text sits in
-    /// the one output buffer (the dispatcher's `ANSI_NORMAL`). A `tell_*` to anyone else
-    /// sends that buffer, so the reset goes with it ([`crate::tell`]).
-    pub prf_owner: Option<SessionId>,
     /// The occupied-room table, always [`NOCCROOMS`] entries.
     pub occupied: Vec<OccRoom>,
+    /// Whether the room cache has an empty slot after the start-up's walk over every
+    /// room: a look-up of room 0 of map 0 then finds one (an empty slot's key), else it
+    /// fails. Set by [`World::load`].
+    pub room_cache_free: bool,
     /// `monqref`: the known-monster quick reference (T-035).
     pub monqref: Vec<silvermere_rules::spawn::QuickRef>,
     /// The spawn pass's and the monster passes' statics (T-035).
@@ -257,14 +266,16 @@ pub struct World {
     pub restock: Vec<crate::shops::RestockNode>,
     /// The evil timers, oldest first (T-038).
     pub evil_timers: Vec<crate::evil::EvilTimer>,
+    /// The teleport destination of the spell being cast, room and map (0 none). One
+    /// pair for every cast, as the game keeps it: a cast made inside another (a text
+    /// block's `cast`) leaves its destination for the outer cast to find.
+    pub cast_teleport: (i32, i32),
     /// Pending gang invitations.
     pub gang_invites: Vec<GangInvite>,
     /// The background cycles' own state and hooks (T-037).
     pub cycles: crate::cycles::CycleState,
     /// The auto-combat entries and ring (T-034).
     pub autocombat: crate::combat::autocombat::AutoCombat,
-    /// The session slot the next save sweep starts at.
-    pub save_next: u16,
     /// Players allowed in the realm at once, separate from the session slots; starts at
     /// `server.max_sessions`, the SYSOP command changes it (T-055).
     pub max_in_game: u16,
@@ -285,14 +296,14 @@ pub struct World {
     pub cleanup: crate::cleanup::CleanupState,
     /// Account deletions waiting for the store's read of the account (T-069), with the
     /// admin requests to answer.
-    pub account_deletes: std::collections::HashMap<
+    pub account_deletes: std::collections::BTreeMap<
         silvermere_types::ids::AccountId,
         Vec<std::sync::mpsc::Sender<crate::session::AccountDeletion>>,
     >,
     /// Accounts deleted in this run (T-072). The gate reads a login's character from the
     /// store before the engine sees it, so a login racing a deletion can bring a stale
     /// character; [`crate::state::login::logged_in`] closes any login for these.
-    pub deleted_accounts: std::collections::HashSet<silvermere_types::ids::AccountId>,
+    pub deleted_accounts: std::collections::BTreeSet<silvermere_types::ids::AccountId>,
     /// The character record the engine last queued for each account, `None` for a
     /// deletion (T-075; [`crate::player::queue_character`]). The store writes behind, and
     /// the gate reads a login's character before the engine sees the login, so a login
@@ -305,8 +316,10 @@ pub struct World {
     /// its write ([`crate::player::on_characters_written`]); the store answers a read
     /// before it acknowledges any write queued after the read, so an answer always finds
     /// the entries of the writes it missed.
-    pub queued_characters:
-        std::collections::HashMap<silvermere_types::ids::AccountId, crate::player::QueuedCharacter>,
+    pub queued_characters: std::collections::BTreeMap<
+        silvermere_types::ids::AccountId,
+        crate::player::QueuedCharacter,
+    >,
     /// How many character writes and deletions the engine has queued
     /// ([`crate::player::QueuedCharacter::seq`]); the store counts the same requests in the
     /// same order to acknowledge them (T-088).
@@ -326,6 +339,9 @@ pub struct World {
     pub(crate) outbox_first: Vec<crate::event_loop::EngineOutput>,
     /// Sessions that leave at the end of the event, after their last write went out.
     pub(crate) logoffs: Vec<SessionId>,
+    /// Sessions the attack interrupt handed an empty line, read after the current input
+    /// ([`crate::session::read_injected`]).
+    pub(crate) injected: Vec<SessionId>,
 }
 
 impl World {
@@ -356,50 +372,52 @@ impl World {
         let mut world = Self {
             scheduler: Scheduler::new(Periods::from_config(&config)),
             rng: SeededRng::new(seed),
-            prf_owner: None,
             config,
             compat: Compat::default(),
-            rooms: HashMap::new(),
-            room_state: HashMap::new(),
-            items: HashMap::new(),
-            monsters: HashMap::new(),
-            spells: HashMap::new(),
-            classes: HashMap::new(),
-            races: HashMap::new(),
-            shops: HashMap::new(),
-            messages: HashMap::new(),
-            text_blocks: HashMap::new(),
-            actions: HashMap::new(),
+            rooms: BTreeMap::new(),
+            room_state: BTreeMap::new(),
+            items: BTreeMap::new(),
+            monsters: BTreeMap::new(),
+            spells: BTreeMap::new(),
+            classes: BTreeMap::new(),
+            races: BTreeMap::new(),
+            shops: BTreeMap::new(),
+            messages: BTreeMap::new(),
+            text_blocks: BTreeMap::new(),
+            actions: BTreeMap::new(),
             action_order: Vec::new(),
             active_monsters: crate::monsters::ActiveMonsters::default(),
-            sessions: HashMap::new(),
+            sessions: BTreeMap::new(),
             ids: SessionIds::new(max_sessions),
-            gangs: HashMap::new(),
-            bank_books: HashMap::new(),
-            item_ownership: HashMap::new(),
-            profiles: HashMap::new(),
-            evil_points: HashMap::new(),
+            gangs: BTreeMap::new(),
+            gang_order: BTreeMap::new(),
+            atkmove: Move::Attack,
+            bank_books: BTreeMap::new(),
+            item_ownership: BTreeMap::new(),
+            profiles: BTreeMap::new(),
+            evil_points: BTreeMap::new(),
             topten: TopTen::new(),
             occupied: vec![OccRoom::default(); NOCCROOMS],
+            room_cache_free: true,
             monqref: Vec::new(),
             spawn: crate::monsters::SpawnState::default(),
             wall: 0,
             exit_reverts: VecDeque::new(),
             restock: Vec::new(),
             evil_timers: Vec::new(),
+            cast_teleport: (0, 0),
             gang_invites: Vec::new(),
             cycles: crate::cycles::CycleState::default(),
             autocombat: Default::default(),
-            save_next: 0,
             max_in_game: max_sessions,
             today: 0,
             minute: 0,
             boot_minute: 0,
             display: crate::display::DisplayGlobals::default(),
             cleanup: crate::cleanup::CleanupState::default(),
-            account_deletes: std::collections::HashMap::new(),
-            deleted_accounts: std::collections::HashSet::new(),
-            queued_characters: std::collections::HashMap::new(),
+            account_deletes: std::collections::BTreeMap::new(),
+            deleted_accounts: std::collections::BTreeSet::new(),
+            queued_characters: std::collections::BTreeMap::new(),
             character_writes: 0,
             characters_written: Vec::new(),
             sysop: crate::commands::sysop::SysopState::default(),
@@ -407,6 +425,7 @@ impl World {
             outbox: Vec::new(),
             outbox_first: Vec::new(),
             logoffs: Vec::new(),
+            injected: Vec::new(),
         };
         world.room_state = snapshot
             .rooms
@@ -422,6 +441,10 @@ impl World {
             .iter()
             .map(|g| (g.key.clone(), g.clone()))
             .collect();
+        // the snapshot's gangs are in file order
+        for g in &snapshot.gangs {
+            place_gang_last(&mut world, &g.key);
+        }
         world.item_ownership = snapshot
             .item_ownership
             .iter()
@@ -436,6 +459,8 @@ impl World {
         world.evil_points = snapshot.evil_points.iter().cloned().collect();
         world.topten = TopTen::rebuild(&snapshot.top_characters);
         world.replace_content(&snapshot);
+        world.room_cache_free =
+            room_cache_free(world.rooms.keys().copied(), world.config.buffers.roombuf);
         world.check_special_rooms()?;
         // The first NRESTOCK shops queue their restocks once
         let mut rng = world.rng.clone();
@@ -466,7 +491,7 @@ impl World {
             return Err(e);
         }
         // the live stock (`shop_stock`) outlives a content reload
-        let stock: HashMap<ShopNo, [u16; silvermere_types::sizes::NSHOPITEMS]> = self
+        let stock: BTreeMap<ShopNo, [u16; silvermere_types::sizes::NSHOPITEMS]> = self
             .shops
             .iter()
             .map(|(&n, s)| (n, std::array::from_fn(|i| s.stock[i].qty)))
@@ -504,6 +529,8 @@ impl World {
             .map(|t| ((t.part, t.number), t.clone()))
             .collect();
         crate::stock_faults::apply(&mut self.text_blocks);
+        apply_spells(&mut self.spells);
+        apply_messages(&mut self.messages);
         self.action_order = s
             .actions
             .iter()
@@ -666,7 +693,7 @@ impl World {
         crate::monsters::spawn_pass::generate_monsters_near_users(self);
     }
 
-    /// `save_characters`: the round-robin save (T-023), then the
+    /// `save_characters`: every player in the game saved (T-023), then the
     /// write-back of the active monsters changed since their last write (T-035).
     pub fn save_cycle(&mut self) {
         crate::player::save_characters(self);
@@ -731,6 +758,32 @@ impl World {
     pub fn shuffle_order(&mut self) {
         crate::cycles::slow::shuffle_mappings(self);
     }
+}
+
+/// Whether the room cache keeps an empty slot once the start-up has looked up every
+/// room, map by map and room by room (`get_room_data`): `roombuf + 1` slots, a room
+/// probed for from `room % roombuf` up to the last slot and loaded into the first
+/// empty one, else into the hashed slot, but never into the slot loaded last (then the
+/// next one, or the hashed slot past the end).
+fn room_cache_free(rooms: impl Iterator<Item = RoomKey>, roombuf: u32) -> bool {
+    let roombuf = roombuf.max(1) as usize;
+    let mut slots = vec![false; roombuf + 1];
+    let mut rooms: Vec<RoomKey> = rooms.collect();
+    rooms.sort_by_key(|k| (k.map.0, k.room.0));
+    let mut last = None;
+    for k in rooms {
+        let hash = k.room.0 as usize % roombuf;
+        let mut slot = (hash..=roombuf).find(|&i| !slots[i]).unwrap_or(hash);
+        if Some(slot) == last {
+            slot += 1;
+            if slot > roombuf {
+                slot = hash;
+            }
+        }
+        slots[slot] = true;
+        last = Some(slot);
+    }
+    slots.contains(&false)
 }
 
 /// A seed nobody can predict, from the process's hash randomness: the world's `Rng` is

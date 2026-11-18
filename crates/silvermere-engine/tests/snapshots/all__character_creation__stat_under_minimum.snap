@@ -2,4 +2,4 @@
 source: crates/silvermere-engine/tests/character_creation.rs
 expression: escape(&under)
 ---
-Strength may not be lower than 55.\r\nStrength (55-120) [55]:
+\x08 \x08\x08 \x0840\r\n\r\nStrength may not be lower than 55.\x07\r\n\r\n Strength:  55

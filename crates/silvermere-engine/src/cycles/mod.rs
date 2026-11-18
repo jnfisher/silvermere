@@ -13,7 +13,7 @@
 //! | medium, 3 s | each player (room spell every other pass, per-period counters, `moves` unless over 66%, `ST_JUSTARRIVED`, light burn, light timer, spell rounds); then the monsters (T-035) | [`medium`] |
 //! | fast, 1 s | each player (follow the leader, rest every 21st tick, meditate every 15th, the stun, the command delay and queue); then the monsters (T-035) | [`fast`] |
 //! | polls, after each tick | the pending monster passes, a cache slot at a time, while anyone is in the game (T-086) | [`monsters`] |
-//! | save, 60 s | T-023's round-robin `save_characters`, through `World::save_cycle` | (T-023) |
+//! | save, 60 s | T-023's `save_characters`, every player in the game, through `World::save_cycle` | (T-023) |
 //!
 //! Work other cards own is reached through [`CycleHooks`], function pointers with
 //! defaults that keep the engine running until those cards land; tests install their own.

@@ -337,27 +337,27 @@ pub async fn new_character(
     for (line, next) in [
         ("E", "choose your race"),
         ("1", "choose your class"),
-        (class.as_str(), r"Lawful\?|Given name"),
+        (class.as_str(), r"Lawful\?|Given Name"),
     ] {
         c.send_line(line).await.unwrap();
         c.until(next, WAIT).await.unwrap();
     }
     if c.plain().ends_with("? ") || c.plain().contains("Lawful?") {
         c.send_line("N").await.unwrap();
-        c.until("Given name", WAIT).await.unwrap();
+        c.until("Given Name", WAIT).await.unwrap();
     }
     for (line, next) in [
-        ("", "Family name"),
+        ("", "Family Name"),
         ("Testcase", "Strength"),
         ("", "Intellect"),
         ("", "Willpower"),
         ("", "Agility"),
         ("", "Health"),
         ("", "Charm"),
-        ("", "Hair length"),
-        ("", "Hair colour"),
-        ("", "Eye colour"),
-        ("", r"SAVE or QUIT"),
+        ("", "Hair Length"),
+        ("", "Hair Colour"),
+        ("", "Eye Colour"),
+        ("", "Exit: SAVE"),
         ("", PROMPT),
     ] {
         c.send_line(line).await.unwrap();

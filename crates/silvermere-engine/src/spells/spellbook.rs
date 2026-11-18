@@ -69,17 +69,17 @@ pub fn find_spell_in_spellbook(
     loop {
         passes += 1;
         let cur = words.join(" ");
-        for i in 0..nslots {
+        for entry in plr.spellbook.iter_mut().take(nslots) {
             if exact {
                 break;
             }
-            let n = plr.spellbook[i];
+            let n = *entry;
             if n == SpellNo(0) {
                 continue;
             }
             nknown += 1;
             let Some(spl) = world.spells.get(&n) else {
-                plr.spellbook[i] = SpellNo(0);
+                *entry = SpellNo(0);
                 continue;
             };
             if !spl.shortnm.is_empty() {

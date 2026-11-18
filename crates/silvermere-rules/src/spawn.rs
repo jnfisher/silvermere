@@ -138,10 +138,12 @@ pub fn unique_ready(killed_at: i64, now_secs: i64, regenhrs: u8, rng: &mut dyn R
     if killed_at == 0 || regenhrs == 0 {
         return true;
     }
+    // the game compares the hours and minutes of both times, the seconds left out: the
+    // minute boundaries passed, not the whole minutes elapsed
     let since = if killed_at > now_secs {
         0
     } else {
-        (now_secs - killed_at) / 60
+        now_secs.div_euclid(60) - killed_at.div_euclid(60)
     };
     since >= unique_wait_minutes(regenhrs, rng)
 }

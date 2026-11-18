@@ -35,6 +35,9 @@ pub struct MonsterCache {
     /// Live monsters pushed out of the cache since the owner last asked; the owner writes
     /// back those that changed.
     evicted: Vec<ActiveMonsterId>,
+    /// Live monsters written back but kept, their slot asked for a monster that does not
+    /// exist, since the owner last asked.
+    flushed: Vec<ActiveMonsterId>,
     /// The slots holding a live monster.
     used: u32,
     /// Look-ups that found the monster cached.
@@ -61,14 +64,16 @@ pub enum Lookup {
 }
 
 impl MonsterCache {
-    /// An empty cache of `monsbuf + 1` slots.
+    /// An empty cache of `monsbuf + 1` slots, every one freed ([`MONFREE`]) as the
+    /// game empties them at start-up: no slot is 0, so a probe always runs to `monsbuf`.
     pub fn new(monsbuf: usize) -> Self {
         let monsbuf = monsbuf.max(1);
         Self {
             monsbuf,
-            slots: vec![0; monsbuf + 1],
+            slots: vec![MONFREE; monsbuf + 1],
             last_used_slot: -1,
             evicted: Vec::new(),
+            flushed: Vec::new(),
             used: 0,
             hits: 0,
             misses: 0,
@@ -139,6 +144,11 @@ impl MonsterCache {
         std::mem::take(&mut self.evicted)
     }
 
+    /// The live monsters written back but kept since the last call.
+    pub fn take_flushed(&mut self) -> Vec<ActiveMonsterId> {
+        std::mem::take(&mut self.flushed)
+    }
+
     /// A look-up by number, on the slot numbers:
     /// probe from `monnum % monsbuf` up to slot `monsbuf` (no wrap) until the monster or
     /// an empty slot turns up; on a miss the first freed slot on the way is used, else the
@@ -194,7 +204,10 @@ impl MonsterCache {
             self.last_used_slot = slot as i32;
             Lookup::Loaded(slot)
         } else {
-            if !live {
+            // the slot's monster is written back all the same, and stays
+            if live {
+                self.flushed.push(ActiveMonsterId(old as i32));
+            } else {
                 self.slots[slot] = MONFREE;
             }
             Lookup::Missing
@@ -263,6 +276,21 @@ mod tests {
         assert_eq!(c.take_evicted(), vec![id(10), id(1)]);
     }
 
+    /// A look-up of a monster that does not exist writes back the live monster in the
+    /// slot it would have used, and keeps it there.
+    #[test]
+    fn a_missing_monster_writes_back_the_slot() {
+        let mut c = MonsterCache::new(10);
+        for n in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] {
+            c.get(n, true);
+        }
+        // 22 hashes to 2, every slot full: slot 2's monster is written back and kept
+        assert_eq!(c.get(22, false), Lookup::Missing);
+        assert_eq!(c.number_at(2), 2);
+        assert_eq!(c.take_flushed(), vec![id(2)]);
+        assert!(c.take_evicted().is_empty());
+    }
+
     /// Freed slots are recycled before empty ones.
     #[test]
     fn freed_slots_come_first() {
@@ -303,7 +331,7 @@ mod tests {
         // 19 is evicted
         assert_eq!(c.get(79, true), Lookup::Loaded(19));
         assert_eq!(c.take_evicted(), vec![id(39)]);
-        assert_eq!(c.number_at(0), 0);
+        assert_eq!(c.number_at(0), MONFREE);
         assert_eq!(c.resident().count(), 3);
     }
 

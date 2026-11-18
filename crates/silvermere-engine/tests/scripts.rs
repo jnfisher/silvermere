@@ -979,7 +979,10 @@ mod scripts {
         t.w.spells.get_mut(&SpellNo(SPELL)).unwrap().level = 50;
         t.plr().spellbook.fill(SpellNo(0));
         assert_eq!(t.run(&format!("learnspell {SPELL}")), Stop);
-        assert_eq!(t.out(), "You don't know what to do with this!\r\n");
+        assert_eq!(
+            t.out(),
+            "This spell is too powerful for you - You don't know what to do with this!\r\n"
+        );
     }
 
     // A clause with no keyword is skipped and the line goes on
@@ -1110,10 +1113,11 @@ mod scripts {
         let me = t.me;
         execute_input(&mut t.w, me, "pull lever", false);
         assert!(t.out().ends_with("You do it.\r\n<P>"));
-        // LOOK at something not here reaches it too
+        // LOOK at something not here reaches it too; (sic) LOOK shows the prompt and then
+        // the command's own
         block(&mut t.w, 980, &format!("look lever:message {MSG_DO}\n"));
         execute_input(&mut t.w, me, "look lever", false);
-        assert!(t.out().ends_with("You do it.\r\n<P>"));
+        assert!(t.out().ends_with("You do it.\r\n<P><P>"));
     }
 
     // -----------------------------------------------------------------------------------

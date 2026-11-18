@@ -21,7 +21,6 @@ use std::sync::OnceLock;
 
 use crate::catalogue::{Catalogue, Entry, HelpTopic, HelpTopics, TemplatePiece};
 use crate::cp437;
-use crate::editor_screen::EditorScreen;
 
 /// The help file.
 pub const HELP_FILE: &str = "WCCMMHLP.MSG";
@@ -477,7 +476,6 @@ pub struct PackageText {
     wcctext: Catalogue,
     editcha1: String,
     edtchan2: String,
-    editcha1_screen: EditorScreen,
     /// The moved catalogue entries: key to template and its pieces.
     moved: HashMap<String, (String, Vec<TemplatePiece>)>,
     /// [`PackageText::redact`]'s fragments, longest first, made on first use.
@@ -519,8 +517,6 @@ impl PackageText {
         let wcctext = text_blocks(WCCTEXT_FILE, &text_entries, WCCTEXT_TEXTS)?;
         let editcha1 = form(&text_entries, "EDITCHA1")?;
         let edtchan2 = form(&text_entries, "EDTCHAN2")?;
-        let editcha1_screen = EditorScreen::parse(&editcha1)
-            .map_err(|e| error(WCCTEXT_FILE, format!("EDITCHA1: {e}")))?;
         let mut templates = parse_dll_text(dll_text)?;
         templates.insert("goodtext".into(), wcctext.messages["goodtext"].text.clone());
         let mut moved = HashMap::new();
@@ -548,7 +544,6 @@ impl PackageText {
             wcctext,
             editcha1,
             edtchan2,
-            editcha1_screen,
             moved,
             fragments: OnceLock::new(),
         })
@@ -579,9 +574,14 @@ impl PackageText {
         &self.edtchan2
     }
 
-    /// The `EDITCHA1` form, parsed.
-    pub fn editcha1_screen(&self) -> &EditorScreen {
-        &self.editcha1_screen
+    /// The `EDITCHA1` form as the message file holds it: CP437, CR line ends.
+    pub fn editcha1_bytes(&self) -> Vec<u8> {
+        cp437::encode(&self.editcha1)
+    }
+
+    /// The `EDTCHAN2` form as the message file holds it: CP437, CR line ends.
+    pub fn edtchan2_bytes(&self) -> Vec<u8> {
+        cp437::encode(&self.edtchan2)
     }
 
     /// The template of a moved catalogue entry.

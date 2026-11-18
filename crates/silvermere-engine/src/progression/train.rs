@@ -131,7 +131,6 @@ pub fn train_level(world: &mut World, id: SessionId) -> bool {
     if is_kai(world, id) {
         crate::spells::spellbook::update_kai_powers(world, id);
     }
-    world.update_top_list(id);
     world.level_gained(id, new_level);
     true
 }

@@ -85,16 +85,17 @@ pub(crate) fn moved_pieces(msg: &Msg) -> Option<&'static [TemplatePiece]> {
     crate::package::installed()?.catalogue_pieces(msg.key())
 }
 
-/// The host's part for the module's text: if-ANSI strings resolved to their ANSI half, every
-/// line end normalised to `\r\n`, then word wrap at `wrap_width` if given. The prompt
-/// (T-020) and other raw text go through this too.
+/// The host's part for the module's text: if-ANSI strings resolved to their ANSI half, word
+/// wrap at `wrap_width` if given, then every line end normalised to `\r\n`. The wrap comes
+/// first: to the host only CR ended a line, and a bare LF did not start the column again.
+/// The prompt (T-020) and other raw text go through this too.
 pub fn finish(prf: &[u8], wrap_width: Option<u8>) -> Vec<u8> {
     let resolved = resolve_if_ansi(prf);
-    let normalised = normalise_line_ends(&resolved);
-    match wrap_width {
-        Some(width) => wrap(&normalised, width),
-        None => normalised,
-    }
+    let wrapped = match wrap_width {
+        Some(width) => wrap(&resolved, width),
+        None => resolved,
+    };
+    normalise_line_ends(&wrapped)
 }
 
 /// The host's `FormatNewLineCarriageReturn`: `\r\n` stays, `\n\r` becomes one `\r\n`, a
@@ -131,6 +132,22 @@ mod tests {
         assert_eq!(normalise_line_ends(b"a\n\rb"), b"a\r\nb");
         assert_eq!(normalise_line_ends(b"\r\r"), b"\r\n\r\n");
         assert_eq!(normalise_line_ends(b"\r\n\r\n"), b"\r\n\r\n");
+    }
+
+    // a bare LF is the host's soft CR: it ends the line, unless the line was broken since
+    // it started, when it is a space
+    #[test]
+    fn a_bare_lf_is_the_soft_cr() {
+        let text = format!("{} I\ncan heal\n", "a".repeat(70));
+        assert_eq!(
+            finish(text.as_bytes(), Some(79)),
+            format!("{} I\r\ncan heal\r\n", "a".repeat(70)).into_bytes()
+        );
+        let text = format!("{} I can heal\nmore\n", "a".repeat(70));
+        assert_eq!(
+            finish(text.as_bytes(), Some(79)),
+            format!("{} I can\r\nheal more ", "a".repeat(70)).into_bytes()
+        );
     }
 
     // ANSI_CLRLINE, then "You gain 13 experience." and a line end

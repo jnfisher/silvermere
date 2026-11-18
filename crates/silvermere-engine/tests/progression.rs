@@ -373,7 +373,8 @@ fn train_at_the_guild_from_level_1() {
     assert_eq!(p.lives, 9);
     assert_eq!(p.coins, Coins::default());
     assert!(h.events().contains(&&GameEvent::Level { id, level: 2 }));
-    assert!(h.engine.world.topten.iter().any(|e| e.userid == "KRAAG"));
+    // the top list waits for a combat stop, as in the game
+    assert!(!h.engine.world.topten.iter().any(|e| e.userid == "KRAAG"));
 }
 
 // A roll of 0 to hplevel+1: 0..=4 for 4 hit points a level, every value
@@ -558,7 +559,7 @@ fn order(list: &TopTen) -> Vec<&str> {
     list.iter().map(|e| e.userid.as_str()).collect()
 }
 
-// update_top_list after each gain: highest first, billions before the
+// update_top_list after each gain (the combat stop calls it): highest first, billions before the
 // remainder; a tie stays below the one already there.
 #[test]
 fn top_list_order_after_three_characters_gain() {
@@ -568,17 +569,22 @@ fn top_list_order_after_three_characters_gain() {
     let c = h.player("Cid", special_rooms()[0]);
     h.during(a, |w| {
         add_experience(w, a, 100, false);
+        w.update_top_list(a);
         add_experience(w, b, 300, false);
+        w.update_top_list(b);
         add_experience(w, c, 200, false);
+        w.update_top_list(c);
     });
     assert_eq!(order(&h.engine.world.topten), ["BOB", "CID", "ANN"]);
     h.during(a, |w| {
         add_experience(w, a, 250, false);
+        w.update_top_list(a);
     });
     assert_eq!(order(&h.engine.world.topten), ["ANN", "BOB", "CID"]);
     // Cid draws level with Bob: he stays below him.
     h.during(c, |w| {
         add_experience(w, c, 100, false);
+        w.update_top_list(c);
     });
     assert_eq!(order(&h.engine.world.topten), ["ANN", "BOB", "CID"]);
     // A billion beats any remainder.
@@ -598,7 +604,9 @@ fn removal_on_deletion() {
         let b = h.player("Bob", special_rooms()[0]);
         h.during(a, |w| {
             add_experience(w, a, 100, false);
+            w.update_top_list(a);
             add_experience(w, b, 300, false);
+            w.update_top_list(b);
         });
         assert_eq!(order(&h.engine.world.topten), ["BOB", "ANN"]);
         profile::retire(&mut h.engine.world, b, 1_760_000_000, why);
@@ -660,7 +668,11 @@ fn update_on_a_full_list_and_notopten() {
     // Below P045 (also 55), above P044 (54).
     assert_eq!(list[at - 1].userid, "P045");
     assert_eq!(list[at + 1].userid, "P044");
+    // The sysop's NOTOPTEN takes him off at his next update, and keeps him off.
     high.settings |= PlayerSettings::NOTOPTEN;
+    list.update(&high);
+    assert!(list.iter().all(|e| e.userid != "HIGH"));
+    high.exprem = 99;
     list.update(&high);
     assert!(list.iter().all(|e| e.userid != "HIGH"));
 }

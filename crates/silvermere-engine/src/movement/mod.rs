@@ -26,6 +26,7 @@ pub mod timed_exits;
 use silvermere_types::enums::{Ability, Direction};
 use silvermere_types::ids::{ActiveMonsterId, RoomKey, SessionId};
 
+use crate::items::inventory::ItemCharges;
 use crate::world::World;
 
 pub use move_user::{MoveType, move_user, move_user_with};
@@ -161,7 +162,7 @@ pub static HOOKS: Hooks = Hooks {
     combat: &crate::combat::Hooks, // T-033 (attack_monster_user); T-034, T-036, T-038
     spells: &crate::spells::room::RoomCasts,
     monsters: &crate::monsters::MONSTER_HOOKS,
-    items: &Defaults, // T-030
+    items: &ItemCharges, // T-030
     abilities: &CharacterTotals,
 };
 

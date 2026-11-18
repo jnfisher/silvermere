@@ -6,24 +6,22 @@
 //! round (T-034).
 
 use silvermere_rules::combat::Move;
+use silvermere_rules::spells::MatchKinds;
 use silvermere_text::Msg;
 use silvermere_types::enums::Ability;
-use silvermere_types::flags::{ActiveMonsterFlags, PlayerStatus, PlayerStatus2, RoomFlags};
+use silvermere_types::flags::{PlayerStatus, PlayerStatus2, RoomFlags};
 use silvermere_types::ids::{ActiveMonsterId, SessionId};
 
+use super::cast::{Found as Searched, find_action_target as search};
 use super::dispatch::Handled;
-use super::{Cmd, CommandLine, eq_ignore_case};
+use super::{Cmd, CommandLine};
 use crate::combat::{
     self, Mode, debug_on, display_autocombat_broken, is_combatting_user, is_inside_autocombat,
     kill_autocombat, player, player_mut, restart_autocombat, room_of, user_has,
 };
-use crate::items::inventory::{matches_any_word, show_options};
-use crate::output::clear_output;
+use crate::items::inventory::show_options;
 use crate::tell::tell_user;
 use crate::world::World;
-
-/// The most passes a name search makes, dropping a trailing word each time.
-const MAX_PASSES: usize = 50;
 
 /// What [`find_action_target`] found.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,98 +36,28 @@ pub enum Found {
     Multiple(Vec<String>),
 }
 
-/// The monster and player steps of the action target search, not the searcher, with charmed
-/// monsters last unless `rob` (the attack commands search that way; ROB does not): the active
-/// monsters of the room (charmed ones on a second pass when they come last), each pass dropping the
-/// last word of the name and trying again; then the players in the room by the first word. A full
-/// name (before any word was dropped) ends the search at once. With several candidates and the last
-/// kind found a player, the list is shown; the first monster found or the last player found is
-/// returned.
-///
-/// A stand-in until T-046's version of the whole search is shared.
-pub fn find_action_target(world: &World, id: SessionId, name: &str, rob: bool) -> Found {
-    let Some(plr) = player(world, id) else {
-        return Found::None;
+/// The action target search over the room's monsters and the other players
+/// (`SRCH_MONSTERS|SRCH_USERS|SRCH_NOTSELF`), charmed monsters last with `charmed_last`
+/// (the attack commands; FOLLOW, TRACK, ROB and GIVE do not).
+pub fn find_action_target(
+    world: &mut World,
+    id: SessionId,
+    name: &str,
+    charmed_last: bool,
+) -> Found {
+    let kinds = MatchKinds {
+        users: true,
+        monsters: true,
+        not_self: true,
+        charmed_last,
+        ..MatchKinds::default()
     };
-    let key = room_of(plr);
-    let Some(rs) = world.room_state.get(&key) else {
-        return Found::None;
-    };
-    let charm_last = !rob;
-    let mut count = 0usize;
-    let mut options: Vec<String> = Vec::new();
-    let mut found: Option<Found> = None;
-    let mons: Vec<_> = rs
-        .monsters
-        .iter()
-        .filter(|n| n.0 != 0)
-        .filter_map(|&n| combat::monster(world, n))
-        .collect();
-    let passes: &[Option<bool>] = if charm_last {
-        &[Some(false), Some(true)]
-    } else {
-        &[None]
-    };
-    for &charmed in passes {
-        let mut words: Vec<&str> = name.split(' ').collect();
-        let mut dropped = 0;
-        for _ in 0..MAX_PASSES {
-            let typed = words.join(" ");
-            for m in &mons {
-                if let Some(c) = charmed
-                    && m.flags.contains(ActiveMonsterFlags::CHARMED) != c
-                {
-                    continue;
-                }
-                if matches_any_word(&typed, &m.name) {
-                    if count == 0 {
-                        found = Some(Found::Monster(m.number));
-                    }
-                    count += 1;
-                    if dropped == 0 && eq_ignore_case(&typed, &m.name) {
-                        return Found::Monster(m.number);
-                    }
-                    options.push(m.name.clone());
-                }
-            }
-            if words.len() <= 1 {
-                break;
-            }
-            words.pop();
-            dropped += 1;
-        }
+    match search(world, id, name, kinds) {
+        Searched::User(s) => Found::User(s),
+        Searched::Monster(m) => Found::Monster(m),
+        Searched::Multiple(_, names) => Found::Multiple(names),
+        _ => Found::None,
     }
-    let mut last_monster = found.is_some();
-    // players, by the first word only
-    let first = name.split(' ').next().unwrap_or("");
-    let sees_hidden = plr.status.contains(PlayerStatus::SEEHIDDEN);
-    let mut ids = world.session_ids();
-    ids.sort();
-    for other in ids {
-        if other == id || !world.is_in_game(other) {
-            continue;
-        }
-        let Some(v) = player(world, other) else {
-            continue;
-        };
-        if v.room != key.room || v.map != key.map || !matches_any_word(first, &v.firstname) {
-            continue;
-        }
-        if v.hidden != 0 && !sees_hidden {
-            continue;
-        }
-        count += 1;
-        found = Some(Found::User(other));
-        last_monster = false;
-        if eq_ignore_case(first, &v.firstname) {
-            return Found::User(other);
-        }
-        options.push(v.firstname.clone());
-    }
-    if count > 1 && !last_monster {
-        return Found::Multiple(options);
-    }
-    found.unwrap_or(Found::None)
 }
 
 /// The shared attack command, with attack move `mv` and attack type `mtype`.
@@ -140,6 +68,16 @@ pub fn cmd_any_attack(
     mv: Move,
     mtype: Move,
 ) -> Handled {
+    // the command's move is the attack in progress from here on
+    world.atkmove = mv;
+    // the dynamic stats are brought up to date first (abilities, items, spells)
+    let Some(mut c) = world.session_mut(id).and_then(|s| s.character.take()) else {
+        return Handled::NotCommand;
+    };
+    crate::player::secondary::apply_dynamic(world, &mut c);
+    if let Some(s) = world.session_mut(id) {
+        s.character = Some(c);
+    }
     let Some(plr) = player(world, id).cloned() else {
         return Handled::NotCommand;
     };
@@ -177,11 +115,7 @@ pub fn cmd_any_attack(
     // the encumbrance is brought up to date
     crate::movement::move_user::get_encumbrance_percent(world, id);
     let key = room_of(&plr);
-    let found = find_action_target(world, id, line.rest_from(1), false);
-    // the match lookup ends (the colour reset is dropped) unless the name was ambiguous
-    if !matches!(found, Found::Multiple(_)) {
-        clear_output(world, id);
-    }
+    let found = find_action_target(world, id, line.rest_from(1), true);
     match found {
         Found::Multiple(options) => {
             show_options(world, id, &options);

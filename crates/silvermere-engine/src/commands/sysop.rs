@@ -23,7 +23,7 @@
 //! row in `events`. The log line "Sysop Command by %s: %s" under `LOG_SYSOP_COMMANDS` is a
 //! `tracing` line on target `mmlog`.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use silvermere_text::Msg;
 use silvermere_types::enums::{DebugLevel, RoomType};
@@ -193,11 +193,11 @@ pub struct SysopState {
     /// `spinpos`, 0-3.
     pub spinner: u8,
     /// A running menu job by session (C, CP, D, H).
-    pub jobs: HashMap<SessionId, crate::state::sysop_menu::Job>,
+    pub jobs: BTreeMap<SessionId, crate::state::sysop_menu::Job>,
     /// A paged REPORT USERS / NOTOPTEN by session.
-    pub reports: HashMap<SessionId, crate::display::sysop::Report>,
+    pub reports: BTreeMap<SessionId, crate::display::sysop::Report>,
     /// A paged GOD user INFO by session: (part, user shown) (`USF_SYSOPLIST`).
-    pub info: HashMap<SessionId, (u8, SessionId)>,
+    pub info: BTreeMap<SessionId, (u8, SessionId)>,
     /// A hoarder check is running (one at a time across every channel, as in the original).
     pub item_check_running: bool,
 }
@@ -211,9 +211,9 @@ impl Default for SysopState {
             need_recov: false,
             stats_start: 0,
             spinner: 0,
-            jobs: HashMap::new(),
-            reports: HashMap::new(),
-            info: HashMap::new(),
+            jobs: BTreeMap::new(),
+            reports: BTreeMap::new(),
+            info: BTreeMap::new(),
             item_check_running: false,
         }
     }
@@ -488,10 +488,13 @@ fn chain(world: &mut World, id: SessionId, op: Op, line: &CommandLine) -> Handle
     } else if starts_with_ignore_case(w, "lightning") && op.has(Key::SysLightning) {
         return lightning(world, id, line);
     } else if op.sysop && starts_with_ignore_case(w, "transfer") {
-        // the last line this operator typed
+        // the line typed ahead of the game's entry, which there never is: the game prints
+        // its null pointer as the system's printf does
         let last = world
             .session(id)
-            .map_or_else(String::new, |s| s.ust.lastinput.clone());
+            .map(|s| s.ust.lastinput.clone())
+            .filter(|l| !l.is_empty())
+            .unwrap_or_else(|| "<null pointer>".into());
         push(world, id, Msg::SysopTransferInfo { line: last });
     } else if dev && op.sysop && starts_with_ignore_case(w, "values") {
         values(world, id, line);

@@ -54,7 +54,7 @@ pub struct UserState {
     pub pending: Vec<PendingCommand>,
     /// +0x90 forget list.
     pub forgets: Vec<ForgetEntry>,
-    /// +0x94 copy of the last input.
+    /// +0x94 the line typed ahead of entering the game: never, so empty.
     pub lastinput: String,
     /// +0x98 kept in permrec, same day only.
     pub daybyte: u8,

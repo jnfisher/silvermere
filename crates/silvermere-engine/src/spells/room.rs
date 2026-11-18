@@ -34,8 +34,8 @@ use silvermere_rules::spells::apply_monster::{
 };
 use silvermere_rules::spells::resist::{item_negates, may_resist, resist_chance};
 use silvermere_rules::spells::{
-    CharacterSlots, EffectSlot, MAXCHANCE, MonsterTarget, Outcome, SpellEffect, SpellEffects,
-    Target, UserTarget, add_spell_to_character, apply_effect, is_attack_type,
+    CharacterSlots, EffectSlot, MAXCHANCE, MonsterTarget, Outcome, SlotOutcome, SpellEffect,
+    SpellEffects, Target, UserTarget, add_spell_to_character, apply_effect, is_attack_type,
 };
 use silvermere_text::Msg;
 use silvermere_types::enums::{Ability, DebugLevel};
@@ -46,7 +46,7 @@ use silvermere_types::ids::{
 use silvermere_types::records::Spell;
 use silvermere_types::sizes::{NHIDITEMS, NROOMITEMS};
 
-use super::cast::{report_ended, strip_worn, user_element_resist};
+use super::cast::{end_spells, strip_worn, user_element_resist};
 use super::messages::coloured_line;
 use crate::combat::{self, monster_ability, monster_has, room_of, user_has};
 use crate::items::limited::{self, Holder};
@@ -162,6 +162,16 @@ pub fn room_cast_on_user(world: &mut World, id: SessionId, spell: SpellNo) {
     let Some(p) = combat::player(world, id) else {
         return;
     };
+    if spell == SpellNo(0) {
+        // (sic) the game finds spell 0 in an empty slot of its spell cache, a blank
+        // spell: a worn item's free negate entry negates it, or it rolls its strength
+        // and does nothing
+        let negated = item_negates(p.worn.iter().filter_map(|n| world.items.get(n)), spell);
+        if !negated {
+            world.rng.range(0, 1);
+        }
+        return;
+    }
     let Some(spl) = spell_of(world, spell) else {
         return;
     };
@@ -276,7 +286,7 @@ fn room_slot(
         // Freedom, Dispel magic; Cure Poison
         Outcome::Ended { spells, poison } => {
             changed = true;
-            report_ended(world, id, spells, *poison);
+            end_spells(world, id, spells, *poison);
         }
         Outcome::Summon(n, _) => {
             changed = true;
@@ -313,10 +323,17 @@ fn room_slot(
     {
         silvermere_rules::spells::raise_hp(p, v);
     }
-    if matches!(
+    // the stats again only when the stat was raised (the spell added now or earlier in
+    // the cast) or the weapon broke
+    let raised = matches!(
         slot.effect,
-        SpellEffect::StatAlter(_) | SpellEffect::AlterHp | SpellEffect::Shatter
-    ) {
+        SpellEffect::StatAlter(_) | SpellEffect::AlterHp
+    ) && match out {
+        Outcome::Lasting(SlotOutcome::Added(_)) => true,
+        Outcome::NoEffect => added_before && spl.duration != 0,
+        _ => false,
+    };
+    if raised || matches!(out, Outcome::Shattered { .. }) {
         crate::items::equip::recalc(world, id);
     }
 }
@@ -449,11 +466,16 @@ fn summon(world: &mut World, id: SessionId, n: i32) {
         ally: false,
         force: true,
     };
+    // read into the cache. Fixed: the game set these without marking the monster changed,
+    // so one pushed out of the cache, or there at a restart, forgot whom it followed
     if let Some(mon) = crate::monsters::generate::generate_monster(world, key, req)
-        && let Some(m) = combat::monster_mut(world, mon)
+        && combat::monster_slot(world, mon).is_some()
     {
-        m.following = name;
-        m.friendly = 0;
+        if let Some(m) = world.active_monsters.peek_mut(mon) {
+            m.following = name;
+            m.friendly = 0;
+        }
+        world.active_monsters.mark_dirty(mon);
     }
 }
 
@@ -461,7 +483,8 @@ fn summon(world: &mut World, id: SessionId, n: i32) {
 /// every item that can be picked up, visible and hidden, with all its copies: each copy
 /// leaves the limited records of `from` and is put down in `to` (`dispose_of_item_in_room`,
 /// which may carry it on through an exit). Items that cannot be taken stay. `false` when
-/// either room does not exist.
+/// either room does not exist. (sic) Scattered into the same room, the coins are added
+/// and then cleared on the one record, so they are lost.
 pub fn move_room_contents(world: &mut World, from: RoomKey, to: RoomKey) -> bool {
     if world.room(from).is_none()
         || world.room(to).is_none()
@@ -477,7 +500,9 @@ pub fn move_room_contents(world: &mut World, from: RoomKey, to: RoomKey) -> bool
             std::mem::take(&mut fs.hidcoins),
         )
     };
-    if let Some(ts) = world.room_state.get_mut(&to) {
+    if from == to {
+        // (sic) lost: the game adds them and then clears the same record
+    } else if let Some(ts) = world.room_state.get_mut(&to) {
         add_coins(&mut ts.coins, coins);
         add_coins(&mut ts.hidcoins, hidcoins);
     }

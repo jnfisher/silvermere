@@ -918,9 +918,9 @@ fn logoff_and_hangup_save() {
     assert_eq!(saved_names(&persists(&rx)), ["Bob", "Bob"]);
 }
 
-// save_characters: five per sweep, round-robin, restart at 0
+// save_characters: every player in the game, every sweep
 #[test]
-fn sweep_saves_five_round_robin() {
+fn sweep_saves_every_player() {
     let mut w = common::tiny_world(12);
     w.races.insert(RaceNo(11), kang());
     w.classes.insert(ClassNo(2), witchunter());
@@ -931,30 +931,17 @@ fn sweep_saves_five_round_robin() {
         put(&mut w, id, c);
     }
     let (mut engine, clock, rx) = engine_over(w);
-    let names = |r: &[&str]| r.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    let all: Vec<String> = (0..12).map(|n| format!("P{n}")).collect();
     // The save routine runs every 60 s (`sec_oth` 60 in the test config).
     clock.advance_ticks(59, &mut engine);
     assert!(saved_names(&persists(&rx)).is_empty());
     clock.advance_ticks(1, &mut engine);
-    assert_eq!(
-        saved_names(&persists(&rx)),
-        names(&["P0", "P1", "P2", "P3", "P4"])
-    );
+    assert_eq!(saved_names(&persists(&rx)), all);
     clock.advance_ticks(60, &mut engine);
-    assert_eq!(
-        saved_names(&persists(&rx)),
-        names(&["P5", "P6", "P7", "P8", "P9"])
-    );
-    clock.advance_ticks(60, &mut engine);
-    assert_eq!(saved_names(&persists(&rx)), names(&["P10", "P11"]));
-    clock.advance_ticks(60, &mut engine);
-    assert_eq!(
-        saved_names(&persists(&rx)),
-        names(&["P0", "P1", "P2", "P3", "P4"])
-    );
+    assert_eq!(saved_names(&persists(&rx)), all);
 }
 
-// save_characters: empty slots are skipped, not counted
+// save_characters: sessions not in the game are skipped
 #[test]
 fn sweep_skips_sessions_not_in_game() {
     let mut w = common::tiny_world(12);

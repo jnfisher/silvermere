@@ -110,8 +110,7 @@ pub struct ShopMatch {
     pub count: usize,
     /// The "Please be more specific" names, in order.
     pub options: Vec<String>,
-    /// A later exact name threw the list away by clearing the output buffer, which also empties
-    /// what the command had queued (the dispatcher's `ANSI_NORMAL`).
+    /// A later exact name threw the list away.
     pub cleared: bool,
 }
 
@@ -152,7 +151,7 @@ pub fn get_shop_item_from_name(world: &World, shop: &Shop, name: &str) -> ShopMa
                     m.options.push(itm.name.clone());
                     m.options.push(first_name.to_string());
                 } else if exact {
-                    // A later exact match drops the list (`clear_output`)
+                    // A later exact match drops the list
                     m.options.clear();
                     m.cleared = true;
                     m.item = Some(itm.number);
@@ -214,8 +213,8 @@ pub enum ShelfCopy {
 /// item is limited, the shelf holds no record of it and every allowed copy is in play
 /// (reason 1).
 ///
-/// The shelf's copies are `OWN_ROOM` records of the shop's room, marked
-/// [`limited::SHELF_MARK`] so that a copy dropped on the shop's floor is never taken for one.
+/// The shelf's copies are `OWN_ROOM` records of the shop's room; (sic) a copy dropped on
+/// the shop's floor is taken for one, as the game has nothing to tell them apart.
 /// A recorded shelf copy is released; one that was never recorded (stock from the shop data
 /// or a restock, which records none) is the only kind that needs a free copy under the limit.
 pub fn take_shelf_copy(world: &mut World, item: ItemNo, room: RoomKey) -> Option<ShelfCopy> {

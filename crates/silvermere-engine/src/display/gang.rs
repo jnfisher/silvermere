@@ -1,10 +1,10 @@
 //! The gang member lists of BROADGANG (T-044): [`display_online_gang_members`],
 //! [`display_gang_members`] and [`show_gang_members`].
 //!
-//! The full list walks every character record (WCCUSERS, key 2, lowest experience first),
+//! The full list walks every character record (WCCUSERS, key 2, highest experience first),
 //! one record per poll of the channel. Here [`display_gang_members`] shows the heading and
 //! the leader, sets the paging state (`SUBST_LISTING`, `USF_GANGLIST`) and asks the store
-//! for the gang's characters ([`crate::gangs::GangQuery::Members`]);
+//! for every character ([`crate::gangs::GangQuery::Members`]);
 //! [`show_gang_members`] shows the rest when the answer comes back.
 //!
 //! (sic) X during the list clears only `USF_TOPTEN`, so it returns the player to the realm
@@ -140,8 +140,8 @@ pub fn display_gang_members(world: &mut World, id: SessionId, gangname: &str) {
     ask(world, id, GangQuery::Members { gang: g.name });
 }
 
-/// The rest of the gang list over `rows`, the gang's stored characters lowest experience
-/// first: each member but the leader counts and is shown (`- Online ` when in the game,
+/// The rest of the gang list over `rows`, every stored character highest experience first:
+/// each member of the gang but the leader counts and is shown (`- Online ` when in the game,
 /// `[Lieutenant]`); after each record the list ends once as many have been counted as the
 /// gang has members, or at the last record. Then the paging state is cleared, the player is
 /// back in the realm and gets the prompt.

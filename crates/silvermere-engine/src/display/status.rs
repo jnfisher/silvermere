@@ -209,26 +209,27 @@ pub fn show_status(world: &mut World, shown: SessionId, to: SessionId) {
     msgs.push(Msg::StPicklocks {
         picklocks: num(plr.picklocks, 5, false),
     });
-    // A red star for a stat away from its base value
+    // A red star for a stat away from its base value. The stats print signed (%d): (sic)
+    // one that went below 0 shows as negative.
     msgs.push(Msg::StStr {
         mark1: stat_mark(plr.str == plr.basstr),
-        stat1: num(plr.str, 5, true),
+        stat1: num(plr.str as i16, 5, true),
         mark2: stat_mark(plr.agi == plr.basagi),
-        stat2: num(plr.agi, 5, true),
+        stat2: num(plr.agi as i16, 5, true),
         stat3: num(plr.tracking, 5, false),
     });
     msgs.push(Msg::StInt {
         mark1: stat_mark(plr.intel == plr.basint),
-        stat1: num(plr.intel, 5, true),
+        stat1: num(plr.intel as i16, 5, true),
         mark2: stat_mark(plr.hea == plr.bashea),
-        stat2: num(plr.hea, 5, true),
+        stat2: num(plr.hea as i16, 5, true),
         stat3: num(plr.martial, 5, false),
     });
     msgs.push(Msg::StWil {
         mark1: stat_mark(plr.wil == plr.baswil),
-        stat1: num(plr.wil, 5, true),
+        stat1: num(plr.wil as i16, 5, true),
         mark2: stat_mark(plr.cha == plr.bascha),
-        stat2: num(plr.cha, 5, true),
+        stat2: num(plr.cha as i16, 5, true),
         stat3: num(plr.mr, 5, false),
     });
     if plr.poison > 0 {
@@ -394,7 +395,13 @@ pub fn calc_exp_percent(have_hi: u32, have_lo: u32, need_hi: u32, need_lo: u32) 
 /// next level from the level and the race and class percentages, what is still needed
 /// (borrowing a billion, 0 once past the level) and the percentage.
 pub fn exp_figures(plr: &Character, exp_mod: i16) -> (BigExp, (i64, i64), u32) {
-    let need = new_calc_exp_needed(plr.level as i16, exp_mod);
+    let mut need = new_calc_exp_needed(plr.level as i16, exp_mod);
+    // (sic) short of the billions, a billion is borrowed into the total itself, so the
+    // percentage and the total shown are worked from it
+    if plr.expbil < need.expbil && need.exprem < plr.exprem {
+        need.expbil -= 1;
+        need.exprem = need.exprem.wrapping_add(1_000_000_000);
+    }
     let pct = calc_exp_percent(plr.expbil, plr.exprem, need.expbil, need.exprem);
     // In `long`
     let mut leftbil = i64::from(need.expbil) - i64::from(plr.expbil);

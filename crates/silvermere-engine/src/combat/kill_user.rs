@@ -18,6 +18,7 @@ use silvermere_types::sizes::NWORN;
 use super::{cleanup_when_user_leaves, item_ability, item_has, player, player_mut, room_of};
 use crate::event_loop::{EchoMode, EngineOutput};
 use crate::items::equip::unequip_apply_item_abilities;
+use crate::items::inventory::update_weight_carried;
 use crate::items::limited::{self, Holder};
 use crate::items::room_items::{dispose_of_item_in_room, dispose_of_item_in_trail};
 use crate::player::profile::{self, Retire};
@@ -299,12 +300,7 @@ pub fn check_kill_user(world: &mut World, id: SessionId) -> KillOutcome {
     if lives > 0 {
         // awake in the death room, full strength
         if let Some(mut c) = world.session_mut(id).and_then(|s| s.character.take()) {
-            c.wgt = c
-                .items
-                .iter()
-                .filter_map(|n| world.items.get(n))
-                .map(|itm| itm.weight.max(0) as u16)
-                .fold(0u16, u16::saturating_add);
+            update_weight_carried(world, &mut c);
             c.hp = c.maxhp;
             c.mana = c.maxmana as i16;
             c.map = deathmap;

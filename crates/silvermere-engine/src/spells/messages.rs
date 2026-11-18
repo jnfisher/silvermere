@@ -17,7 +17,7 @@ use silvermere_types::ids::{MessageNo, SessionId};
 use silvermere_types::records::Spell;
 
 use crate::movement::exits::{Arg, fmt_msg};
-use crate::tell::{Noise, TellBlind, tell_room};
+use crate::tell::{Noise, TellBlind, tell_room, tell_user};
 use crate::world::World;
 
 /// The built-in texts when the spell has no WCCMSG record.
@@ -209,18 +209,19 @@ pub fn display_spell_success(
         && let Some(text) = texts.caster
     {
         told.caster = true;
+        tell_user(world, caster, coloured_line(spell, text));
         if let Some(s) = world.session_mut(caster) {
-            s.output.push(coloured_line(spell, text));
             s.push_prompt();
         }
     }
     if let Some(t) = target
         && let Some(text) = texts.target
         && world.session(t).and_then(|s| s.player()).is_some()
-        && let Some(s) = world.session_mut(t)
     {
-        s.output.push(coloured_line(spell, text));
-        if t != caster {
+        tell_user(world, t, coloured_line(spell, text));
+        if t != caster
+            && let Some(s) = world.session_mut(t)
+        {
             s.push_prompt();
         }
     }

@@ -19,7 +19,6 @@ use crate::comms::forget::is_user_forgotten;
 use crate::gangs::{Target, find_any_action_target, find_room_user};
 use crate::items::inventory::show_options;
 use crate::movement::exits::prompt;
-use crate::output::clear_output;
 use crate::party::{
     RANK_FRONT, Rank, add_to_group, share_currency, stop_following, stop_following_all,
 };
@@ -148,10 +147,7 @@ pub fn cmd_follow(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLin
         return Handled::Done;
     }
     // players and monsters, not the searcher; charmed monsters do not come last
-    let found = find_action_target(world, id, line.rest_from(1), true);
-    if !matches!(found, Found::Multiple(_)) {
-        clear_output(world, id);
-    }
+    let found = find_action_target(world, id, line.rest_from(1), false);
     match found {
         Found::Multiple(names) => show_options(world, id, &names),
         Found::User(tgt) if tgt == id => tell_user(world, id, Msg::FollowSelf),
@@ -205,9 +201,6 @@ pub fn cmd_invite(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLin
     unhide(world, id);
     let name = line.rest_from(1).to_string();
     let found = find_room_user(world, id, &name);
-    if !matches!(found, Target::Multiple(_)) {
-        clear_output(world, id);
-    }
     let tgt = match found {
         Target::Multiple(names) => {
             show_options(world, id, &names);
@@ -270,7 +263,6 @@ pub fn cmd_uninvite(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandL
         show_options(world, id, &names);
         return Handled::Done;
     }
-    clear_output(world, id);
     if target == Target::None {
         target = find_any_action_target(world, &name);
     }
@@ -353,10 +345,6 @@ pub fn cmd_aid(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLine) 
     }
     unhide(world, id);
     let found = find_room_user(world, id, line.rest_from(1));
-    // the match lookup ends (the colour reset is dropped) unless the name was ambiguous
-    if !matches!(found, Target::Multiple(_)) {
-        clear_output(world, id);
-    }
     let tgt = match found {
         Target::Multiple(names) => {
             show_options(world, id, &names);

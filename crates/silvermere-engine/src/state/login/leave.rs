@@ -10,7 +10,7 @@ use silvermere_types::ids::{ItemNo, RoomId, SessionId};
 use silvermere_types::records::{Character, RoomItem};
 
 use crate::state::{Outcome, in_realm};
-use crate::tell::{Noise, TellBlind, tell_game, tell_room};
+use crate::tell::{Noise, PromptState, TellBlind, tell_game, tell_room};
 use crate::world::{RoomState, World};
 
 /// The delay `cmd_quit` adds: the fast cycles of meditation before the exit.
@@ -118,8 +118,10 @@ pub fn stop_users_exit(world: &mut World, id: SessionId) {
     }
     plr.status.remove(PlayerStatus::EXITING);
     plr.delay = 0;
+    // one message with its prompt, as an attack interrupt's clear keeps it
     s.output.push(Msg::ExitInterrupted);
-    s.push_prompt();
+    let state = PromptState::capture(s);
+    s.output.push_joined_prompt(state);
 }
 
 /// The exit part of `fast_update_character`, once per fast cycle: while `EXITING`, the
@@ -298,7 +300,7 @@ pub fn hangup(world: &mut World, id: SessionId) {
 /// record exists, Loyal or not (sic). An item's 20 abilities are read.
 fn drop_items(
     plr: &mut Character,
-    items: &std::collections::HashMap<ItemNo, silvermere_types::records::Item>,
+    items: &std::collections::BTreeMap<ItemNo, silvermere_types::records::Item>,
     mut room: Option<&mut RoomState>,
     max: u32,
 ) {

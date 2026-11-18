@@ -633,13 +633,10 @@ fn search_finds_the_slum_hidden_exit() {
     );
 }
 
-// cmd_search and the dispatcher's ANSI_NORMAL: the reset goes out with the first text sent.
-// SEARCH alone shows the player his finds first, so he gets it, unless nothing turned up:
-// the output buffer is cleared then, which drops it. Blind (can_see() tells him) and a
-// word that is no direction keep it; SEARCH {dir} tells the room first, so it is the
-// room's.
+// cmd_search: the player's lines follow his colour reset on every path; the room gets
+// its line alone.
 #[test]
-fn search_keeps_the_pending_reset_on_its_own_paths() {
+fn search_starts_with_the_reset() {
     const RESET: &str = "\x1b[0;37;40m";
     const CLRLINE: &str = "\x1b[79D\x1b[K";
     let mut h = Harness::new();
@@ -669,21 +666,20 @@ fn search_keeps_the_pending_reset_on_its_own_paths() {
     h.line(id, "search");
     assert_eq!(
         h.text_since(mark, id),
-        "\x1b[0;36mYour search revealed nothing.\r\n"
+        "\x1b[0;37;40m\x1b[0;36mYour search revealed nothing.\r\n"
     );
     assert_eq!(
         h.text_since(mark, other),
         format!("{CLRLINE}\x1b[0;36mAldric is searching the area.\r\n{bob}")
     );
-    // nothing on the floor, but Bob is hiding: the buffer is cleared before
-    // the hidden players are spotted, so the spotting line comes without the reset
+    // nothing on the floor, but Bob is hiding
     edit(h.w(), other, |c| c.hidden = 1);
     h.ticks(1);
     let mark = h.log.len();
     h.line(id, "search");
     assert_eq!(
         h.text_since(mark, id),
-        "\x1b[1;31mYou see Bob hiding in the shadows.\r\n"
+        "\x1b[0;37;40m\x1b[1;31mYou see Bob hiding in the shadows.\r\n"
     );
     // not a direction
     h.ticks(1);
@@ -693,17 +689,17 @@ fn search_keeps_the_pending_reset_on_its_own_paths() {
         h.text_since(mark, id),
         format!("{RESET}Why would you want to search that?\r\n")
     );
-    // a direction: Bob is told first and takes the reset
+    // a direction: the player keeps the reset, Bob gets the line alone
     h.ticks(1);
     let mark = h.log.len();
     h.line(id, "search u");
     assert_eq!(
         h.text_since(mark, id),
-        format!("{CLRLINE}You notice nothing different above you.\r\n")
+        format!("{RESET}{CLRLINE}You notice nothing different above you.\r\n")
     );
     assert_eq!(
         h.text_since(mark, other),
-        format!("{RESET}{CLRLINE}\x1b[0;36mAldric is searching for exits.\r\n{bob}")
+        format!("{CLRLINE}\x1b[0;36mAldric is searching for exits.\r\n{bob}")
     );
     // blind: can_see() says so, then the prompt (`Handled::Done`)
     h.ticks(1);
@@ -743,8 +739,9 @@ fn bash_relocks_after_exitpar3_steps() {
         live_exit(h.w(), back, Direction::South).unwrap().par1,
         LOCK_OPEN
     );
-    // 2 steps of 300 ticks: still open one tick before
-    h.ticks(599);
+    // 2 steps: a timer of 600 ticks, then one of 300 for the step left; still open one
+    // tick before
+    h.ticks(899);
     assert_eq!(
         live_exit(h.w(), key, Direction::North).unwrap().par1,
         LOCK_OPEN

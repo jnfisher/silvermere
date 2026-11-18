@@ -18,7 +18,7 @@
 //! The title, description, items, `Also here:` and exits lines wrap at 79 columns
 //! (`Msg::wrap`).
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use silvermere_text::colour::{ColRow, Colour, Palette};
@@ -31,6 +31,7 @@ use silvermere_types::records::Room;
 use super::exits::{DirNames, exits_msg};
 use super::light::can_see;
 use super::room_items::items_msg;
+use super::who::UserList;
 use crate::world::World;
 
 /// Evil points from which a character is an Outlaw.
@@ -72,7 +73,7 @@ impl RoomMode {
 /// once from `data/assets/` and kept in memory.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Assets {
-    files: HashMap<String, Vec<u8>>,
+    files: BTreeMap<String, Vec<u8>>,
 }
 
 impl Assets {
@@ -112,6 +113,8 @@ pub struct DisplayGlobals {
     pub dirnames: DirNames,
     /// The `FILE DESCRIPTION` files.
     pub assets: Assets,
+    /// The user list as last ranked, for the WHO name column.
+    pub user_list: UserList,
 }
 
 impl Default for DisplayGlobals {
@@ -120,6 +123,7 @@ impl Default for DisplayGlobals {
             arena_safe: true,
             dirnames: DirNames::default(),
             assets: Assets::default(),
+            user_list: UserList::default(),
         }
     }
 }
@@ -173,7 +177,7 @@ pub fn display_room(world: &mut World, id: SessionId, mode: RoomMode) {
         return;
     };
     if let Some((file, prefix)) = file_description(&room.desc) {
-        // The file's first line only (`once`), then `clear_output`, after the light cyan.
+        // The file's first line only (`once`), then the buffer is cleared, after the light cyan.
         if let Some(lines) = desc_from_file(world, file, prefix, true) {
             match lines.into_iter().next() {
                 Some(name) => push(world, Msg::RoomTitle { name }),
@@ -183,6 +187,12 @@ pub fn display_room(world: &mut World, id: SessionId, mode: RoomMode) {
                     }
                 }
             }
+        } else {
+            // the light cyan goes out with the error
+            if let Some(s) = world.session_mut(id) {
+                s.output.push_raw(ansi::ANSI_LTCYAN);
+            }
+            push(world, desc_file_error(file));
         }
     } else {
         push(
@@ -226,13 +236,21 @@ fn file_description(desc: &[String]) -> Option<(&str, &str)> {
         .then(|| (file.as_str(), desc.get(2).map_or("", String::as_str)))
 }
 
+/// What the player sees when a description file can't be opened: the game's internal
+/// error (its report mail is not carried).
+pub fn desc_file_error(file: &str) -> Msg {
+    Msg::MudInternalError {
+        msg: format!("Can't display gang house file {file}"),
+    }
+}
+
 /// The stock distribution ships none of 84 of the 131 `FILE DESCRIPTION` names, so a
 /// player standing in such a room would log a line per keystroke: warn once per file name
 /// per process (T-025 review, silvermere#30).
 fn warn_missing_file_once(file: &str) {
-    use std::collections::HashSet;
+    use std::collections::BTreeSet;
     use std::sync::{Mutex, OnceLock};
-    static SEEN: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    static SEEN: OnceLock<Mutex<BTreeSet<String>>> = OnceLock::new();
     let first = SEEN
         .get_or_init(Mutex::default)
         .lock()
@@ -294,8 +312,9 @@ pub fn long_room_desc(world: &mut World, id: SessionId, room: &Room) {
     if let Some((file, prefix)) = file_description(&room.desc) {
         msgs.push(Msg::Clrline);
         msgs.push(Msg::AnsiNormal);
-        if let Some(lines) = desc_from_file(world, file, prefix, false) {
-            msgs.extend(lines.into_iter().map(|line| Msg::RoomFileLine { line }));
+        match desc_from_file(world, file, prefix, false) {
+            Some(lines) => msgs.extend(lines.into_iter().map(|line| Msg::RoomFileLine { line })),
+            None => msgs.push(desc_file_error(file)),
         }
     } else {
         msgs.push(Msg::RoomLongDesc {
@@ -306,8 +325,11 @@ pub fn long_room_desc(world: &mut World, id: SessionId, room: &Room) {
         match world.shops.get(&room.shopnum) {
             Some(shp) => {
                 if let Some((file, prefix)) = file_description(&shp.desc) {
-                    if let Some(lines) = desc_from_file(world, file, prefix, false) {
-                        msgs.extend(lines.into_iter().map(|line| Msg::RoomFileLine { line }));
+                    match desc_from_file(world, file, prefix, false) {
+                        Some(lines) => {
+                            msgs.extend(lines.into_iter().map(|line| Msg::RoomFileLine { line }));
+                        }
+                        None => msgs.push(desc_file_error(file)),
                     }
                 } else if shp.desc.iter().any(|l| !l.is_empty()) {
                     msgs.push(Msg::RoomShopDesc {

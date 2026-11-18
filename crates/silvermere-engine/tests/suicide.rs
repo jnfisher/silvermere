@@ -674,6 +674,20 @@ fn esc(b: &[u8]) -> String {
     b.escape_ascii().to_string()
 }
 
+/// `text` with the hidden " \x08" taken out of its departure lines: the game says "just left
+/// to the ..." one of three ways at random, which differ only in where it goes.
+fn any_departure(text: &str) -> String {
+    text.split_inclusive('\n')
+        .map(|l| {
+            if l.contains("just left to") {
+                l.replace(" \x08", "")
+            } else {
+                l.to_owned()
+            }
+        })
+        .collect()
+}
+
 /// A field away from the reincarnation room (`start()`), for the tests where it matters
 /// that the player wakes up somewhere else.
 fn field_harness() -> Harness {
@@ -706,11 +720,7 @@ fn a_leader_s_followers_are_told_he_is_gone() {
         "\x1b[79D\x1b[K\x1b[1;34mYou are no longer following Ann.\r\n{PROMPT_BYTES}\
          \x1b[79D\x1b[KAnn took their own life!\r\n{PROMPT_BYTES}"
     );
-    // the first write of the tick carries the batch's colour reset
-    assert_eq!(
-        esc(&h.written(mark, bob)),
-        esc(format!("\x1b[0;37;40m{told}").as_bytes())
-    );
+    assert_eq!(esc(&h.written(mark, bob)), esc(told.as_bytes()));
     assert_eq!(esc(&h.written(mark, cid)), esc(told.as_bytes()));
     for f in [bob, cid] {
         assert_eq!(h.engine.world.session(f).unwrap().party.leader, None);
@@ -958,7 +968,10 @@ fn a_higher_follower_who_took_his_life_stays_behind_untold() {
     h.clock.advance_ticks(10, &mut h.engine);
     h.pump();
     assert_eq!(esc(&h.written(mark, bob)), "");
-    assert_eq!(esc(&h.written(mark, cid)), esc(cid_follows().as_bytes()));
+    assert_eq!(
+        any_departure(&String::from_utf8_lossy(&h.written(mark, cid))),
+        any_departure(&cid_follows())
+    );
     assert_eq!(
         esc(&h.written(mark, ann)),
         esc(format!(
@@ -991,7 +1004,10 @@ fn a_lower_follower_who_took_his_life_finds_no_exit_and_lets_go() {
                 .as_bytes()
         )
     );
-    assert_eq!(esc(&h.written(mark, cid)), esc(cid_follows().as_bytes()));
+    assert_eq!(
+        any_departure(&String::from_utf8_lossy(&h.written(mark, cid))),
+        any_departure(&cid_follows())
+    );
     assert_eq!(h.plr(bob).room, RoomId(h.engine.world.config.reinc_room));
     assert_eq!(h.engine.world.session(bob).unwrap().party.leader, None);
 }

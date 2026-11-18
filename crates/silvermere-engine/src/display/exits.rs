@@ -4,14 +4,14 @@
 //! The ten directions differ only in their words, which [`WORDS`] keeps direction by
 //! direction, the sic capitalisation included.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use silvermere_text::Msg;
 use silvermere_types::enums::ExitType;
 use silvermere_types::flags::ExitFlags;
 use silvermere_types::ids::MessageNo;
 use silvermere_types::names::DIRECTION_NAMES;
-use silvermere_types::records::{Exit, Message, Room};
+use silvermere_types::records::{Exit, ExitParams, Lock, Message, Room, TrapState};
 use silvermere_types::sizes::NDIRS;
 
 /// The live direction names: each name has a letter slot at byte 1 that the slow cycle
@@ -131,14 +131,17 @@ pub const WORDS: [DirWords; NDIRS] = [
     },
 ];
 
-/// A Hidden exit found by a search or visible but blocked, a Trap exit whose second
-/// parameter is not 2, a Timed exit whose timer is not running.
+/// A Hidden exit found by a search or visible but blocked, a Trap exit that is not hidden,
+/// a Timed exit that is open.
 pub fn secret_visible_exit(exit: &Exit) -> bool {
-    let par1 = ExitFlags::from_bits_retain(exit.par1);
-    (exit.kind == ExitType::Hidden
-        && (par1.contains(ExitFlags::VISSEARCHED) || par1.contains(ExitFlags::VISBLOCKED)))
-        || (exit.kind == ExitType::Trap && exit.par2 != 2)
-        || (exit.kind == ExitType::Timed && exit.par3 == 0)
+    match exit.params() {
+        ExitParams::Hidden(h) => {
+            h.flags.contains(ExitFlags::VISSEARCHED) || h.flags.contains(ExitFlags::VISBLOCKED)
+        }
+        ExitParams::Trap(t) => t.state != TrapState::Hidden,
+        ExitParams::Timed(t) => !t.closed(),
+        _ => false,
+    }
 }
 
 /// An exit `Obvious exits:` names: a secretly visible one ([`secret_visible_exit`]), or one
@@ -163,24 +166,22 @@ pub fn exit_word(
     dir: usize,
     exit: &Exit,
     dirnames: &DirNames,
-    messages: &HashMap<MessageNo, Message>,
+    messages: &BTreeMap<MessageNo, Message>,
 ) -> String {
     let words = &WORDS[dir];
-    match exit.kind {
-        ExitType::Hidden => {
-            let msg = (exit.par4 != 0)
-                .then(|| messages.get(&MessageNo(exit.par4)))
-                .flatten();
+    // closed while the lock state is not open
+    let open = |lock: Lock| usize::from(lock == Lock::Open);
+    match exit.params() {
+        ExitParams::Hidden(h) => {
+            let msg = (h.name.0 != 0).then(|| messages.get(&h.name)).flatten();
             match msg {
                 Some(m) => printf_s(&m.msgs[0], words.hidden_arg),
                 None => words.secret.to_owned(),
             }
         }
-        // Closed while par1 is set
-        ExitType::Door => words.door[usize::from(exit.par1 == 0)].to_owned(),
-        ExitType::Gate => words.gate[usize::from(exit.par1 == 0)].to_owned(),
-        // A Key exit is closed while par2 is set
-        ExitType::Key => words.door[usize::from(exit.par2 == 0)].to_owned(),
+        ExitParams::Door(d) => words.door[open(d.lock)].to_owned(),
+        ExitParams::Gate(d) => words.gate[open(d.lock)].to_owned(),
+        ExitParams::Key(k) => words.door[open(k.lock)].to_owned(),
         _ => dirnames.get(dir).to_owned(),
     }
 }
@@ -189,7 +190,7 @@ pub fn exit_word(
 pub fn exit_list(
     room: &Room,
     dirnames: &DirNames,
-    messages: &HashMap<MessageNo, Message>,
+    messages: &BTreeMap<MessageNo, Message>,
 ) -> Option<String> {
     let words: Vec<String> = room
         .exits
@@ -203,7 +204,7 @@ pub fn exit_list(
 
 /// The visible exits as one message: the label in `COL_EXITS`, the list or `NONE!!!`,
 /// wrapped at 79 columns.
-pub fn exits_msg(room: &Room, dirnames: &DirNames, messages: &HashMap<MessageNo, Message>) -> Msg {
+pub fn exits_msg(room: &Room, dirnames: &DirNames, messages: &BTreeMap<MessageNo, Message>) -> Msg {
     match exit_list(room, dirnames, messages) {
         Some(exits) => Msg::RoomExits { exits },
         None => Msg::RoomExitsNone,

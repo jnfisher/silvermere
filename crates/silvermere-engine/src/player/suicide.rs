@@ -28,6 +28,8 @@ use super::EVIL_OUTLAW;
 use super::profile::{self, Retire};
 use super::secondary::{CalcMode, recalculate};
 use crate::event_loop::{EchoMode, EngineOutput, GameEvent};
+use crate::items::equip::unequip_record;
+use crate::items::inventory::update_weight_carried;
 use crate::items::limited::{self, Holder};
 use crate::items::room_items::{dispose_of_item_in_room, dispose_of_item_in_trail};
 use crate::state::login::show_menu;
@@ -195,10 +197,26 @@ pub fn commit_suicide(world: &mut World, id: SessionId, today: i64) -> Suicide {
             plr.keyuses[i] = KEY_EMPTY;
         }
     }
+    // the worn items and the weapon: their abilities taken away (extra hit points,
+    // spells they taught), then their marks cleared
+    let worn: Vec<Item> = world
+        .session(id)
+        .and_then(|s| s.character.as_ref())
+        .map(|plr| {
+            plr.worn
+                .iter()
+                .chain(std::iter::once(&plr.weapon))
+                .filter(|n| n.0 != 0)
+                .filter_map(|n| world.items.get(n).cloned())
+                .collect()
+        })
+        .unwrap_or_default();
     let Some(plr) = world.session_mut(id).and_then(|s| s.character.as_mut()) else {
         return Suicide::NoCharacter;
     };
-    // the worn items and the weapon (their abilities: TODO(T-030, T-032))
+    for itm in &worn {
+        unequip_record(plr, itm);
+    }
     plr.worn = [ItemNo(0); NWORN];
     plr.wornuses = [NO_CHARGES; NWORN];
     plr.weapon = ItemNo(0);
@@ -305,13 +323,9 @@ pub fn commit_suicide(world: &mut World, id: SessionId, today: i64) -> Suicide {
         c.mana = c.maxmana as i16;
         c.map = newmap;
         c.room = newroom;
-        // the carried weight: the loyal and cursed items kept still weigh
-        c.wgt = c
-            .items
-            .iter()
-            .filter_map(|n| world.items.get(n))
-            .map(|itm| itm.weight.max(0) as u16)
-            .fold(0u16, u16::saturating_add);
+        // the load recounted (the loyal and cursed items kept still weigh) and their
+        // use counts put in order
+        update_weight_carried(world, &mut c);
         recalculate(world, &mut c, CalcMode::KeepCurrent);
         if let Some(s) = world.session_mut(id) {
             s.character = Some(c);

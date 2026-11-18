@@ -12,16 +12,6 @@ use silvermere_types::ids::SessionId;
 use crate::tell::PromptState;
 use crate::world::World;
 
-/// The output buffer is cleared inside the command of `id` (ending a multiple-match list, a
-/// non-ambiguous player lookup, using a scroll): the dispatcher's colour reset
-/// (`Msg::CmdNormal`) never reaches the player when nothing was told before the clear. Text
-/// the command already told stays: it had been sent. `true` when the reset was dropped.
-pub fn clear_output(world: &mut World, id: SessionId) -> bool {
-    world
-        .session_mut(id)
-        .is_some_and(|s| s.output.discard_last(&Msg::CmdNormal))
-}
-
 /// One queued item.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Item {
@@ -47,6 +37,9 @@ pub struct OutputBatch {
     items: Vec<Item>,
     /// Append the session's own prompt after everything else at flush time.
     pub reprompt: bool,
+    /// The prompts sent together with the item before them, as one message (a
+    /// `tell_room` with its prompt), by index into `items`.
+    joined: Vec<usize>,
 }
 
 impl OutputBatch {
@@ -75,25 +68,54 @@ impl OutputBatch {
     /// they were queued.
     pub fn truncate(&mut self, len: usize) {
         self.items.truncate(len);
+        self.joined.retain(|&i| i < len);
     }
 
     /// Drops everything queued.
     pub fn clear(&mut self) {
         self.items.clear();
+        self.joined.clear();
         self.reprompt = false;
     }
 
-    /// Removes the item at `index` when it is `msg` without a colour prefix (a message
-    /// that was queued and then dropped from the prf buffer); anything else stays.
-    pub fn remove_msg_at(&mut self, index: usize, msg: &Msg) {
-        if matches!(self.items.get(index), Some(Item::Msg { msg: m, colour: None }) if m == msg) {
-            self.items.remove(index);
-        }
+    /// Appends a prompt sent as one message with the item before it.
+    pub fn push_joined_prompt(&mut self, state: Option<PromptState>) {
+        self.joined.push(self.items.len());
+        self.push_prompt(state);
     }
 
-    /// Drops the last item when it is `msg` with no colour: what a [`clear_output`] (or a
-    /// `tell_room` that sends the output buffer to others) takes back of a line the command had
-    /// only queued so far, such as the dispatcher's `ANSI_NORMAL`. `true` when dropped.
+    /// The attack interrupt's clear (the line's `btuclo`): every prompt ends its message
+    /// with a mark that the clear keeps, so what is kept runs from the message of the first
+    /// prompt to the last prompt; the rest goes.
+    pub fn interrupt_clear(&mut self) {
+        self.reprompt = false;
+        let mut prompts = self
+            .items
+            .iter()
+            .enumerate()
+            .filter(|(_, i)| matches!(i, Item::Prompt(_)))
+            .map(|(n, _)| n);
+        let Some(first) = prompts.next() else {
+            self.clear();
+            return;
+        };
+        let last = prompts.next_back().unwrap_or(first);
+        let start = if first > 0 && self.joined.contains(&first) {
+            first - 1
+        } else {
+            first
+        };
+        self.items.truncate(last + 1);
+        self.items.drain(..start);
+        self.joined = self
+            .joined
+            .iter()
+            .filter(|&&i| i >= start && i <= last)
+            .map(|&i| i - start)
+            .collect();
+    }
+
+    /// Drops the last item when it is `msg` with no colour. `true` when dropped.
     pub fn discard_last(&mut self, msg: &Msg) -> bool {
         let last =
             matches!(self.items.last(), Some(Item::Msg { msg: m, colour: None }) if m == msg);
@@ -116,6 +138,7 @@ impl OutputBatch {
     /// Takes the queued items, leaving the batch empty.
     pub fn take(&mut self) -> (Vec<Item>, bool) {
         let reprompt = std::mem::take(&mut self.reprompt);
+        self.joined.clear();
         (std::mem::take(&mut self.items), reprompt)
     }
 
@@ -173,5 +196,37 @@ pub fn render_items(out: &mut Vec<u8>, items: &[Item], palette: Palette, prompt:
                 PromptText::Marker(marker) => out.extend_from_slice(marker),
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A flush forgets which prompts were joined to their lines: the interrupt's clear of
+    // the next batch keeps a plain prompt alone, not the line before it
+    #[test]
+    fn a_flush_forgets_the_joined_prompts() {
+        let mut b = OutputBatch::default();
+        b.push(Msg::CmdNormal);
+        b.push_joined_prompt(None);
+        let (items, _) = b.take();
+        assert_eq!(items.len(), 2);
+        b.push(Msg::CmdNormal);
+        b.push_prompt(None);
+        b.interrupt_clear();
+        assert_eq!(b.items().len(), 1);
+        assert!(matches!(b.items()[0], Item::Prompt(_)));
+    }
+
+    // A prompt joined to its line keeps the line through the interrupt's clear
+    #[test]
+    fn the_interrupt_keeps_a_joined_line() {
+        let mut b = OutputBatch::default();
+        b.push(Msg::CmdNormal);
+        b.push(Msg::CmdNormal);
+        b.push_joined_prompt(None);
+        b.interrupt_clear();
+        assert_eq!(b.items().len(), 2);
     }
 }

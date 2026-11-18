@@ -26,6 +26,7 @@ Dependencies point strictly downward:
 types <- rules <- text <- engine <- {db, auth, net, api} <- bin
 web <- bin
 import -> {types, db}
+fsd <- engine
 ```
 
 - `silvermere-engine` never depends on `-net` or `-db`: it consumes input events and emits
@@ -33,6 +34,8 @@ import -> {types, db}
 - `silvermere-import` is the only crate that knows Btrieve layouts.
 - `silvermere-web` depends on no other silvermere crate: the binary hands it the settings file
   and the sign-in check through its traits.
+- `silvermere-fsd` (the full-screen form library) depends on no other silvermere crate; only
+  the engine uses it.
 - `silvermere-testkit` is a dev-dependency only.
 - Every crate's `Cargo.toml` already lists the lower crates it may use. Adding an upward or
   sideways dependency fails review by diff; if a card seems to need one, the design is

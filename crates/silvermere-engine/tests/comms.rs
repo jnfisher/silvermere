@@ -580,9 +580,8 @@ mod comms {
         );
         let wire = h.bytes_since(from, far);
         let col = silvermere_text::colour::tell_colour(14, Default::default());
-        // tell_game sends the whole output buffer: the dispatcher's ANSI_NORMAL,
-        // still queued, goes to every listener ahead of the line
-        let mut want = b"\x1B[0;37;40m\x1B[79D\x1B[KAnn gossips: ".to_vec();
+        // the listeners get the line alone
+        let mut want = b"\x1B[79D\x1B[KAnn gossips: ".to_vec();
         want.extend_from_slice(col);
         want.extend_from_slice(b"hello  world\r\n");
         assert!(

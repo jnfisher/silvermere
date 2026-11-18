@@ -83,6 +83,10 @@ example = { gang = "Raiders" }
 text = "\r(This text is not installed: run `silvermere import`.)\r"
 note = "Goes out as one message. (sic) The parenthesis is never closed. The text is read from the package's `WCCMMUD.DLL` (the import writes it to `DLLTEXT.TXT`) at start-up (src/package.rs); this text is shown until it is installed."
 
+[messages.enter_quest7_stripped]
+text = "You have been stripped of 35,000,000 exp, and need to recomplete the red dragon ruby quest.\rYou will need to exit and re-enter the realm to be retrained so your stats can be verified.."
+note = "On entry, when the character's Quest type seven ability is at 2 and there is experience to take: the red dragon ruby quest's reward is taken back. No line end after the second sentence (sic)."
+
 [messages.enter_life_ebbing]
 text = "You feel your life-force ebbing.\r"
 
@@ -936,12 +940,12 @@ note = "With the experience column: a sysop in debug mode, or EXPTOPGANG."
 
 [messages.gang_row]
 text = "{@ANSI_FGRED}{rank}. {@ANSI_FGGREEN}{name} {@ANSI_FGMAGENTA}{leader} {@ANSI_FGBROWN}{members}    {@ANSI_FGGREEN}{created}\r"
-example = { rank = "  1", name = "Old Guard          ", leader = "Nester     ", members = "   3", created = "10/14/26" }
-note = "rank `%3.3s`, name `%-19.19s`, leader `%-11.11s`, members `%4.4s`, created ncedat (MM/DD/YY)."
+example = { rank = "  1", name = "Old Guard          ", leader = "Nester     ", members = "   3", created = "14-OCT-26" }
+note = "rank `%3.3s`, name `%-19.19s`, leader `%-11.11s`, members `%4.4s`, created ncedat (DD-MON-YY)."
 
 [messages.gang_row_exp]
 text = "{@ANSI_FGRED}{rank}. {@ANSI_FGGREEN}{name} {@ANSI_FGMAGENTA}{leader} {@ANSI_FGBROWN}{members}    {@ANSI_FGGREEN}{created}    {@ANSI_FGBROWN}{exp}\r"
-example = { rank = "  1", name = "Old Guard          ", leader = "Nester     ", members = "   3", created = "10/14/26", exp = "1000" }
+example = { rank = "  1", name = "Old Guard          ", leader = "Nester     ", members = "   3", created = "14-OCT-26", exp = "1000" }
 note = "As gang_row with the experience `%lu`, followed for a gang past the cap (GF_OVERFLOW) by `\\r%58.58s(%d times)` (more than one wrap) and `\\r%58.58s+%lu`."
 
 [messages.gangs_none]
@@ -1327,6 +1331,10 @@ args = { n = "i64" }
 example = { n = "5", cur = "gold crowns" }
 note = "The amount is the low word of the exit's first parameter (sic)."
 
+[messages.addon_not_activated]
+text = "{@ANSI_CLRLINE}{@ANSI_GREY}Your sysop must purchase the {@ANSI_WHITE}{addon}{@ANSI_GREY} before you may move through this exit.\r"
+example = { addon = "Dragon's Teeth add-on" }
+
 [messages.not_permitted]
 text = "You are not permitted in that room!\r"
 pattern = "not_permitted"
@@ -1429,39 +1437,43 @@ text = "{@ANSI_CLRLINE}{@ANSI_BROWN}You notice {who} sneak in from the {dir}{dra
 pattern = "sneak_seen_in"
 example = { who = "Bob", dir = "west", drag = "" }
 
+[messages.move_line_end]
+text = "\r"
+note = "The line end of a walk's lines (left_*, arrive_*), told with the listener's prompt."
+
 [messages.left_up]
-text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} just left up \bwards{drag}.{@COL_LINEEND}\r"
+text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} just left up \bwards{drag}.{@COL_LINEEND}"
 example = { who = "Bob", drag = "" }
-note = "The game sends the line in four pieces: ANSI_CLRLINE uncoloured, the name after COL_MOVENAME, the text after COL_MOVETEXT, the line end after COL_LINEEND with the listener's prompt. One message with the colour rows in place sends the same bytes. The ` \\b` (space, backspace) inside the word is the game's anti-script byte pair; the pattern registry needs it stripped, so no pattern is named."
+note = "The game sends the line in four pieces: ANSI_CLRLINE uncoloured, the name after COL_MOVENAME, the text after COL_MOVETEXT, the line end after COL_LINEEND with the listener's prompt. This message is the first three with the colour rows in place; move_line_end, with the prompt, is the fourth (the attack interrupt's clear keeps only that one). The ` \\b` (space, backspace) inside the word is the game's anti-script byte pair; the pattern registry needs it stripped, so no pattern is named."
 
 [messages.left_down]
-text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} just left down \bwards{drag}.{@COL_LINEEND}\r"
+text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} just left down \bwards{drag}.{@COL_LINEEND}"
 example = { who = "Bob", drag = "" }
 
 [messages.left_dir_1]
-text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} just left to t \bhe {dir}{drag}.{@COL_LINEEND}\r"
+text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} just left to t \bhe {dir}{drag}.{@COL_LINEEND}"
 example = { who = "Bob", dir = "north", drag = "" }
 
 [messages.left_dir_2]
-text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} just left to  \bthe {dir}{drag}.{@COL_LINEEND}\r"
+text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} just left to  \bthe {dir}{drag}.{@COL_LINEEND}"
 example = { who = "Bob", dir = "north", drag = "" }
 
 [messages.left_dir_3]
-text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} just left to th \be {dir}{drag}.{@COL_LINEEND}\r"
+text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} just left to th \be {dir}{drag}.{@COL_LINEEND}"
 example = { who = "Bob", dir = "north", drag = "" }
 
 [messages.arrive_above]
-text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} walks into the room from above{drag}.{@COL_LINEEND}\r"
+text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} walks into the room from above{drag}.{@COL_LINEEND}"
 pattern = "player_arrives"
 example = { who = "Bob", drag = "" }
 
 [messages.arrive_below]
-text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} walks into the room from below{drag}.{@COL_LINEEND}\r"
+text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} walks into the room from below{drag}.{@COL_LINEEND}"
 pattern = "player_arrives"
 example = { who = "Bob", drag = "" }
 
 [messages.arrive_dir]
-text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} walks into the room from the {dir}{drag}.{@COL_LINEEND}\r"
+text = "{@ANSI_CLRLINE}{@COL_MOVENAME}{who}{@COL_MOVETEXT} walks into the room from the {dir}{drag}.{@COL_LINEEND}"
 pattern = "player_arrives"
 example = { who = "Bob", dir = "south", drag = "" }
 
@@ -4277,6 +4289,10 @@ example = { name = "vine strike" }
 [messages.learn_spell_refused]
 text = "{@ANSI_CLRLINE}You don't know what to do with this!\r"
 
+[messages.learn_spell_too_powerful]
+text = "{@ANSI_CLRLINE}This spell is too powerful for you - You don't know what to do with this!\r"
+note = "The level test's prefix, then the refusal."
+
 [messages.monster_nothing_to_tell]
 text = "{@ANSI_CLRLINE}{name} has nothing to tell you!\r"
 example = { name = "troll" }
@@ -4447,7 +4463,7 @@ note = "`what` is `invoked a power` for a Kai class, else `cast a spell`. The Ge
 text = "{@ANSI_CLRLINE}{@ANSI_LTREDBLK}You have already {what} this round!\r"
 pattern = "already_this_round"
 example = { what = "cast a spell" }
-note = "Short of energy outside auto-combat. The game sends the line and then an empty send."
+note = "Short of energy outside auto-combat at the end of a cast. (sic) The game sends the line twice: its tell_user moves the buffer pointer back without emptying the buffer, so the next send repeats it."
 
 [messages.cast_short_mana]
 text = "{@ANSI_CLRLINE}{@ANSI_LTREDBLK}You do not have enough {what}.\r"

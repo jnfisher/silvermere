@@ -14,18 +14,18 @@
 //! The sneak and drag state of SNEAK and DRAG are the arguments of [`move_user_with`].
 
 use silvermere_text::Msg;
-use silvermere_types::enums::{Ability, Alignment, Direction, ExitType, MonsterType, RoomType};
+use silvermere_types::enums::{Ability, Alignment, Direction, MonsterType, RoomType};
 use silvermere_types::flags::{PlayerSettings, PlayerStatus, PlayerStatus2, RoomFlags};
 use silvermere_types::ids::{RoomKey, SessionId};
-use silvermere_types::names::{DIRECTION_NAMES_2, DIRECTION_NAMES_3};
-use silvermere_types::records::Character;
+use silvermere_types::records::{CastExit, Character, ExitParams};
 use silvermere_types::sizes::{NROOMMONS, NTRAIL};
 
 use super::exits::{Gate, GateCtx, exit_gate, live_exit, prompt, show_room, tell_room_all};
 use super::{GenerateSpec, HOOKS, direction, dirname};
+use crate::combat::monster;
 use crate::display::display_entry_movement;
 use crate::scheduler::Rng;
-use crate::tell::tell_user;
+use crate::tell::{Noise, TellBlind, tell_room, tell_user};
 use crate::world::{RoomState, World};
 
 /// The `how` argument of `move_user`.
@@ -257,8 +257,8 @@ pub fn move_user_with(
             }
         }
         // the usual ending: the Cast exit's epilogue
-        if finish && exit.kind == ExitType::Cast {
-            cast_epilogue(world, id, &name, &exit);
+        if finish && let ExitParams::Cast(cx) = exit.params() {
+            cast_epilogue(world, id, &name, cx);
         }
     } else {
         tell_user(world, id, Msg::NoExitClr);
@@ -273,25 +273,14 @@ pub fn move_user_with(
 
 /// The Cast exit's epilogue after any attempt: spell `exitpar2s` too, and `msgs[2]` of
 /// message `exitpar3s` to the room the player is in now.
-fn cast_epilogue(
-    world: &mut World,
-    id: SessionId,
-    name: &str,
-    exit: &silvermere_types::records::Exit,
-) {
-    if exit.par2 != 0 {
-        HOOKS
-            .spells
-            .room_cast_on_user(world, id, i32::from(exit.par2));
+fn cast_epilogue(world: &mut World, id: SessionId, name: &str, cx: CastExit) {
+    if cx.after != 0 {
+        HOOKS.spells.room_cast_on_user(world, id, cx.after);
     }
-    if exit.par3 == 0 {
+    if cx.message.0 == 0 {
         return;
     }
-    let Some(m) = world
-        .messages
-        .get(&silvermere_types::ids::MessageNo(exit.par3))
-        .map(|m| m.msgs.clone())
-    else {
+    let Some(m) = world.messages.get(&cx.message).map(|m| m.msgs.clone()) else {
         return;
     };
     if m[2].is_empty() {
@@ -406,12 +395,12 @@ fn perform_move(
                 _ => match world.rng.range(1, 4) {
                     2 => Msg::LeftDir2 {
                         who: who.clone(),
-                        dir: DIRECTION_NAMES_2[d].to_owned(),
+                        dir: world.cycles.direction_name(1, d),
                         drag: drag.clone(),
                     },
                     3 => Msg::LeftDir3 {
                         who: who.clone(),
-                        dir: DIRECTION_NAMES_3[d].to_owned(),
+                        dir: world.cycles.direction_name(2, d),
                         drag: drag.clone(),
                     },
                     _ => Msg::LeftDir1 {
@@ -421,7 +410,7 @@ fn perform_move(
                     },
                 },
             };
-            tell_room_all(world, from, [Some(id), dragvictim], left);
+            tell_walk(world, from, [Some(id), dragvictim], left);
             let arrive = match rev {
                 Direction::Up => Msg::ArriveAbove { who, drag },
                 Direction::Down => Msg::ArriveBelow { who, drag },
@@ -431,7 +420,7 @@ fn perform_move(
                     drag,
                 },
             };
-            tell_room_all(world, target, [Some(id), dragvictim], arrive);
+            tell_walk(world, target, [Some(id), dragvictim], arrive);
         }
         tell_user(world, id, Msg::AnsiNormal);
         if movedrag && let Some(v) = dragvictim {
@@ -462,6 +451,23 @@ fn perform_move(
     }
     if !unseen {
         handle_following_monsters(world, id, from, dir);
+    }
+}
+
+/// A walk's line to the room: the line, then its end with each listener's prompt, two
+/// messages as the game sends them.
+fn tell_walk(world: &mut World, room: RoomKey, except: [Option<SessionId>; 2], msg: Msg) {
+    for (msg, prompt) in [(msg, false), (Msg::MoveLineEnd, true)] {
+        tell_room(
+            world,
+            room,
+            except,
+            Noise::Always,
+            TellBlind::All,
+            prompt,
+            None,
+            &msg,
+        );
     }
 }
 
@@ -722,12 +728,8 @@ pub fn give_monsters_a_free_attack(world: &mut World, id: SessionId) -> bool {
         if monnum.0 == 0 {
             continue;
         }
-        let Some(mon) = world
-            .active_monsters
-            .values()
-            .find(|m| m.number == monnum)
-            .cloned()
-        else {
+        // looked up through the cache, as the game does
+        let Some(mon) = monster(world, monnum).cloned() else {
             continue;
         };
         if mon.followpct < roll {

@@ -143,7 +143,8 @@ fn meditate_tick(world: &mut World, id: SessionId) {
         return;
     }
     let mut wake = true;
-    if i32::from(plr.mana) < i32::from(plr.maxmana) {
+    // compared unsigned, as `maxmana` is: (sic) mana below 0 never comes back
+    if (plr.mana as u16) < plr.maxmana {
         if let Some(cls) = world.classes.get(&plr.class) {
             let stat = regen::class_stat(cls.magery, plr.intel, plr.wil, plr.cha);
             let r = regen::meditate_mana_regen(cls.magery, stat, plr.level, cls.magelvl);
@@ -176,7 +177,8 @@ fn stun_tick(world: &mut World, id: SessionId) {
     if !plr.status2.contains(PlayerStatus2::KNOCKEDDOWN) {
         return;
     }
-    plr.pvptimer = plr.pvptimer.saturating_sub(1);
+    // (sic) unsigned: one down from 0 is 255 more ticks
+    plr.pvptimer = plr.pvptimer.wrapping_sub(1);
     if plr.pvptimer > 0 {
         return;
     }

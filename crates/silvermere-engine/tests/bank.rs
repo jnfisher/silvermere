@@ -415,8 +415,7 @@ fn money_that_cannot_move_is_silent_but_the_room_still_looks() {
     assert_eq!(balance(&h, ann, BANK), None);
     // withdraw with no book: the same
     assert_eq!(h.line(ann, "withdraw 5"), PROMPT);
-    // and no ANSI_NORMAL reaches the user: the buffer it waited in went to the room (m3/bank
-    // against the original: these four steps differed only in colour)
+    // the user gets the command's colour reset and the prompt
     for line in ["deposit 51", "withdraw 5", "deposit 99", "withdraw 99"] {
         let from = h.log.len();
         h.line(ann, line);
@@ -424,7 +423,7 @@ fn money_that_cannot_move_is_silent_but_the_room_still_looks() {
         let bytes = h.written(from, ann);
         assert_eq!(
             bytes,
-            b"\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m]:",
+            b"\x1b[0;37;40m\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m]:",
             "{line}: {:?}",
             String::from_utf8_lossy(&bytes)
         );
@@ -435,16 +434,16 @@ fn money_that_cannot_move_is_silent_but_the_room_still_looks() {
     let from = h.log.len();
     h.line(ann, "withdraw 5");
     h.pump();
-    // nothing was told to Ann, so the buffer, the dispatcher's ANSI_NORMAL first, goes to the room
+    // the room gets the line alone
     assert_eq!(
         String::from_utf8_lossy(&h.written(from, bob)),
-        "\x1b[0;37;40m\x1b[79D\x1b[KYou see Ann making a withdrawal.\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m]:"
+        "\x1b[79D\x1b[KYou see Ann making a withdrawal.\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m]:"
     );
     h.line(ann, "deposit 20");
     let from = h.log.len();
     h.line(ann, "deposit 10");
     h.pump();
-    // the money moved: Ann was told, and the buffer with her; the room gets the line alone
+    // the money moved: Ann was told; the room gets the line alone
     assert_eq!(
         String::from_utf8_lossy(&h.written(from, bob)),
         "\x1b[79D\x1b[KYou see Ann making a deposit.\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m]:"

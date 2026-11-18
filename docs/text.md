@@ -65,13 +65,12 @@ specific displays (room and list displays, and realm entry) and 0 after them, so
 is per display, never global. The catalogue marks the messages that wrap; the
 default is no wrapping.
 
-`wrap::wrap` ports MBBSEmu's `LineBreaker`: a line holds at most `width` printable
-characters; when one more arrives, the line breaks at the last space (the space becomes
-`\r\n`), or before the character when the line has no space. ANSI sequences do not count;
-cursor moves `H`, `f`, `C`, `D`, `G` adjust the column; `\r` starts a new line; `\n` and DEL
-are ignored; a backspace takes one column back. A line therefore never fills all 80 columns
-(`MBBSEmu.Tests SessionBase_Tests.cs:82`). `wrap::Wrapper` keeps the line state across
-pushes for callers that assemble a line from several messages.
+`wrap::wrap` follows the host's word wrap. Before each byte, and at the end of the text,
+a line with more than `width - 1` columns breaks at its last space (the space becomes
+`\r\n`). A line with no space is never broken. `\r` starts a new line; `\n` and BEL take
+no column; every other byte, a backspace included, takes one. `ESC [` sequences take no
+columns, and one not ending in `m` starts the line again. Every message starts at
+column 0. The unit tests are lines recorded from the original host.
 
 ## CP437
 

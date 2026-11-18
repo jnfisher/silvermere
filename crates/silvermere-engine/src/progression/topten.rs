@@ -83,8 +83,9 @@ impl TopTen {
     /// than the slot past the end, an empty slot when the list is not full, and so with any
     /// experience at all; a full list drops its last entry for him.
     ///
-    /// Under the original a character the sysop took off TOPTEN could come back on it before
-    /// the next start-up; here an update takes him off (or keeps him off) the list.
+    /// Fixed: the game did not look at the sysop's NOTOPTEN here, so a character taken off
+    /// TOPTEN came back on at his next update; here an update takes him off (or keeps him
+    /// off) the list.
     pub fn update(&mut self, c: &Character) {
         let found = self.0.iter().position(|e| e.userid == c.userid);
         if c.settings.contains(PlayerSettings::NOTOPTEN) {
@@ -139,9 +140,8 @@ impl TopTen {
 }
 
 impl World {
-    /// [`TopTen::update`] for the session's character. The experience gain calls it
-    /// ([`crate::progression::add_experience`]); the save and combat-stop paths (T-023,
-    /// T-033/T-034) call it too.
+    /// [`TopTen::update`] for the session's character. Only the combat-stop notice calls
+    /// it, as in the game: a gain shows on the list once a fight is over.
     pub fn update_top_list(&mut self, id: SessionId) {
         let Some(c) = self.sessions.get(&id).and_then(|s| s.character.as_ref()) else {
             return;
