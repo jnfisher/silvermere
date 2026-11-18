@@ -53,11 +53,11 @@ pub const MIN_PVP_LEVEL: u16 = 4;
 /// Evil points from which a player is a FIEND.
 const FIEND_EVIL: i16 = 210;
 
-/// The message, then the prompt, to one player.
+/// The message, then the prompt, to one player, in one message.
 fn say_prompt(world: &mut World, id: SessionId, msg: Msg) {
     if let Some(s) = world.session_mut(id) {
         s.output.push(msg);
-        s.push_prompt();
+        s.push_joined_prompt();
     }
 }
 
@@ -106,6 +106,8 @@ fn maybe_follow(world: &mut World, monnum: ActiveMonsterId, name: &str) {
     {
         mon.following = name.to_owned();
         mon.friendly = 0;
+        // marked even when it already followed them
+        world.active_monsters.mark_dirty(monnum);
     }
 }
 
@@ -285,6 +287,7 @@ pub fn attack_user_monster(
     mode: Mode,
 ) -> Option<Outcome> {
     let mut mv = mv;
+    world.atkmove = mv;
     let mut monnum = monnum;
     let plr = player(world, id)?.clone();
     let mon = monster(world, monnum)?.clone();
@@ -315,7 +318,9 @@ pub fn attack_user_monster(
     let cycle = world.cycles.slowmoncycle;
     if let Some(m) = monster_mut(world, monnum) {
         m.flags.insert(ActiveMonsterFlags::FOUGHT);
-        crate::cycles::monsters::slow_update_monster(m, cycle);
+        if crate::cycles::monsters::slow_update_monster(m, cycle) {
+            world.active_monsters.mark_dirty(monnum);
+        }
     }
     if let Some(p) = player_mut(world, id) {
         p.status.remove(PlayerStatus::RESTING);
@@ -343,10 +348,13 @@ pub fn attack_user_monster(
         let (mut magreq, guardnum) = magic_and_guard(world, monnum);
         // a guard steps in
         if guardnum != 0 {
+            // the monster and its guards follow the player, not marked changed (sic): the
+            // game sets it on the record it holds
             let protname = mon.name.clone();
-            if let Some(m) = monster_mut(world, monnum) {
-                m.following = plr.firstname.clone();
-            }
+            let name = plr.firstname.clone();
+            world
+                .active_monsters
+                .set_quietly(monnum, |m| m.following = name);
             let slots = world
                 .room_state
                 .get(&key)
@@ -357,12 +365,10 @@ pub fn attack_user_monster(
                 if n.0 == 0 {
                     continue;
                 }
-                if let Some(g) = monster_mut(world, n)
-                    && g.knownnum.0 == guardnum
-                    && n != monnum
-                {
+                if monster(world, n).is_some_and(|g| g.knownnum.0 == guardnum) && n != monnum {
                     guardmon = Some(n);
-                    g.following = plr.firstname.clone();
+                    let name = plr.firstname.clone();
+                    world.active_monsters.set_quietly(n, |g| g.following = name);
                 }
             }
             if let Some(g) = guardmon {
@@ -381,6 +387,8 @@ pub fn attack_user_monster(
                 magreq = magic_and_guard(world, g).0;
             }
         }
+        // the monster attacked fetched again: the cache's last-used slot is its
+        let _ = monster(world, monnum);
         // Hit Magical
         if magreq != 0 {
             let hitmag = user_ability(world, &plr, Ability::HitMagical);
@@ -438,6 +446,7 @@ pub fn attack_user_monster(
             && m.energy as i32 == i32::from(m.maxenergy)
         {
             m.energy = 0;
+            world.active_monsters.mark_dirty(monnum);
         }
         engage_autocombat(world, id, AutoTarget::Monster(monnum), mv);
         // the monster may follow
@@ -504,6 +513,7 @@ pub fn attack_user_monster(
         // a backstab is only the first blow
         if mv == Move::Backstab {
             mv = Move::Attack;
+            world.atkmove = mv;
         }
         // the blow's energy
         let energy = player(world, id).map_or(0, |p| p.energy);
@@ -532,6 +542,8 @@ pub fn attack_user_monster(
                 m.poison = res.poison as i16;
             }
         }
+        // marked even for a blow of no damage
+        world.active_monsters.mark_dirty(monnum);
         let name = player(world, id)
             .map(|p| p.firstname.clone())
             .unwrap_or_default();
@@ -583,7 +595,20 @@ pub fn attack_user_monster(
                 }
                 if item_has(&itm, Ability::AutoUse) {
                     auto_use(world, id, wpn, Combatant::Monster(monnum));
-                    if check_kill_monster(world, monnum, Some(id)) {
+                    let dead = if world.active_monsters.peek(monnum).is_none() {
+                        // (sic) the cast killed it, and the game checks the cleared cache
+                        // slot again: no hit points, in room 0 of map 0. An empty room
+                        // cache slot has that key: a second kill with no coins, only the
+                        // line start. With none, the room is not found and a kill by a
+                        // player stops there: not dead
+                        if world.room_cache_free {
+                            tell_user(world, id, Msg::CoinsDropStart);
+                        }
+                        world.room_cache_free
+                    } else {
+                        check_kill_monster(world, monnum, Some(id))
+                    };
+                    if dead {
                         done = true;
                         killed = true;
                     }
@@ -630,8 +655,10 @@ pub fn attack_user_monster(
         if !done {
             pick_random_attack_move(&mut world.rng);
             let plr = player(world, id)?.clone();
-            let mon = monster(world, monnum)?.clone();
             let (a, v) = player_side(world, id, &plr, mv, mtype, AlignGroup::Neutral)?;
+            // a monster the weapon's cast killed is a cleared record: its side fails
+            world.active_monsters.peek(monnum)?;
+            let mon = monster(world, monnum)?.clone();
             let (d, _) = monster_side(world, &mon, 0, mv, user_group(&plr))?;
             atk = a;
             def = d;
@@ -645,6 +672,7 @@ pub fn attack_user_monster(
         } else {
             mv
         };
+        world.atkmove = next;
         engage_autocombat(world, id, AutoTarget::Monster(monnum), next);
     }
     last
@@ -668,6 +696,7 @@ pub fn attack_monster_user(
     id: SessionId,
 ) -> Option<Outcome> {
     let mon = monster(world, monnum)?.clone();
+    // looked up once: the game keeps this record for the whole attack
     let plr = player(world, id)?.clone();
     // a full round of energy
     if (mon.energy as i32) < i32::from(mon.maxenergy) {
@@ -764,11 +793,14 @@ pub fn attack_monster_user(
         p.status2.remove(PlayerStatus2::MEDITATING);
     }
     crate::state::login::leave::stop_users_exit(world, id);
-    if let Some(m) = monster_mut(world, monnum) {
+    if let Some(m) = world.active_monsters.peek_mut(monnum) {
         m.target = channel(id);
         m.inactive = 0;
     }
-    let key = room_of(&plr);
+    world.active_monsters.mark_dirty(monnum);
+    // monsters always strike plain blows
+    world.atkmove = Move::Attack;
+    let start = room_of(&plr);
     let penalty = world.config.smash_penalty as i32;
     let mut slot = 0usize;
     let mut stop = false;
@@ -777,6 +809,8 @@ pub fn attack_monster_user(
     let mut last = None;
     while !stop && rounds < MAX_BLOWS {
         rounds += 1;
+        // the room he is in now: a hit spell may have moved him (to jail)
+        let key = player(world, id).map_or(start, room_of);
         let wasup = player(world, id).is_some_and(|p| p.hp > 0);
         // the attack slot by the cumulative percentages
         let roll = world.rng.range(0, 100);
@@ -811,8 +845,8 @@ pub fn attack_monster_user(
             _ => continue,
         }
         // both sides
-        let mon = monster(world, monnum)?.clone();
-        if let Some(m) = monster_mut(world, monnum) {
+        let mon = world.active_monsters.peek(monnum)?.clone();
+        if let Some(m) = world.active_monsters.peek_mut(monnum) {
             m.flags.insert(ActiveMonsterFlags::FOUGHT);
         }
         let plr = player(world, id)?.clone();
@@ -827,7 +861,7 @@ pub fn attack_monster_user(
         )?;
         // a knocked-down monster
         if mon.flags.contains(ActiveMonsterFlags::DOWN) {
-            let up = monster_mut(world, monnum).map(|m| {
+            let up = world.active_monsters.peek_mut(monnum).map(|m| {
                 m.downrounds -= 1;
                 if m.downrounds <= 0 {
                     m.flags.remove(ActiveMonsterFlags::DOWN);
@@ -848,16 +882,17 @@ pub fn attack_monster_user(
         }
         let res = resolve(&mut atk, &def, Move::Attack, &mut world.rng);
         // not enough energy left: no blow, a miss
-        if u32::from(res.energy) > u32::from(monster(world, monnum)?.energy) {
+        if u32::from(res.energy) > u32::from(world.active_monsters.peek(monnum)?.energy) {
             last = Some(Outcome::Miss);
             break;
         }
-        if let Some(m) = monster_mut(world, monnum) {
+        if let Some(m) = world.active_monsters.peek_mut(monnum) {
             m.energy -= res.energy;
             if res.energy > m.energy {
                 stop = true;
             }
         }
+        world.active_monsters.mark_dirty(monnum);
         last = Some(res.outcome);
         let damage = match res.outcome {
             Outcome::Hit { damage, .. } => damage,
@@ -896,7 +931,7 @@ pub fn attack_monster_user(
             {
                 stop = true;
                 fightover = true;
-                if let Some(m) = monster_mut(world, monnum) {
+                if let Some(m) = world.active_monsters.peek_mut(monnum) {
                     m.following.clear();
                 }
             }
@@ -906,7 +941,7 @@ pub fn attack_monster_user(
             // knocked out by this blow
             if wasup && player(world, id).is_some_and(|p| p.hp <= 0) {
                 knock_out_user(world, id);
-                if let Some(m) = monster_mut(world, monnum) {
+                if let Some(m) = world.active_monsters.peek_mut(monnum) {
                     m.following.clear();
                 }
             }
@@ -914,7 +949,7 @@ pub fn attack_monster_user(
             if check_kill_user(world, id).died() {
                 stop = true;
                 fightover = true;
-                if let Some(m) = monster_mut(world, monnum) {
+                if let Some(m) = world.active_monsters.peek_mut(monnum) {
                     m.following.clear();
                 }
                 if res.exp > 0 {
@@ -957,20 +992,30 @@ pub fn attack_monster_user(
     // following
     if !fightover && kmon.montype != MonsterType::Angel {
         let guard_busy = kmon.montype == MonsterType::Guard
-            && monster(world, monnum).is_some_and(|m| !m.following.is_empty());
+            && world
+                .active_monsters
+                .peek(monnum)
+                .is_some_and(|m| !m.following.is_empty());
         if !guard_busy {
             let roll = world.rng.range(1, 100);
             let name = plr.firstname.clone();
-            if let Some(m) = monster_mut(world, monnum) {
+            let mut set = false;
+            if let Some(m) = world.active_monsters.peek_mut(monnum) {
                 if roll < i32::from(kmon.followpct) {
                     m.following = name;
                     m.friendly = 0;
+                    set = true;
                 } else if !matches!(
                     m.alignment,
                     Alignment::LawfulGood | Alignment::Good | Alignment::Neutral
                 ) {
                     m.following.clear();
+                    set = true;
                 }
+            }
+            // marked even when nothing changed
+            if set {
+                world.active_monsters.mark_dirty(monnum);
             }
         }
     }
@@ -990,7 +1035,10 @@ fn player_shields(
         return;
     };
     let key = room_of(&plr);
-    let mon_name = monster(world, monnum)
+    // the attacker's record in hand, not looked up again
+    let mon_name = world
+        .active_monsters
+        .peek(monnum)
         .map(|m| m.name.clone())
         .unwrap_or_default();
     let worn_msg = |world: &World, i: usize| -> i32 {
@@ -1100,6 +1148,7 @@ pub fn attack_user_user(
     mode: Mode,
 ) -> Option<Outcome> {
     let mut mv = mv;
+    world.atkmove = mv;
     let plr = player(world, id)?.clone();
     let tplr = player(world, target)?.clone();
     let alive = tplr.hp > 0;
@@ -1184,6 +1233,7 @@ pub fn attack_user_user(
             tell_user(world, id, Msg::CombatEngagedSplit);
             if is_combatting_user(world, target, id) {
                 mv = Move::Attack;
+                world.atkmove = mv;
             }
         } else {
             tell_user(world, id, Msg::CombatEngaged);
@@ -1251,8 +1301,9 @@ pub fn attack_user_user(
                 if !p.status2.contains(PlayerStatus2::KNOCKEDDOWN) {
                     return None;
                 }
+                // (sic) unsigned: one down from 0 is 255 more blows
                 p.pvptimer = p.pvptimer.wrapping_sub(1);
-                if (p.pvptimer as i8) <= 0 {
+                if p.pvptimer == 0 {
                     p.status2.remove(PlayerStatus2::KNOCKEDDOWN);
                     Some((p.firstname.clone(), room_of(p)))
                 } else {
@@ -1286,6 +1337,7 @@ pub fn attack_user_user(
         }
         if mv == Move::Backstab {
             mv = Move::Attack;
+            world.atkmove = mv;
         }
         if let Some(p) = player_mut(world, id) {
             p.energy -= res.energy;
@@ -1541,8 +1593,10 @@ pub fn attack_monster_monster(
     attacker: ActiveMonsterId,
     target: ActiveMonsterId,
 ) -> Option<Outcome> {
+    // the target is looked up first; both records are then changed in place
+    let tgt = monster(world, target).cloned();
     let atkm = monster(world, attacker)?.clone();
-    let tgt = monster(world, target)?.clone();
+    let tgt = tgt?;
     if (atkm.energy as i32) < i32::from(atkm.maxenergy) {
         return None;
     }
@@ -1550,6 +1604,7 @@ pub fn attack_monster_monster(
     if monster_has(world, &atkm, Ability::Flee) {
         return None;
     }
+    world.atkmove = Move::Attack;
     let (mut a, _) = monster_side(world, &atkm, 0, Move::Attack, monster_group(&kmon))?;
     let (d, _) = monster_side(world, &tgt, 0, Move::Attack, AlignGroup::Neutral)?;
     let res = resolve(&mut a, &d, Move::Attack, &mut world.rng);
@@ -1560,10 +1615,12 @@ pub fn attack_monster_monster(
         Outcome::Hit { damage, .. } => damage,
         _ => 0,
     };
-    if let Some(m) = monster_mut(world, attacker) {
+    if let Some(m) = world.active_monsters.peek_mut(attacker) {
         m.energy -= res.energy;
     }
-    if let Some(t) = monster_mut(world, target) {
+    world.active_monsters.mark_dirty(attacker);
+    world.active_monsters.mark_dirty(target);
+    if let Some(t) = world.active_monsters.peek_mut(target) {
         if damage > i32::from(t.hp) {
             damage = i32::from(t.hp);
         }
@@ -1572,12 +1629,12 @@ pub fn attack_monster_monster(
             t.poison = res.poison as i16;
         }
     }
-    let tgt = monster(world, target)?.clone();
+    let tgt = world.active_monsters.peek(target)?.clone();
     let shield = super::monster_ability(world, &tgt, Ability::DamageShield);
     let sting = |world: &mut World| {
         if shield != 0 {
             let dmg = shield_roll(world, shield);
-            if let Some(m) = monster_mut(world, attacker) {
+            if let Some(m) = world.active_monsters.peek_mut(attacker) {
                 m.hp = m.hp.wrapping_sub(dmg as i16);
                 if m.hp > m.maxhp {
                     m.hp = m.maxhp;

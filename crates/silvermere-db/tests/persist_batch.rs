@@ -78,8 +78,9 @@ fn writes(acct: AccountId, cids: &[CharacterId], refusals: bool) -> Vec<Write> {
                     copper: i,
                     ..Coins::default()
                 };
-                for slot in 0..r.below(4) as usize {
-                    s.items[slot] = RoomItem {
+                let n = r.below(4) as usize;
+                for slot in s.items.iter_mut().take(n) {
+                    *slot = RoomItem {
                         item: ItemNo(r.below(50) as i32 + 1),
                         uses: r.below(9) as i16,
                         count: 1,

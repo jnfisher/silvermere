@@ -19,7 +19,6 @@ use silvermere_types::sizes::NGROUP;
 use crate::commands::inventory::{coin_mut, proper_currency_name};
 use crate::cycles::MoveKind;
 use crate::movement::exits::prompt;
-use crate::output::clear_output;
 use crate::tell::{Noise, TellBlind, tell_room, tell_user};
 use crate::world::World;
 
@@ -367,15 +366,9 @@ pub fn change_user_rank(world: &mut World, id: SessionId, rank: Rank) {
     if told.is_empty() {
         tell_user(world, id, other);
     } else {
-        // Each send only rewinds the output buffer, so the text stays: with nothing
-        // written between the calls each member gets the same bytes, the dispatcher's
-        // ANSI_NORMAL included, and the player's own line is written over them
-        let pending = clear_output(world, id);
+        // each send only rewinds the output buffer, so every member gets the same line
         for m in told {
             if let Some(s) = world.session_mut(m) {
-                if pending {
-                    s.output.push(Msg::CmdNormal);
-                }
                 s.output.push(other.clone());
             }
         }

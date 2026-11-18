@@ -22,6 +22,11 @@ action_target
   palette 1: \x1b[79D\x1b[K\x1b[0;32mBob smiles at you.\r\n
   palette 2: \x1b[79D\x1b[K\x1b[0;32mBob smiles at you.\r\n
   palette 3: \x1b[79D\x1b[K\x1b[0;32mBob smiles at you.\r\n
+addon_not_activated
+  palette 0: \x1b[79D\x1b[K\x1b[0;37mYour sysop must purchase the \x1b[1;37mDragon\'s Teeth add-on\x1b[0;37m before you may move through this exit.\r\n
+  palette 1: \x1b[79D\x1b[K\x1b[0;37mYour sysop must purchase the \x1b[1;37mDragon\'s Teeth add-on\x1b[0;37m before you may move through this exit.\r\n
+  palette 2: \x1b[79D\x1b[K\x1b[0;37mYour sysop must purchase the \x1b[1;37mDragon\'s Teeth add-on\x1b[0;37m before you may move through this exit.\r\n
+  palette 3: \x1b[79D\x1b[K\x1b[0;37mYour sysop must purchase the \x1b[1;37mDragon\'s Teeth add-on\x1b[0;37m before you may move through this exit.\r\n
 aid_not_needed
   palette 0: \x1b[79D\x1b[KBob is in no need of assistance.\r\n
   palette 1: \x1b[79D\x1b[KBob is in no need of assistance.\r\n
@@ -83,20 +88,20 @@ arm_syntax
   palette 2: \x1b[1;31;40mSyntax: ARM {weapon name}\r\n
   palette 3: \x1b[1;31;40mSyntax: ARM {weapon name}\r\n
 arrive_above
-  palette 0: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m walks into the room from above.\r\n
-  palette 1: \x1b[79D\x1b[K\x1b[0;31mBob\x1b[0;32m walks into the room from above.\r\n
-  palette 2: \x1b[79D\x1b[K\x1b[0;30m\x1b[47mBob walks into the room from above.\x1b[40m\r\n
-  palette 3: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m walks into the room from above.\r\n
+  palette 0: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m walks into the room from above.
+  palette 1: \x1b[79D\x1b[K\x1b[0;31mBob\x1b[0;32m walks into the room from above.
+  palette 2: \x1b[79D\x1b[K\x1b[0;30m\x1b[47mBob walks into the room from above.\x1b[40m
+  palette 3: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m walks into the room from above.
 arrive_below
-  palette 0: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m walks into the room from below.\r\n
-  palette 1: \x1b[79D\x1b[K\x1b[0;31mBob\x1b[0;32m walks into the room from below.\r\n
-  palette 2: \x1b[79D\x1b[K\x1b[0;30m\x1b[47mBob walks into the room from below.\x1b[40m\r\n
-  palette 3: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m walks into the room from below.\r\n
+  palette 0: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m walks into the room from below.
+  palette 1: \x1b[79D\x1b[K\x1b[0;31mBob\x1b[0;32m walks into the room from below.
+  palette 2: \x1b[79D\x1b[K\x1b[0;30m\x1b[47mBob walks into the room from below.\x1b[40m
+  palette 3: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m walks into the room from below.
 arrive_dir
-  palette 0: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m walks into the room from the south.\r\n
-  palette 1: \x1b[79D\x1b[K\x1b[0;31mBob\x1b[0;32m walks into the room from the south.\r\n
-  palette 2: \x1b[79D\x1b[K\x1b[0;30m\x1b[47mBob walks into the room from the south.\x1b[40m\r\n
-  palette 3: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m walks into the room from the south.\r\n
+  palette 0: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m walks into the room from the south.
+  palette 1: \x1b[79D\x1b[K\x1b[0;31mBob\x1b[0;32m walks into the room from the south.
+  palette 2: \x1b[79D\x1b[K\x1b[0;30m\x1b[47mBob walks into the room from the south.\x1b[40m
+  palette 3: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m walks into the room from the south.
 auction_prefix
   palette 0: \x1b[79D\x1b[KBob auctions: 
   palette 1: \x1b[79D\x1b[KBob auctions: 
@@ -1282,6 +1287,11 @@ enter_promoted
   palette 1: \x1b[1;37mYou have been promoted to the rank of lieutenant.\r\n
   palette 2: \x1b[1;37mYou have been promoted to the rank of lieutenant.\r\n
   palette 3: \x1b[1;37mYou have been promoted to the rank of lieutenant.\r\n
+enter_quest7_stripped
+  palette 0: You have been stripped of 35,000,000 exp, and need to recomplete the red dragon ruby quest.\r\nYou will need to exit and re-enter the realm to be retrained so your stats can be verified..
+  palette 1: You have been stripped of 35,000,000 exp, and need to recomplete the red dragon ruby quest.\r\nYou will need to exit and re-enter the realm to be retrained so your stats can be verified..
+  palette 2: You have been stripped of 35,000,000 exp, and need to recomplete the red dragon ruby quest.\r\nYou will need to exit and re-enter the realm to be retrained so your stats can be verified..
+  palette 3: You have been stripped of 35,000,000 exp, and need to recomplete the red dragon ruby quest.\r\nYou will need to exit and re-enter the realm to be retrained so your stats can be verified..
 evil_gained
   palette 0: \x1b[1;30mA dark cloud passes over you\r\n
   palette 1: \x1b[1;30mA dark cloud passes over you\r\n
@@ -1893,15 +1903,15 @@ gang_removed_offline
   palette 2: You removed Bob from your gang.\r\n
   palette 3: You removed Bob from your gang.\r\n
 gang_row
-  palette 0: \x1b[31m  1. \x1b[32mOld Guard           \x1b[35mNester      \x1b[33m   3    \x1b[32m10/14/26\r\n
-  palette 1: \x1b[31m  1. \x1b[32mOld Guard           \x1b[35mNester      \x1b[33m   3    \x1b[32m10/14/26\r\n
-  palette 2: \x1b[31m  1. \x1b[32mOld Guard           \x1b[35mNester      \x1b[33m   3    \x1b[32m10/14/26\r\n
-  palette 3: \x1b[31m  1. \x1b[32mOld Guard           \x1b[35mNester      \x1b[33m   3    \x1b[32m10/14/26\r\n
+  palette 0: \x1b[31m  1. \x1b[32mOld Guard           \x1b[35mNester      \x1b[33m   3    \x1b[32m14-OCT-26\r\n
+  palette 1: \x1b[31m  1. \x1b[32mOld Guard           \x1b[35mNester      \x1b[33m   3    \x1b[32m14-OCT-26\r\n
+  palette 2: \x1b[31m  1. \x1b[32mOld Guard           \x1b[35mNester      \x1b[33m   3    \x1b[32m14-OCT-26\r\n
+  palette 3: \x1b[31m  1. \x1b[32mOld Guard           \x1b[35mNester      \x1b[33m   3    \x1b[32m14-OCT-26\r\n
 gang_row_exp
-  palette 0: \x1b[31m  1. \x1b[32mOld Guard           \x1b[35mNester      \x1b[33m   3    \x1b[32m10/14/26    \x1b[33m1000\r\n
-  palette 1: \x1b[31m  1. \x1b[32mOld Guard           \x1b[35mNester      \x1b[33m   3    \x1b[32m10/14/26    \x1b[33m1000\r\n
-  palette 2: \x1b[31m  1. \x1b[32mOld Guard           \x1b[35mNester      \x1b[33m   3    \x1b[32m10/14/26    \x1b[33m1000\r\n
-  palette 3: \x1b[31m  1. \x1b[32mOld Guard           \x1b[35mNester      \x1b[33m   3    \x1b[32m10/14/26    \x1b[33m1000\r\n
+  palette 0: \x1b[31m  1. \x1b[32mOld Guard           \x1b[35mNester      \x1b[33m   3    \x1b[32m14-OCT-26    \x1b[33m1000\r\n
+  palette 1: \x1b[31m  1. \x1b[32mOld Guard           \x1b[35mNester      \x1b[33m   3    \x1b[32m14-OCT-26    \x1b[33m1000\r\n
+  palette 2: \x1b[31m  1. \x1b[32mOld Guard           \x1b[35mNester      \x1b[33m   3    \x1b[32m14-OCT-26    \x1b[33m1000\r\n
+  palette 3: \x1b[31m  1. \x1b[32mOld Guard           \x1b[35mNester      \x1b[33m   3    \x1b[32m14-OCT-26    \x1b[33m1000\r\n
 gang_shop_deposit_debug
   palette 0: \x1b[0;37;40mGANGSHOP DEPOSIT : bob : 150 copper farthings.\r\n
   palette 1: \x1b[0;37;40mGANGSHOP DEPOSIT : bob : 150 copper farthings.\r\n
@@ -2472,31 +2482,36 @@ learn_spell_refused
   palette 1: \x1b[79D\x1b[KYou don\'t know what to do with this!\r\n
   palette 2: \x1b[79D\x1b[KYou don\'t know what to do with this!\r\n
   palette 3: \x1b[79D\x1b[KYou don\'t know what to do with this!\r\n
+learn_spell_too_powerful
+  palette 0: \x1b[79D\x1b[KThis spell is too powerful for you - You don\'t know what to do with this!\r\n
+  palette 1: \x1b[79D\x1b[KThis spell is too powerful for you - You don\'t know what to do with this!\r\n
+  palette 2: \x1b[79D\x1b[KThis spell is too powerful for you - You don\'t know what to do with this!\r\n
+  palette 3: \x1b[79D\x1b[KThis spell is too powerful for you - You don\'t know what to do with this!\r\n
 left_dir_1
-  palette 0: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m just left to t \x08he north.\r\n
-  palette 1: \x1b[79D\x1b[K\x1b[0;31mBob\x1b[0;32m just left to t \x08he north.\r\n
-  palette 2: \x1b[79D\x1b[K\x1b[0;30m\x1b[47mBob just left to t \x08he north.\x1b[40m\r\n
-  palette 3: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m just left to t \x08he north.\r\n
+  palette 0: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m just left to t \x08he north.
+  palette 1: \x1b[79D\x1b[K\x1b[0;31mBob\x1b[0;32m just left to t \x08he north.
+  palette 2: \x1b[79D\x1b[K\x1b[0;30m\x1b[47mBob just left to t \x08he north.\x1b[40m
+  palette 3: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m just left to t \x08he north.
 left_dir_2
-  palette 0: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m just left to  \x08the north.\r\n
-  palette 1: \x1b[79D\x1b[K\x1b[0;31mBob\x1b[0;32m just left to  \x08the north.\r\n
-  palette 2: \x1b[79D\x1b[K\x1b[0;30m\x1b[47mBob just left to  \x08the north.\x1b[40m\r\n
-  palette 3: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m just left to  \x08the north.\r\n
+  palette 0: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m just left to  \x08the north.
+  palette 1: \x1b[79D\x1b[K\x1b[0;31mBob\x1b[0;32m just left to  \x08the north.
+  palette 2: \x1b[79D\x1b[K\x1b[0;30m\x1b[47mBob just left to  \x08the north.\x1b[40m
+  palette 3: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m just left to  \x08the north.
 left_dir_3
-  palette 0: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m just left to th \x08e north.\r\n
-  palette 1: \x1b[79D\x1b[K\x1b[0;31mBob\x1b[0;32m just left to th \x08e north.\r\n
-  palette 2: \x1b[79D\x1b[K\x1b[0;30m\x1b[47mBob just left to th \x08e north.\x1b[40m\r\n
-  palette 3: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m just left to th \x08e north.\r\n
+  palette 0: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m just left to th \x08e north.
+  palette 1: \x1b[79D\x1b[K\x1b[0;31mBob\x1b[0;32m just left to th \x08e north.
+  palette 2: \x1b[79D\x1b[K\x1b[0;30m\x1b[47mBob just left to th \x08e north.\x1b[40m
+  palette 3: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m just left to th \x08e north.
 left_down
-  palette 0: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m just left down \x08wards.\r\n
-  palette 1: \x1b[79D\x1b[K\x1b[0;31mBob\x1b[0;32m just left down \x08wards.\r\n
-  palette 2: \x1b[79D\x1b[K\x1b[0;30m\x1b[47mBob just left down \x08wards.\x1b[40m\r\n
-  palette 3: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m just left down \x08wards.\r\n
+  palette 0: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m just left down \x08wards.
+  palette 1: \x1b[79D\x1b[K\x1b[0;31mBob\x1b[0;32m just left down \x08wards.
+  palette 2: \x1b[79D\x1b[K\x1b[0;30m\x1b[47mBob just left down \x08wards.\x1b[40m
+  palette 3: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m just left down \x08wards.
 left_up
-  palette 0: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m just left up \x08wards.\r\n
-  palette 1: \x1b[79D\x1b[K\x1b[0;31mBob\x1b[0;32m just left up \x08wards.\r\n
-  palette 2: \x1b[79D\x1b[K\x1b[0;30m\x1b[47mBob just left up \x08wards.\x1b[40m\r\n
-  palette 3: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m just left up \x08wards.\r\n
+  palette 0: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m just left up \x08wards.
+  palette 1: \x1b[79D\x1b[K\x1b[0;31mBob\x1b[0;32m just left up \x08wards.
+  palette 2: \x1b[79D\x1b[K\x1b[0;30m\x1b[47mBob just left up \x08wards.\x1b[40m
+  palette 3: \x1b[79D\x1b[K\x1b[1;31mBob\x1b[0;32m just left up \x08wards.
 light_blinding
   palette 0: You are blind!\r\n
   palette 1: You are blind!\r\n
@@ -2733,10 +2748,10 @@ look_nothing
   palette 2: \x1b[1;31;40mWhy would you want to look at that?\r\n
   palette 3: \x1b[1;31;40mWhy would you want to look at that?\r\n
 look_player
-  palette 0: \r\nBob is a healthy, moderately built Human Warrior with short brown hair and\r\nhazel eyes.  He moves cautiously, and is likable in an unassuming sort of way. \r\nBob appears to be intelligent and looks fairly knowledgeable.  He is unwounded.\r\n
-  palette 1: \r\nBob is a healthy, moderately built Human Warrior with short brown hair and\r\nhazel eyes.  He moves cautiously, and is likable in an unassuming sort of way. \r\nBob appears to be intelligent and looks fairly knowledgeable.  He is unwounded.\r\n
-  palette 2: \r\nBob is a healthy, moderately built Human Warrior with short brown hair and\r\nhazel eyes.  He moves cautiously, and is likable in an unassuming sort of way. \r\nBob appears to be intelligent and looks fairly knowledgeable.  He is unwounded.\r\n
-  palette 3: \r\nBob is a healthy, moderately built Human Warrior with short brown hair and\r\nhazel eyes.  He moves cautiously, and is likable in an unassuming sort of way. \r\nBob appears to be intelligent and looks fairly knowledgeable.  He is unwounded.\r\n
+  palette 0: \r\nBob is a healthy, moderately built Human Warrior with short brown hair and\r\nhazel eyes.  He moves cautiously, and is likable in an unassuming sort of way.\r\n Bob appears to be intelligent and looks fairly knowledgeable.  He is\r\nunwounded.\r\n
+  palette 1: \r\nBob is a healthy, moderately built Human Warrior with short brown hair and\r\nhazel eyes.  He moves cautiously, and is likable in an unassuming sort of way.\r\n Bob appears to be intelligent and looks fairly knowledgeable.  He is\r\nunwounded.\r\n
+  palette 2: \r\nBob is a healthy, moderately built Human Warrior with short brown hair and\r\nhazel eyes.  He moves cautiously, and is likable in an unassuming sort of way.\r\n Bob appears to be intelligent and looks fairly knowledgeable.  He is\r\nunwounded.\r\n
+  palette 3: \r\nBob is a healthy, moderately built Human Warrior with short brown hair and\r\nhazel eyes.  He moves cautiously, and is likable in an unassuming sort of way.\r\n Bob appears to be intelligent and looks fairly knowledgeable.  He is\r\nunwounded.\r\n
 look_player_cr
   palette 0: \r\n
   palette 1: \r\n
@@ -2962,6 +2977,11 @@ move_delay_debug
   palette 1: Delay: 2\r\n
   palette 2: Delay: 2\r\n
   palette 3: Delay: 2\r\n
+move_line_end
+  palette 0: \r\n
+  palette 1: \r\n
+  palette 2: \r\n
+  palette 3: \r\n
 move_no_drag_in_party
   palette 0: \x1b[79D\x1b[K\x1b[1;37mYou may not drag someone while in a party!\r\n
   palette 1: \x1b[79D\x1b[K\x1b[1;37mYou may not drag someone while in a party!\r\n

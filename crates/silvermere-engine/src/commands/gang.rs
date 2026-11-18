@@ -24,16 +24,15 @@ use super::{Cmd, CommandLine, eq_ignore_case, starts_with_ignore_case};
 use crate::comms::forget::is_user_forgotten;
 use crate::display::gang::{display_gang_members, display_online_gang_members};
 use crate::gangs::{
-    GANG_MINEXP, GANGNAMELEN, GangQuery, OfflineOp, Target, ask, find_any_action_target,
-    find_room_user, gang_key, gang_shop_item_value, get_gang, invite_to_gang, remove_from_gang,
-    save_gang, save_gang_shop, set_gang_shop_owner,
+    GANG_MINEXP, GANGNAMELEN, OfflineOp, Target, ask, find_any_action_target, find_room_user,
+    gang_key, gang_shop_item_value, get_gang, invite_to_gang, offline_query, place_gang_last,
+    remove_from_gang, save_gang, save_gang_shop, set_gang_shop_owner,
 };
 use crate::items::inventory::{
     Search, add_item_to_inventory, find_item_in_inventory, remove_item_from_inventory,
     show_options, user_is_wearing,
 };
 use crate::items::room_items::add_item_to_room;
-use crate::output::clear_output;
 use crate::shops::{GANG_SLOTS, get_shop_item_from_name};
 use crate::tell::{Noise, TellBlind, tell_gang, tell_room, tell_user};
 use crate::world::World;
@@ -179,6 +178,7 @@ fn create_gang(world: &mut World, id: SessionId, plr: &Character, name: &str) {
         overflows: 0,
     };
     world.gangs.insert(key.clone(), gang);
+    place_gang_last(world, &key);
     save_gang(world, &key);
     if let Some(p) = player_mut(world, id) {
         p.gang = name.to_string();
@@ -254,18 +254,15 @@ pub fn invite_member(world: &mut World, id: SessionId, line: &CommandLine) -> Op
             return Some(Handled::Done);
         }
         Target::None => {
-            clear_output(world, id);
             tell_user(world, id, Msg::GangNotHere { who: shown });
             return Some(Handled::Done);
         }
         Target::Monster => {
-            clear_output(world, id);
             tell_user(world, id, Msg::GangInviteSyntax);
             return Some(Handled::Done);
         }
         Target::User(t) => t,
     };
-    clear_output(world, id);
     if tgt == id {
         tell_user(world, id, Msg::GangInviteSelf);
         return Some(Handled::Done);
@@ -327,22 +324,14 @@ pub fn uninvite_member(world: &mut World, id: SessionId, line: &CommandLine) -> 
         show_options(world, id, &names);
         return Some(Handled::Done);
     }
-    clear_output(world, id);
     if target == Target::None {
         target = find_any_action_target(world, &name);
     }
     let tgt = match target {
         Target::None | Target::Monster => {
             // a member not in the game: the answer comes from the store
-            ask(
-                world,
-                id,
-                GangQuery::Offline {
-                    name,
-                    gang: plr.gang.clone(),
-                    op: OfflineOp::Uninvite,
-                },
-            );
+            let query = offline_query(&name, &plr.gang, OfflineOp::Uninvite);
+            ask(world, id, query);
             return Some(Handled::Wait);
         }
         Target::Multiple(_) => {
@@ -596,15 +585,8 @@ pub fn cmd_promote(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLi
             Handled::Done
         }
         Some(RankTarget::Offline) => {
-            ask(
-                world,
-                id,
-                GangQuery::Offline {
-                    name: line.arg(1).to_string(),
-                    gang: plr.gang,
-                    op: OfflineOp::Promote,
-                },
-            );
+            let query = offline_query(line.arg(1), &plr.gang, OfflineOp::Promote);
+            ask(world, id, query);
             Handled::Wait
         }
     }
@@ -647,15 +629,8 @@ pub fn cmd_demote(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLin
             Handled::Done
         }
         Some(RankTarget::Offline) => {
-            ask(
-                world,
-                id,
-                GangQuery::Offline {
-                    name: line.arg(1).to_string(),
-                    gang: plr.gang,
-                    op: OfflineOp::Demote,
-                },
-            );
+            let query = offline_query(line.arg(1), &plr.gang, OfflineOp::Demote);
+            ask(world, id, query);
             Handled::Wait
         }
     }
@@ -750,8 +725,7 @@ pub fn cmd_stock(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLine
     }
     stop_hiding(world, id);
     let found = find_item_in_inventory(world, &plr, line.rest_from(1), Search::Any);
-    // the match lookup ends: the candidate list is thrown away and the item found is stocked
-    clear_output(world, id);
+    // the item found is stocked
     let Some(itm) = found.item.and_then(|n| world.items.get(&n)).cloned() else {
         return Handled::Done;
     };
@@ -783,18 +757,18 @@ pub fn cmd_stock(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLine
     };
     // a slot already selling it with room, else the first empty one
     let mut slot = None;
-    for i in 0..GANG_SLOTS {
+    for (i, stock) in shp.stock.iter().enumerate().take(GANG_SLOTS) {
         if debug {
             tell_user(
                 world,
                 id,
                 Msg::GangStockDebugSlot {
                     slot: i as i32,
-                    item: shp.stock[i].item.0 as u32,
+                    item: stock.item.0 as u32,
                 },
             );
         }
-        if slot.is_none() && shp.stock[i].item == itm.number && shp.stock[i].qty < GANGMAXQTY {
+        if slot.is_none() && stock.item == itm.number && stock.qty < GANGMAXQTY {
             slot = Some((i, false));
         }
     }
@@ -939,9 +913,6 @@ pub fn cmd_unstock(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLi
     let debug = debug_on(world, id);
     let shp = world.shops[&shopnum].clone();
     let found = get_shop_item_from_name(world, &shp, line.rest_from(1));
-    if found.cleared {
-        clear_output(world, id);
-    }
     if found.item.is_none() && found.count > 0 {
         // several candidates: the list is sent
         show_options(world, id, &found.options);
@@ -950,8 +921,7 @@ pub fn cmd_unstock(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLi
     if let Some(itm) = found.item.and_then(|n| world.items.get(&n)).cloned() {
         let mut pick = None;
         let mut lowqty = GANGMAXQTY;
-        for i in 0..GANG_SLOTS {
-            let s = &shp.stock[i];
+        for (i, s) in shp.stock.iter().enumerate().take(GANG_SLOTS) {
             if s.item == itm.number && s.qty > 0 {
                 if s.qty <= lowqty {
                     pick = Some(i);

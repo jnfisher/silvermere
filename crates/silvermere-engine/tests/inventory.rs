@@ -701,22 +701,24 @@ fn equip_words_alone_show_their_syntax() {
     assert_eq!(cmd(&mut w, id, "remove"), ["Syntax: REMOVE {item name}"]);
 }
 
-// cmd_equip's find (a `clear_output`) takes back the dispatcher's ANSI_NORMAL: the reply starts at
-// the clear-line, as in the `shop` capture (steps 12, 22-26)
+// WEAR and WIELD: the command's colour reset, then the reply from the clear-line.
 #[test]
-fn wear_and_wield_start_without_the_dispatchers_reset() {
+fn wear_and_wield_start_with_the_reset() {
     let mut w = world();
     let id = player(&mut w, "Aldric");
     give(&mut w, id, HELM);
     execute_input(&mut w, id, "wear helm", false);
     let bytes = take(&mut w, id);
-    assert_eq!(bytes, b"\x1b[79D\x1b[KYou are now wearing padded helm.\r\n");
+    assert_eq!(
+        bytes,
+        b"\x1b[0;37;40m\x1b[79D\x1b[KYou are now wearing padded helm.\r\n"
+    );
     give(&mut w, id, QUARTERSTAFF);
     execute_input(&mut w, id, "wield quarterstaff", false);
     let bytes = take(&mut w, id);
     assert_eq!(
         bytes,
-        b"\x1b[79D\x1b[KYou are now holding quarterstaff.\r\n"
+        b"\x1b[0;37;40m\x1b[79D\x1b[KYou are now holding quarterstaff.\r\n"
     );
 }
 

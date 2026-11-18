@@ -3,7 +3,10 @@
 //! The list is the sessions in the game in the original's alphabetical order (first names
 //! upper cased, ties in channel order). The sysop modes 1 and 2 are T-055's.
 
+use std::collections::BTreeMap;
+
 use silvermere_text::{Msg, ansi};
+use silvermere_types::enums::{NewCharStep, SessionState};
 use silvermere_types::flags::{PlayerFlags, PlayerSettings};
 use silvermere_types::ids::SessionId;
 use silvermere_types::records::Character;
@@ -70,15 +73,85 @@ pub fn players_in_list_order(world: &World) -> Vec<SessionId> {
     ids.into_iter().map(|(_, id)| id).collect()
 }
 
-/// The name column's width, as the user list sets it: the longest "first last" in the game,
-/// at least 5 and at most 29.
-pub fn max_name_len(world: &World) -> usize {
-    players_in_list_order(world)
+/// The user list as the game last ranked it: each player then in the game, by "first last",
+/// and the name column's width. The game ranks it again only when a player enters or leaves
+/// the realm, or is renamed; going into the stat editor (TRAIN STATS) is not one of those, so
+/// a player there keeps his place in the width.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserList {
+    names: BTreeMap<SessionId, String>,
+    width: usize,
+}
+
+impl Default for UserList {
+    fn default() -> Self {
+        Self {
+            names: BTreeMap::new(),
+            width: MINNAMELEN,
+        }
+    }
+}
+
+/// Each player in the game, by "first last".
+fn names_in_game(world: &World) -> BTreeMap<SessionId, String> {
+    world
+        .sessions
         .iter()
-        .filter_map(|&id| world.session(id).and_then(|s| s.player()))
-        .map(|p| p.firstname.chars().count() + p.lastname.chars().count() + 1)
+        .filter(|(_, s)| s.is_in_game())
+        .filter_map(|(&id, s)| {
+            s.player()
+                .map(|p| (id, format!("{} {}", p.firstname, p.lastname)))
+        })
+        .collect()
+}
+
+/// The longest name, at least 5 and at most 29.
+fn width_of(names: &BTreeMap<SessionId, String>) -> usize {
+    names
+        .values()
+        .map(|n| n.chars().count())
         .fold(MINNAMELEN, usize::max)
         .min(MAXNAMELEN)
+}
+
+/// Whether the list still stands: the same players under the same names, a player in the
+/// stat editor counting as still in.
+fn list_stands(world: &World, list: &UserList, live: &BTreeMap<SessionId, String>) -> bool {
+    let editing = |id: &SessionId, name: &String| {
+        world.session(*id).is_some_and(|s| {
+            s.state == SessionState::NewChar(NewCharStep::Stats)
+                && s.player()
+                    .is_some_and(|p| format!("{} {}", p.firstname, p.lastname) == *name)
+        })
+    };
+    live.iter().all(|(id, n)| list.names.get(id) == Some(n))
+        && list
+            .names
+            .iter()
+            .all(|(id, n)| live.get(id) == Some(n) || editing(id, n))
+}
+
+/// Ranks the user list again when the players in the game have changed (`rebuild_user_list`).
+pub fn rebuild_user_list(world: &mut World) {
+    let live = names_in_game(world);
+    if !list_stands(world, &world.display.user_list, &live) {
+        world.display.user_list = UserList {
+            width: width_of(&live),
+            names: live,
+        };
+    }
+}
+
+/// The name column's width, as the user list sets it: the longest "first last" in the game
+/// when the list was last ranked, at least 5 and at most 29.
+pub fn max_name_len(world: &World) -> usize {
+    let live = names_in_game(world);
+    let list = &world.display.user_list;
+    if list_stands(world, list, &live) {
+        list.width
+    } else {
+        width_of(&live)
+    }
 }
 
 /// The reputation word: `Lawful` for a forced-lawful character while ENABLAWF, else the

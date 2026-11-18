@@ -18,7 +18,6 @@ use crate::combat::{
     self, display_autocombat_broken, is_inside_autocombat, kill_autocombat, room_of, user_has,
 };
 use crate::items::inventory::{Search, find_item_in_inventory, matches_any_word, show_options};
-use crate::output::clear_output;
 use crate::spells::cast::{CastMode, CastOpts, CastTarget, Caster, apply_engage, cast};
 use crate::spells::spellbook::{find_spell_in_spellbook, user_can_use_spell};
 use crate::tell::tell_user;
@@ -161,28 +160,67 @@ pub fn find_action_target(
     if flags.floor
         && let Some(st) = world.room_state.get(&key)
     {
-        let counted_before = count;
+        // `find_item_in_room`: the items in view, then the hidden ones. Only the candidate
+        // that makes the count 1 is remembered, so with a count already started a partial
+        // match finds nothing; extra copies of it are not counted again.
+        let gettable = |n: ItemNo| world.items.get(&n).is_some_and(|i| i.gettable != 0);
         let mut first: Option<ItemNo> = None;
+        let mut hidden = false;
+        let mut taken: Option<(ItemNo, bool)> = None;
         for slot in st.items.iter().filter(|s| s.item.0 != 0) {
             let Some(itm) = world.items.get(&slot.item) else {
                 continue;
             };
-            if !matches_any_word(name, &itm.name) {
+            if !matches_any_word(name, &itm.name) || first == Some(slot.item) {
                 continue;
             }
+            count += 1;
+            if count == 1 {
+                first = Some(slot.item);
+            }
+            options.push(itm.name.clone());
             if eq_ignore_case(name, &itm.name) {
                 return Found::Floor(slot.item);
             }
-            if first != Some(slot.item) {
-                count += 1;
-                options.push(itm.name.clone());
-                first.get_or_insert(slot.item);
+        }
+        for (i, slot) in st.hiditems.iter().enumerate() {
+            let Some(itm) = world.items.get(&slot.item).filter(|_| slot.item.0 != 0) else {
+                continue;
+            };
+            if !matches_any_word(name, &itm.name) || first == Some(slot.item) {
+                continue;
+            }
+            hidden = true;
+            count += 1;
+            if count == 1 {
+                first = Some(slot.item);
+            }
+            // found by a search, or never gettable: in plain sight, taken at once;
+            // anything else hidden only by its exact name
+            if st.foundmask & (1u32 << i) != 0 || itm.gettable == 0 {
+                taken = Some((slot.item, true));
+                break;
+            }
+            if eq_ignore_case(name, &itm.name) {
+                taken = Some((slot.item, false));
+                break;
             }
         }
-        if let Some(item) = first
-            && counted_before == 0
+        // a hidden match counts only when revealed, or when the item cannot be picked up
+        let (item, revealed) = match taken {
+            Some(t) => {
+                count = 0;
+                (Some(t.0), t.1)
+            }
+            None => (first, false),
+        };
+        if let Some(n) = item
+            && (!hidden || revealed || !gettable(n))
         {
-            found = Found::Floor(item);
+            found = Found::Floor(n);
+            if count == 0 {
+                return found;
+            }
         }
     }
     if flags.spells
@@ -302,9 +340,6 @@ pub fn cast_command(
         show_options(world, id, &f.options);
         return Handled::Done;
     }
-    // the match lookup ends: the buffer is emptied, the dispatcher's colour reset with it (the
-    // later clears after the target searches find it empty)
-    clear_output(world, id);
     let Some(spl) = f.spell.and_then(|n| world.spells.get(&n)).cloned() else {
         // no such spell in the spellbook
         tell_user(world, id, Msg::CastUnknownSpell { spell: name });

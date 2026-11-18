@@ -204,6 +204,7 @@ Defaults are the values the original distribution shipped. `inactive_secs = 3600
 | `game.cleanup.at` | `SILVERMERE_GAME__CLEANUP__AT` | `"03:00"` | Local time (`"HH:MM"`, 24-hour) of the daily cleanup (`mcurou`: gang-house tax, floors swept, evil forgiven, empty gangs deleted). It runs with the players connected; nobody is logged off. | — |
 | `game.cleanup.tz` | `SILVERMERE_GAME__CLEANUP__TZ` | `"America/Detroit"` | IANA time zone `game.cleanup.at` is read in (silvermere addition; an unknown name is a config error). | — |
 | `game.buffers.monsbuf` | `SILVERMERE_GAME__BUFFERS__MONSBUF` | `300` | The active-monster cache holds `monsbuf + 1` slots; the background passes walk it, so it decides which monsters move, regenerate and refill their energy. 10..=32767. The original shrank it to fit its memory (to 20 under MBBSEmu); the differential sets that value. | `MONSBUF` |
+| `game.buffers.roombuf` | `SILVERMERE_GAME__BUFFERS__ROOMBUF` | `4096` | The room cache holds `roombuf + 1` slots, one per room of the stock world. Only whether the start-up's walk over every room leaves a slot empty is modelled: a look-up of room 0 of map 0 then finds one. 10..=32767. | `ROOMBUF` |
 
 ### [logging]
 

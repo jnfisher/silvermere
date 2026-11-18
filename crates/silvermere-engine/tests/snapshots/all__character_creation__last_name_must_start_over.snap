@@ -1,5 +1,5 @@
 ---
 source: crates/silvermere-engine/tests/character_creation.rs
-expression: escape(&out)
+expression: "crate::common::redact(&escape(&out))"
 ---
-You MUST have a last name!\r\nYou will have to start over again.\r\nPress Enter.
+\r\n\x1b[0m\x1b[2J\r\n      [package text]\r\n\r\n     [package text]\r\n\r\n      [package text]\r\n\r\n [package text]\r\n[package text]\r\n[package text]\r\n[package text]\r\n\r\nGiven Name  Kasimir\r\n\x1b[0;1;32mYou MUST have a last name!\r\nYou will have to start over again.\r\nPress Enter.

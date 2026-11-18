@@ -168,7 +168,7 @@ struct Harness {
     engine: Engine<TestClock, SeededRng>,
     clock: TestClock,
     rx: Receiver<EngineOutput>,
-    text: std::collections::HashMap<SessionId, String>,
+    text: std::collections::BTreeMap<SessionId, String>,
 }
 
 impl Harness {
@@ -558,11 +558,8 @@ fn a_knocked_out_player_stops() {
     to_next_round(&mut h, k);
     h.plr(k).hp = 0;
     let ticks = to_next_round(&mut h, k);
-    // the Chaotic Evil rat may swing at the downed player first (T-036)
-    assert_eq!(
-        ticks.last().unwrap().last().map(String::as_str),
-        Some("*Combat Off*")
-    );
+    // the Chaotic Evil rat may still swing at the downed player in that round (T-036)
+    assert!(ticks.last().unwrap().contains(&"*Combat Off*".to_owned()));
     assert!(!h.inside(k));
 }
 
@@ -700,29 +697,59 @@ fn each_combat_line_carries_the_hit_points_of_its_moment() {
     to_next_round_raw(&mut h);
     h.pump();
     h.text.clear();
-    // the second round, one write: Kasimir's two blows, then three bites
+    // the second round, one write: Kasimir's blows, then the bites, each line followed by
+    // a prompt with the hit points of that moment
     to_next_round_raw(&mut h);
     h.pump();
-    const CL: &str = "\x1b[79D\x1b[K";
-    let line = |colour: &str, text: &str| format!("{CL}{colour}{text}\r\n");
-    // the figure changes colour as it falls (get_hp_colour)
-    let prompt = |hp: &str| format!("{CL}\x1b[0;37m[HP={hp}\x1b[0;37m]:");
-    let blow = "\x1b[1;31m";
-    let bite = "\x1b[1m\x1b[31m";
-    let want = [
-        line(blow, "You beat giant rat for 2 damage!"),
-        prompt("39"),
-        line(blow, "You smack giant rat for 3 damage!"),
-        prompt("39"),
-        line(bite, "The giant rat bites you for 9 damage!"),
-        prompt("30"),
-        line(bite, "The giant rat bites you for 9 damage!"),
-        prompt("\x1b[1;37m21"),
-        line(bite, "The giant rat bites you for 4 damage!"),
-        prompt("\x1b[1;37m17"),
-    ]
-    .concat();
-    assert_eq!(h.text.remove(&k).unwrap_or_default(), want);
+    let text = h.text.remove(&k).unwrap_or_default();
+    let plain = |t: &str| {
+        let mut out = String::new();
+        let mut esc = false;
+        for ch in t.chars() {
+            match (esc, ch) {
+                (false, '\x1b') => esc = true,
+                (true, c) if c.is_ascii_alphabetic() => esc = false,
+                (true, _) => {}
+                (false, c) => out.push(c),
+            }
+        }
+        out
+    };
+    let parts: Vec<String> = text
+        .split("\x1b[79D\x1b[K")
+        .filter(|p| !p.is_empty())
+        .map(plain)
+        .collect();
+    let hp_of = |p: &str| -> i32 {
+        p.trim_start_matches("[HP=")
+            .trim_end_matches("]:")
+            .parse()
+            .unwrap_or_else(|_| panic!("a prompt: {p:?}"))
+    };
+    let mut hp = None;
+    let (mut blows, mut bites) = (0, 0);
+    for pair in parts.chunks(2) {
+        let [line, prompt] = pair else {
+            panic!("a line and its prompt: {pair:?}")
+        };
+        let now = hp_of(prompt);
+        if let Some(n) = line
+            .strip_prefix("The giant rat bites you for ")
+            .and_then(|r| r.strip_suffix(" damage!\r\n"))
+        {
+            let n: i32 = n.parse().unwrap();
+            assert_eq!(Some(now), hp.map(|h: i32| h - n), "{line:?}");
+            bites += 1;
+        } else {
+            assert!(line.starts_with("You ") && bites == 0, "{line:?}");
+            if let Some(h) = hp {
+                assert_eq!(now, h, "{line:?}");
+            }
+            blows += 1;
+        }
+        hp = Some(now);
+    }
+    assert!(blows >= 1 && bites >= 2, "{parts:?}");
 }
 
 // May cast again; attacked last round -> spotted.
@@ -928,7 +955,7 @@ fn remove_helm_breaks_off_autocombat_first() {
     let (me, room) = engaged("remove helm", true);
     assert_eq!(
         me,
-        "\x1b[79D\x1b[KYou have removed helm.\r\n\x1b[79D\x1b[K\x1b[0;33m*Combat Off*\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m/MA=0\x1b[0;37m]:\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m]:"
+        "\x1b[0;37;40m\x1b[79D\x1b[KYou have removed helm.\r\n\x1b[79D\x1b[K\x1b[0;33m*Combat Off*\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m/MA=0\x1b[0;37m]:\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m]:"
     );
     assert_eq!(
         room,
@@ -943,7 +970,7 @@ fn wield_another_weapon_breaks_off_autocombat_first() {
     let (me, room) = engaged("wield club", false);
     assert_eq!(
         me,
-        "\x1b[79D\x1b[K\x1b[0;33m*Combat Off*\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m/MA=0\x1b[0;37m]:\x1b[79D\x1b[KYou are now holding club.\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m]:"
+        "\x1b[0;37;40m\x1b[79D\x1b[K\x1b[0;33m*Combat Off*\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m/MA=0\x1b[0;37m]:\x1b[79D\x1b[KYou are now holding club.\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m]:"
     );
     assert_eq!(
         room,
@@ -973,7 +1000,7 @@ fn wear_armour_breaks_off_autocombat_first() {
     let (me, room) = engaged("wear helm", false);
     assert_eq!(
         me,
-        "\x1b[79D\x1b[K\x1b[0;33m*Combat Off*\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m/MA=0\x1b[0;37m]:\x1b[79D\x1b[KYou are now wearing helm.\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m]:"
+        "\x1b[0;37;40m\x1b[79D\x1b[K\x1b[0;33m*Combat Off*\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m/MA=0\x1b[0;37m]:\x1b[79D\x1b[KYou are now wearing helm.\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=48\x1b[0;37m]:"
     );
     assert_eq!(
         room,

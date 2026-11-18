@@ -157,7 +157,8 @@ pub fn legal_level(evil: i16) -> Legal {
 }
 
 /// `points` times `by`, or times [`SCALE_LIMIT`] when that product falls outside
-/// `±SCALE_LIMIT`, 16-bit. (sic) The guard multiplies by 32000 where it meant to cap.
+/// `±SCALE_LIMIT`, 16-bit. (sic) The guard multiplies by 32000 where it meant to cap; the
+/// callers charge at most 10 points, so it never triggers.
 fn scale(points: i16, by: i16) -> i16 {
     let scaled = points.wrapping_mul(by);
     let factor = if !(-SCALE_LIMIT..=SCALE_LIMIT).contains(&scaled) {

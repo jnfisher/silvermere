@@ -1035,7 +1035,8 @@ fn settings_survive_logoff_and_login() {
         (9, 3, StatlineMode::Off, 0)
     );
     assert_eq!(got.settings, want.settings);
-    assert_eq!(got.flags, want.flags);
+    // loading converts a character to the new experience system
+    assert_eq!(got.flags, want.flags | PlayerFlags::NEWEXP);
 }
 
 // The custom template lives only in the profile; a last-life death keeps it and the next

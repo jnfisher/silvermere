@@ -233,9 +233,7 @@ mod scripts {
     use silvermere_engine::commands::pending::fast_update_delay;
     use silvermere_engine::cycles::slow::perform_random_event;
     use silvermere_engine::items::inventory::add_item_to_inventory;
-    use silvermere_engine::movement::exits::{
-        LOCK_CLOSED, LOCK_LOCKED, LOCK_OPEN, live_exit, set_par2,
-    };
+    use silvermere_engine::movement::exits::{LOCK_LOCKED, LOCK_OPEN, live_exit, set_exit_state};
     use silvermere_engine::player::save::save_player;
     use silvermere_engine::player_session::AccountRef;
     use silvermere_engine::scripts::{
@@ -253,7 +251,7 @@ mod scripts {
         SpellNo, TextBlockNo,
     };
     use silvermere_types::records::{
-        ActiveMonster, ActiveSpell, Coins, Exit, Message, RoomItem, TextBlock,
+        ActiveMonster, ActiveSpell, Coins, Exit, Lock, Message, RoomItem, TextBlock,
     };
     use silvermere_types::sizes::{NAMTRAIL, NMONITEMS, NMONSPELLS};
 
@@ -638,7 +636,12 @@ mod scripts {
                 (exit.kind, exit.par1, exit.par2),
                 (ExitType::Key, item as u32, LOCK_LOCKED as i16)
             );
-            set_par2(&mut self.w, room, dir, LOCK_CLOSED as i16);
+            set_exit_state(
+                &mut self.w,
+                room,
+                dir,
+                exit.params().with_lock(Lock::Closed),
+            );
             let out = self.go(&format!(
                 "open {}",
                 ["n", "s", "e", "w"][usize::from(dir.code())]
@@ -698,20 +701,24 @@ mod scripts {
         // the door is bashed (or picked)
         let out = k.go("open n");
         assert!(out.contains("The door is locked."), "{out:?}");
-        // A door that bursts open takes the basher through (BASH, T-026)
+        // The door bursts open in time (BASH, T-026); the basher stays, as in the game,
+        // and walks through
+        let mut opened = false;
         for _ in 0..200 {
-            if k.at() != 834 {
-                break;
-            }
             k.w.session_mut(k.me)
                 .unwrap()
                 .character
                 .as_mut()
                 .unwrap()
                 .hp = 100;
-            k.go("bash n");
+            if k.go("bash n").contains("You bashed the door open.") {
+                opened = true;
+                break;
+            }
         }
-        assert_eq!(k.at(), 835);
+        assert!(opened, "the door gives way");
+        assert_eq!(k.at(), 834);
+        assert_eq!(k.walk("n"), 835);
         k.walk("d");
         assert_eq!(k.name(), "Crypt, Lower Level");
         // the first level: a lever at the bottom of each side corridor

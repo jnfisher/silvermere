@@ -1,22 +1,37 @@
-//! The random source every rule draws from.
-//!
-//! The game draws from the host's `genrdn(lo, hi)` (an integer in `[lo, hi)`, never `hi`)
-//! and `lngrnd` for longs. silvermere reproduces the distributions, not the host's sequence
-//! [`SeededRng`] wraps `ChaCha8Rng`, so a world or a test
-//! seeded the same way replays the same draws.
+//! The random source every rule draws from: the game's `genrdn`/`lngrnd` on
+//! 15-bit `rand()` values from a seeded `ChaCha8Rng`, so results match the game's.
 
 use rand::{RngExt as _, SeedableRng as _};
 use rand_chacha::ChaCha8Rng;
 
+/// The largest value Borland's `rand()` returns.
+pub const RAND_MAX: u16 = 0x7fff;
+
+/// The game's `genrdn(min, max)`, also `lngrnd`, drawing from `rand`. A result is in
+/// `[min, max)` only for `0 <= min` and `max <= 32768`: one `rand()` is at most 32767, so
+/// `lngrnd(0, 50000)` never exceeds 32767, and a negative `min` never comes out.
+pub fn genrdn(min: i64, max: i64, mut rand: impl FnMut() -> u16) -> i64 {
+    if max == 0 {
+        return 0;
+    }
+    if min >= max {
+        return min;
+    }
+    let mut rnum = i64::from(rand()) % max;
+    while rnum < min {
+        rnum += i64::from(rand()) % (max - rnum);
+    }
+    rnum
+}
+
 /// The random source the rules take. Engine code and tests pass a [`SeededRng`]; any
 /// `ChaCha8Rng` works too.
 pub trait Rng {
-    /// A uniform `i32` in `[lo, hi)`, like the host's `genrdn(lo, hi)`: never `hi`. An empty
-    /// range (`hi <= lo`) gives `lo`, as the host did for `genrdn(0,0)`.
+    /// `genrdn(lo, hi)`.
     #[doc(alias = "genrdn")]
     fn range(&mut self, lo: i32, hi: i32) -> i32;
 
-    /// A uniform `i64` in `[lo, hi)`, the long form (`lngrnd`). An empty range gives `lo`.
+    /// `lngrnd(lo, hi)`.
     #[doc(alias = "lngrnd")]
     fn long(&mut self, lo: i64, hi: i64) -> i64;
 
@@ -27,40 +42,92 @@ pub trait Rng {
     }
 }
 
+/// One Borland `rand()` value from a ChaCha stream.
+fn rand15(rng: &mut ChaCha8Rng) -> u16 {
+    rng.random_range(0..=RAND_MAX)
+}
+
 impl Rng for ChaCha8Rng {
     fn range(&mut self, lo: i32, hi: i32) -> i32 {
-        if hi <= lo {
-            return lo;
-        }
-        self.random_range(lo..hi)
+        genrdn(lo.into(), hi.into(), || rand15(self)) as i32
     }
 
     fn long(&mut self, lo: i64, hi: i64) -> i64 {
-        if hi <= lo {
-            return lo;
-        }
-        self.random_range(lo..hi)
+        genrdn(lo, hi, || rand15(self))
     }
 }
 
-/// The engine's seeded random source: `ChaCha8Rng` from a 64-bit seed.
+/// The engine's seeded random source.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SeededRng(ChaCha8Rng);
+pub struct SeededRng {
+    rng: ChaCha8Rng,
+    draws: u64,
+}
 
 impl SeededRng {
     /// A source that always gives the same sequence for the same `seed`.
     pub fn new(seed: u64) -> Self {
-        Self(ChaCha8Rng::seed_from_u64(seed))
+        Self {
+            rng: ChaCha8Rng::seed_from_u64(seed),
+            draws: 0,
+        }
+    }
+
+    /// The next `rand()` value, `0..=RAND_MAX`.
+    pub fn rand(&mut self) -> u16 {
+        self.draws += 1;
+        trace_draw();
+        rand15(&mut self.rng)
+    }
+
+    /// How many `rand()` values have been drawn.
+    pub fn draws(&self) -> u64 {
+        self.draws
+    }
+}
+
+/// With `SILVERMERE_RAND_TRACE` naming a file (read once, at the first
+/// draw), each draw appends a line with the functions that made it,
+/// innermost first, `SILVERMERE_RAND_TRACE_DEPTH` of them (4 by default; slow; for
+/// debugging).
+fn trace_draw() {
+    static PATH: std::sync::OnceLock<Option<std::ffi::OsString>> = std::sync::OnceLock::new();
+    static DEPTH: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    let Some(path) = PATH.get_or_init(|| std::env::var_os("SILVERMERE_RAND_TRACE")) else {
+        return;
+    };
+    let depth = *DEPTH.get_or_init(|| {
+        std::env::var("SILVERMERE_RAND_TRACE_DEPTH")
+            .ok()
+            .and_then(|d| d.parse().ok())
+            .unwrap_or(4)
+    });
+    let trace = std::backtrace::Backtrace::force_capture().to_string();
+    let names: Vec<&str> = trace
+        .lines()
+        .filter_map(|l| l.trim().split_once(": ").map(|(_, n)| n))
+        .filter(|n| n.starts_with("silvermere_") && !n.starts_with("silvermere_rules::rng"))
+        .filter(|n| !n.contains("{closure"))
+        .map(|n| n.rsplit("::").next().unwrap_or(n))
+        .take(depth)
+        .collect();
+    use std::io::Write;
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        let _ = writeln!(f, "{}", names.join(" < "));
     }
 }
 
 impl Rng for SeededRng {
     fn range(&mut self, lo: i32, hi: i32) -> i32 {
-        self.0.range(lo, hi)
+        genrdn(lo.into(), hi.into(), || self.rand()) as i32
     }
 
     fn long(&mut self, lo: i64, hi: i64) -> i64 {
-        self.0.long(lo, hi)
+        genrdn(lo, hi, || self.rand())
     }
 }
 

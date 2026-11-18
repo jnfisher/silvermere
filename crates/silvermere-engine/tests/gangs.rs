@@ -556,6 +556,30 @@ mod gang {
         );
     }
 
+    // The first session a server hands out is 0: a member there is promoted and demoted in
+    // the game like any other, and the leader there may be the one who commands
+    #[test]
+    fn the_member_on_the_first_session_is_promoted_in_the_game() {
+        let mut h = Harness::new();
+        let ann = h.player("Ann", "Lee");
+        let bob = h.player("Bob", "Smith");
+        assert_eq!(ann, SessionId(0));
+        assert_eq!(h.line(bob, "create gang Wolves"), "Gang created.\n");
+        h.line(bob, "invite member ann");
+        h.line(ann, "join gang wolves");
+        let from = h.log.len();
+        h.line(bob, "promote ann");
+        assert!(h.plr(ann).flags.contains(PlayerFlags::LIEUTENANT));
+        h.line(bob, "demote ann");
+        assert!(!h.plr(ann).flags.contains(PlayerFlags::LIEUTENANT));
+        // nothing was asked of the store
+        assert!(
+            h.log[from..]
+                .iter()
+                .all(|o| !matches!(o, EngineOutput::GangQuery { .. }))
+        );
+    }
+
     fn stored(name: &str, gang: &str, exp: u32, flags: PlayerFlags) -> Character {
         let mut c = silvermere_engine::clear_player();
         c.firstname = name.into();
@@ -727,7 +751,7 @@ mod gang {
                 gang: "Wolves".into()
             }
         );
-        // lowest experience first: Eve (off line), the leader, Ann, Dan (lieutenant); every
+        // in the store's order: Eve (off line), the leader, Ann, Dan (lieutenant); every
         // line from the stored record, Online from who is in the game
         let rows = vec![
             stored("Eve", "Wolves", 1, PlayerFlags::empty()),

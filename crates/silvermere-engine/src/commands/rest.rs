@@ -46,8 +46,6 @@ pub fn cmd_rest(world: &mut World, id: SessionId) {
     plr.status2.remove(PlayerStatus2::MEDITATING);
     s.ticks.resttick = 0;
     if tell_others {
-        // tell_room sends the whole prf buffer: the dispatcher's colour reset goes to the
-        // room ahead of the line, and the player's own line comes without it (crate::tell)
         tell_room(
             world,
             room,
@@ -99,8 +97,6 @@ pub fn cmd_meditate(world: &mut World, id: SessionId) {
     plr.status.remove(PlayerStatus::RESTING);
     s.ticks.medtick = 0;
     if tell_others {
-        // tell_room sends the whole prf buffer: the dispatcher's colour reset goes to the
-        // room ahead of the line, and the player's own line comes without it (crate::tell)
         tell_room(
             world,
             room,

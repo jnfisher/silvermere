@@ -152,6 +152,20 @@ pub struct Scheduler {
     /// `restockcnt`: slow cycles since the last restock.
     restockcnt: u32,
     periods: Periods,
+    /// The queued exit changes, oldest first (`exitqueue`): each exit timer works on the
+    /// head ([`crate::movement::timed_exits::update_exits`]).
+    pub exits: VecDeque<ExitChange>,
+}
+
+/// One queued exit change (`struct exitupd`): which exit, and the steps still to wait.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExitChange {
+    /// The exit's room.
+    pub room: RoomKey,
+    /// The direction, `0..NDIRS`.
+    pub dir: u8,
+    /// Steps still to wait (a byte).
+    pub delay: u8,
 }
 
 impl Default for Scheduler {
@@ -169,6 +183,7 @@ impl Scheduler {
             next_seq: 0,
             restockcnt: 0,
             periods,
+            exits: VecDeque::new(),
         }
     }
 
@@ -206,8 +221,19 @@ impl Scheduler {
     /// case right after the head. The quirk is kept because it
     /// decides the order of two cycles that fall due together.
     pub fn arm(&mut self, delay: u64, routine: Routine) {
+        self.arm_at(self.tick + delay, routine);
+    }
+
+    /// [`Scheduler::arm`] with the game's arithmetic: a 16-bit signed delay added to
+    /// the 32-bit tick count, so a negative one is due at once (or, early on, wraps far ahead).
+    pub fn arm_signed(&mut self, delay: i16, routine: Routine) {
+        let when = (self.tick as u32).wrapping_add(i32::from(delay) as u32);
+        self.arm_at(u64::from(when), routine);
+    }
+
+    fn arm_at(&mut self, when: u64, routine: Routine) {
         let node = Kick {
-            when: self.tick + delay,
+            when,
             routine,
             seq: self.next_seq,
         };
@@ -294,7 +320,7 @@ fn run_routine(world: &mut World, routine: Routine, ran: &mut Vec<Ran>) {
         Routine::Save => world.save_cycle(),
         Routine::Inactivity => world.inactivity_check(),
         Routine::DailyCleanup => crate::cleanup::on_due(world),
-        Routine::ExitRevert { room, dir } => world.revert_exit(room, dir),
+        Routine::ExitRevert { .. } => crate::movement::timed_exits::update_exits(world),
     }
     if let Some(period) = world.scheduler.periods.of(routine) {
         world.scheduler.arm(period, routine);

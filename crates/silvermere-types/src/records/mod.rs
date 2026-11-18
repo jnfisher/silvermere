@@ -44,7 +44,11 @@ pub use monster::{
     ActiveMonster, ActiveSpell, KnownMonster, MonsterAttack, MonsterItem, MonsterSpell,
 };
 pub use race::Race;
-pub use room::{Exit, Room, RoomItem};
+pub use room::{
+    AbilityExit, AlignmentExit, CastExit, ClassOrRaceExit, DoorExit, Exit, ExitParams, HiddenExit,
+    ItemExit, KeyExit, LevelExit, Lock, RemoteExit, Room, RoomItem, SpellTrapExit, TextExit,
+    TimedExit, TrapExit, TrapState,
+};
 pub use runtime::{BigExp, ForgetEntry, PendingCommand, TopEntry, UserFlags, UserState};
 pub use shop::{Shop, ShopSlot};
 pub use spell::Spell;

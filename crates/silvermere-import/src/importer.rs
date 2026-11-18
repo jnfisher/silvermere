@@ -635,7 +635,7 @@ pub fn read_file_as<R: Record>(
         if file.header.record_count != 0 {
             return Err(e.into());
         }
-        tracing::warn!(file = name, "{e}; the file is empty, so nothing is decoded");
+        tracing::info!(file = name, "{e}; the file is empty, so nothing is decoded");
         return Ok(Vec::new());
     }
     let mut out = Vec::with_capacity(file.header.record_count as usize);

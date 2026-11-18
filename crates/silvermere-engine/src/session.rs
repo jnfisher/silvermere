@@ -20,10 +20,11 @@ pub mod hangup;
 
 use std::time::Instant;
 
-use silvermere_types::enums::{InGame, SessionState};
+use silvermere_types::enums::{InGame, NewCharStep, SessionState};
 use silvermere_types::ids::SessionId;
 
 use crate::player_session::{Caps, PlayerSession};
+use crate::state::newchar::form;
 use crate::state::{self, Input, Outcome};
 use crate::world::World;
 
@@ -69,6 +70,7 @@ pub fn on_login(world: &mut World, id: SessionId) {
 /// `rng` and `today` (the UTC midnight, [`crate::event_loop::day_start`]) come from the
 /// engine for the handlers that need them: entering the realm runs `load_player`.
 pub fn on_line(world: &mut World, id: SessionId, line: &str, today: i64) -> Outcome {
+    form::unlock_keyboards(world, Some(id));
     let Some(s) = world.sessions.get_mut(&id) else {
         return Outcome::Logoff;
     };
@@ -93,17 +95,30 @@ pub fn on_line(world: &mut World, id: SessionId, line: &str, today: i64) -> Outc
     }
 }
 
+/// The empty lines the attack interrupt handed out ([`World::injected`]), read as typed:
+/// the outcomes, by session.
+pub fn read_injected(world: &mut World, today: i64) -> Vec<(SessionId, Outcome)> {
+    let mut outcomes = Vec::new();
+    while !world.injected.is_empty() {
+        for id in std::mem::take(&mut world.injected) {
+            outcomes.push((id, on_line(world, id, "", today)));
+        }
+    }
+    outcomes
+}
+
 /// One keystroke in character mode (the host's status `INBLK` in the status callback).
 /// The line editor is the transport's; the paged
-/// lists end on any key (`commands::input::on_key`, T-024); the full-screen stat editor
-/// takes its keys while it is open (T-063).
+/// lists end on any key (`commands::input::on_key`, T-024); the stat editor's form takes
+/// its keys while it is open (T-063).
 pub fn on_key(world: &mut World, id: SessionId, byte: u8) -> Outcome {
-    let fullscreen = world.session(id).is_some_and(|s| {
-        s.state == SessionState::NewChar(silvermere_types::enums::NewCharStep::Stats)
-            && s.editor.as_ref().is_some_and(|e| e.fullscreen.is_some())
+    form::unlock_keyboards(world, Some(id));
+    let form = world.session(id).is_some_and(|s| {
+        s.state == SessionState::NewChar(NewCharStep::Stats)
+            && s.editor.as_ref().is_some_and(|e| e.form.is_some())
     });
-    if fullscreen {
-        return crate::commands::fullscreen_editor::on_key(world, id, byte);
+    if form {
+        return form::on_key(world, id, byte);
     }
     crate::commands::input::on_key(world, id, byte)
 }

@@ -33,7 +33,9 @@ pub fn check_kill_monster(
     monnum: ActiveMonsterId,
     killer: Option<SessionId>,
 ) -> bool {
-    let Some(mon) = monster(world, monnum).cloned() else {
+    // the game is handed the record: the cache is not touched
+    let mon = world.active_monsters.peek(monnum).cloned();
+    let Some(mon) = mon.or_else(|| monster(world, monnum).cloned()) else {
         return false;
     };
     if mon.hp > 0 {
@@ -158,7 +160,8 @@ pub fn check_kill_monster(
             && k.curalive > 0
         {
             k.curalive -= 1;
-            k.killed_at = world.today + i64::from(world.minute) * 60;
+            // `now()`: the time of day to the second, as the removal path keeps it
+            k.killed_at = world.wall;
         }
     }
     if world.monsters.contains_key(&mon.knownnum) {

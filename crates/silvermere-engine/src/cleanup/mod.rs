@@ -36,7 +36,7 @@
 //! the store could not answer is dropped ([`on_scan_failed`]) and the next run scans
 //! again.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 
 use silvermere_rules::abilities::{item_ability_value, item_has_ability};
 use silvermere_text::Msg;
@@ -136,7 +136,7 @@ pub struct CleanupState {
     /// Set while the store is answering: the record each account whose session ended
     /// since was saved with (`on_logoff`). The stored row may be older than that save, so
     /// the run uses this record instead.
-    pub pending: Option<HashMap<AccountId, Character>>,
+    pub pending: Option<BTreeMap<AccountId, Character>>,
     /// The last run's report.
     pub last: Option<CleanupReport>,
 }
@@ -204,7 +204,7 @@ pub fn begin(world: &mut World) {
     if world.cleanup.pending.is_some() {
         tracing::warn!("daily cleanup: the last character scan was never answered; asking again");
     } else {
-        world.cleanup.pending = Some(HashMap::new());
+        world.cleanup.pending = Some(BTreeMap::new());
     }
     world.outbox.push(EngineOutput::CleanupScan);
 }
@@ -235,7 +235,7 @@ pub fn on_scan(world: &mut World, rows: Vec<(AccountId, Character)>) -> Option<C
         tracing::warn!("daily cleanup: a character scan answer with no run waiting; dropped");
         return None;
     };
-    let online: HashSet<AccountId> = world
+    let online: BTreeSet<AccountId> = world
         .sessions
         .values()
         .filter_map(|s| s.account.as_ref().map(|a| a.id))
@@ -678,8 +678,8 @@ fn sweep_room(world: &mut World, key: RoomKey, gh: &mut [HouseLedger; GH_WHITE +
     }
     // a crowded room loses its cheap unlimited items
     if nitems > CROWDED && ganghouse == 0 {
-        for i in 0..NROOMITEMS {
-            let slot = state.items[i];
+        for entry in state.items.iter_mut().take(NROOMITEMS) {
+            let slot = *entry;
             if slot.item == ItemNo(0) {
                 continue;
             }
@@ -692,15 +692,15 @@ fn sweep_room(world: &mut World, key: RoomKey, gh: &mut [HouseLedger; GH_WHITE +
             let dear = itm.currency.code() > Currency::Gold.code()
                 || (itm.currency == Currency::Gold && itm.cost > 14);
             if !dear && itm.limit == 0 {
-                state.items[i] = empty_slot();
+                *entry = empty_slot();
                 changed = true;
             }
         }
     }
     // the hidden items of a RF_CLEANUP room
     if flags.contains(RoomFlags::CLEANUP) && ganghouse == 0 {
-        for i in 0..NHIDITEMS {
-            let slot = state.hiditems[i];
+        for (i, entry) in state.hiditems.iter_mut().enumerate().take(NHIDITEMS) {
+            let slot = *entry;
             if slot.item == ItemNo(0) {
                 continue;
             }
@@ -713,7 +713,7 @@ fn sweep_room(world: &mut World, key: RoomKey, gh: &mut [HouseLedger; GH_WHITE +
             if itm.limit != 0 {
                 removals.push((name30(&itm.name), i, true));
             } else {
-                state.hiditems[i] = empty_slot();
+                *entry = empty_slot();
                 changed = true;
             }
         }
@@ -724,8 +724,8 @@ fn sweep_room(world: &mut World, key: RoomKey, gh: &mut [HouseLedger; GH_WHITE +
     }
     // free or "Delete at cleanup" unlimited hidden items of an ordinary room
     if ganghouse == 0 {
-        for i in 0..NHIDITEMS {
-            let slot = state.hiditems[i];
+        for entry in state.hiditems.iter_mut().take(NHIDITEMS) {
+            let slot = *entry;
             if slot.item == ItemNo(0) {
                 continue;
             }
@@ -736,7 +736,7 @@ fn sweep_room(world: &mut World, key: RoomKey, gh: &mut [HouseLedger; GH_WHITE +
                 && (itm.cost == 0 || item_has_ability(itm, Ability::DelCleanup))
                 && itm.limit == 0
             {
-                state.hiditems[i] = empty_slot();
+                *entry = empty_slot();
                 changed = true;
             }
         }
@@ -1229,6 +1229,7 @@ pub fn delete_gangs(world: &mut World) -> u32 {
         };
         if g.members == 0 || g.flags.contains(GangFlags::DELETE) {
             world.gangs.remove(&key);
+            world.gang_order.remove(&key);
             world
                 .outbox
                 .push(EngineOutput::Persist(PersistRequest::DeleteGang(key)));

@@ -2,11 +2,12 @@
 //! items shown in search mode) is T-025's `display::room_items::search_room`.
 
 use silvermere_text::Msg;
-use silvermere_types::enums::{Direction, ExitType};
+use silvermere_types::enums::Direction;
 use silvermere_types::flags::{ExitFlags, PlayerStatus, PlayerStatus2};
 use silvermere_types::ids::{RoomKey, SessionId};
+use silvermere_types::records::{ExitParams, HiddenExit};
 
-use super::exits::{live_exit, set_par1, tell_room_all};
+use super::exits::{live_exit, set_exit_state, tell_room_all};
 use super::timed_exits::add_exit_to_list;
 use super::{HOOKS, direction, dirname};
 use crate::commands::dispatch::Handled;
@@ -91,13 +92,17 @@ pub fn search_for_hidden_exits(world: &mut World, id: SessionId, dir: Direction)
         [Some(id), None],
         Msg::SearchingExits { who: name },
     );
-    let found = match exit.kind {
-        ExitType::Hidden
-            if ExitFlags::from_bits_retain(exit.par1).contains(ExitFlags::NEEDSEARCH) =>
-        {
+    let found = match exit.params() {
+        ExitParams::Hidden(h) if h.flags.contains(ExitFlags::NEEDSEARCH) => {
             let threshold = i32::from(perception - 15).max(3);
             if world.rng.range(0, 100) < threshold {
-                set_par1(world, room, dir, ExitFlags::VISSEARCHED.bits());
+                let flags = ExitFlags::VISSEARCHED;
+                set_exit_state(
+                    world,
+                    room,
+                    dir,
+                    ExitParams::Hidden(HiddenExit { flags, ..h }),
+                );
                 tell_user(
                     world,
                     id,
@@ -115,7 +120,7 @@ pub fn search_for_hidden_exits(world: &mut World, id: SessionId, dir: Direction)
                 false
             }
         }
-        ExitType::Trap if world.rng.range(0, 100) < i32::from(traps) => {
+        ExitParams::Trap(_) if world.rng.range(0, 100) < i32::from(traps) => {
             tell_user(
                 world,
                 id,

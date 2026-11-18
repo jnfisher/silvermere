@@ -16,14 +16,20 @@ pub const MAX_BLOWS: u32 = 6;
 /// `skill = level*combat + 45`; `quick = agility + 150`; `divisor =
 /// skill*quick*1500/9000`; `cost = extra + speed*1000/divisor`. A zero divisor gives the
 /// fallback 50. The products are 32-bit.
+///
+/// (sic) The game takes the level and agility as 16-bit ints, so a stat that went below 0
+/// counts as negative, and forms the product in 32 unsigned bits, which can wrap.
 pub fn compute_energy_used(level: i32, combat: i32, agility: i32, speed: i32, extra: i32) -> i32 {
-    let skill = i64::from(level) * i64::from(combat) + 45;
-    let quick = i64::from(agility) + 150;
-    let divisor = skill * quick * 1500 / 9000;
-    if divisor == 0 {
+    let int = |v: i32| i64::from(v as u16 as i16);
+    let skill = (int(level) * i64::from(combat) + 45) as u32;
+    let quick = (int(agility) + 150) as u32;
+    let divisor = skill.wrapping_mul(quick).wrapping_mul(1500) / 9000;
+    if skill == 0 || quick == 0 || divisor == 0 {
         return 50;
     }
-    let cost = i64::from(extra) + i64::from(speed) * 1000 / divisor;
+    // the long cost divided by the unsigned divisor: in unsigned 32 bits, read back signed
+    let cost =
+        i64::from((extra as u32).wrapping_add((speed as u32).wrapping_mul(1000) / divisor) as i32);
     // A 32-bit result the game keeps in 16 bits; sane sheets never reach the limit.
     cost.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
 }

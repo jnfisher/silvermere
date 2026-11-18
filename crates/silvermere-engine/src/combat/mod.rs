@@ -540,15 +540,15 @@ pub fn engage_autocombat(world: &mut World, id: SessionId, target: AutoTarget, m
     autocombat::engage(world, id, Some(target), mv, None);
 }
 
-/// The caster fights on, casting `spell` each round (`spells::cast`). The entry's move
-/// stays what it was (the move the last attack left).
+/// The caster fights on, casting `spell` each round (`spells::cast`). The entry's move is
+/// the one the last attack (anyone's) left.
 pub fn engage_autocombat_spell(
     world: &mut World,
     id: SessionId,
     target: Option<AutoTarget>,
     spell: silvermere_types::ids::SpellNo,
 ) {
-    let mv = world.autocombat.entry(id).mv;
+    let mv = world.atkmove;
     autocombat::engage(world, id, target, mv, Some(spell));
 }
 
@@ -648,10 +648,12 @@ pub fn auto_use(world: &mut World, id: SessionId, item: ItemNo, target: Combatan
 }
 
 /// The attack-interrupt flush: the victim's waiting output is thrown away so the warning is
-/// seen at once. The kernel's input injection is not carried; the output batch is cleared
-/// here.
+/// seen at once (all but its prompts' messages, which the line keeps), and he is handed an
+/// empty line, which the game reads after the current input (the kernel's injected line,
+/// with what he was typing cleared).
 pub fn interrupt_output(world: &mut World, id: SessionId) {
     if let Some(s) = world.session_mut(id) {
-        s.output.clear();
+        s.output.interrupt_clear();
     }
+    world.injected.push(id);
 }

@@ -103,8 +103,7 @@ pub(crate) fn dispose_of_item_in_room(
         {
             return true;
         }
-        for dir in 0..NDIRS {
-            let exit = &rm.exits[dir];
+        for exit in rm.exits.iter().take(NDIRS) {
             if exit.target.0 != 0
                 && !matches!(exit.kind, ExitType::RemoteAction | ExitType::MapChange)
                 && go(
@@ -144,6 +143,8 @@ pub(crate) fn dispose_of_item_in_trail(
         .map(|(&room, &map)| RoomKey { map, room })
         .collect();
     for key in trail {
+        // Fixed: a trail entry not yet walked names room 0 of map 0, where the game lost the
+        // item in an empty slot of its room cache; here that entry is no room
         if world.room(key).is_none() {
             continue;
         }
@@ -239,4 +240,33 @@ pub fn remove_item_from_room(
     mark_changed(world, room);
     limited::release(world, out.item, Holder::Room(room));
     Some(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::spells::test_fixture::{self as fx, ROOM, enter};
+
+    // A trail not yet walked names room 0 of map 0: no room, so the trail fails and the
+    // caller goes on to the lost-item room; nothing is recorded for the item
+    #[test]
+    fn an_unwalked_trail_takes_no_item() {
+        let mut w = fx::world();
+        let a = enter(&mut w, "Alf", ROOM);
+        if let Some(c) = w.session_mut(a).and_then(|s| s.character.as_mut()) {
+            c.trailrooms = Default::default();
+            c.trailmaps = Default::default();
+        }
+        let owned = w.item_ownership.len();
+        for free in [true, false] {
+            w.room_cache_free = free;
+            assert!(!dispose_of_item_in_trail(&mut w, a, ItemNo(1), -1));
+        }
+        assert_eq!(w.item_ownership.len(), owned);
+        assert!(
+            w.room_state
+                .values()
+                .all(|r| r.items.iter().all(|s| s.item != ItemNo(1)))
+        );
+    }
 }

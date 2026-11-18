@@ -598,7 +598,7 @@ fn track_a_player_through_the_room() {
     plr(&mut w, a).tracking = 100;
     assert_eq!(
         run(&mut w, a, "track bob"),
-        format!("Bob went {NORTH_NAME} from here.\r\n")
+        format!("{NORMAL}Bob went {NORTH_NAME} from here.\r\n")
     );
     assert_eq!(plr(&mut w, a).delay, 1, "a tick of delay, no prompt");
 }
@@ -608,7 +608,7 @@ fn track_without_skill_fails() {
     let mut w = world();
     let a = aldric(&mut w);
     bob_went_north(&mut w);
-    let fail = format!("{CLR}\x1b[1;31mYour tracking skills fail you this time.\r\n");
+    let fail = format!("{NORMAL}{CLR}\x1b[1;31mYour tracking skills fail you this time.\r\n");
     assert_eq!(run(&mut w, a, "track bob"), fail);
     plr(&mut w, a).delay = 0;
     assert_eq!(run(&mut w, a, "track nobody"), fail, "no one of that name");
@@ -625,9 +625,9 @@ fn track_rolls_against_the_tracking_skill() {
         let r = next_rolls(&w, 1);
         let out = run(&mut w, a, "track bob");
         let expect = if r[0] < 50 {
-            format!("Bob went {NORTH_NAME} from here.\r\n")
+            format!("{NORMAL}Bob went {NORTH_NAME} from here.\r\n")
         } else {
-            format!("{CLR}\x1b[1;31mYour tracking skills fail you this time.\r\n")
+            format!("{NORMAL}{CLR}\x1b[1;31mYour tracking skills fail you this time.\r\n")
         };
         assert_eq!(out, expect, "seed {seed}");
     }
@@ -645,7 +645,7 @@ fn track_a_monster_by_its_trail() {
     w.active_monsters.touch(m);
     assert_eq!(
         run(&mut w, a, "track orc"),
-        format!("orc went {NORTH_NAME} from here.\r\n")
+        format!("{NORMAL}orc went {NORTH_NAME} from here.\r\n")
     );
     // a player in the hall is found first in the room, then not on the trail
     plr(&mut w, a).delay = 0;
@@ -653,7 +653,7 @@ fn track_a_monster_by_its_trail() {
     let _ = c;
     assert_eq!(
         run(&mut w, a, "track cora"),
-        format!("{CLR}\x1b[1;31mYour tracking skills fail you this time.\r\n")
+        format!("{NORMAL}{CLR}\x1b[1;31mYour tracking skills fail you this time.\r\n")
     );
 }
 
@@ -760,12 +760,11 @@ fn a_bad_miss_sets_the_trap_off() {
         let mut r = w.rng.clone();
         r.range(0, 100);
         let damage = r.range(4, 9);
-        // the room is told from the buffer that still holds the dispatcher's ANSI_NORMAL:
-        // it goes to the listeners, not to the player
+        // the player keeps his colour reset; the room gets only the line
         let out = run(&mut w, a, "disarm trap n");
         assert_eq!(
             before_prompt(&out),
-            format!("{CLR}\x1b[0;32mYou hear a click.\r\n"),
+            format!("{NORMAL}{CLR}\x1b[0;32mYou hear a click.\r\n"),
             "seed {seed}"
         );
         assert_eq!(i32::from(plr(&mut w, a).hp), 10 - damage);
@@ -773,7 +772,7 @@ fn a_bad_miss_sets_the_trap_off() {
         let seen = raw(&mut w, watcher);
         assert!(
             seen.starts_with(&format!(
-                "{NORMAL}{CLR}\x1b[1;33m\x1b[0;32mAldric trips a wire!\r\n"
+                "{CLR}\x1b[1;33m\x1b[0;32mAldric trips a wire!\r\n"
             )),
             "{seen:?}"
         );
@@ -787,7 +786,7 @@ fn a_bad_miss_on_a_state_3_trap_carries_the_player_through() {
     plr(&mut w, a).disarm = -100;
     let out = run(&mut w, a, "disarm trap n");
     assert!(
-        out.starts_with(&format!("{CLR}\x1b[0;32mYou hear a click.\r\n")),
+        out.starts_with(&format!("{NORMAL}{CLR}\x1b[0;32mYou hear a click.\r\n")),
         "{out:?}"
     );
     assert_eq!(plr(&mut w, a).room, RoomId(NORTH));

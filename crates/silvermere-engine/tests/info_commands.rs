@@ -1096,8 +1096,14 @@ fn top_gangs() {
         ls[2],
         "Rank Gangname            Leader      Members Created"
     );
-    assert_eq!(ls[4], "1. night               Nester         3    10/14/26");
-    assert_eq!(ls[5], "2. old guard           Nester         3    10/14/26");
+    assert_eq!(
+        ls[4],
+        "1. night               Nester         3    14-OCT-26"
+    );
+    assert_eq!(
+        ls[5],
+        "2. old guard           Nester         3    14-OCT-26"
+    );
     assert_eq!(ls.len(), 6);
     insta::assert_snapshot!("top_gangs", esc(&got));
 }

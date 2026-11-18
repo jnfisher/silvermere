@@ -17,16 +17,17 @@ use silvermere_types::ids::{ItemNo, RoomKey, SessionId};
 use silvermere_types::records::{Character, Coins};
 use silvermere_types::sizes::NINVITEMS;
 
+use super::combat::{Found as Searched, find_action_target};
 use super::dispatch::Handled;
-use super::{Cmd, CommandLine, eq_ignore_case, starts_with_ignore_case};
+use super::{Cmd, CommandLine, starts_with_ignore_case};
 use crate::items::equip::{self, remove_armour, tell_others, user_can_use};
 use crate::items::inventory::{
     Found, Search, add_item_to_inventory, find_item_in_inventory, load, matches_any_word,
     max_weight, remove_item_from_inventory, show_options, update_encumbrance, user_is_wearing,
 };
-use crate::items::light::{possessive, use_light};
+use crate::items::light::possessive;
 use crate::items::room_items::{add_item_to_room, mark_changed, remove_item_from_room};
-use crate::output::clear_output;
+use crate::items::use_item::use_no_target;
 use crate::tell::{Noise, TellBlind, tell_room, tell_user};
 use crate::world::World;
 
@@ -191,8 +192,6 @@ pub fn cmd_light(world: &mut World, id: SessionId, cmd: Cmd, line: &CommandLine)
         show_options(world, id, &f.options);
         return Handled::Done;
     }
-    // the match lookup ends: the dispatcher's colour reset is thrown away
-    clear_output(world, id);
     let Some(plr) = player(world, id) else {
         return Handled::NotCommand;
     };
@@ -211,7 +210,11 @@ pub fn cmd_light(world: &mut World, id: SessionId, cmd: Cmd, line: &CommandLine)
         } else if plr.readied != -1 {
             // one light at a time
             tell_user(world, id, Msg::AlreadyLit);
-        } else if use_light(world, id, &itm) {
+        } else {
+            // the item's use effects, after what is queued is thrown away
+            if !use_no_target(world, id, &itm, None) {
+                return Handled::Done;
+            }
             // the slot is now the readied light
             let Some(plr) = player_mut(world, id) else {
                 return Handled::Done;
@@ -468,8 +471,6 @@ pub fn hide_item(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLine
         show_options(world, id, &f.options);
         return Handled::Done;
     }
-    // the match lookup ends: the dispatcher's colour reset is thrown away
-    clear_output(world, id);
     let Some(plr) = player(world, id) else {
         return Handled::NotCommand;
     };
@@ -484,7 +485,7 @@ pub fn hide_item(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLine
         if crate::display::light::can_see(world, id).is_none() {
             return Handled::Done;
         }
-        if f.slot_code() == readied {
+        if f.is_readied(readied) {
             remove_armour(world, id, name, false);
         }
         let charges = remove_item_from_inventory(world, id, itm.number).unwrap_or(0);
@@ -566,8 +567,6 @@ pub fn cmd_drop(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLine)
         show_options(world, id, &f.options);
         return Handled::Done;
     }
-    // the match lookup ends: the dispatcher's colour reset is thrown away
-    clear_output(world, id);
     let Some(plr) = player(world, id) else {
         return Handled::NotCommand;
     };
@@ -578,7 +577,7 @@ pub fn cmd_drop(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLine)
             return Handled::Done;
         }
         // the lit light is put out first
-        if f.slot_code() == plr.readied {
+        if f.is_readied(plr.readied) {
             remove_armour(world, id, name, false);
         }
         let charges = remove_item_from_inventory(world, id, itm.number).unwrap_or(0);
@@ -691,71 +690,20 @@ enum Target {
     Multiple,
 }
 
-/// The monster and player steps of the action target search as GIVE asks for them: active
-/// monsters in the room whose name fits, then players in the room (not the giver) whose
-/// first name fits the first word; a hidden player only for a giver who sees hidden things.
-/// A full name ends the search at once. With more than one candidate and the last kind found a
-/// player, the list is shown.
-///
-/// TODO(T-033): the monster step's word dropping belongs to the full action target search;
-/// GIVE only needs to know a monster is not a player.
-fn find_receiver(world: &mut World, id: SessionId, room: RoomKey, name: &str) -> Target {
-    let mut count = 0usize;
-    let mut options = Vec::new();
-    let mut found: Option<SessionId> = None;
-    let mut monster = false;
-    // a search brings the room's monsters into the cache (T-086)
-    if let Some(st) = world.room_state.get(&room) {
-        for &m in st.monsters.iter().filter(|m| m.0 != 0) {
-            world.active_monsters.touch(m);
-        }
+/// The action target search as GIVE asks it, for the name from word `i` on (monsters and the
+/// other players): a monster is not a player to give to; several candidates show the list.
+/// Fixed: the game looked up a stale word when no name followed TO; now that finds nobody.
+fn find_receiver(world: &mut World, id: SessionId, line: &CommandLine, i: usize) -> Target {
+    if line.argc() <= i {
+        return Target::NotAPlayer;
     }
-    for m in world.active_monsters.values() {
-        if m.map == room.map && m.room == room.room && matches_any_word(name, &m.name) {
-            count += 1;
-            monster = true;
-            if eq_ignore_case(name, &m.name) {
-                return Target::NotAPlayer;
-            }
-            options.push(m.name.clone());
+    match find_action_target(world, id, line.rest_from(i), false) {
+        Searched::User(t) => Target::User(t),
+        Searched::Multiple(options) => {
+            show_options(world, id, &options);
+            Target::Multiple
         }
-    }
-    // only the first word can name a player
-    let first = name.split(' ').next().unwrap_or("");
-    let sees_hidden = player(world, id).is_some_and(|p| p.status.contains(PlayerStatus::SEEHIDDEN));
-    let mut ids: Vec<SessionId> = world.session_ids();
-    ids.sort();
-    for other in ids {
-        if other == id || !world.is_in_game(other) {
-            continue;
-        }
-        let Some(vplr) = player(world, other) else {
-            continue;
-        };
-        if vplr.room != room.room
-            || vplr.map != room.map
-            || !matches_any_word(first, &vplr.firstname)
-        {
-            continue;
-        }
-        if vplr.hidden != 0 && !sees_hidden {
-            continue;
-        }
-        found = Some(other);
-        monster = false;
-        count += 1;
-        if eq_ignore_case(first, &vplr.firstname) {
-            return Target::User(other);
-        }
-        options.push(vplr.firstname.clone());
-    }
-    if count > 1 && !monster {
-        show_options(world, id, &options);
-        return Target::Multiple;
-    }
-    match found {
-        Some(t) if !monster => Target::User(t),
-        _ => Target::NotAPlayer,
+        Searched::Monster(_) | Searched::None => Target::NotAPlayer,
     }
 }
 
@@ -796,11 +744,7 @@ fn give_coins(
         tell_user(world, id, Msg::GiveSyntax);
         return Handled::Done;
     }
-    let tgt = find_receiver(world, id, room, line.rest_from(4));
-    // the match lookup ends (the colour reset is dropped) unless the name was ambiguous
-    if !matches!(tgt, Target::Multiple) {
-        clear_output(world, id);
-    }
+    let tgt = find_receiver(world, id, line, 4);
     let tgt = match tgt {
         Target::Multiple => return Handled::Done,
         Target::NotAPlayer => {
@@ -938,8 +882,6 @@ fn give_item(world: &mut World, id: SessionId, room: RoomKey, line: &CommandLine
         show_options(world, id, &f.options);
         return Handled::Done;
     }
-    // the match lookup ends: the dispatcher's colour reset is thrown away
-    clear_output(world, id);
     let Some(plr) = player(world, id) else {
         return Handled::NotCommand;
     };
@@ -951,13 +893,13 @@ fn give_item(world: &mut World, id: SessionId, room: RoomKey, line: &CommandLine
         return Handled::Done;
     }
     // the readied item is unreadied first (by the first word again)
-    if f.slot_code() == plr.readied {
+    if f.is_readied(plr.readied) {
         remove_armour(world, id, line.arg(1), false);
     }
     if !starts_with_ignore_case(line.arg(f.words + 1), "to") {
         return Handled::NotCommand;
     }
-    let tgt = match find_receiver(world, id, room, line.rest_from(f.words + 2)) {
+    let tgt = match find_receiver(world, id, line, f.words + 2) {
         Target::Multiple => return Handled::Done,
         Target::NotAPlayer => return Handled::NotCommand,
         Target::User(t) => t,
@@ -1062,10 +1004,6 @@ pub fn cmd_equip(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLine
     }
     let name = line.rest_from(1);
     let f = find_item_in_inventory(world, plr, name, Search::Unworn);
-    // the match lookup ends by clearing the output buffer: the dispatcher's colour reset never
-    // reaches the user, so `You are now wearing ...` starts at `ESC[79D` (the `shop` capture, steps
-    // 12 and 22-26)
-    clear_output(world, id);
     let Some(itm) = f.item.and_then(|n| world.items.get(&n)).cloned() else {
         tell_user(
             world,

@@ -37,8 +37,18 @@ pub fn proper_currency_name(amount: u32, cur: usize) -> &'static str {
 /// never fails), so the screen shows a balance of 0. `maximum_bank_balance` caps a balance
 /// on the way in.
 pub fn display_bank_balance(world: &mut World, id: SessionId, shopnum: Option<ShopNo>) {
+    display_bank_balance_to(world, id, id, shopnum);
+}
+
+/// [`display_bank_balance`] of `holder`'s account, shown to `to`.
+fn display_bank_balance_to(
+    world: &mut World,
+    holder: SessionId,
+    to: SessionId,
+    shopnum: Option<ShopNo>,
+) {
     let Some(account) = world
-        .session(id)
+        .session(holder)
         .and_then(|s| s.account.as_ref())
         .map(|a| a.id)
     else {
@@ -66,7 +76,7 @@ pub fn display_bank_balance(world: &mut World, id: SessionId, shopnum: Option<Sh
         ),
         gold_name: proper_currency_name(balance, 2).to_string(),
     };
-    if let Some(s) = world.session_mut(id) {
+    if let Some(s) = world.session_mut(to) {
         s.output.push(msg);
     }
 }
@@ -82,8 +92,13 @@ pub fn display_bank_services(world: &mut World, id: SessionId) {
 /// book exists once a deposit has made it (`dirty`), so a player who never banked sees
 /// nothing.
 pub fn display_users_bankbooks(world: &mut World, id: SessionId) {
+    display_users_bankbooks_to(world, id, id);
+}
+
+/// [`display_users_bankbooks`] of `holder`, shown to `to` (the sysop's GOD user INFO).
+pub fn display_users_bankbooks_to(world: &mut World, holder: SessionId, to: SessionId) {
     let Some(account) = world
-        .session(id)
+        .session(holder)
         .and_then(|s| s.account.as_ref())
         .map(|a| a.id)
     else {
@@ -97,7 +112,7 @@ pub fn display_users_bankbooks(world: &mut World, id: SessionId) {
         .map(|b| b.bank)
         .collect();
     for bank in banks {
-        display_bank_balance(world, id, Some(bank));
+        display_bank_balance_to(world, holder, to, Some(bank));
     }
 }
 

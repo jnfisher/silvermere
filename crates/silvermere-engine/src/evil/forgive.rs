@@ -21,8 +21,8 @@ fn name(world: &World, id: SessionId) -> String {
 /// items are checked again). `true` when a timer was forgiven. With sysop debug on, the
 /// victim (the current user) sees the search.
 ///
-/// (sic, not carried) Under the original a forgiveness can upset the other timers; here
-/// exactly the forgiven timer is removed.
+/// Fixed: the game freed the timer before the forgiven one, still linked; here exactly
+/// the forgiven timer goes.
 pub fn attempt_to_forgive(world: &mut World, attacker: SessionId, victim: SessionId) -> bool {
     if world.session(attacker).and_then(|s| s.player()).is_none() {
         return false;

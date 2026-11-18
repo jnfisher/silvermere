@@ -12,8 +12,9 @@
 //! ([`save_active_monsters`]) upserts every monster changed since its last write.
 
 use std::cell::{Ref, RefCell, RefMut};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+use silvermere_types::flags::ActiveMonsterFlags;
 use silvermere_types::ids::{ActiveMonsterId, MonsterNo, RoomKey};
 use silvermere_types::records::ActiveMonster;
 
@@ -39,7 +40,7 @@ impl FreeList {
     /// every number from 1 below the highest that has no record, lowest at the tail
     /// (reused first). 65535 is never listed.
     pub fn build<'a>(in_use: impl Iterator<Item = &'a ActiveMonsterId>) -> Self {
-        let used: std::collections::HashSet<i32> = in_use.map(|n| n.0).collect();
+        let used: std::collections::BTreeSet<i32> = in_use.map(|n| n.0).collect();
         let last = used.iter().copied().max().unwrap_or(0).max(0);
         let mut free = VecDeque::new();
         for n in 1..last {
@@ -75,15 +76,38 @@ impl FreeList {
     }
 }
 
+/// A monster pushed out of the cache.
+#[derive(Debug, Clone)]
+enum Eviction {
+    /// It had changed: the record as written then.
+    Written(Box<ActiveMonster>),
+    /// It had not: it is read back as last written.
+    Kept(ActiveMonsterId),
+}
+
 /// The active monsters: the records, an index by number, the free list and the copy of
 /// each record as last written (what the save sweep compares against).
 #[derive(Debug, Clone, Default)]
 pub struct ActiveMonsters {
     slots: slotmap::SlotMap<ActiveSlot, ActiveMonster>,
-    by_number: HashMap<ActiveMonsterId, ActiveSlot>,
+    by_number: BTreeMap<ActiveMonsterId, ActiveSlot>,
     /// The number allocator.
     pub numbers: FreeList,
-    saved: HashMap<ActiveMonsterId, ActiveMonster>,
+    saved: BTreeMap<ActiveMonsterId, ActiveMonster>,
+    /// Monsters the game marked changed (`dirty`) since they were last written, whatever
+    /// their record holds now: a wounded monster that regenerates is marked even when it
+    /// is back to the hit points written.
+    marked: RefCell<BTreeSet<ActiveMonsterId>>,
+    /// The monsters pushed out of the cache and not yet written back, as they were then:
+    /// the game writes a changed one the moment it is pushed out, so later changes to it
+    /// (read back in) are changes again.
+    evictions: RefCell<Vec<Eviction>>,
+    /// Monsters changed without being marked changed (the game sets a few fields that
+    /// way): the record that counts as unchanged until it is next written or pushed out.
+    quiet: RefCell<BTreeMap<ActiveMonsterId, ActiveMonster>>,
+    /// Monsters pushed out unchanged and read into the cache again since: each is read
+    /// back as written before it is next changed.
+    reread: RefCell<Vec<ActiveMonsterId>>,
     /// Which monsters the monster cache holds: what the background passes walk
     /// (T-086). A look-up by number ([`Self::by_number`]) changes it, so it sits behind a
     /// `RefCell`.
@@ -100,6 +124,7 @@ impl std::ops::Deref for ActiveMonsters {
 
 impl std::ops::IndexMut<ActiveSlot> for ActiveMonsters {
     fn index_mut(&mut self, slot: ActiveSlot) -> &mut ActiveMonster {
+        self.apply_rereads();
         &mut self.slots[slot]
     }
 }
@@ -147,16 +172,19 @@ impl ActiveMonsters {
 
     /// The record, mutable, by slot.
     pub fn get_mut(&mut self, slot: ActiveSlot) -> Option<&mut ActiveMonster> {
+        self.apply_rereads();
         self.slots.get_mut(slot)
     }
 
     /// Every record, mutable.
     pub fn values_mut(&mut self) -> slotmap::basic::ValuesMut<'_, ActiveSlot, ActiveMonster> {
+        self.apply_rereads();
         self.slots.values_mut()
     }
 
     /// Every record with its slot, mutable.
     pub fn iter_mut(&mut self) -> slotmap::basic::IterMut<'_, ActiveSlot, ActiveMonster> {
+        self.apply_rereads();
         self.slots.iter_mut()
     }
 
@@ -187,6 +215,26 @@ impl ActiveMonsters {
         self.peek_mut(n)
     }
 
+    /// Each monster pushed out unchanged and read in again since, as written: the game
+    /// reads it from the file, so what changed without counting before is lost and what
+    /// changes after is kept.
+    fn apply_rereads(&mut self) {
+        let reread = std::mem::take(self.reread.get_mut());
+        for n in reread {
+            self.evictions
+                .get_mut()
+                .retain(|e| !matches!(e, Eviction::Kept(k) if *k == n));
+            let Some(was) = self.written(n) else {
+                continue;
+            };
+            if let Some(slot) = self.slot_of(n)
+                && let Some(m) = self.slots.get_mut(slot)
+            {
+                *m = was;
+            }
+        }
+    }
+
     /// The record, leaving the cache as it is (a monster already in the cache, or a
     /// record in hand).
     pub fn peek(&self, n: ActiveMonsterId) -> Option<&ActiveMonster> {
@@ -195,6 +243,7 @@ impl ActiveMonsters {
 
     /// The record, mutable, leaving the cache as it is.
     pub fn peek_mut(&mut self, n: ActiveMonsterId) -> Option<&mut ActiveMonster> {
+        self.apply_rereads();
         let slot = self.slot_of(n)?;
         self.slots.get_mut(slot)
     }
@@ -210,7 +259,76 @@ impl ActiveMonsters {
         let exists = i32::try_from(monnum)
             .ok()
             .is_some_and(|n| self.slot_of(ActiveMonsterId(n)).is_some());
-        self.cache.borrow_mut().get(monnum, exists)
+        let found = self.cache.borrow_mut().get(monnum, exists);
+        if matches!(found, Lookup::Loaded(_)) {
+            let n = ActiveMonsterId(monnum as i32);
+            let kept = self
+                .evictions
+                .borrow()
+                .iter()
+                .any(|e| matches!(e, Eviction::Kept(k) if *k == n));
+            if kept {
+                self.reread.borrow_mut().push(n);
+            }
+        }
+        self.note_evictions();
+        found
+    }
+
+    /// The monsters the cache pushed out since the last call, noted as they are now.
+    /// Monster `n` as last written: the latest write still to be sent, or the copy
+    /// written before.
+    fn written(&self, n: ActiveMonsterId) -> Option<ActiveMonster> {
+        let evictions = self.evictions.borrow();
+        let pending = evictions.iter().rev().find_map(|e| match e {
+            Eviction::Written(m) if m.number == n => Some((**m).clone()),
+            _ => None,
+        });
+        pending.or_else(|| self.saved.get(&n).cloned())
+    }
+
+    fn note_evictions(&self) {
+        // a monster read in again and not changed since is as written: what it holds from
+        // before it was pushed out is read back at its next change
+        let as_read = |n: ActiveMonsterId| -> Option<(bool, ActiveMonster)> {
+            if self.reread.borrow().contains(&n) {
+                let was = self.written(n)?;
+                Some((self.marked.borrow().contains(&n), was))
+            } else {
+                let m = self.peek(n)?.clone();
+                Some((self.is_dirty(n), m))
+            }
+        };
+        let evicted = self.cache.borrow_mut().take_evicted();
+        for n in evicted {
+            let Some((dirty, m)) = as_read(n) else {
+                continue;
+            };
+            // pushed out again: the read back waiting for it is the eviction's now
+            self.reread.borrow_mut().retain(|r| *r != n);
+            self.quiet.borrow_mut().remove(&n);
+            let e = if dirty {
+                self.marked.borrow_mut().remove(&n);
+                Eviction::Written(Box::new(m))
+            } else {
+                Eviction::Kept(n)
+            };
+            self.evictions.borrow_mut().push(e);
+        }
+        // written back in place: a changed one counts as written, as it is now
+        let flushed = self.cache.borrow_mut().take_flushed();
+        for n in flushed {
+            let Some((dirty, m)) = as_read(n) else {
+                continue;
+            };
+            if dirty {
+                self.quiet.borrow_mut().remove(&n);
+                self.marked.borrow_mut().remove(&n);
+                self.evictions
+                    .borrow_mut()
+                    .push(Eviction::Written(Box::new(m)));
+            }
+        }
     }
 
     /// The cache.
@@ -223,9 +341,59 @@ impl ActiveMonsters {
         self.cache.borrow_mut()
     }
 
-    /// Has active monster `n` changed since it was last written?
+    /// Marks active monster `n` changed (`dirty`) until it is next written.
+    pub fn mark_dirty(&mut self, n: ActiveMonsterId) {
+        self.marked.get_mut().insert(n);
+    }
+
+    /// Changes active monster `n` without marking it changed, as the game does for a few
+    /// fields: a monster unchanged before is unchanged after, and the change is lost if
+    /// it is pushed out of the cache before something else changes it.
+    pub fn set_quietly(&mut self, n: ActiveMonsterId, change: impl FnOnce(&mut ActiveMonster)) {
+        let clean = !self.is_dirty(n);
+        let Some(m) = self.peek_mut(n) else { return };
+        change(m);
+        if clean {
+            let m = m.clone();
+            self.quiet.get_mut().insert(n, m);
+        }
+    }
+
+    /// Has active monster `n` changed since it was last written? Marked, or its record
+    /// differs from the copy written; the slow pass's `lastupd` and `lastdir` and the
+    /// fought and area-targeted flags do not count: the game sets them without marking the
+    /// record changed.
     pub fn is_dirty(&self, n: ActiveMonsterId) -> bool {
-        self.peek(n) != self.saved.get(&n)
+        let Some(now) = self.peek(n) else {
+            return false;
+        };
+        if self.marked.borrow().contains(&n) {
+            return true;
+        }
+        // read in again and not changed since: as written
+        if self.reread.borrow().contains(&n) {
+            return false;
+        }
+        // written when it was pushed out of the cache, if it was since
+        let evictions = self.evictions.borrow();
+        let written = evictions.iter().rev().find_map(|e| match e {
+            Eviction::Written(m) if m.number == n => Some(&**m),
+            _ => None,
+        });
+        let quiet = self.quiet.borrow();
+        quiet
+            .get(&n)
+            .or(written)
+            .or(self.saved.get(&n))
+            .is_none_or(|was| {
+                let mut was = was.clone();
+                was.lastupd = now.lastupd;
+                was.lastdir = now.lastdir;
+                for quiet in [ActiveMonsterFlags::FOUGHT, ActiveMonsterFlags::TARGETED] {
+                    was.flags.set(quiet, now.flags.contains(quiet));
+                }
+                *now != was
+            })
     }
 
     /// The numbers in use, in number order.
@@ -247,7 +415,7 @@ pub(crate) fn persist(world: &mut World, req: PersistRequest) {
 /// row leaves what all of them in order leave; the others keep their places. What the
 /// store holds once the outbox is written does not change, only the number of writes.
 pub fn coalesce_saves(outbox: &mut Vec<EngineOutput>, from: usize) {
-    #[derive(PartialEq, Eq, Hash)]
+    #[derive(PartialEq, Eq, PartialOrd, Ord)]
     enum Row {
         Room(RoomKey),
         Active(ActiveMonsterId),
@@ -266,7 +434,7 @@ pub fn coalesce_saves(outbox: &mut Vec<EngineOutput>, from: usize) {
         _ => None,
     };
     let from = from.min(outbox.len());
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = std::collections::BTreeSet::new();
     let mut keep = vec![true; outbox.len() - from];
     for (i, o) in outbox[from..].iter().enumerate().rev() {
         if let Some(r) = row(o)
@@ -289,16 +457,34 @@ pub fn save_active_monster(world: &mut World, n: ActiveMonsterId) {
         return;
     };
     world.active_monsters.saved.insert(n, m.clone());
+    world.active_monsters.marked.get_mut().remove(&n);
+    world.active_monsters.quiet.get_mut().remove(&n);
     persist(world, PersistRequest::ActiveMonster(Box::new(m)));
 }
 
-/// The monsters the cache pushed out since the last call are written back when they
-/// changed, which leaves them unchanged since their last write.
+/// The monsters the cache pushed out since the last call are written back as they were
+/// then, when they had changed. One that had not is read back as written: what changed
+/// without counting (the slow pass's `lastupd` and `lastdir`, the fought flag, a quiet
+/// change) is lost.
 pub fn write_back_evicted(world: &mut World) {
-    let evicted = world.active_monsters.cache_mut().take_evicted();
-    for n in evicted {
-        if world.active_monsters.peek(n).is_some() && world.active_monsters.is_dirty(n) {
-            save_active_monster(world, n);
+    world.active_monsters.apply_rereads();
+    world.active_monsters.note_evictions();
+    let evictions = std::mem::take(world.active_monsters.evictions.get_mut());
+    for e in evictions {
+        match e {
+            Eviction::Written(m) => {
+                world.active_monsters.saved.insert(m.number, (*m).clone());
+                persist(world, PersistRequest::ActiveMonster(m));
+            }
+            Eviction::Kept(n) => {
+                // read back as written: what changed without counting is lost
+                let Some(was) = world.active_monsters.saved.get(&n).cloned() else {
+                    continue;
+                };
+                if let Some(m) = world.active_monsters.peek_mut(n) {
+                    *m = was;
+                }
+            }
         }
     }
 }
@@ -309,7 +495,7 @@ pub fn save_active_monsters(world: &mut World) {
     let changed: Vec<ActiveMonsterId> = world
         .active_monsters
         .values()
-        .filter(|m| world.active_monsters.saved.get(&m.number) != Some(*m))
+        .filter(|m| world.active_monsters.is_dirty(m.number))
         .map(|m| m.number)
         .collect();
     for n in changed {
@@ -431,6 +617,17 @@ pub fn delete_active_record(world: &mut World, n: ActiveMonsterId) {
         world.active_monsters.remove(slot);
     }
     world.active_monsters.saved.remove(&n);
+    world.active_monsters.marked.get_mut().remove(&n);
+    world.active_monsters.quiet.get_mut().remove(&n);
+    // a write still to come would bring the record back
+    world
+        .active_monsters
+        .evictions
+        .get_mut()
+        .retain(|e| match e {
+            Eviction::Written(m) => m.number != n,
+            Eviction::Kept(k) => *k != n,
+        });
     if n == NOACTNUM {
         return;
     }

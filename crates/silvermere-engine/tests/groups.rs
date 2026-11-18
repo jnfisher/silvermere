@@ -307,11 +307,9 @@ fn invite_then_follow_links_the_party() {
     assert_eq!(h.lines_since(m, c), ["You don't see that anywhere!"]);
 }
 
-// is_user_forgotten. Resolving the name clears the output buffer (clear_output): FOLLOW, INVITE and
-// UNINVITE lose the dispatcher's ANSI_NORMAL in front of their own line. Seen on the
-// original by the m3/party differential (FOLLOW and UNINVITE differed in colour only).
+// is_user_forgotten. FOLLOW, INVITE and UNINVITE: the command's colour reset, then the line.
 #[test]
-fn follow_invite_and_uninvite_start_without_the_dispatchers_reset() {
+fn follow_invite_and_uninvite_start_with_the_reset() {
     let mut h = Harness::new();
     let a = h.playing("Aldric", MIDDLE);
     let b = h.playing("Bob", MIDDLE);
@@ -319,17 +317,17 @@ fn follow_invite_and_uninvite_start_without_the_dispatchers_reset() {
         (
             a,
             "invite bob",
-            &b"\x1b[79D\x1b[K\x1b[1m\x1b[34mYou have invited Bob to follow you.\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=10\x1b[0;37m]:"[..],
+            &b"\x1b[0;37;40m\x1b[79D\x1b[K\x1b[1m\x1b[34mYou have invited Bob to follow you.\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=10\x1b[0;37m]:"[..],
         ),
         (
             b,
             "follow aldric",
-            &b"\x1b[79D\x1b[K\x1b[0;37mYou are now following Aldric\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=10\x1b[0;37m]:"[..],
+            &b"\x1b[0;37;40m\x1b[79D\x1b[K\x1b[0;37mYou are now following Aldric\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=10\x1b[0;37m]:"[..],
         ),
         (
             a,
             "uninvite bob",
-            &b"\x1b[79D\x1b[K\x1b[0;31mBob has been removed from your followers.\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=10\x1b[0;37m]:"[..],
+            &b"\x1b[0;37;40m\x1b[79D\x1b[K\x1b[0;31mBob has been removed from your followers.\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=10\x1b[0;37m]:"[..],
         ),
     ] {
         let m = h.mark();
@@ -501,6 +499,20 @@ fn first_march(h: &mut Harness, leader: SessionId, follower: SessionId, to: u32)
 
 const DRAG_REFUSAL: &str = "You may not drag someone while in a party!";
 
+/// `text` with the hidden " \x08" taken out of its departure lines: the game says "just left
+/// to the ..." one of three ways at random, which differ only in where it goes.
+fn any_departure(text: &str) -> String {
+    text.split_inclusive('\n')
+        .map(|l| {
+            if l.contains("just left to") {
+                l.replace(" \x08", "")
+            } else {
+                l.to_owned()
+            }
+        })
+        .collect()
+}
+
 // clear_player zeroes the record, and neither load_player nor create_player sets `dragging`
 // back to -1: a new character drags "channel 0", so his first marched step is refused (seen
 // on the original in m3/party, step 16). `dragging` is saved with the record, so the -1 that
@@ -522,8 +534,9 @@ fn the_drag_refusal_comes_once_in_a_characters_life() {
     assert_eq!(h.w().session(b).unwrap().party.dragging, Some(SessionId(0)));
     let bytes = first_march(&mut h, a, b, EAST_END);
     assert_eq!(
-        String::from_utf8_lossy(&bytes),
-        "\x1b[79D\x1b[K\x1b[1;31mAldric\x1b[0;32m just left to  \x08the ea \x08st.\r\n\
+        any_departure(&String::from_utf8_lossy(&bytes)),
+        any_departure(
+            "\x1b[79D\x1b[K\x1b[1;31mAldric\x1b[0;32m just left to  \x08the ea \x08st.\r\n\
          \x1b[79D\x1b[K\x1b[0;37m[HP=10\x1b[0;37m]:\
          \x1b[79D\x1b[K\x1b[1;37mYou may not drag someone while in a party!\r\n\
          \x1b[79D\x1b[K\x1b[0;37m -- Following your Party leader e \x08ast --\r\n\
@@ -531,6 +544,7 @@ fn the_drag_refusal_comes_once_in_a_characters_life() {
          \x1b[0;35mAlso here: \x1b[1;35mAldric\x1b[0;35m.\r\n\
          \x1b[0m\x1b[0;32mObvious exits: e \x08ast, w \x08est\r\n\
          \x1b[79D\x1b[K\x1b[0;37m[HP=10\x1b[0;37m]:"
+        )
     );
     assert_eq!(h.w().session(b).unwrap().party.dragging, None);
 
@@ -710,18 +724,15 @@ fn rank_rules() {
     // allowed: Bob to the back; every member of the same party is told
     let m = h.mark();
     h.line(b, "backrank");
-    // a send to one player only rewinds the write position, so the output buffer still holds
-    // the line, the
-    // dispatcher's ANSI_NORMAL first, when the next member is told: each gets the same
-    // bytes, and Bob's own line is written over them
+    // Bob's line follows his colour reset
     assert_eq!(
         h.bytes_since(m, b),
-        b"You have moved to the back ranks of your group.\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=10\x1b[0;37m]:"
+        b"\x1b[0;37;40mYou have moved to the back ranks of your group.\r\n\x1b[79D\x1b[K\x1b[0;37m[HP=10\x1b[0;37m]:"
     );
     for o in [a, c, d] {
         assert_eq!(
             h.bytes_since(m, o),
-            b"\x1b[0;37;40m\x1b[79D\x1b[KBob just moved to the back rank in your group.\r\n",
+            b"\x1b[79D\x1b[KBob just moved to the back rank in your group.\r\n",
             "{}",
             name(h.w(), o)
         );
@@ -1131,11 +1142,10 @@ fn the_party_ends_with_disband_and_with_the_leaders_logoff() {
     }
 }
 
-// DISBAND PARTY, stop_following for every follower: the first follower told takes the
-// dispatcher's ANSI_NORMAL and clear_output drops it for the rest; with no followers nothing is
-// told, so it stays in the output buffer and goes out with the leader's prompt.
+// DISBAND PARTY, stop_following for every follower: the leader gets his colour reset and the
+// prompt; each follower gets his line alone.
 #[test]
-fn disband_party_leaves_the_reset_for_the_next_send() {
+fn disband_party_keeps_the_reset_with_the_leader() {
     const RESET: &[u8] = b"\x1b[0;37;40m";
     let prompt = |h: &mut Harness, id| silvermere_engine::tell::prompt_bytes(h.w(), id);
     let line = |h: &mut Harness, id| {
@@ -1151,12 +1161,12 @@ fn disband_party_leaves_the_reset_for_the_next_send() {
     let m = h.mark();
     h.line(a, "disband party");
     assert_eq!(h.bytes_since(m, a), [RESET, &prompt(&mut h, a)].concat());
-    // two follow: Bob, the first told, gets it
+    // two follow
     h.party(a, &[b, c]);
     let m = h.mark();
     h.line(a, "disband party");
-    assert_eq!(h.bytes_since(m, a), prompt(&mut h, a));
-    assert_eq!(h.bytes_since(m, b), [RESET, &line(&mut h, b)].concat());
+    assert_eq!(h.bytes_since(m, a), [RESET, &prompt(&mut h, a)].concat());
+    assert_eq!(h.bytes_since(m, b), line(&mut h, b));
     assert_eq!(h.bytes_since(m, c), line(&mut h, c));
 }
 

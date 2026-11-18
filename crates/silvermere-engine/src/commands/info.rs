@@ -5,18 +5,23 @@
 //! (`status`, `who`, `topten`, `spells`, `describe`) and `crate::help`.
 
 use silvermere_text::{Msg, cp437};
-use silvermere_types::enums::{CommandCode, Direction, ExitType};
+use silvermere_types::enums::{CommandCode, Direction};
 use silvermere_types::flags::{ExitFlags, PlayerStatus};
-use silvermere_types::ids::{ActiveMonsterId, ItemNo, MapId, RoomKey, SessionId, SpellNo};
+use silvermere_types::ids::{ActiveMonsterId, ItemNo, RoomKey, SessionId, SpellNo};
 use silvermere_types::names::{COIN_DESCRIPTIONS, CURRENCY_NAMES};
+use silvermere_types::records::{ExitParams, Lock, TrapState};
 
+use super::cast::{ANYTHING, Found, find_action_target};
 use super::dispatch::Handled;
-use super::{Cmd, CommandLine, eq_ignore_case, parse_command, starts_with_ignore_case};
+use super::{Cmd, CommandLine, parse_command, starts_with_ignore_case};
+use crate::combat::AutoTarget;
+use crate::combat::autocombat::{is_inside_autocombat, match_combat_target};
 use crate::display::exits::exits_msg;
 use crate::display::{RoomMode, can_see, describe, display_room, spells, status, topten, who};
 use crate::help::{help_text, matches_any_word};
+use crate::items::inventory::show_options;
 use crate::movement::exits::live_exit;
-use crate::output::clear_output;
+use crate::movement::move_user::user_allowed_in_room;
 use crate::tell::{Noise, TellBlind, tell_room, tell_user};
 use crate::world::World;
 
@@ -133,40 +138,36 @@ pub fn look_direction(world: &mut World, id: SessionId, dir: usize) {
         return;
     }
     let mut destmap = old.map;
-    match exit.kind {
+    match exit.params() {
         // a shut Key exit has the closed-door message
-        ExitType::Key if exit.par2 != 0 => {
+        ExitParams::Key(k) if k.lock != Lock::Open => {
             push(world, id, Msg::LookDoorClosed);
             return;
         }
         // a Hidden exit only when visible but blocked (sic: the flag is tested twice)
-        ExitType::Hidden
-            if ExitFlags::from_bits_retain(exit.par1).contains(ExitFlags::VISBLOCKED) => {}
-        ExitType::Hidden | ExitType::Text | ExitType::RemoteAction => {
+        ExitParams::Hidden(h) if h.flags.contains(ExitFlags::VISBLOCKED) => {}
+        ExitParams::Hidden(_) | ExitParams::Text(_) | ExitParams::Remote(_) => {
             let m = no_exit(world, dir);
             push(world, id, m);
             return;
         }
         // a shut Door exit
-        ExitType::Door if exit.par1 != 0 => {
+        ExitParams::Door(d) if d.lock != Lock::Open => {
             push(world, id, Msg::LookDoorClosed);
             return;
         }
         // a Map Change exit looks onto its own map
-        ExitType::MapChange => destmap = MapId(exit.par1),
+        ExitParams::MapChange { map } => destmap = map,
         // a Cast exit with a message shows it instead
-        ExitType::Cast if exit.par4 != 0 => {
-            let text = world
-                .messages
-                .get(&silvermere_types::ids::MessageNo(exit.par4))
-                .map(|m| m.msgs[0].clone());
+        ExitParams::Cast(cx) if cx.look.0 != 0 => {
+            let text = world.messages.get(&cx.look).map(|m| m.msgs[0].clone());
             if let Some(text) = text {
                 push(world, id, Msg::LookCastExit { text });
             }
             return;
         }
-        // a Trap exit of kind 2 is no exit
-        ExitType::Trap if exit.par2 == 2 => {
+        // a hidden Trap exit is no exit
+        ExitParams::Trap(t) if t.state == TrapState::Hidden => {
             let m = no_exit(world, dir);
             push(world, id, m);
             return;
@@ -200,7 +201,20 @@ pub fn look_direction(world: &mut World, id: SessionId, dir: usize) {
         room: exit.target,
     };
     set_location(world, id, beyond);
+    // its entry checks in look-only mode: the room is readied, and an arena too high for
+    // him says so, but he sees it all the same
+    if let Some(from) = world.room(old).map(|r| r.room_type) {
+        user_allowed_in_room(world, id, beyond, from, true);
+    }
     display_room(world, id, RoomMode::LONG);
+    // (sic) where he stands: still his own room when the one beyond is missing
+    let here = world
+        .session(id)
+        .and_then(|s| s.player())
+        .map_or(beyond, |p| RoomKey {
+            map: p.map,
+            room: p.room,
+        });
     // its occupants see him peek in from the reverse direction
     if !hidden {
         let back = Direction::COMPASS
@@ -221,7 +235,7 @@ pub fn look_direction(world: &mut World, id: SessionId, dir: usize) {
         };
         tell_room(
             world,
-            beyond,
+            here,
             [Some(id), None],
             Noise::Always,
             TellBlind::All,
@@ -234,8 +248,11 @@ pub fn look_direction(world: &mut World, id: SessionId, dir: usize) {
     set_location(world, id, old);
 }
 
-/// The player stands in `key` (no trail).
+/// The player stands in `key` (no trail); a room that cannot be loaded leaves him where he is.
 fn set_location(world: &mut World, id: SessionId, key: RoomKey) {
+    if world.room(key).is_none() {
+        return;
+    }
     if let Some(p) = world.session_mut(id).and_then(|s| s.character.as_mut()) {
         p.map = key.map;
         p.room = key.room;
@@ -264,101 +281,6 @@ enum Target {
     Spell(SpellNo),
 }
 
-/// A stand-in for the action target search over monsters, players, items carried, items on
-/// the floor and spells (T-033's to do in full): the first match, in that order, of the monsters in
-/// the room (dropping trailing words of `name` until one fits), the players in the room by the
-/// first word (a hidden one only for himself or a searcher who sees hidden), the items carried, the
-/// items lying in the room (then its hidden items that cannot be picked up or that a search has
-/// found), and the spells in the book. The "which one did you mean?" list for
-/// several matches is not carried.
-fn find_target(world: &World, id: SessionId, name: &str) -> Option<Target> {
-    let plr = world.session(id)?.player()?;
-    let key = RoomKey {
-        map: plr.map,
-        room: plr.room,
-    };
-    let state = world.room_state.get(&key);
-    // monsters, dropping trailing words
-    let words: Vec<&str> = name.split_whitespace().collect();
-    for n in (1..=words.len()).rev() {
-        let typed = words[..n].join(" ");
-        if let Some(st) = state {
-            for &m in st.monsters.iter().filter(|m| m.0 != 0) {
-                if let Some(mon) = world.active_monsters.by_number(m)
-                    && matches_any_word(&typed, &mon.name)
-                {
-                    return Some(Target::Monster(m));
-                }
-            }
-        }
-    }
-    // players in the room, by the first word
-    let first = words.first().copied().unwrap_or("");
-    let sees_hidden = plr.status.contains(PlayerStatus::SEEHIDDEN);
-    for other in world.session_ids() {
-        if !world.is_in_game(other) {
-            continue;
-        }
-        let Some(o) = world.session(other).and_then(|s| s.player()) else {
-            continue;
-        };
-        if o.map == key.map
-            && o.room == key.room
-            && (other == id || o.hidden == 0 || sees_hidden)
-            && matches_any_word(first, &o.firstname)
-        {
-            return Some(Target::User(other));
-        }
-    }
-    // the items carried
-    for &n in plr.items.iter().filter(|n| n.0 != 0) {
-        if world
-            .items
-            .get(&n)
-            .is_some_and(|i| matches_any_word(name, &i.name))
-        {
-            return Some(Target::Item(n));
-        }
-    }
-    // the items lying in the room
-    if let Some(st) = state {
-        for slot in st.items.iter().filter(|s| s.item.0 != 0) {
-            if world
-                .items
-                .get(&slot.item)
-                .is_some_and(|i| matches_any_word(name, &i.name))
-            {
-                return Some(Target::Item(slot.item));
-            }
-        }
-        // The hidden ones that are in plain sight anyway: scenery that can never be picked up
-        // (signs, plaques, walls), or an item a search has turned up. Anything else hidden stays
-        // unseen, even by its full name.
-        for (i, slot) in st.hiditems.iter().enumerate() {
-            if slot.item.0 == 0 {
-                continue;
-            }
-            let found = st.foundmask & (1u32 << i) != 0;
-            if world.items.get(&slot.item).is_some_and(|itm| {
-                (itm.gettable == 0 || found) && matches_any_word(name, &itm.name)
-            }) {
-                return Some(Target::Item(slot.item));
-            }
-        }
-    }
-    // the spells in the book
-    for &n in plr.spellbook.iter().filter(|n| n.0 != 0) {
-        if world
-            .spells
-            .get(&n)
-            .is_some_and(|s| matches_any_word(name, &s.name) || eq_ignore_case(name, &s.shortnm))
-        {
-            return Some(Target::Spell(n));
-        }
-    }
-    None
-}
-
 /// LOOK {name}. When nothing matches, the original tries the shop's items (`display_item_in_shop`,
 /// T-041), a kind of coin and the room's command text (`perform_special_command`, T-054) before the
 /// player's own name.
@@ -379,9 +301,25 @@ pub fn look_at_typed(world: &mut World, id: SessionId, name: &str, input: Option
         room: plr.room,
     };
     let sees_hidden = plr.status.contains(PlayerStatus::SEEHIDDEN);
-    let found = find_target(world, id, name);
-    // the match lookup ends, dropping the colour reset (this search carries no list)
-    clear_output(world, id);
+    let found = match find_action_target(world, id, name, ANYTHING) {
+        // several fit: in a fight the opponent of that name, else the list
+        Found::Multiple(_, options) => match is_inside_autocombat(world, id)
+            .then(|| match_combat_target(world, id, name))
+            .flatten()
+        {
+            Some(AutoTarget::Player(t)) => Some(Target::User(t)),
+            Some(AutoTarget::Monster(m)) => Some(Target::Monster(m)),
+            None => {
+                show_options(world, id, &options);
+                return;
+            }
+        },
+        Found::User(t) => Some(Target::User(t)),
+        Found::Monster(m) => Some(Target::Monster(m)),
+        Found::Inventory(n) | Found::Floor(n) => Some(Target::Item(n)),
+        Found::Spell(n) => Some(Target::Spell(n)),
+        Found::None => None,
+    };
     match found {
         // nothing matched
         None => {
@@ -406,6 +344,9 @@ pub fn look_at_typed(world: &mut World, id: SessionId, name: &str, input: Option
             if let Some(input) = input
                 && crate::scripts::room_command(world, id, input)
             {
+                if let Some(s) = world.session_mut(id) {
+                    s.push_prompt();
+                }
                 return;
             }
             if starts_with_ignore_case(name, &me) {

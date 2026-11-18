@@ -1342,12 +1342,10 @@ mod room_reset {
     use super::*;
     use silvermere_engine::Routine;
     use silvermere_engine::monsters::{StartUp, preload_cycle};
-    use silvermere_engine::movement::exits::{
-        LOCK_LOCKED, LOCK_OPEN, live_exit, set_par1, set_par2,
-    };
+    use silvermere_engine::movement::exits::{LOCK_LOCKED, live_exit, set_exit_state};
     use silvermere_types::enums::{Direction, ExitType};
     use silvermere_types::flags::ExitFlags;
-    use silvermere_types::records::Exit;
+    use silvermere_types::records::{Exit, ExitParams, HiddenExit, Lock, TrapState};
 
     /// A placed item that cannot be picked up: it goes back hidden.
     const IDOL: ItemNo = ItemNo(112);
@@ -1418,14 +1416,23 @@ mod room_reset {
         s.lastkill = 30;
         s.foundmask = 1;
         s.searchers = 2;
-        set_par1(w, key(START), Direction::North, LOCK_OPEN);
-        set_par2(w, key(START), Direction::South, 0);
-        set_par2(w, key(START), Direction::East, 1);
-        set_par1(
+        let here = key(START);
+        let at = |w: &World, dir| live_exit(w, here, dir).unwrap().params();
+        let door = at(w, Direction::North).with_lock(Lock::Open);
+        set_exit_state(w, here, Direction::North, door);
+        let key_exit = at(w, Direction::South).with_lock(Lock::Open);
+        set_exit_state(w, here, Direction::South, key_exit);
+        let trap = at(w, Direction::East).with_trap_state(TrapState::Disarmed);
+        set_exit_state(w, here, Direction::East, trap);
+        let ExitParams::Hidden(h) = at(w, Direction::West) else {
+            panic!("the hidden exit west");
+        };
+        let flags = ExitFlags::VISSEARCHED;
+        set_exit_state(
             w,
-            key(START),
+            here,
             Direction::West,
-            ExitFlags::VISSEARCHED.bits(),
+            ExitParams::Hidden(HiddenExit { flags, ..h }),
         );
     }
 
