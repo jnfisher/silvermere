@@ -47,6 +47,22 @@ note = "silvermere's own (the BBS had no lockout): config lockout.max_failures f
 text = "\r\n\u001B[1m\u001B[31mThis account is already logged on.\u001B[0m\r\n"
 note = "silvermere's own. compat.duplicate_login. MBBSEmu refused a second session at the username prompt with `{user} is already logged in -- only 1 connection allowed per user.` and re-asked; silvermere checks after the password (so the text says nothing about an account to someone without its password) and closes the connection."
 
+[messages.takeover_prompt]
+text = "\r\n\u001B[1m\u001B[31mThis account is already logged on.\u001B[0m\r\n\u001B[1m\u001B[37mDisconnect the other connection and log in here? (Y/N):\u001B[0m "
+note = "silvermere's own. net.login_takeover: printed instead of duplicate_login after the right password, so a player whose last connection died (Wi-Fi dropped, laptop asleep) need not wait for it to time out. Y disconnects the other connection as a hang-up does and logs in here; N prints duplicate_login and closes, as before."
+
+[messages.takeover_question]
+text = "\u001B[1m\u001B[37mDisconnect the other connection and log in here? (Y/N):\u001B[0m "
+note = "silvermere's own. The question again, after an answer that is neither Y nor N."
+
+[messages.takeover_failed]
+text = "\r\n\u001B[1m\u001B[31mThe other connection did not close in time. Please try again in a minute.\u001B[0m\r\n"
+note = "silvermere's own. The other session was told to close but the account was not free within the wait; the connection is closed."
+
+[messages.taken_over]
+text = "\r\n\u001B[1m\u001B[31mThis account has logged on from another connection. Disconnecting.\u001B[0m\r\n"
+note = "silvermere's own. Sent to the connection that a takeover disconnects, just before it closes."
+
 [messages.no_password]
 text = "\r\n\u001B[1m\u001B[31mThis account has no password yet. Ask the sysop to set one.\u001B[0m\r\n"
 note = "silvermere's own. An account with no password (an import creates its players' accounts without one) is refused with this whatever is typed; it does not count towards the lockout."

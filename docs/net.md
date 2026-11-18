@@ -94,6 +94,24 @@ leaves nothing in the gate or the engine; then `NUL` is sent and the session emi
 `SessionEvent::Rlogin(hello)` just before `Connected`. An rlogin session sends no telnet
 offers, doubles no 0xFF, strips no IAC and sends no heartbeat `NOP`: its bytes are plain.
 
+## Dead connections
+
+A player whose Wi-Fi drops, or whose laptop sleeps, leaves a connection that is still open
+on the server and gone on their side. Nothing ever arrives on it, so without help its
+character stays in the game, and the account `already logged on`, until
+`game.inactive_secs` (an hour by default) kicks it.
+
+Every accepted connection, telnet and rlogin, has TCP keepalive on (`keepalive.rs`): after
+`net.keepalive_secs` (60) with no traffic either way, the server's system sends a probe,
+then one every 15 seconds, and drops the connection after 4 unanswered, about two minutes
+after the player's last sign of life. On Linux the same two minutes also bound output the
+other end never acknowledges (`TCP_USER_TIMEOUT`). The session then ends as a hang-up does.
+A live client's system answers the probes by itself, so an idle player is never
+disconnected by them. `net.keepalive_secs = 0` turns the probes off.
+
+A player who comes back sooner than that can take the account over from the dead connection
+at login ([auth.md](auth.md#the-dialogue), `net.login_takeover`).
+
 ## Manual check
 
 ```

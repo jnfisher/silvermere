@@ -58,8 +58,18 @@ pub struct SettingsView {
     pub file: String,
     /// The settings, in the order the documentation lists them.
     pub values: Vec<SettingValue>,
+    /// Keys whose saved value the running server has not loaded but can load now
+    /// ([`Settings::load_now`]): the game options the in-game `SYSOP RELOAD` reads.
+    pub pending_live: Vec<String>,
+    /// Keys whose saved value the running server reads only when it starts.
+    pub pending_restart: Vec<String>,
+}
+
+impl SettingsView {
     /// Whether the file holds changes the running server has not loaded.
-    pub pending: bool,
+    pub fn pending(&self) -> bool {
+        !self.pending_live.is_empty() || !self.pending_restart.is_empty()
+    }
 }
 
 /// One change to the settings file.
@@ -77,6 +87,12 @@ pub trait Settings: Send + Sync + 'static {
     /// Writes `changes` to the file, all or none: a value the server would refuse at
     /// startup is an error with startup's message, and nothing is written.
     fn apply(&self, changes: &[Change]) -> Result<(), String>;
+    /// Loads the file's game options into the running game, as the in-game
+    /// `SYSOP RELOAD` does; the keys whose new value it loaded. A server that cannot
+    /// (the public copy, a test) answers with why.
+    fn load_now(&self) -> Result<Vec<String>, String> {
+        Err("This server cannot load settings while it runs: restart it.".into())
+    }
 }
 
 /// A string as a TOML basic string.
@@ -154,7 +170,8 @@ mod tests {
         secret.locked = Some(Lock::Secret);
         SettingsView {
             file: "silvermere.toml".into(),
-            pending: false,
+            pending_live: Vec::new(),
+            pending_restart: Vec::new(),
             values: vec![
                 value(
                     "game.death_hp",

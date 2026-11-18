@@ -71,7 +71,26 @@ the line is in. Then:
 | an account with no password (an import creates its players' accounts without one) | `This account has no password yet. Ask the sysop to set one.` (silvermere), the intro and `Username:` again, whatever was typed; never logs in and never counts towards the lockout |
 | third failure on this connection | `Invalid Credentials`, then the connection is closed (MBBSEmu let a client retry forever) |
 | account locked | `Too many failed logins: this account is locked for N more minute(s).` (silvermere), counted as a failure of the connection |
-| right password, account already logged on | `This account is already logged on.` (silvermere, `compat.duplicate_login`), connection closed |
+| right password, account already logged on | `This account is already logged on.` and `Disconnect the other connection and log in here? (Y/N):` (silvermere, `net.login_takeover`, below) |
+| the same, `net.login_takeover = false` | `This account is already logged on.` (silvermere, `compat.duplicate_login`), connection closed |
+
+**Taking over a session** (`net.login_takeover`, on by default). A player whose last
+connection died (Wi-Fi dropped, a laptop went to sleep) would otherwise be refused until the
+dead connection timed out ([net.md](net.md#dead-connections)). After the right password the
+dialogue asks instead:
+
+| Answer | Response |
+|---|---|
+| `Y` (any case; leading spaces and what follows the first letter ignored) | the other connection is sent `This account has logged on from another connection. Disconnecting.` and closed as a hang-up closes it (the character saved, `game.pun_hup` applied as to any hang-up); once it has gone, the password is checked again and the login goes on to the menu shim as usual |
+| `N` | `This account is already logged on.`, connection closed, the other connection untouched |
+| anything else | the question again |
+| no answer within `net.login_timeout_secs` | connection closed |
+
+If the other connection has not let go of the account within 10 seconds (the transport gives
+a closing connection 5 to drain), the answer is `The other connection did not close in time.
+Please try again in a minute.` and the connection closes. A wrong password never sees the
+question, so it tells nobody that the account is in use. The rlogin door asks the same
+question of a caller whose account is already logged on (below).
 
 MBBSEmu refused a second session at the username prompt (`{user} is already logged in --
 only 1 connection allowed per user.`); silvermere checks after the password so that the
@@ -166,8 +185,10 @@ powers:
 
 #### The rest
 
-- The lockout and the one-session rule apply as for telnet (`This account is already logged
-  on.`, then the connection closes).
+- The lockout and the one-session rule apply as for telnet: an account already logged on is
+  asked the takeover question (`Y` disconnects the other connection and goes on to the menu,
+  `N` gets `This account is already logged on.` and the connection closes), or refused at
+  once with `net.login_takeover = false`.
 - **`R` at the logoff question** closes the connection, which takes the caller back to the
   BBS, instead of showing `Username:`.
 - **Trust.** Only the addresses in `server.rlogin_trusted` are served (loopback when the
@@ -273,6 +294,7 @@ Every login, failure, lockout, signup, password and role change writes a
 | `auth.login_failed` | unknown name (`reason: unknown`), wrong password (`reason: password`) or an account with no password (`reason: no_password`) |
 | `auth.lockout` | a failure that locked the account (`until`) |
 | `auth.login_locked` | a login refused because the account is locked |
-| `auth.login_duplicate` | the right password for an account already logged on |
+| `auth.login_duplicate` | the right password for an account already logged on, refused (N, takeover off, or the other session did not close in time) |
+| `auth.login_takeover` | a login that disconnects the account's other session (`Y`; `via: rlogin` from the door) |
 | `auth.signup` | an account created with `NEW` |
 | `auth.account_created`, `auth.password`, `auth.role`, `auth.account_deleted` | the `cli` functions |

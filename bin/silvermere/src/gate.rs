@@ -51,6 +51,19 @@ pub enum GateEvent {
 pub enum GateControl {
     /// `R` at the BBS menu shim: run the dialogue on this connection again.
     ReturnToLogin(ConnId),
+    /// A login is taking this account over (`net.login_takeover`): close the connection
+    /// logged on to it, as a hang-up would.
+    Evict(AccountId),
+}
+
+/// The login service's [`Evict`](silvermere_auth::login::Evict): asks the gate to close
+/// the connection that holds the account.
+pub struct GateEvict(pub mpsc::UnboundedSender<GateControl>);
+
+impl silvermere_auth::login::Evict for GateEvict {
+    fn evict(&self, account: AccountId) {
+        let _ = self.0.send(GateControl::Evict(account));
+    }
 }
 
 /// The net crate's connection number, as the engine's [`ConnId`].
@@ -111,22 +124,25 @@ pub async fn run(
                     return;
                 }
             }
-            Some(GateControl::ReturnToLogin(cid)) = control.recv() => {
-                let Some(conn) = conns.get_mut(&cid) else { continue };
-                if let Some(id) = conn.account.take() {
-                    deps.service.online().release(id);
-                }
-                if conn.rlogin.is_some() {
-                    // back to the BBS that sent the caller, not to a password prompt
-                    if let Some(tx) = &conn.tx {
-                        let _ = tx.try_send(SessionCommand::Close);
+            Some(ctl) = control.recv() => match ctl {
+                GateControl::Evict(id) => evict(&conns, id),
+                GateControl::ReturnToLogin(cid) => {
+                    let Some(conn) = conns.get_mut(&cid) else { continue };
+                    if let Some(id) = conn.account.take() {
+                        deps.service.online().release(id);
                     }
-                    continue;
+                    if conn.rlogin.is_some() {
+                        // back to the BBS that sent the caller, not to a password prompt
+                        if let Some(tx) = &conn.tx {
+                            let _ = tx.try_send(SessionCommand::Close);
+                        }
+                        continue;
+                    }
+                    if let Some(tx) = conn.tx.clone() {
+                        conn.login = Some(spawn_login(cid, tx, deps.clone(), done_tx.clone()));
+                    }
                 }
-                if let Some(tx) = conn.tx.clone() {
-                    conn.login = Some(spawn_login(cid, tx, deps.clone(), done_tx.clone()));
-                }
-            }
+            },
             ev = net.recv() => {
                 let Some((net_id, ev)) = ev else { return };
                 // The transport registers a connection before its first event; take
@@ -189,6 +205,29 @@ pub async fn run(
             }
         }
     }
+}
+
+/// Closes the connection logged on to `account` for a takeover: it is told why, then
+/// closed as a hang-up would close it. The account is released when its `Disconnect`
+/// comes back, which is what the takeover waits for.
+fn evict(conns: &HashMap<ConnId, Conn>, account: AccountId) {
+    let held = conns.values().find(|c| c.account == Some(account));
+    let Some(tx) = held.and_then(|c| c.tx.as_ref()) else {
+        // not logged on through a connection the gate knows (its character may still be
+        // loading): the takeover times out and says so
+        tracing::info!(
+            account = account.0,
+            "takeover: no connection holds the account"
+        );
+        return;
+    };
+    tracing::info!(
+        account = account.0,
+        "takeover: closing the account's other connection"
+    );
+    let text = silvermere_text::cp437::encode(&AuthMsg::TakenOver.text());
+    let _ = tx.try_send(SessionCommand::Write(text));
+    let _ = tx.try_send(SessionCommand::Close);
 }
 
 /// Keeps a new connection's command sender and passes it on to the output bridge.
@@ -351,6 +390,20 @@ async fn rlogin_account(
     for _ in 0..2 {
         match deps.service.trusted_login(user).await? {
             Ok(account) => return Ok(Some(*account)),
+            Err(Refusal::AlreadyOnline) if deps.config.takeover => {
+                return match ask_takeover(cid, tx, lines, deps).await {
+                    None => Ok(None),
+                    Some(false) => refuse(tx, AuthMsg::DuplicateLogin).await,
+                    Some(true) => match deps.service.trusted_take_over(user).await? {
+                        Ok(account) => Ok(Some(*account)),
+                        Err(Refusal::AlreadyOnline) => refuse(tx, AuthMsg::TakeoverFailed).await,
+                        Err(Refusal::Locked { minutes }) => {
+                            refuse(tx, AuthMsg::AccountLocked { minutes }).await
+                        }
+                        Err(_) => refuse(tx, AuthMsg::RloginRefused).await,
+                    },
+                };
+            }
             Err(Refusal::AlreadyOnline) => return refuse(tx, AuthMsg::DuplicateLogin).await,
             Err(Refusal::Locked { minutes }) => {
                 return refuse(tx, AuthMsg::AccountLocked { minutes }).await;
@@ -417,6 +470,40 @@ async fn ask_sex(
         let _ = tx.send(SessionCommand::LineDone).await;
         if let Some(sex) = Sex::from_answer(line.trim()) {
             return Some(sex);
+        }
+    }
+}
+
+/// The takeover question for a door caller whose account is already logged on
+/// (`net.login_takeover`): `Some(true)` for Y, `Some(false)` for N, `None` when the caller
+/// left or idled out.
+async fn ask_takeover(
+    cid: ConnId,
+    tx: &mpsc::Sender<SessionCommand>,
+    lines: &mut mpsc::UnboundedReceiver<String>,
+    deps: &GateDeps,
+) -> Option<bool> {
+    let mut msg = AuthMsg::TakeoverPrompt;
+    loop {
+        if !apply(tx, vec![Output::Text(msg)]).await {
+            return None;
+        }
+        let line = match deps.login_timeout {
+            Some(limit) => match tokio::time::timeout(limit, lines.recv()).await {
+                Ok(line) => line,
+                Err(_) => {
+                    tracing::info!(?cid, "rlogin takeover question idle too long; closing");
+                    let _ = tx.send(SessionCommand::Close).await;
+                    return None;
+                }
+            },
+            None => lines.recv().await,
+        }?;
+        let _ = tx.send(SessionCommand::LineDone).await;
+        match line.trim().chars().next().map(|c| c.to_ascii_uppercase()) {
+            Some('Y') => return Some(true),
+            Some('N') => return Some(false),
+            _ => msg = AuthMsg::TakeoverQuestion,
         }
     }
 }

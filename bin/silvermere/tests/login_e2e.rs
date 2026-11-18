@@ -28,12 +28,11 @@ async fn server(url: String) -> silvermere::Running {
         .expect("starts")
 }
 
-// An existing account logs in and enters the realm; docs/auth.md "The dialogue".
-#[tokio::test]
-async fn existing_character_reaches_the_prompt() {
-    let (_t, url) = common::seeded(&[]).await;
+/// The account Aldric (password `aldric1`) with a level 1 character in the first
+/// special room, 35 hit points.
+async fn seed_aldric(url: &str) {
     {
-        let db = Db::connect_and_migrate(&url).await.unwrap();
+        let db = Db::connect_and_migrate(url).await.unwrap();
         let account = create_with_cost(&db, "Aldric", "aldric1", &[Role::Player], Cost::Low)
             .await
             .unwrap();
@@ -59,6 +58,13 @@ async fn existing_character_reaches_the_prompt() {
         db.characters().insert(account.id, &c).await.unwrap();
         db.close().await;
     }
+}
+
+// An existing account logs in and enters the realm; docs/auth.md "The dialogue".
+#[tokio::test]
+async fn existing_character_reaches_the_prompt() {
+    let (_t, url) = common::seeded(&[]).await;
+    seed_aldric(&url).await;
     let r = server(url).await;
     let mut client = TelnetClient::connect(r.telnet_addr).await.unwrap();
     client.until("Username:", WAIT).await.unwrap();
@@ -259,5 +265,81 @@ async fn bare_line_ends_before_the_password_reprompt() {
         .await
         .unwrap();
     assert!(!got.plain.contains("Invalid"), "{}", got.plain);
+    r.stop().await.unwrap();
+}
+
+/// Logs `name` in up to the BBS menu shim.
+async fn log_in(addr: std::net::SocketAddr, name: &str, password: &str) -> TelnetClient {
+    let mut c = TelnetClient::connect(addr).await.unwrap();
+    c.until("Username:", WAIT).await.unwrap();
+    c.send_line(name).await.unwrap();
+    c.until("Password:", WAIT).await.unwrap();
+    c.send_line(password).await.unwrap();
+    c
+}
+
+// net.login_takeover (docs/auth.md "The dialogue"): the right password for an account that
+// is in the game asks whether to disconnect the other connection; Y closes it as a hang-up
+// does and logs in here, and the character is the one the other connection played.
+#[tokio::test]
+async fn a_second_login_can_take_the_account_over() {
+    let (_t, url) = common::seeded(&[]).await;
+    seed_aldric(&url).await;
+    let r = server(url).await;
+    let mut first = log_in(r.telnet_addr, "Aldric", "aldric1").await;
+    first
+        .until(r"Make your selection \(X to exit\):", WAIT)
+        .await
+        .unwrap();
+    first.send_line("M").await.unwrap();
+    first.until(r"\[MAJORMUD\]:", WAIT).await.unwrap();
+    first.send_line("E").await.unwrap();
+    first.until(r"\[HP=35\]:", WAIT).await.unwrap();
+
+    let mut second = log_in(r.telnet_addr, "Aldric", "aldric1").await;
+    let got = second.until(r"log in here\? \(Y/N\):", WAIT).await.unwrap();
+    assert!(got.plain.contains("This account is already logged on."));
+    // neither Y nor N: asked again
+    second.send_line("later").await.unwrap();
+    second
+        .until(r"(?s)later.*log in here\? \(Y/N\):", WAIT)
+        .await
+        .unwrap();
+    second.send_line("y").await.unwrap();
+    let got = first
+        .until("logged on from another connection", WAIT)
+        .await
+        .unwrap();
+    assert!(got.plain.contains("Disconnecting."));
+    second
+        .until(r"Make your selection \(X to exit\):", WAIT)
+        .await
+        .unwrap();
+    second.send_line("M").await.unwrap();
+    second.until(r"\[MAJORMUD\]:", WAIT).await.unwrap();
+    second.send_line("E").await.unwrap();
+    second.until(r"\[HP=35\]:", WAIT).await.unwrap();
+    r.stop().await.unwrap();
+}
+
+// N keeps the refusal: the other connection stays in the game.
+#[tokio::test]
+async fn n_leaves_the_other_connection_alone() {
+    let (_t, url) = common::seeded(&[]).await;
+    seed_aldric(&url).await;
+    let r = server(url).await;
+    let mut first = log_in(r.telnet_addr, "Aldric", "aldric1").await;
+    first
+        .until(r"Make your selection \(X to exit\):", WAIT)
+        .await
+        .unwrap();
+    let mut second = log_in(r.telnet_addr, "Aldric", "aldric1").await;
+    second.until(r"log in here\? \(Y/N\):", WAIT).await.unwrap();
+    second.send_line("n").await.unwrap();
+    second.until("already logged on", WAIT).await.unwrap();
+    // the first connection still answers
+    first.send_line("M").await.unwrap();
+    first.until(r"\[MAJORMUD\]:", WAIT).await.unwrap();
+    assert!(!first.plain().contains("another connection"));
     r.stop().await.unwrap();
 }

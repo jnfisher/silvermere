@@ -24,9 +24,34 @@ const TOKENS: [(&str, &str, &[Scope]); 3] = [
     ("root", "root-secret", &[Scope::Admin]),
 ];
 
+/// A planned shutdown that only notes what it was asked.
+#[derive(Default)]
+struct FakeShutdown {
+    plans: Mutex<Vec<(u64, String)>>,
+}
+
+impl silvermere_api::ShutdownPlan for FakeShutdown {
+    fn schedule(
+        &self,
+        after: Duration,
+        message: String,
+    ) -> Result<silvermere_api::Planned, String> {
+        self.plans.lock().unwrap().push((after.as_secs(), message));
+        Ok(silvermere_api::Planned {
+            at: "2026-11-18T20:05:00Z".into(),
+            in_secs: after.as_secs(),
+        })
+    }
+
+    fn cancel(&self) -> bool {
+        self.plans.lock().unwrap().pop().is_some()
+    }
+}
+
 struct Server {
     addr: std::net::SocketAddr,
     state: ApiState,
+    shutdown: Arc<FakeShutdown>,
     world: Arc<FakeWorld>,
     /// Snapshots the fake engine received through `ReloadContent`.
     reloads: Arc<Mutex<usize>>,
@@ -74,6 +99,7 @@ async fn server() -> Server {
         });
     }
     let world = Arc::new(FakeWorld::default());
+    let shutdown = Arc::new(FakeShutdown::default());
     let (_recorder, handle) = metrics::build();
     let state = ApiState {
         engine: tx.clone(),
@@ -87,6 +113,7 @@ async fn server() -> Server {
         metrics: handle,
         world: world.clone(),
         backup: Arc::new(silvermere_api::NoBackups),
+        shutdown: shutdown.clone(),
         tokens: Arc::new(
             TOKENS
                 .iter()
@@ -103,6 +130,7 @@ async fn server() -> Server {
     Server {
         addr,
         state,
+        shutdown,
         world,
         reloads,
         engine_fails,
@@ -354,6 +382,81 @@ async fn reload_failure_is_500_reload_failed_from_the_loader_or_the_engine() {
     );
     assert!(r.json()["message"].is_string());
     assert_eq!(*srv.reloads.lock().unwrap(), 1);
+}
+
+// POST /v1/shutdown: the defaults, the limits, and the audit row; DELETE cancels.
+#[tokio::test]
+async fn shutdown_schedules_checks_its_body_and_cancels() {
+    let srv = server().await;
+    let post = |body: &'static str| {
+        request(
+            srv.addr,
+            "POST",
+            "/v1/shutdown",
+            Some("root-secret"),
+            Some(body),
+        )
+    };
+    let r = post("").await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.json()["in_secs"], 300, "five minutes when none is named");
+    assert_eq!(r.json()["at"], "2026-11-18T20:05:00Z");
+    let r = post(r#"{"in_secs":30,"message":"  upgrading  "}"#).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(
+        srv.shutdown.plans.lock().unwrap().last().cloned(),
+        Some((30, "upgrading".to_string()))
+    );
+    for (body, code) in [
+        (r#"{"in_secs":86401}"#, "bad_delay"),
+        (r#"{"message":"a\u001b[2Jb"}"#, "bad_text"),
+        ("not json", "bad_body"),
+    ] {
+        let r = post(body).await;
+        assert_eq!(
+            (r.status, r.json()["error"].clone()),
+            (400, json!(code)),
+            "{body}"
+        );
+    }
+    assert_eq!(
+        srv.shutdown.plans.lock().unwrap().len(),
+        2,
+        "refusals plan nothing"
+    );
+    let r = request(
+        srv.addr,
+        "DELETE",
+        "/v1/shutdown",
+        Some("root-secret"),
+        None,
+    )
+    .await;
+    assert_eq!(r.json()["cancelled"], true);
+    // a write token cannot stop the server
+    let r = request(
+        srv.addr,
+        "POST",
+        "/v1/shutdown",
+        Some("write-secret"),
+        Some(""),
+    )
+    .await;
+    assert_eq!(r.status, 403);
+    let audit = srv.state.log.since(0, 100).await.unwrap();
+    let rows: Vec<_> = audit
+        .iter()
+        .filter(|e| e.kind == "admin.shutdown")
+        .collect();
+    assert!(
+        rows.iter()
+            .any(|e| e.payload["in_secs"] == 30 && e.payload["text"] == "upgrading"),
+        "{rows:?}"
+    );
+    assert!(
+        rows.iter().any(|e| e.payload["cancelled"] == true),
+        "{rows:?}"
+    );
 }
 
 #[tokio::test]

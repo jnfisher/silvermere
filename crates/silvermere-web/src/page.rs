@@ -335,6 +335,14 @@ fn field(v: &SettingValue) -> String {
     }
 }
 
+/// Keys as a list of code spans, each a link to its field.
+fn key_list(keys: &[String]) -> String {
+    keys.iter()
+        .map(|k| format!("<a href=\"#f-{0}\"><code>{0}</code></a>", escape(k)))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 /// The settings editor: one form per section.
 pub fn settings(c: &Chrome<'_>, view: &SettingsView, banner: Option<(&str, bool)>) -> String {
     let csrf = c.user.map_or("", |(_, t)| t);
@@ -344,13 +352,34 @@ pub fn settings(c: &Chrome<'_>, view: &SettingsView, banner: Option<(&str, bool)
         let class = if error { "banner error" } else { "banner ok" };
         let _ = writeln!(main, "<p class=\"{class}\">{}</p>", escape(text));
     }
-    if view.pending {
-        main.push_str(
-            "<p class=\"banner warn\">The settings file has changes this server has not \
-             loaded: settings are read once, at startup. Restart the server to apply them \
-             (<a href=\"BASE/docs/config#the-config-command\">how</a>).</p>\n"
-                .replace("BASE", &c.site.base)
-                .as_str(),
+    if !view.pending_live.is_empty() {
+        let _ = writeln!(
+            main,
+            "<form method=\"post\" action=\"{base}/settings/apply\" class=\"banner warn pending\">\n\
+             <input type=\"hidden\" name=\"csrf\" value=\"{}\">\n\
+             <p>Saved but not loaded yet: {}. The running game can load {} now, as the \
+             in-game <code>SYSOP RELOAD</code> does; nobody is disconnected \
+             (<a href=\"{base}/docs/web#applying-a-change\">how</a>).</p>\n\
+             <button type=\"submit\">Apply now</button>\n</form>",
+            escape(csrf),
+            key_list(&view.pending_live),
+            if view.pending_live.len() == 1 { "it" } else { "them" },
+            base = c.site.base,
+        );
+    }
+    if !view.pending_restart.is_empty() {
+        let _ = writeln!(
+            main,
+            "<p class=\"banner warn\">Saved but read only when the server starts: {}. \
+             Restart the server to apply {} \
+             (<a href=\"{base}/docs/config#the-config-command\">how</a>).</p>",
+            key_list(&view.pending_restart),
+            if view.pending_restart.len() == 1 {
+                "it"
+            } else {
+                "them"
+            },
+            base = c.site.base,
         );
     }
     let _ = writeln!(
@@ -380,6 +409,13 @@ pub fn settings(c: &Chrome<'_>, view: &SettingsView, banner: Option<(&str, bool)
                     format!("<span class=\"badge lock\">set by {}</span>", escape(var))
                 }
                 Source::Flag => "<span class=\"badge lock\">set by a flag</span>".to_owned(),
+            };
+            let badge = if view.pending_live.contains(&v.key) {
+                format!("{badge}<span class=\"badge lock\">not loaded yet</span>")
+            } else if view.pending_restart.contains(&v.key) {
+                format!("{badge}<span class=\"badge lock\">needs a restart</span>")
+            } else {
+                badge
             };
             let locked = v.locked.as_ref().map_or(String::new(), |why| {
                 format!(

@@ -63,16 +63,40 @@ async fn an_existing_account_skips_the_login() {
     assert!(!got.plain.contains("Username:"), "{}", got.plain);
     assert!(!got.plain.contains("Password:"), "{}", got.plain);
     assert!(!got.plain.contains("gender"), "{}", got.plain);
-    // the one-session rule holds: a second door visit while the first is on is refused
+    // the one-session rule holds: a second door visit while the first is on is asked
+    // whether to take over (net.login_takeover), and N refuses it
     let mut again = rlogin(&r, "x", "aldric").await;
-    again.until("already logged on", WAIT).await.unwrap();
+    let got = again.until(r"log in here\? \(Y/N\):", WAIT).await.unwrap();
+    assert!(got.plain.contains("already logged on"), "{}", got.plain);
+    again.send_line("N").await.unwrap();
     assert!(again.wait_closed(WAIT).await.unwrap());
+    assert!(!c.plain().contains("another connection"));
     // R at the logoff question goes back to the BBS, not to a password prompt
     c.send_line("X").await.unwrap();
     c.until("R to re-logon", WAIT).await.unwrap();
     c.send_line("R").await.unwrap();
     assert!(c.wait_closed(WAIT).await.unwrap());
     assert!(!c.plain().contains("Username:"));
+    r.stop().await.unwrap();
+}
+
+// A door caller whose last connection is still held (the BBS line dropped) says Y and
+// is let in; the held connection is told and closed (net.login_takeover).
+#[tokio::test]
+async fn a_door_caller_can_take_a_held_account_over() {
+    let (_t, url) = common::seeded(&[]).await;
+    let r = server(url, &[]).await;
+    let mut first = rlogin(&r, "M", "Aldric").await;
+    first.until(MENU, WAIT).await.unwrap();
+    let mut again = rlogin(&r, "M", "Aldric").await;
+    again.until(r"log in here\? \(Y/N\):", WAIT).await.unwrap();
+    again.send_line("y").await.unwrap();
+    first
+        .until("logged on from another connection", WAIT)
+        .await
+        .unwrap();
+    assert!(first.wait_closed(WAIT).await.unwrap());
+    again.until(MENU, WAIT).await.unwrap();
     r.stop().await.unwrap();
 }
 

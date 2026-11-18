@@ -149,12 +149,21 @@ pub struct NetCfg {
     /// without typing a line before it is closed; 0 turns the timeout off. Once logged
     /// in, `game.inactive_secs` applies instead.
     pub login_timeout_secs: u32,
+    /// Seconds a connection may go without any traffic before TCP keepalive probes check
+    /// that the other end is still there; one that does not answer is dropped about a
+    /// minute later. 0 turns the probes off.
+    pub keepalive_secs: u32,
+    /// When an account that is already logged on logs in again with the right password,
+    /// offer to disconnect the other connection instead of refusing.
+    pub login_takeover: bool,
 }
 
 impl Default for NetCfg {
     fn default() -> Self {
         Self {
             login_timeout_secs: 300,
+            keepalive_secs: 60,
+            login_takeover: true,
         }
     }
 }
@@ -517,6 +526,12 @@ impl Config {
             return Err(format!(
                 "server.max_sessions = {} is out of range; allowed 1..=100000",
                 self.server.max_sessions
+            ));
+        }
+        let ka = self.net.keepalive_secs;
+        if ka != 0 && !(10..=7200).contains(&ka) {
+            return Err(format!(
+                "net.keepalive_secs = {ka} is out of range; allowed 0 (off) or 10..=7200"
             ));
         }
         let b = &self.backup;

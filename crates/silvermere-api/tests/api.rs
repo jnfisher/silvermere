@@ -88,6 +88,7 @@ fn harness() -> Harness {
         metrics: handle,
         world: Arc::new(common::FakeWorld::default()),
         backup: Arc::new(silvermere_api::NoBackups),
+        shutdown: Arc::new(silvermere_api::NoShutdown),
         tokens: Arc::new(vec![
             Token::new("reader", "read-secret", &[Scope::Read]),
             Token::new("caster", "cast-secret", &[Scope::Write]),

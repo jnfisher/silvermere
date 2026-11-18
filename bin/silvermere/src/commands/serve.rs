@@ -117,9 +117,15 @@ pub fn run_with(cfg: &Config, args: &ServeArgs, first_start: bool) -> anyhow::Re
                 println!("Documentation and settings: open http://{a} in a browser on this computer.\n");
             }
         }
+        let mut planned = running.planned.due();
         let lost = tokio::select! {
             stop = signals.next() => {
                 tracing::info!(signal = stop.name(), "stop requested");
+                None
+            }
+            Ok(_) = planned.wait_for(|due| *due) => {
+                tracing::info!("planned shutdown (silvermere sysop shutdown)");
+                eprintln!("silvermere: planned shutdown");
                 None
             }
             lost = &mut guard_lost => Some(lost.map_or_else(

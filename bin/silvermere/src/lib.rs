@@ -11,6 +11,7 @@ pub mod cmd_import;
 pub mod commands;
 pub mod config;
 pub mod gate;
+pub mod planned;
 pub mod stock;
 pub mod store;
 pub mod web;
@@ -48,6 +49,8 @@ pub struct Running {
     /// The scheduled backup's state, which `/v1/backup` shows; `serve` runs the schedule
     /// with it ([`backups::schedule::run`], T-150).
     pub backups: backups::Shared,
+    /// The planned shutdown (`/v1/shutdown`); `serve` stops when it comes due.
+    pub planned: std::sync::Arc<planned::PlannedShutdown>,
     engine: Option<std::thread::JoinHandle<World>>,
     /// The admin listener and the event writer; aborted on stop (an open SSE connection
     /// would otherwise keep the runtime alive).
@@ -372,6 +375,8 @@ pub async fn serve_world_with_db(
             hold_line_echo: true,
             ..Default::default()
         },
+        keepalive: (cfg.net.keepalive_secs > 0)
+            .then(|| Duration::from_secs(u64::from(cfg.net.keepalive_secs))),
         ..Default::default()
     };
     let listener = silvermere_net::bind(addr, &net_cfg)?;
@@ -426,12 +431,14 @@ pub async fn serve_world_with_db(
     let progress = persist.progress();
     let vitals = admin::Vitals::with_persist(persist.watch());
     let backups = backups::Shared::load(&cfg);
+    let planned = std::sync::Arc::new(planned::PlannedShutdown::new(to_engine.clone()));
     let state = admin::api_state(
         &cfg,
         events_db.clone(),
         to_engine.clone(),
         vitals.clone(),
         std::sync::Arc::new(backups.clone()),
+        planned.clone(),
     );
     silvermere_engine::metrics::describe_all();
     metrics::gauge!(
@@ -468,7 +475,9 @@ pub async fn serve_world_with_db(
                 }
                 tracing::info!(%addr, "web pages on (documentation, FAQ, settings)");
                 let web = silvermere_web::WebState {
-                    settings: Some(std::sync::Arc::new(web::FileSettings::new(&cfg))),
+                    settings: Some(std::sync::Arc::new(
+                        web::FileSettings::new(&cfg).with_engine(to_engine.clone()),
+                    )),
                     login: Some(std::sync::Arc::new(web::AccountLogin::new(
                         events_db.clone(),
                     ))),
@@ -498,13 +507,15 @@ pub async fn serve_world_with_db(
                 db.clone(),
                 silvermere_auth::SystemClock,
                 silvermere_auth::LockoutConfig::default(),
-            );
+            )
+            .with_evict(std::sync::Arc::new(gate::GateEvict(control_tx.clone())));
             let deps = gate::GateDeps {
                 service: std::sync::Arc::new(service),
                 db,
                 config: silvermere_auth::LoginConfig {
                     login_art: silvermere_auth::art::load(&cfg.data_dir.join("assets")).bytes,
                     open_signup: cfg.game.open_signup,
+                    takeover: cfg.net.login_takeover,
                     ..Default::default()
                 },
                 login_timeout: (cfg.net.login_timeout_secs > 0)
@@ -578,6 +589,7 @@ pub async fn serve_world_with_db(
         shutdown,
         to_engine,
         backups,
+        planned,
         engine: Some(engine),
         admin_tasks,
         events_task: Some(events_task),

@@ -74,6 +74,14 @@ pub enum AuthMsg {
     },
     /// The account already has a session.
     DuplicateLogin,
+    /// The account already has a session: disconnect it? (`net.login_takeover`)
+    TakeoverPrompt,
+    /// The takeover question again, after an answer that is neither Y nor N.
+    TakeoverQuestion,
+    /// The other session did not close in time.
+    TakeoverFailed,
+    /// To the session a takeover disconnects.
+    TakenOver,
     /// The account has no password yet.
     NoPassword,
     /// rlogin named an account without the `door` flag.
@@ -133,6 +141,10 @@ impl AuthMsg {
         "signup_username_invalid",
         "signup_username_prompt",
         "signup_username_taken",
+        "taken_over",
+        "takeover_failed",
+        "takeover_prompt",
+        "takeover_question",
         "username_prompt",
         "username_too_long",
         "welcome_end",
@@ -150,6 +162,10 @@ impl AuthMsg {
             Self::InvalidCredentials => "invalid_credentials",
             Self::AccountLocked { .. } => "account_locked",
             Self::DuplicateLogin => "duplicate_login",
+            Self::TakeoverPrompt => "takeover_prompt",
+            Self::TakeoverQuestion => "takeover_question",
+            Self::TakeoverFailed => "takeover_failed",
+            Self::TakenOver => "taken_over",
             Self::NoPassword => "no_password",
             Self::RloginRefused => "rlogin_refused",
             Self::SignupClosed => "signup_closed",
@@ -238,6 +254,14 @@ pub enum Request {
         /// As typed.
         password: Secret,
     },
+    /// Check `username` and `password` again and, if the account already has a session,
+    /// have that session disconnected and log in here (`net.login_takeover`).
+    TakeOver {
+        /// As typed.
+        username: String,
+        /// As typed.
+        password: Secret,
+    },
     /// Is `username` free for signup?
     UsernameFree {
         /// As typed.
@@ -312,6 +336,9 @@ pub struct LoginConfig {
     pub open_signup: bool,
     /// Failed attempts before the connection is closed (3).
     pub max_attempts: u32,
+    /// `net.login_takeover`: offer to disconnect an account's other session instead of
+    /// refusing the login. The service must have an [`Evict`] for it to succeed.
+    pub takeover: bool,
 }
 
 impl Default for LoginConfig {
@@ -321,6 +348,7 @@ impl Default for LoginConfig {
             login_banner: String::new(),
             open_signup: true,
             max_attempts: 3,
+            takeover: false,
         }
     }
 }
@@ -339,6 +367,16 @@ pub enum State {
     },
     /// Waiting for the reply to an `Authenticate` request.
     Authenticating,
+    /// The password was right but the account has a session: asking whether to
+    /// disconnect it (`net.login_takeover`).
+    Takeover {
+        /// The name typed.
+        username: String,
+        /// The password typed, to check again when the answer is Y.
+        password: Secret,
+    },
+    /// Waiting for the reply to a `TakeOver` request.
+    TakingOver,
     /// In the `NEW` dialogue.
     Signup(SignupState),
     /// Logged in.
@@ -354,6 +392,8 @@ pub struct LoginDialogue {
     state: State,
     attempts: u32,
     account: Option<Account>,
+    /// The name and password of the `Authenticate` in flight, for the takeover question.
+    tried: Option<(String, Secret)>,
 }
 
 impl LoginDialogue {
@@ -364,6 +404,7 @@ impl LoginDialogue {
             state: State::Banner,
             attempts: 0,
             account: None,
+            tried: None,
         }
     }
 
@@ -444,11 +485,31 @@ impl LoginDialogue {
             }
             State::Password { username } => {
                 out.push(Output::SetEcho(EchoMode::On));
+                let password = Secret::new(line);
+                if self.config.takeover {
+                    self.tried = Some((username.clone(), password.clone()));
+                }
                 out.push(Output::Request(Request::Authenticate {
                     username,
-                    password: Secret::new(line),
+                    password,
                 }));
                 self.state = State::Authenticating;
+            }
+            State::Takeover { username, password } => {
+                match line.trim().chars().next().map(|c| c.to_ascii_uppercase()) {
+                    Some('Y') => {
+                        out.push(Output::Request(Request::TakeOver { username, password }));
+                        self.state = State::TakingOver;
+                    }
+                    Some('N') => {
+                        out.push(Output::Text(AuthMsg::DuplicateLogin));
+                        self.close(CloseReason::DuplicateLogin, &mut out);
+                    }
+                    _ => {
+                        out.push(Output::Text(AuthMsg::TakeoverQuestion));
+                        self.state = State::Takeover { username, password };
+                    }
+                }
             }
             State::Signup(signup) => signup.on_line(self, line, &mut out),
             // Waiting for a reply, or finished: lines are ignored.
@@ -483,25 +544,32 @@ impl LoginDialogue {
     pub fn on_reply(&mut self, reply: Reply) -> Vec<Output> {
         let mut out = Vec::new();
         match (std::mem::replace(&mut self.state, State::Banner), reply) {
-            (State::Authenticating, Reply::Authenticated(result)) => match result {
+            (State::Authenticating, Reply::Authenticated(result)) => {
+                let tried = self.tried.take();
+                match result {
+                    Ok(account) => self.finish(*account),
+                    Err(Refusal::AlreadyOnline) => match tried {
+                        Some((username, password)) => {
+                            out.push(Output::Text(AuthMsg::TakeoverPrompt));
+                            self.state = State::Takeover { username, password };
+                        }
+                        None => {
+                            out.push(Output::Text(AuthMsg::DuplicateLogin));
+                            self.close(CloseReason::DuplicateLogin, &mut out);
+                        }
+                    },
+                    Err(refusal) => self.refused(refusal, &mut out),
+                }
+            }
+            (State::TakingOver, Reply::Authenticated(result)) => match result {
                 Ok(account) => self.finish(*account),
                 Err(Refusal::AlreadyOnline) => {
-                    out.push(Output::Text(AuthMsg::DuplicateLogin));
+                    out.push(Output::Text(AuthMsg::TakeoverFailed));
                     self.close(CloseReason::DuplicateLogin, &mut out);
                 }
-                Err(refusal) => {
-                    out.push(Output::Text(match refusal {
-                        Refusal::Locked { minutes } => AuthMsg::AccountLocked { minutes },
-                        Refusal::NoPassword => AuthMsg::NoPassword,
-                        _ => AuthMsg::InvalidCredentials,
-                    }));
-                    self.attempts += 1;
-                    if self.attempts >= self.config.max_attempts {
-                        self.close(CloseReason::TooManyAttempts, &mut out);
-                    } else {
-                        self.ask_username(&mut out);
-                    }
-                }
+                // the password changed, or the account was locked, while the question
+                // waited: as for any other refusal
+                Err(refusal) => self.refused(refusal, &mut out),
             },
             (State::Signup(signup), reply) => signup.on_reply(self, reply, &mut out),
             (state, reply) => {
@@ -510,6 +578,21 @@ impl LoginDialogue {
             }
         }
         out
+    }
+
+    /// A refused login: say why, and ask again or close after the last attempt.
+    fn refused(&mut self, refusal: Refusal, out: &mut Vec<Output>) {
+        out.push(Output::Text(match refusal {
+            Refusal::Locked { minutes } => AuthMsg::AccountLocked { minutes },
+            Refusal::NoPassword => AuthMsg::NoPassword,
+            _ => AuthMsg::InvalidCredentials,
+        }));
+        self.attempts += 1;
+        if self.attempts >= self.config.max_attempts {
+            self.close(CloseReason::TooManyAttempts, out);
+        } else {
+            self.ask_username(out);
+        }
     }
 
     fn close(&mut self, reason: CloseReason, out: &mut Vec<Output>) {
@@ -565,15 +648,40 @@ impl Online {
     }
 }
 
+/// How long a takeover waits for the other session to let go of the account. The
+/// transport gives a closing session at most five seconds to drain its output.
+pub const TAKEOVER_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Disconnects the session that holds an account, for a takeover
+/// ([`LoginService::take_over`]). The server closes that connection as a hang-up does;
+/// the account is released from [`Online`] when the session has ended.
+pub trait Evict: Send + Sync + 'static {
+    /// Asks the session logged on to `account`, if any, to close.
+    fn evict(&self, account: AccountId);
+}
+
 /// Answers the dialogue's requests against a store; one per server, shared by the
 /// sessions.
-#[derive(Debug)]
 pub struct LoginService<S, C> {
     store: S,
     clock: C,
     lockout: Lockout,
     online: Online,
     cost: password::Cost,
+    evict: Option<std::sync::Arc<dyn Evict>>,
+}
+
+impl<S: std::fmt::Debug, C: std::fmt::Debug> std::fmt::Debug for LoginService<S, C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LoginService")
+            .field("store", &self.store)
+            .field("clock", &self.clock)
+            .field("lockout", &self.lockout)
+            .field("online", &self.online)
+            .field("cost", &self.cost)
+            .field("evict", &self.evict.is_some())
+            .finish()
+    }
 }
 
 /// Whether an rlogin door may log in to `account` on a BBS's word: it carries the `door`
@@ -594,7 +702,14 @@ impl<S: AccountStore, C: Clock> LoginService<S, C> {
             lockout: Lockout::new(lockout),
             online: Online::default(),
             cost: password::Cost::Default,
+            evict: None,
         }
+    }
+
+    /// Lets a login take an account over from its other session ([`Self::take_over`]).
+    pub fn with_evict(mut self, evict: std::sync::Arc<dyn Evict>) -> Self {
+        self.evict = Some(evict);
+        self
     }
 
     /// Uses `cost` for the hashes of accounts created by signup (tests).
@@ -677,6 +792,9 @@ impl<S: AccountStore, C: Clock> LoginService<S, C> {
             Request::Authenticate { username, password } => {
                 Reply::Authenticated(self.authenticate(&username, password.expose()).await?)
             }
+            Request::TakeOver { username, password } => {
+                Reply::Authenticated(self.take_over(&username, password.expose()).await?)
+            }
             Request::UsernameFree { username } => {
                 Reply::UsernameFree(self.store.by_username(&username).await?.is_none())
             }
@@ -739,8 +857,91 @@ impl<S: AccountStore, C: Clock> LoginService<S, C> {
         username: &str,
         password: &str,
     ) -> Result<Result<Box<Account>, Refusal>, AuthError> {
+        let account = match self.verify(username, password).await? {
+            Ok(account) => account,
+            Err(refusal) => return Ok(Err(refusal)),
+        };
+        if self.online.contains(account.id) {
+            self.audit_duplicate(&account).await?;
+            return Ok(Err(Refusal::AlreadyOnline));
+        }
+        self.admit(account).await
+    }
+
+    /// [`Self::authenticate`], taking the account over from a session that holds it: that
+    /// session is told to close ([`Evict`]) and the login waits up to [`TAKEOVER_WAIT`]
+    /// for it to let go. Without an `Evict`, or when the account is not free in time, the
+    /// answer is `AlreadyOnline`. The password is checked again, so a takeover proves the
+    /// same as a login.
+    pub async fn take_over(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> Result<Result<Box<Account>, Refusal>, AuthError> {
+        let account = match self.verify(username, password).await? {
+            Ok(account) => account,
+            Err(refusal) => return Ok(Err(refusal)),
+        };
+        if self.online.contains(account.id) && !self.evict_and_wait(&account, None).await? {
+            self.audit_duplicate(&account).await?;
+            return Ok(Err(Refusal::AlreadyOnline));
+        }
+        self.admit(account).await
+    }
+
+    /// Has the session holding `account` closed ([`Evict`]) and waits up to
+    /// [`TAKEOVER_WAIT`] for the account to be free; `false` when there is no `Evict` or
+    /// the account is still held (the caller audits the refusal). Audited as
+    /// `auth.login_takeover`.
+    async fn evict_and_wait(
+        &self,
+        account: &Account,
+        via: Option<&str>,
+    ) -> Result<bool, AuthError> {
+        let id = account.id;
+        let Some(evict) = &self.evict else {
+            return Ok(false);
+        };
+        tracing::info!(target: "audit", account = id.0, username = %account.username, via, "login takes over the account's other session");
+        let mut payload = serde_json::json!({ "account": id.0, "username": account.username });
+        if let Some(via) = via {
+            payload["via"] = via.into();
+        }
+        self.audit(self.clock.now(), "auth.login_takeover", payload)
+            .await?;
+        evict.evict(id);
+        let deadline = tokio::time::Instant::now() + TAKEOVER_WAIT;
+        while self.online.contains(id) {
+            if tokio::time::Instant::now() >= deadline {
+                tracing::info!(target: "audit", account = id.0, username = %account.username, "takeover: the other session did not close in time");
+                return Ok(false);
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        Ok(true)
+    }
+
+    async fn audit_duplicate(&self, account: &Account) -> Result<(), AuthError> {
+        let id = account.id;
+        tracing::info!(target: "audit", account = id.0, username = %account.username, "login refused: already online");
+        self.audit(
+            self.clock.now(),
+            "auth.login_duplicate",
+            serde_json::json!({ "account": id.0, "username": account.username }),
+        )
+        .await
+    }
+
+    /// The account if `password` is its password and nothing else stops a login: an
+    /// unknown name, the lockout and a missing password are refusals. Records the
+    /// outcome in the tracker and the audit trail. The one-session rule is the caller's.
+    async fn verify(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> Result<Result<Account, Refusal>, AuthError> {
         let now = self.clock.now();
-        let Some(mut account) = self.store.by_username(username).await? else {
+        let Some(account) = self.store.by_username(username).await? else {
             // Spend the same time as a wrong password.
             let _ = password::verify(password, password::dummy_hash());
             tracing::info!(target: "audit", username, "login failed: unknown user");
@@ -796,16 +997,18 @@ impl<S: AccountStore, C: Clock> LoginService<S, C> {
             }
             return Ok(Err(Refusal::InvalidCredentials));
         }
-        if self.online.contains(id) {
-            tracing::info!(target: "audit", account = id.0, username = %account.username, "login refused: already online");
-            self.audit(
-                now,
-                "auth.login_duplicate",
-                serde_json::json!({ "account": id.0, "username": account.username }),
-            )
-            .await?;
-            return Ok(Err(Refusal::AlreadyOnline));
-        }
+        Ok(Ok(account))
+    }
+
+    /// Logs a verified account in: the lockout forgets its failures, the login time is
+    /// stored and the account is claimed for this session (`AlreadyOnline` if another
+    /// claimed it first).
+    async fn admit(
+        &self,
+        mut account: Account,
+    ) -> Result<Result<Box<Account>, Refusal>, AuthError> {
+        let now = self.clock.now();
+        let id = account.id;
         self.lockout.record_success(id);
         account.last_login_at = Some(now);
         self.store.update(&account).await?;
@@ -844,6 +1047,23 @@ impl<S: AccountStore, C: Clock> LoginService<S, C> {
         &self,
         username: &str,
     ) -> Result<Result<Box<Account>, Refusal>, AuthError> {
+        self.trusted(username, false).await
+    }
+
+    /// [`Self::trusted_login`], taking the account over from a session that holds it, as
+    /// [`Self::take_over`] does for a password login: the door caller said Y.
+    pub async fn trusted_take_over(
+        &self,
+        username: &str,
+    ) -> Result<Result<Box<Account>, Refusal>, AuthError> {
+        self.trusted(username, true).await
+    }
+
+    async fn trusted(
+        &self,
+        username: &str,
+        take_over: bool,
+    ) -> Result<Result<Box<Account>, Refusal>, AuthError> {
         let now = self.clock.now();
         let Some(mut account) = self.store.by_username(username).await? else {
             return Ok(Err(Refusal::InvalidCredentials));
@@ -865,7 +1085,9 @@ impl<S: AccountStore, C: Clock> LoginService<S, C> {
                 minutes: Lockout::minutes_left(until, now),
             }));
         }
-        if self.online.contains(id) {
+        if self.online.contains(id)
+            && !(take_over && self.evict_and_wait(&account, Some("rlogin")).await?)
+        {
             tracing::info!(target: "audit", account = id.0, username = %account.username, "rlogin refused: already online");
             self.audit(
                 now,

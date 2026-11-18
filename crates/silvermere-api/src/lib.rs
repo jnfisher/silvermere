@@ -23,6 +23,7 @@ pub mod metrics;
 pub mod reload;
 pub mod reserved;
 pub mod router;
+pub mod shutdown;
 pub mod who;
 
 pub use auth::{Scope, Token};
@@ -31,6 +32,7 @@ pub use events::{EventKind, EventLog, EventRecord, NewEvent};
 pub use health::HealthProbe;
 pub use reload::WorldLoader;
 pub use router::{ApiState, RouteSpec, router, routes, serve};
+pub use shutdown::{NoShutdown, Planned, ShutdownPlan};
 
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 

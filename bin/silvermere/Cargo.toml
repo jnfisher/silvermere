@@ -45,6 +45,7 @@ tracing-subscriber.workspace = true
 [dev-dependencies]
 silvermere-testkit.workspace = true
 metrics-util.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 
 [[test]]
 name = "all"

@@ -74,6 +74,7 @@ pub fn router(state: WebState) -> Router {
         .route("/docs/{*slug}", get(doc))
         .route("/faq", get(faq))
         .route("/settings", get(settings_page).post(settings_save))
+        .route("/settings/apply", axum::routing::post(settings_apply))
         .route("/login", get(login_page).post(login))
         .route("/logout", axum::routing::post(logout))
         .route("/assets/style.css", get(style))
@@ -255,6 +256,7 @@ async fn image(Path(path): Path<String>) -> Response {
 #[derive(serde::Deserialize)]
 struct Saved {
     saved: Option<usize>,
+    applied: Option<usize>,
 }
 
 async fn settings_page(
@@ -270,11 +272,17 @@ async fn settings_page(
     if s.is_none() {
         return see_other(&format!("{}/login", state.site.base), None);
     }
-    let banner = q.saved.map(|n| match n {
-        0 => "Nothing changed.".to_owned(),
-        1 => "Saved 1 setting. Restart the server to apply it.".to_owned(),
-        n => format!("Saved {n} settings. Restart the server to apply them."),
-    });
+    let banner = match (q.saved, q.applied) {
+        (_, Some(0)) => {
+            Some("Nothing new to load: the running game has every saved game option.".to_owned())
+        }
+        (_, Some(1)) => Some("Loaded 1 setting into the running game.".to_owned()),
+        (_, Some(n)) => Some(format!("Loaded {n} settings into the running game.")),
+        (Some(0), None) => Some("Nothing changed.".to_owned()),
+        (Some(1), None) => Some("Saved 1 setting.".to_owned()),
+        (Some(n), None) => Some(format!("Saved {n} settings.")),
+        (None, None) => None,
+    };
     match view_of(&state, settings.as_ref()) {
         Ok(view) => html(
             StatusCode::OK,
@@ -358,6 +366,57 @@ async fn settings_save(
                 StatusCode::BAD_REQUEST,
                 page::settings(&c, &view, Some((&format!("Not saved: {e}"), true))),
             )
+        }
+    }
+}
+
+/// "Apply now": the saved game options into the running game.
+async fn settings_apply(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Form(posted): Form<Vec<(String, String)>>,
+) -> Response {
+    let Some(s) = session(&state, &headers) else {
+        return see_other(&format!("{}/login", state.site.base), None);
+    };
+    let c = chrome(&state, Some(&s));
+    if !posted.iter().any(|(k, v)| k == "csrf" && *v == s.csrf) {
+        return html(
+            StatusCode::FORBIDDEN,
+            page::notice(
+                &c,
+                "Not applied",
+                "This form is out of date. Open the settings again.",
+            ),
+        );
+    }
+    let Some(settings) = &state.settings else {
+        return html(
+            StatusCode::NOT_FOUND,
+            page::notice(&c, "Not applied", "This server has no settings file."),
+        );
+    };
+    match settings.load_now() {
+        Ok(keys) => {
+            tracing::info!(target: "audit", user = %s.user, ?keys, "settings loaded into the running game from the web");
+            see_other(
+                &format!("{}/settings?applied={}", state.site.base, keys.len()),
+                None,
+            )
+        }
+        Err(e) => {
+            tracing::info!(target: "audit", user = %s.user, error = %e, "settings load refused");
+            let view = view_of(&state, settings.as_ref());
+            match view {
+                Ok(view) => html(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    page::settings(&c, &view, Some((&format!("Not applied: {e}"), true))),
+                ),
+                Err(e2) => html(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    page::notice(&c, "Not applied", &format!("{e} ({e2})")),
+                ),
+            }
         }
     }
 }

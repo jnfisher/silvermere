@@ -43,9 +43,11 @@ The server runs with no settings file. Change one in the browser on the
 
 ### I changed a setting and nothing happened.
 
-Settings are read once, at startup. Restart the server: `sudo systemctl restart silvermere`
-for the service. The settings page says when the file has changes the running server has not
-loaded.
+A saved setting does not reach a running server by itself. On the settings page, **Apply
+now** loads most game options (`[game]`) into the running game with nobody disconnected; the
+page marks the ones that need a restart. For those, restart the server:
+`sudo systemctl restart silvermere` for the service. See
+[Applying a change](web.md#applying-a-change).
 
 ### Why can't I change a setting on the settings page?
 

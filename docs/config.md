@@ -128,6 +128,8 @@ options that were dropped are in [config-defaults.md](config-defaults.md).
 | Key | Environment variable | Default | Meaning | Original name |
 |---|---|---|---|---|
 | `net.login_timeout_secs` | `SILVERMERE_NET__LOGIN_TIMEOUT_SECS` | `300` | Seconds a connection may sit in the login dialogue without typing before it is closed. 0 = off. | — |
+| `net.keepalive_secs` | `SILVERMERE_NET__KEEPALIVE_SECS` | `60` | Seconds a connection may go with no traffic before TCP keepalive probes check that the other end is still there; one that does not answer is dropped about a minute later, so a player whose connection died can log in again. A live client answers the probes by itself: an idle player is not disconnected. 0 = off, else 10..=7200. See [net.md](net.md#dead-connections). | — |
+| `net.login_takeover` | `SILVERMERE_NET__LOGIN_TAKEOVER` | `true` | When an account that is already logged on logs in again with the right password, ask `Disconnect the other connection? (Y/N)` instead of refusing. See [auth.md](auth.md#the-dialogue). | — |
 
 ### [compat]
 
