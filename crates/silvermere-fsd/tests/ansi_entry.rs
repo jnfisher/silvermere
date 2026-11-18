@@ -277,7 +277,7 @@ fn a_second_hop_before_the_output_drains_is_shuffled_later() {
 
 #[test]
 fn editing_keys_show_a_number_left_justified() {
-    // FSD.C line 1682: shofld(fsdscb->crsatr,-1), so the entry starts where it is shown
+    // the field is reshown left-justified in the cursor colour, so the entry starts where it is shown
     let (mut f, _) = begun(
         b"N: $$$$",
         b"N(MIN=10, MAX=250)",

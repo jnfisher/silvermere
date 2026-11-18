@@ -24,7 +24,7 @@ impl Form {
         &self.fields[self.cursor]
     }
 
-    /// Decides what a printable character does in the current field (as `FSD.C`'s
+    /// Decides what a printable character does in the current field (as the library's
     /// `hdlprt`): digits and a leading minus in a number, choice keys in a
     /// multiple-choice field, anything in text.
     pub(crate) fn classify(&mut self, c: u8, out: &mut Vec<u8>) -> Typed {
@@ -49,7 +49,7 @@ impl Form {
         }
     }
 
-    /// A key towards a choice (as `FSD.C`'s `hdlalt`): Space shows the next choice of a
+    /// A key towards a choice (as the library's `hdlalt`): Space shows the next choice of a
     /// multiple-choice field; another key extends the typed prefix, putting in the choice
     /// when only one matches and typing on when several do.
     fn choice_key(&mut self, c: u8, out: &mut Vec<u8>) -> Typed {
@@ -102,7 +102,7 @@ impl Form {
     }
 
     /// Puts choice `index`, `text`, in the entry and shows it with the cursor after it (as
-    /// `FSD.C`'s `altntr`).
+    /// the library's `altntr`).
     fn show_choice(&mut self, index: usize, text: Vec<u8>, out: &mut Vec<u8>) {
         let shown = replace(&mut self.entry.text, text).len();
         self.entry.choice = Some(index);
@@ -128,7 +128,7 @@ impl Form {
 
     /// Begins typing from the entry's text, `shown` bytes of the old being on screen:
     /// full screen blanks the field, line mode rubs the old out; the cursor goes to the end
-    /// (as `FSD.C`'s `bgnter`).
+    /// (as the library's `bgnter`).
     fn restart(&mut self, shown: usize, out: &mut Vec<u8>) {
         match self.mode {
             Mode::FullScreen => {
@@ -143,7 +143,7 @@ impl Form {
         self.entry.pos = self.entry.text.len();
     }
 
-    /// Puts a typed character in the entry at the cursor and echoes it (as `FSD.C`'s
+    /// Puts a typed character in the entry at the cursor and echoes it (as the library's
     /// `addprt`); nothing once the field is full.
     pub(crate) fn put_char(&mut self, c: u8, out: &mut Vec<u8>) {
         let entry = &mut self.entry;
@@ -159,20 +159,20 @@ impl Form {
         out.push(c);
     }
 
-    /// Puts the current field's answer in the entry (as `FSD.C`'s `defntr`).
+    /// Puts the current field's answer in the entry (as the library's `defntr`).
     pub(crate) fn load_answer(&mut self) {
         self.entry.text = self.answers[self.cursor].clone();
         self.entry.choice = exact_choice(self.current(), &self.entry.text);
         self.entry.typing_choice = false;
     }
 
-    /// Empties the entry (as `FSD.C`'s `entprp`).
+    /// Empties the entry (as the library's `entprp`).
     pub(crate) fn clear_entry(&mut self) {
         self.entry = Default::default();
     }
 
     /// May the entry be edited? Not a choice shown in a multiple-choice or number field;
-    /// a choice shown in a text field becomes plain text (as `FSD.C`'s `bstalt`).
+    /// a choice shown in a text field becomes plain text (as the library's `bstalt`).
     pub(crate) fn may_edit(&mut self) -> bool {
         if self.entry.choice.is_some() {
             let field = self.current();
@@ -184,14 +184,14 @@ impl Form {
         true
     }
 
-    /// Shows the entry from the cursor on and moves back (as `FSD.C`'s `dprest`).
+    /// Shows the entry from the cursor on and moves back (as the library's `dprest`).
     pub(crate) fn redraw_rest(&self, out: &mut Vec<u8>) {
         let rest = self.entry.text.get(self.entry.pos..).unwrap_or_default();
         out.extend_from_slice(rest);
         cursor_move(rest.len(), b'D', out);
     }
 
-    /// Line mode: rubs out what was typed (as `FSD.C`'s `unentr`).
+    /// Line mode: rubs out what was typed (as the library's `unentr`).
     pub(crate) fn rub_out_entry(&self, out: &mut Vec<u8>) {
         rubout(self.entry.text.len(), out);
     }
@@ -216,7 +216,7 @@ impl Form {
         out.extend_from_slice(&self.fields[field].place.goto);
     }
 
-    /// Shows field `field`'s answer in `attr` (as `FSD.C`'s `shofld`).
+    /// Shows field `field`'s answer in `attr` (as the library's `shofld`).
     pub(crate) fn show_field(&self, field: usize, attr: u8, justify: Justify, out: &mut Vec<u8>) {
         let place = &self.fields[field].place;
         out.extend_from_slice(&place.goto);
@@ -230,7 +230,7 @@ impl Form {
         self.show_field(field, attr, Justify::Field, out);
     }
 
-    /// Puts the cursor on field `field`, shown in the cursor colour (as `FSD.C`'s
+    /// Puts the cursor on field `field`, shown in the cursor colour (as the library's
     /// `cursat`).
     pub(crate) fn select(&mut self, field: usize, out: &mut Vec<u8>) {
         self.cursor = field;
@@ -249,7 +249,7 @@ impl Form {
     }
 
     /// Shows a message: full screen in the help area, cut to its width, until the next
-    /// key; line mode on lines of its own. With `beep` the bell too (as `FSD.C`'s
+    /// key; line mode on lines of its own. With `beep` the bell too (as the library's
     /// `announce`).
     pub(crate) fn announce(&mut self, msg: &[u8], beep: bool, out: &mut Vec<u8>) {
         match (self.mode, &self.help) {
@@ -288,7 +288,7 @@ impl Form {
     }
 
     /// Line mode: outputs the template text between the previous field and the current
-    /// one; before the first field a new line (as `FSD.C`'s `pmtfld`).
+    /// one; before the first field a new line (as the library's `pmtfld`).
     pub(crate) fn prompt(&self, out: &mut Vec<u8>) {
         let start = match self.cursor.checked_sub(1) {
             Some(prev) => {

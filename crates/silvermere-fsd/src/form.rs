@@ -36,7 +36,7 @@ pub enum State {
     Quit,
 }
 
-/// A verify routine's verdict on an entry (`VFYxxx` in `FSD.H`).
+/// A verify routine's verdict on an entry (the library's `VFYxxx`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Verdict {
     /// Store the entry as it is (`VFYOK`).
@@ -121,7 +121,7 @@ pub struct Form {
 }
 
 impl Form {
-    /// Prepares a session (as `FSDBBS.C`'s `fsdroom` and `fsdapr`): reads `template` (CP437
+    /// Prepares a session (as the library's `fsdroom` and `fsdapr`): reads `template` (CP437
     /// message text as the host's `getasc` hands it over, CR LF line ends), the field specification `spec` and the default `answers` (an answer
     /// string), each default cut to its field's width. Both stop at a NUL.
     pub fn prepare(template: &[u8], spec: &[u8], mode: Mode, answers: &[u8]) -> Self {
@@ -171,7 +171,7 @@ impl Form {
     }
 
     /// Draws the full-screen background: clears the screen and shows the template with the
-    /// answers filled in, the help area blank and avoided fields as blanks (as `FSDBBS.C`'s
+    /// answers filled in, the help area blank and avoided fields as blanks (as the library's
     /// `fsdbkg`).
     pub fn background(&self, out: &mut Vec<u8>) {
         out.extend_from_slice(b"\x1B[0m\x1B[2J\x1B[0m");
@@ -215,7 +215,7 @@ impl Form {
 
     /// The zero-based number of field `field`'s answer among its `ALT=` choices, when it
     /// is a prefix of exactly one (any case, blanks ignored); the answer is then completed
-    /// to that choice (as `FSD.C`'s `fsdord`). Panics if there is no such field.
+    /// to that choice (as the library's `fsdord`). Panics if there is no such field.
     pub fn ordinal(&mut self, field: usize) -> Option<usize> {
         let found = match_choices(&self.fields[field], &self.answers[field], None);
         if found.count != 1 {

@@ -91,8 +91,8 @@ fn space_shows_the_next_choice() {
 
 #[test]
 fn save_on_the_last_field_ends_with_a_new_line() {
-    // FSD.C line 2033: vfyadn() ends the session through xitfsd(), which starts a new
-    // line in line mode (line 1102)
+    // the standard verify routine ends the session the usual way, which starts a new
+    // line in line mode
     let (mut f, _) = begun(
         b"Name: ????\r\nDone? ????",
         b"NAME DONE",
@@ -108,7 +108,7 @@ fn save_on_the_last_field_ends_with_a_new_line() {
 
 #[test]
 fn a_silent_reject_on_the_last_field_rubs_out_the_entry() {
-    // FSD.C lines 1143 and 1169-1171: unentr() on the entered field, though the cursor is
+    // the entry is rubbed out on the entered field, though the cursor is
     // past the last one
     let (mut f, out) = begun(b"A: ??\r\nB: ????\r\n", b"A B", Mode::Linear, b"B=xy\0\0");
     assert_eq!(out, b"\r\nA: ");

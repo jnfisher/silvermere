@@ -47,7 +47,7 @@ pub(crate) struct Layout {
     pub(crate) bottom_row: u8,
 }
 
-/// Scans a template (as `FSD.C`'s `tmpscn`): a run of two or more `?`, `$` or `!` is a
+/// Scans a template (as the library's `tmpscn`): a run of two or more `?`, `$` or `!` is a
 /// field or the help area; a single one is text. With `on_screen` the text is "printed" to
 /// learn each field's position and colour.
 pub(crate) fn scan(template: &[u8], fields: usize, on_screen: bool) -> Layout {

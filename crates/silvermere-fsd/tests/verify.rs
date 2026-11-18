@@ -127,7 +127,7 @@ fn blanks_are_dropped_before_the_check() {
 
 #[test]
 fn bytes_above_ascii_are_kept() {
-    // FSD.C keeps answers as C strings: any byte but NUL
+    // the library keeps answers as NUL-ended strings: any byte but NUL
     let (mut f, _) = begun(
         b"A: ????\r\nB: ??",
         b"A B",

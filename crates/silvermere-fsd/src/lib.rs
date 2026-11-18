@@ -1,4 +1,4 @@
-//! The host's full-screen form library (the original's `FSD.C` and `FSDBBS.C`), as far as
+//! The host's full-screen form library (the one the original game ran its forms on), as far as
 //! the game's character editor uses it.
 //!
 //! A form is three pieces of bytes:

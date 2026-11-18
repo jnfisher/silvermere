@@ -1,7 +1,7 @@
 //! Answer strings: `NAME=value` entries, each ending in a NUL, then a final NUL.
 
 /// The value of the first entry `name=` in an answer string, any case; empty if none (as
-/// `FSD.C`'s `fsdxan`).
+/// the library's `fsdxan`).
 pub(crate) fn lookup<'a>(answers: &'a [u8], name: &[u8]) -> &'a [u8] {
     answers
         .split(|&b| b == 0)

@@ -3,7 +3,7 @@
 use crate::MAX_ANSWER;
 use crate::template::{Kind, Place};
 
-/// Attribute of the field the cursor is on (black on white, as `FSDBBS.C`'s `fsdapr`).
+/// Attribute of the field the cursor is on (black on white, as the library's `fsdapr`).
 pub(crate) const CURSOR_ATTR: u8 = 0x70;
 /// The terminal bell.
 pub(crate) const BEL: u8 = 0x07;
@@ -21,7 +21,7 @@ pub(crate) fn rubout(n: usize, out: &mut Vec<u8>) {
 }
 
 /// Outputs an ANSI cursor move of 1 to 99 places: `A` up, `B` down, `C` right, `D` left;
-/// nothing for other distances (as `FSD.C`'s `ansmov`).
+/// nothing for other distances (as the library's `ansmov`).
 pub(crate) fn cursor_move(n: usize, cmd: u8, out: &mut Vec<u8>) {
     if !(1..100).contains(&n) {
         return;
@@ -67,7 +67,7 @@ pub(crate) enum Justify {
     Left,
 }
 
-/// Outputs `answer` formatted for the field at `place` (as `FSD.C`'s `dspans`).
+/// Outputs `answer` formatted for the field at `place` (as the library's `dspans`).
 pub(crate) fn answer_in(place: &Place, answer: &[u8], justify: Justify, out: &mut Vec<u8>) {
     let pad = place.width.saturating_sub(answer.len());
     match justify {

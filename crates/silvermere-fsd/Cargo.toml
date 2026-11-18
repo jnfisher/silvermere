@@ -1,6 +1,6 @@
 [package]
 name = "silvermere-fsd"
-description = "The host's full-screen form library (FSD.C, FSDBBS.C): templates, answers, entry."
+description = "The host's full-screen form library: templates, answers, entry."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

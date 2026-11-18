@@ -259,7 +259,7 @@ fn ljnvfy(
     form.done_at_end(field, answer, out)
 }
 
-/// The host's ANSI key translator (`AIN.C`'s `ainchr`): the cursor keys, Home and End
+/// The host's ANSI key translator (`ainchr`): the cursor keys, Home and End
 /// from `ESC [`, F1 to F8 from `ESC O`; `ESC` and another byte is that byte, so `ESC ESC`
 /// is Escape.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -346,13 +346,6 @@ pub fn unlock_keyboards(world: &mut World, except: Option<SessionId>) {
 /// as sent.
 pub fn on_key(world: &mut World, id: SessionId, byte: u8) -> Outcome {
     type_keys(world, id, &[byte], true);
-    Outcome::Continue
-}
-
-/// Keys arriving together in character mode: each byte's output counted as sent, the work
-/// they leave done once after the last.
-pub fn on_keys(world: &mut World, id: SessionId, bytes: &[u8]) -> Outcome {
-    type_keys(world, id, bytes, true);
     Outcome::Continue
 }
 
@@ -444,7 +437,7 @@ mod tests {
             .collect()
     }
 
-    // AIN.C: the cursor keys, Home and End, F1-F8; other sequences end without a key
+    // the host's key translator: the cursor keys, Home and End, F1-F8; other sequences end without a key
     #[test]
     fn ansi_keys() {
         assert_eq!(

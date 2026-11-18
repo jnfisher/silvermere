@@ -919,8 +919,8 @@ fn prompt(world: &mut World, id: SessionId) {
 }
 
 /// A Door or Gate between open and locked, queued to swap back after `exitpar3s` steps,
-/// at least one. (sic) Under the original a negative time never comes round; here it is
-/// taken as the longest delay.
+/// at least one. A negative time is queued as the exit queue's longest wait, 255 steps,
+/// with a timer that is due at once (see `add_exit_to_list`).
 fn swap_door(world: &mut World, room: RoomKey, dir: Direction, exit: &Exit, door: DoorExit) {
     let lock = if door.lock == Lock::Open {
         Lock::Locked

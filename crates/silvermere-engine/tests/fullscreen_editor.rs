@@ -1,7 +1,7 @@
 //! The full-screen character editor (T-063): the EDITCHA1 form on an ANSI terminal of
 //! at least 80x23, driven one key at a time through the engine.
 //!
-//! The expectations follow the host's form library (FSD.C, FSDBBS.C, AIN.C) and the
+//! The expectations follow the host's form library and its ANSI key translator and the
 //! game's `edit_character_stats`, `ljnvfy` and `ljndun`: the background is the template
 //! with its answers filled in, the field under the cursor is in the cursor colour
 //! (attribute 0x70, `ESC[0;7m`), a refusal goes to the `!` help area on row 23 in the
@@ -638,7 +638,7 @@ fn edit_then_quit() {
     );
 }
 
-// AIN.C: a sequence it does not know ends with no key, and F1 is a key the form ignores;
+// the key translator: a sequence it does not know ends with no key, and F1 is a key the form ignores;
 // ESC and another byte is that byte, so `ESC x` types an x
 #[test]
 fn ansi_keys_as_the_host_translates_them() {

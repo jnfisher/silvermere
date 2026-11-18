@@ -18,7 +18,7 @@ pub(crate) struct FieldSpec {
     pub(crate) no_negative: bool,
 }
 
-/// Parses a specification (as `FSD.C`'s `fspscn` and `chkops`): names end at white space
+/// Parses a specification (as the library's `fspscn` and `chkops`): names end at white space
 /// or `(`; options run to `)`. Stops at a NUL.
 pub(crate) fn parse(spec: &[u8]) -> Vec<FieldSpec> {
     let end = spec.iter().position(|&b| b == 0).unwrap_or(spec.len());

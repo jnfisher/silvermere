@@ -17,7 +17,7 @@ fn printable(c: u16) -> Option<u8> {
 }
 
 impl Form {
-    /// Starts entry (as `FSDBBS.C`'s `fsdego`): full screen puts the cursor on the first
+    /// Starts entry (as the library's `fsdego`): full screen puts the cursor on the first
     /// field that is not avoided; line mode prompts it with its answer.
     pub fn begin(&mut self, out: &mut Vec<u8>) {
         let first = self.open_field(0, 1).unwrap_or(0);
@@ -40,7 +40,7 @@ impl Form {
         self.changes = 0;
     }
 
-    /// Takes one keystroke (as `FSD.C`'s `fsdinc`): a byte 0x20-0xFF, or a code from
+    /// Takes one keystroke (as the library's `fsdinc`): a byte 0x20-0xFF, or a code from
     /// [`crate::key`]. Keys are ignored while an entry is pending or once the session is
     /// over.
     pub fn key(&mut self, c: u16, out: &mut Vec<u8>) {
@@ -73,7 +73,7 @@ impl Form {
         }
     }
 
-    /// Tells the session the output so far has been sent (as `FSD.C`'s `fsdqoe`); it may
+    /// Tells the session the output so far has been sent (as the library's `fsdqoe`); it may
     /// then make a cursor move it held back. The host calls it after sending each key's
     /// output.
     pub fn output_sent(&mut self, out: &mut Vec<u8>) {
@@ -179,7 +179,7 @@ impl Form {
     }
 
     /// Shows the current field left-justified in the cursor colour, as editing starts at
-    /// its first character (`FSD.C` line 1682).
+    /// its first character.
     fn select_for_editing(&self, out: &mut Vec<u8>) {
         self.show_field(self.cursor, CURSOR_ATTR, Justify::Left, out);
     }
@@ -318,7 +318,7 @@ impl Form {
     }
 
     /// Field `n` of the template, wrapped round the ends in full screen; `None` past them
-    /// in line mode (as `FSD.C`'s `vldfld`).
+    /// in line mode (as the library's `vldfld`).
     fn wrap(&self, n: isize) -> Option<usize> {
         let last = self.on_screen.checked_sub(1)?;
         let wrap = self.mode == Mode::FullScreen;
@@ -332,7 +332,7 @@ impl Form {
     }
 
     /// The first field from `from` on, stepping by `step`, that is not avoided (as
-    /// `FSD.C`'s `movfld`); `None` if it comes back round or runs off the end.
+    /// the library's `movfld`); `None` if it comes back round or runs off the end.
     pub(crate) fn open_field(&self, from: isize, step: isize) -> Option<usize> {
         let mut at = self.wrap(from)?;
         let mut last = at;
@@ -351,7 +351,7 @@ impl Form {
     }
 
     /// Moves the cursor to field `to` (or on by `step`). While output is going out only
-    /// the cursor moves, and the fields are reshown when it has been sent (as `FSD.C`'s
+    /// the cursor moves, and the fields are reshown when it has been sent (as the library's
     /// `hopfld`).
     fn hop(&mut self, to: isize, step: isize, out: &mut Vec<u8>) {
         let Some(to) = self.open_field(to, step) else {
@@ -374,7 +374,7 @@ impl Form {
     }
 
     /// Ends the entry and moves the cursor on by `step` (+1, -1 or 0), leaving the entry
-    /// for [`Form::process`] (as `FSD.C`'s `xitfld`).
+    /// for [`Form::process`] (as the library's `xitfld`).
     fn leave_field(&mut self, step: isize, out: &mut Vec<u8>) {
         self.entered = self.cursor;
         if let Some(next) = self.open_field(self.cursor as isize + step, step) {
@@ -387,7 +387,7 @@ impl Form {
     }
 
     /// Ends the session with `state`, [`State::Save`] or [`State::Quit`]; line mode starts
-    /// a new line (as `FSD.C`'s `xitfsd`).
+    /// a new line (as the library's `xitfsd`).
     pub(crate) fn end_session(&mut self, state: State, out: &mut Vec<u8>) {
         if self.mode == Mode::Linear {
             out.extend_from_slice(b"\r\n");

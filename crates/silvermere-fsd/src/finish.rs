@@ -11,7 +11,7 @@ use crate::template::Kind;
 const ARE_YOU_SURE: &[u8] = b"Are you sure?  Enter QUIT or ^O to quit now.";
 
 impl Form {
-    /// Does the work a key left (as `FSD.C`'s `fsdprc`): a finished entry is checked by
+    /// Does the work a key left (as the library's `fsdprc`): a finished entry is checked by
     /// `verify` and the field's options, then stored, or refused with a message, and the
     /// cursor moves on. The host calls it after each [`Form::key`]; it reports when the
     /// session is over.
@@ -153,7 +153,7 @@ impl Form {
         }
     }
 
-    /// The standard verify routine, for forms ending in a "done?" field (as `FSD.C`'s
+    /// The standard verify routine, for forms ending in a "done?" field (as the library's
     /// `vfyadn`).
     ///
     /// On the last field an answer starting S, Y or D saves and Q, X or A quits

@@ -16,7 +16,7 @@ pub(crate) fn type_ok(field: &Field, answer: &[u8]) -> bool {
     }
 }
 
-/// Checks the entry against `MIN=`; the message if it is below (as `FSD.C`'s `chkmin`).
+/// Checks the entry against `MIN=`; the message if it is below (as the library's `chkmin`).
 /// For text a `MIN=` of up to two digits, no more than the width, is a minimum length.
 pub(crate) fn min_ok(field: &Field, answer: &[u8]) -> Result<(), Vec<u8>> {
     let Some(min) = &field.spec.min else {
@@ -51,7 +51,7 @@ pub(crate) fn min_ok(field: &Field, answer: &[u8]) -> Result<(), Vec<u8>> {
     }
 }
 
-/// Checks the entry against `MAX=`; the message if it is above (as `FSD.C`'s `chkmax`).
+/// Checks the entry against `MAX=`; the message if it is above (as the library's `chkmax`).
 pub(crate) fn max_ok(field: &Field, answer: &[u8]) -> Result<(), Vec<u8>> {
     let Some(max) = &field.spec.max else {
         return Ok(());
@@ -97,7 +97,7 @@ pub(crate) struct ChoiceMatch {
     pub(crate) report: Vec<u8>,
 }
 
-/// Looks the entry (blanks removed) up among the field's choices (as `FSD.C`'s
+/// Looks the entry (blanks removed) up among the field's choices (as the library's
 /// `chkalt`): a choice matches when the entry is a prefix of it, any case. With
 /// `report_width` the candidates are listed in that much room.
 pub(crate) fn match_choices(
@@ -150,7 +150,7 @@ pub(crate) fn match_choices(
     found
 }
 
-/// The first choice that is `text`, any case (as `FSD.C`'s `ck4alt`, whole word).
+/// The first choice that is `text`, any case (as the library's `ck4alt`, whole word).
 pub(crate) fn exact_choice(field: &Field, text: &[u8]) -> Option<usize> {
     if text.is_empty() {
         return None;
@@ -162,7 +162,7 @@ pub(crate) fn exact_choice(field: &Field, text: &[u8]) -> Option<usize> {
         .position(|c| c.eq_ignore_ascii_case(text))
 }
 
-/// The first choice that starts with `text`, any case (as `FSD.C`'s `ck4alt`, prefix).
+/// The first choice that starts with `text`, any case (as the library's `ck4alt`, prefix).
 pub(crate) fn prefix_choice(field: &Field, text: &[u8]) -> Option<usize> {
     if text.is_empty() {
         return None;
