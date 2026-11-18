@@ -363,7 +363,11 @@ pub fn settings(c: &Chrome<'_>, view: &SettingsView, banner: Option<(&str, bool)
              <button type=\"submit\">Apply now</button>\n</form>",
             escape(csrf),
             key_list(&view.pending_live),
-            if view.pending_live.len() == 1 { "it" } else { "them" },
+            if view.pending_live.len() == 1 {
+                "it"
+            } else {
+                "them"
+            },
             base = c.site.base,
         );
     }
