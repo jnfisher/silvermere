@@ -179,6 +179,7 @@ pub fn api_state(
     engine: std::sync::mpsc::Sender<EngineInput>,
     vitals: Arc<Vitals>,
     backup: Arc<dyn silvermere_api::BackupProbe>,
+    shutdown: Arc<dyn silvermere_api::ShutdownPlan>,
 ) -> ApiState {
     if cfg.admin.legacy_env_token
         && matches!(
@@ -200,6 +201,7 @@ pub fn api_state(
         metrics: metrics_handle(),
         tokens: Arc::new(cfg.admin.tokens.iter().map(|t| t.to_token()).collect()),
         backup,
+        shutdown,
     }
 }
 

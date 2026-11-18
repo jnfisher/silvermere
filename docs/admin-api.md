@@ -16,14 +16,14 @@ route needs `Authorization: Bearer <token>`:
 
 Every error body has the shape `{"error": "<code>", "message": "<human text>"}`; the codes
 are `unauthorized`, `forbidden`, `bad_text`, `engine_unavailable` (503), `engine_timeout`
-(504), `reload_failed` (500), `bad_id` (400), `no_such_account` (404), `delete_failed` (500)
-and `reserved` (501).
+(504), `reload_failed` (500), `bad_id` (400), `no_such_account` (404), `delete_failed` (500),
+`bad_delay` (400), `bad_body` (400), `shutdown_unavailable` (503) and `reserved` (501).
 
 | Scope | Allows |
 |---|---|
 | `read` | the `GET` routes: `/v1/who` (hidden sysops omitted), `/v1/events` |
 | `write` | routes that change the running game: `/v1/broadcast`, `/v1/reload-world` |
-| `admin` | everything, including `DELETE /v1/accounts/{id}` and the reserved world routes; `/v1/who` includes hidden sysops |
+| `admin` | everything, including `DELETE /v1/accounts/{id}`, `/v1/shutdown` and the reserved world routes; `/v1/who` includes hidden sysops |
 
 `write` does not include `read`: give an operator tool both. (The T-018 names `broadcast`
 and `sysop` are still accepted in the config and mean `write` and `admin`.)
@@ -44,6 +44,8 @@ Binding anything but a loopback address with no token configured refuses to star
 | `POST` | `/v1/broadcast` | `write` | `{"text":"..."}` | `{"delivered":n}` |
 | `POST` | `/v1/reload-world` | `write` | none | `{"reloaded":{...},"ms":t}` |
 | `DELETE` | `/v1/accounts/{id}` | `admin` | none | `{"deleted":{"account":id,"character":"..."}}` |
+| `POST` | `/v1/shutdown` | `admin` | `{"in_secs":n,"message":"..."}` (both optional) | `{"at":"...","in_secs":n}` |
+| `DELETE` | `/v1/shutdown` | `admin` | none | `{"cancelled":true}` |
 <!-- built-routes:end -->
 
 Examples (`$T` is a token):
@@ -56,6 +58,9 @@ curl -s -X POST -H "Authorization: Bearer $T" -H 'Content-Type: application/json
      -d '{"text":"Reboot in 5 minutes"}' localhost:8080/v1/broadcast
 curl -s -X POST -H "Authorization: Bearer $T" localhost:8080/v1/reload-world
 curl -s -X DELETE -H "Authorization: Bearer $T" localhost:8080/v1/accounts/42
+curl -s -X POST -H "Authorization: Bearer $T" -H 'Content-Type: application/json' \
+     -d '{"in_secs":300,"message":"upgrading to 0.2"}' localhost:8080/v1/shutdown
+curl -s -X DELETE -H "Authorization: Bearer $T" localhost:8080/v1/shutdown
 ```
 
 ### `GET /healthz`
@@ -185,6 +190,42 @@ does not answer `200` it checks the store's single-writer guard (T-072, below):
 A `504 {"error":"engine_timeout",...}` from the route means the engine did not answer in
 time, not that it refused: the CLI says the deletion was queued and may still complete, and
 exits 1. Check with `silvermere account list` before trying again.
+
+### `POST /v1/shutdown`
+
+Plans a shutdown: the server warns the players in the game, then stops as it does on
+SIGTERM (every character saved, `The server is shutting down. Your character has been
+saved.` to everyone, exit 0). `silvermere sysop shutdown` calls it.
+
+`{"in_secs": 300, "message": "upgrading to 0.2"}`: `in_secs` is 0 to 86400 (a day; `400
+bad_delay` beyond), 300 when absent; `message` is optional, up to 200 characters with no
+control character (`400 bad_text`). A body that is not that JSON is `400 bad_body`; an empty
+body takes both defaults. The answer is `{"at":"2026-11-18T20:05:00Z","in_secs":300}`, `at`
+in UTC.
+
+The warnings are broadcasts, as [`POST /v1/broadcast`](#post-v1broadcast) sends them: one
+when the plan is made, then at 1 hour, 30, 15, 10, 5 and 2 minutes, 1 minute, 30 and 10
+seconds before the stop, those still ahead. Each says
+`The server will shut down in 5 minutes: upgrading to 0.2` (with no message, `The server
+will shut down in 5 minutes.`). `in_secs: 0` stops at once with no warning.
+
+A second call replaces the plan, its warnings counted from the new time. The plan lives in
+the running server only: a restart forgets it.
+
+What happens after the exit is up to what runs the server. Under the systemd service
+(`Restart=on-failure`) the server stays stopped until `systemctl start silvermere`; under
+Docker's `restart: unless-stopped` (the compose file) it starts again at once. So for an
+upgrade with the service: plan the shutdown, replace the program once it has stopped, start
+it.
+
+Audited as `admin.shutdown` with `in_secs`, `at` and `text`. A server that cannot stop
+itself (one run in-process by the tests) answers `503 shutdown_unavailable`.
+
+### `DELETE /v1/shutdown`
+
+Cancels the plan: `{"cancelled": true}`, and the players are told `The planned shutdown is
+cancelled.`; `{"cancelled": false}` when none was planned. Audited as `admin.shutdown` with
+`cancelled`.
 
 ### Single-writer guard
 

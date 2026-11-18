@@ -49,6 +49,13 @@ Stated here so they are not read as differences from a stock install.
   prompt again and is not a failed attempt, so a stray Enter from a login script is harmless
   ([login code](../crates/silvermere-auth/src/login.rs)). Whitespace-only passwords are refused at
   signup and `account set-password`.
+- **A second login can take the account over.** The original refused a second connection
+  to an account that was logged on. silvermere asks `Disconnect the other connection and log
+  in here? (Y/N):` after the right password; `Y` closes the other connection as a hang-up
+  does and logs in here, `N` refuses as before (`net.login_takeover = true`; `false` keeps
+  the plain refusal). Connections that died without closing are also found by TCP keepalive
+  within about two minutes (`net.keepalive_secs`). See [auth.md](auth.md#the-dialogue),
+  [net.md](net.md#dead-connections).
 - **Open signup.** Anyone may create an account with `NEW` (`game.open_signup = true`);
   [signup code](../crates/silvermere-auth/src/signup.rs). Set it to `false` and only a sysop can.
 - **Inactive timeout 3600 seconds.** `game.inactive_secs = 3600`. The login dialogue has its own

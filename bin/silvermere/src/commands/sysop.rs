@@ -44,6 +44,21 @@ fn request(cfg: &Config, action: &SysopCmd) -> Result<String, String> {
             Some(serde_json::json!({ "text": message }).to_string()),
         ),
         SysopCmd::ReloadWorld => ("POST", "/v1/reload-world", TokenScope::Write, None),
+        SysopCmd::Shutdown { cancel: true, .. } => {
+            ("DELETE", "/v1/shutdown", TokenScope::Admin, None)
+        }
+        SysopCmd::Shutdown { delay, message, .. } => (
+            "POST",
+            "/v1/shutdown",
+            TokenScope::Admin,
+            Some(
+                serde_json::json!({
+                    "in_secs": delay,
+                    "message": message.clone().unwrap_or_default(),
+                })
+                .to_string(),
+            ),
+        ),
     };
     let token = token_for(cfg, scope).ok_or_else(|| {
         format!(
@@ -95,8 +110,40 @@ fn render(action: &SysopCmd, body: &str) -> String {
                 Some(format!("Told {n} player{}.\n", plural(n)))
             }
             SysopCmd::ReloadWorld => reloaded(&v),
+            SysopCmd::Shutdown { cancel: true, .. } => Some(
+                if v.get("cancelled")?.as_bool()? {
+                    "Cancelled the planned shutdown; the players were told.\n"
+                } else {
+                    "No shutdown was planned.\n"
+                }
+                .to_owned(),
+            ),
+            SysopCmd::Shutdown { .. } => planned(&v),
         });
     shown.unwrap_or_else(|| format!("{}\n", body.trim()))
+}
+
+/// When a planned shutdown happens, in this computer's time zone.
+fn planned(v: &Value) -> Option<String> {
+    let at = v.get("at")?.as_str()?;
+    let secs = v.get("in_secs")?.as_u64()?;
+    let local = at
+        .parse::<jiff::Timestamp>()
+        .map(|t| {
+            t.to_zoned(jiff::tz::TimeZone::system())
+                .strftime("%Y-%m-%d %H:%M:%S %Z")
+                .to_string()
+        })
+        .unwrap_or_else(|_| at.to_owned());
+    Some(if secs == 0 {
+        "The server is stopping now.\n".to_owned()
+    } else {
+        format!(
+            "The server will stop at {local}, in {}. The players in the game are warned until \
+             then.\nCall it off with: silvermere sysop shutdown --cancel\n",
+            crate::planned::how_long(secs)
+        )
+    })
 }
 
 fn plural(n: u64) -> &'static str {

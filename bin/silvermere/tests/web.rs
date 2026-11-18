@@ -139,7 +139,7 @@ async fn a_sysop_changes_a_setting_in_the_browser() {
     );
     assert!(body.contains("Hit points at which a player dies."));
     assert!(body.contains("id=\"f-database.url\"") && body.contains("Can hold a password"));
-    assert!(!body.contains("has changes this server has not loaded"));
+    assert!(!body.contains("Saved but"));
     let csrf = body
         .split("name=\"csrf\" value=\"")
         .nth(1)
@@ -171,9 +171,36 @@ async fn a_sysop_changes_a_setting_in_the_browser() {
         "{text}"
     );
     let (_, _, body) = http(web, "GET", "/settings?saved=2", Some(&cookie), None).await;
-    assert!(body.contains("Saved 2 settings. Restart the server to apply them."));
+    assert!(body.contains("Saved 2 settings."));
     assert!(body.contains("name=\"game.max_top\" value=\"20\""));
-    assert!(body.contains("has changes this server has not loaded"));
+    // game.max_top can be loaded now; game.open_signup only at a restart
+    let live = body
+        .split("Saved but not loaded yet:")
+        .nth(1)
+        .and_then(|rest| rest.split("</p>").next())
+        .expect("the Apply now banner");
+    assert!(
+        live.contains("game.max_top") && !live.contains("open_signup"),
+        "{live}"
+    );
+    let restart = body
+        .split("Saved but read only when the server starts:")
+        .nth(1)
+        .and_then(|rest| rest.split("</p>").next())
+        .expect("the restart banner");
+    assert!(restart.contains("game.open_signup"), "{restart}");
+
+    // Apply now: the running game takes game.max_top, as SYSOP RELOAD would
+    let form = format!("csrf={csrf}");
+    let (status, head, _) = http(web, "POST", "/settings/apply", Some(&cookie), Some(&form)).await;
+    assert_eq!(
+        (status, header(&head, "location")),
+        (303, Some("/settings?applied=1"))
+    );
+    let (_, _, body) = http(web, "GET", "/settings?applied=1", Some(&cookie), None).await;
+    assert!(body.contains("Loaded 1 setting into the running game."));
+    assert!(!body.contains("Saved but not loaded yet"), "{body}");
+    assert!(body.contains("Saved but read only when the server starts"));
 
     // back to the default: out of the file
     let form = format!("csrf={csrf}&section=game&game.max_top=10&game.open_signup=false");
@@ -185,10 +212,14 @@ async fn a_sysop_changes_a_setting_in_the_browser() {
         "{text}"
     );
 
-    tokio::time::timeout(Duration::from_secs(10), r.stop())
+    let world = tokio::time::timeout(Duration::from_secs(10), r.stop())
         .await
         .expect("stops within 10 s")
         .expect("engine joins");
+    // the applied value is in force; the startup-only one is not, nor the change saved
+    // after the apply
+    assert_eq!(world.config.max_top, 20);
+    assert!(world.config.open_signup);
     let _ = std::fs::remove_dir_all(&dir);
 }
 

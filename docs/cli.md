@@ -252,6 +252,8 @@ Sysop commands on a running server, over its admin API on `server.admin_bind`. D
 silvermere sysop who
 silvermere sysop broadcast <MESSAGE>
 silvermere sysop reload-world
+silvermere sysop shutdown [--in <DURATION>] [MESSAGE]
+silvermere sysop shutdown --cancel
 silvermere sysop --json <SUBCOMMAND>
 ```
 
@@ -260,10 +262,19 @@ silvermere sysop --json <SUBCOMMAND>
 | `sysop who` | lists the players in the game: name, class, race, level, gang and idle time | `GET /v1/who` | `read` |
 | `sysop broadcast <MESSAGE>` | sends one line to every player in the game and says how many were told | `POST /v1/broadcast` | `write` |
 | `sysop reload-world` | reads the static world tables again from the database, with nobody disconnected | `POST /v1/reload-world` | `write` |
+| `sysop shutdown [MESSAGE]` | stops the server after warning the players in the game (when it is planned, then at 1 hour, 30, 15, 10, 5, 2 and 1 minutes, 30 and 10 seconds before), every character saved; `MESSAGE` goes with each warning. A second call replaces the plan | `POST /v1/shutdown` | `admin` |
+| `sysop shutdown --cancel` | calls the planned shutdown off and tells the players | `DELETE /v1/shutdown` | `admin` |
 
 | Flag | Meaning |
 |---|---|
 | `--json` | print the server's JSON answer as it came, for scripts |
+| `--in <DURATION>` | with `shutdown`: how long until the stop: `90s`, `5m`, `1h`, `1h30m` or a number of seconds, at most a day (default `5m`) |
+| `--cancel` | with `shutdown`: call off the planned shutdown instead |
+
+After the stop, the systemd service stays stopped until `systemctl start silvermere`; Docker's
+`restart: unless-stopped` starts it again at once. To upgrade under the service: plan the
+shutdown, replace the program once it has stopped, start it
+([admin-api.md](admin-api.md#post-v1shutdown)).
 
 The command sends a token whose secret the config holds: `SILVERMERE_ADMIN_TOKEN` (the same
 value the server was started with), or a `token` in `[[admin.tokens]]`. A token stored only as

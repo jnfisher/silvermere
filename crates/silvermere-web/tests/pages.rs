@@ -16,6 +16,12 @@ use tower::ServiceExt as _;
 #[derive(Default)]
 struct Fake {
     applied: Mutex<Vec<Change>>,
+    /// Saved keys the running game has not loaded, and can.
+    unloaded: Mutex<Vec<String>>,
+    /// Saved keys that need a restart.
+    at_startup: Mutex<Vec<String>>,
+    /// How many times "Apply now" ran.
+    loads: Mutex<usize>,
 }
 
 impl Settings for Fake {
@@ -30,7 +36,8 @@ impl Settings for Fake {
         };
         Ok(SettingsView {
             file: "/data/silvermere.toml".into(),
-            pending: false,
+            pending_live: self.unloaded.lock().unwrap().clone(),
+            pending_restart: self.at_startup.lock().unwrap().clone(),
             values: vec![
                 value("game.death_hp", "-200", Kind::Integer, None),
                 value("database.url", "<redacted>", Kind::Text, Some(Lock::Secret)),
@@ -45,6 +52,11 @@ impl Settings for Fake {
         }
         self.applied.lock().unwrap().extend_from_slice(changes);
         Ok(())
+    }
+
+    fn load_now(&self) -> Result<Vec<String>, String> {
+        *self.loads.lock().unwrap() += 1;
+        Ok(std::mem::take(&mut *self.unloaded.lock().unwrap()))
     }
 }
 
@@ -232,7 +244,7 @@ async fn a_sysop_sees_and_saves_settings() {
         }]
     );
     let (_, _, body) = call(&app, get("/settings?saved=1", Some(&cookie))).await;
-    assert!(body.contains("Saved 1 setting. Restart the server to apply it."));
+    assert!(body.contains("Saved 1 setting."));
 
     // what the server would refuse at startup is shown, and nothing more is written
     let form = format!("csrf={csrf}&section=game&game.death_hp=7");
@@ -270,4 +282,43 @@ async fn the_export_is_the_open_pages_as_files() {
     assert!(dir.join("assets/images/silvermere-logo.png").exists());
     assert!(dir.join("404.html").exists() && dir.join("docs/index.html").exists());
     std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[tokio::test]
+async fn apply_now_loads_the_saved_game_options() {
+    let fake = Arc::new(Fake::default());
+    fake.unloaded.lock().unwrap().push("game.death_hp".into());
+    fake.at_startup
+        .lock()
+        .unwrap()
+        .push("server.max_sessions".into());
+    let app = router(state(fake.clone()));
+    // not signed in: to the sign-in page, nothing loaded
+    let (status, headers, _) = call(&app, post("/settings/apply", None, "csrf=x")).await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    assert_eq!(headers[header::LOCATION], "/login");
+    let (cookie, csrf) = sign_in(&app).await;
+    let (_, _, body) = call(&app, get("/settings", Some(&cookie))).await;
+    assert!(body.contains("action=\"/settings/apply\""), "{body}");
+    assert!(body.contains("Apply now"));
+    assert!(body.contains("not loaded yet"));
+    assert!(body.contains("Saved but read only when the server starts"));
+    assert!(body.contains("needs a restart"));
+    // a stale form loads nothing
+    let (status, _, _) = call(&app, post("/settings/apply", Some(&cookie), "csrf=stale")).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(*fake.loads.lock().unwrap(), 0);
+    let (status, headers, _) = call(
+        &app,
+        post("/settings/apply", Some(&cookie), &format!("csrf={csrf}")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    assert_eq!(headers[header::LOCATION], "/settings?applied=1");
+    assert_eq!(*fake.loads.lock().unwrap(), 1);
+    let (_, _, body) = call(&app, get("/settings?applied=1", Some(&cookie))).await;
+    assert!(body.contains("Loaded 1 setting into the running game."));
+    assert!(!body.contains("Apply now"));
+    // the restart banner stays: Apply now cannot load those
+    assert!(body.contains("needs a restart"));
 }

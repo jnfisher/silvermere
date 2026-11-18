@@ -242,6 +242,51 @@ pub enum SysopCmd {
     Broadcast { message: String },
     /// Read the static world tables again from the database.
     ReloadWorld,
+    /// Stop the server after warning the players in the game; every character is saved.
+    Shutdown {
+        /// How long until the stop: `90s`, `5m`, `1h` or `1h30m`, or a number of seconds;
+        /// at most 24h
+        #[arg(long = "in", value_name = "DURATION", default_value = "5m", value_parser = parse_delay)]
+        delay: u64,
+        /// Call off the planned shutdown instead
+        #[arg(long, conflicts_with = "message")]
+        cancel: bool,
+        /// Said to the players with each warning, such as `upgrading to 0.2`
+        message: Option<String>,
+    },
+}
+
+/// `90s`, `5m`, `1h`, `1h30m` or a plain number of seconds, as seconds.
+pub fn parse_delay(text: &str) -> Result<u64, String> {
+    let text = text.trim();
+    if let Ok(secs) = text.parse::<u64>() {
+        return Ok(secs);
+    }
+    let bad = || format!("`{text}` is not a duration: use 90s, 5m, 1h, 1h30m or seconds");
+    let mut total: u64 = 0;
+    let mut digits = String::new();
+    for c in text.chars() {
+        if c.is_ascii_digit() {
+            digits.push(c);
+            continue;
+        }
+        let n: u64 = digits.parse().map_err(|_| bad())?;
+        digits.clear();
+        let unit = match c.to_ascii_lowercase() {
+            'h' => 3600,
+            'm' => 60,
+            's' => 1,
+            _ => return Err(bad()),
+        };
+        total = n
+            .checked_mul(unit)
+            .and_then(|v| total.checked_add(v))
+            .ok_or_else(bad)?;
+    }
+    if !digits.is_empty() || text.is_empty() {
+        return Err(bad());
+    }
+    Ok(total)
 }
 
 impl Cli {

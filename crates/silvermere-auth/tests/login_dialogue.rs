@@ -557,3 +557,118 @@ async fn empty_lines_reprompt_and_do_not_count_as_failures() {
     assert_eq!(count(AuthMsg::PasswordPrompt), 1 + 3 + 1 + 1);
     assert_eq!(count(AuthMsg::InvalidCredentials), 1);
 }
+
+/// The takeover tests' dialogue settings: `net.login_takeover` on.
+fn takeover_on() -> LoginConfig {
+    LoginConfig {
+        takeover: true,
+        ..LoginConfig::default()
+    }
+}
+
+/// An [`Evict`] that notes whom it was asked to disconnect.
+#[derive(Default)]
+struct Evicted(Mutex<Vec<silvermere_types::ids::AccountId>>);
+
+impl silvermere_auth::login::Evict for Evicted {
+    fn evict(&self, account: silvermere_types::ids::AccountId) {
+        self.0.lock().unwrap().push(account);
+    }
+}
+
+async fn service_with_evict() -> (Service, Arc<Evicted>) {
+    let evicted = Arc::new(Evicted::default());
+    (service().await.with_evict(evicted.clone()), evicted)
+}
+
+#[tokio::test]
+async fn with_takeover_on_a_second_login_is_asked_and_n_keeps_the_refusal() {
+    let (svc, evicted) = service_with_evict().await;
+    let (_, first) = run(&svc, takeover_on(), &["kasimir", "kangtest1"]).await;
+    assert!(matches!(first.state(), State::Done(_)));
+    let (out, dlg) = run(&svc, takeover_on(), &["Kasimir", "kangtest1"]).await;
+    assert!(matches!(dlg.state(), State::Takeover { .. }));
+    assert!(out.contains(&Output::Text(AuthMsg::TakeoverPrompt)));
+    assert!(!out.contains(&Output::Close));
+    let mut dlg = dlg;
+    let out = svc.drive(&mut dlg, "n").await.unwrap();
+    assert_eq!(dlg.state(), &State::Closed(CloseReason::DuplicateLogin));
+    assert!(texts(&out).contains(&"This account is already logged on.".to_string()));
+    assert_eq!(out.last(), Some(&Output::Close));
+    assert!(evicted.0.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn y_disconnects_the_other_session_and_logs_in_here() {
+    let (svc, evicted) = service_with_evict().await;
+    let (_, first) = run(&svc, takeover_on(), &["kasimir", "kangtest1"]).await;
+    let id = first.account().unwrap().id;
+    let (_, mut dlg) = run(&svc, takeover_on(), &["Kasimir", "kangtest1", "maybe"]).await;
+    // an answer that is neither Y nor N asks again
+    assert!(matches!(dlg.state(), State::Takeover { .. }));
+    // the other session goes as the server would close it: once asked to
+    let release = async {
+        loop {
+            if evicted.0.lock().unwrap().contains(&id) {
+                svc.online().release(id);
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    };
+    let (out, ()) = tokio::join!(svc.drive(&mut dlg, " y"), release);
+    let out = out.unwrap();
+    assert!(!out.contains(&Output::Close));
+    assert_eq!(dlg.state(), &State::Done(id));
+    assert!(
+        svc.online().contains(id),
+        "the new session holds the account"
+    );
+    assert_eq!(evicted.0.lock().unwrap().as_slice(), &[id]);
+}
+
+#[tokio::test]
+async fn the_question_again_after_a_bad_answer() {
+    let (svc, _) = service_with_evict().await;
+    run(&svc, takeover_on(), &["kasimir", "kangtest1"]).await;
+    let (out, dlg) = run(&svc, takeover_on(), &["Kasimir", "kangtest1", "what"]).await;
+    assert!(matches!(dlg.state(), State::Takeover { .. }));
+    assert_eq!(out.last(), Some(&Output::Text(AuthMsg::TakeoverQuestion)));
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_session_that_never_lets_go_fails_the_takeover_after_the_wait() {
+    let (svc, evicted) = service_with_evict().await;
+    let (_, first) = run(&svc, takeover_on(), &["kasimir", "kangtest1"]).await;
+    let id = first.account().unwrap().id;
+    let started = tokio::time::Instant::now();
+    let (out, dlg) = run(&svc, takeover_on(), &["Kasimir", "kangtest1", "Y"]).await;
+    assert!(started.elapsed() >= silvermere_auth::login::TAKEOVER_WAIT);
+    assert_eq!(dlg.state(), &State::Closed(CloseReason::DuplicateLogin));
+    assert!(out.contains(&Output::Text(AuthMsg::TakeoverFailed)));
+    assert_eq!(out.last(), Some(&Output::Close));
+    assert_eq!(evicted.0.lock().unwrap().as_slice(), &[id]);
+    // the first session still holds the account
+    assert!(svc.online().contains(id));
+}
+
+#[tokio::test]
+async fn a_wrong_password_is_never_asked_about_a_takeover() {
+    let (svc, evicted) = service_with_evict().await;
+    run(&svc, takeover_on(), &["kasimir", "kangtest1"]).await;
+    let (out, dlg) = run(&svc, takeover_on(), &["Kasimir", "wrong"]).await;
+    assert!(out.contains(&Output::Text(AuthMsg::InvalidCredentials)));
+    assert!(!out.contains(&Output::Text(AuthMsg::TakeoverPrompt)));
+    assert_eq!(dlg.state(), &State::Username);
+    assert!(evicted.0.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn takeover_off_refuses_as_before() {
+    let (svc, evicted) = service_with_evict().await;
+    run(&svc, LoginConfig::default(), &["kasimir", "kangtest1"]).await;
+    let (out, dlg) = run(&svc, LoginConfig::default(), &["Kasimir", "kangtest1"]).await;
+    assert_eq!(dlg.state(), &State::Closed(CloseReason::DuplicateLogin));
+    assert!(!out.contains(&Output::Text(AuthMsg::TakeoverPrompt)));
+    assert!(evicted.0.lock().unwrap().is_empty());
+}

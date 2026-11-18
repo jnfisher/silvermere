@@ -74,6 +74,9 @@ pub struct ServerConfig {
     /// inherit it). Without a cap the kernel buffers megabytes for a client that stopped
     /// reading, and the output-queue bound would take that long to notice.
     pub socket_send_buffer: u32,
+    /// `net.keepalive_secs`: probe a connection after this long without traffic and drop
+    /// it when the probes go unanswered ([`crate::keepalive`]); `None` for no probes.
+    pub keepalive: Option<Duration>,
     pub session: SessionConfig,
 }
 
@@ -83,6 +86,7 @@ impl Default for ServerConfig {
             max_sessions: 64,
             full_message: b"The server is full. Please try again later.\r\n".to_vec(),
             socket_send_buffer: 32 * 1024,
+            keepalive: None,
             session: SessionConfig::default(),
         }
     }
@@ -201,6 +205,11 @@ async fn accept_loop(
         }
         // Small writes (echo, prompts) must not wait on Nagle.
         let _ = stream.set_nodelay(true);
+        if let Some(idle) = shared.config.keepalive
+            && let Err(e) = crate::keepalive::enable(&stream, idle)
+        {
+            tracing::warn!(%peer, %e, "TCP keepalive could not be set on this connection");
+        }
         let Ok(permit) = Arc::clone(&shared.slots).try_acquire_owned() else {
             tracing::info!(%peer, "server full; connection refused");
             let message = shared.config.full_message.clone();

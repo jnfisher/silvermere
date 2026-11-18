@@ -8,6 +8,7 @@
 
 pub mod cp437;
 pub mod events;
+pub mod keepalive;
 pub mod line_editor;
 pub mod rlogin;
 pub mod session_task;

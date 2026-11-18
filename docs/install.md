@@ -997,6 +997,11 @@ satisfied.
 does the same by hand). Take a backup first: `silvermere backup` is safe while the server runs.
 Your `data/` and `silvermere.toml` stay as they are.
 
+To give the players warning first, plan the stop: `silvermere sysop shutdown --in 10m
+"upgrading"` warns everyone in the game as the time comes closer and then stops the server
+with every character saved ([cli.md](cli.md#silvermere-sysop)). Under the systemd service it
+stays stopped until you start it again, so you can replace the program in between.
+
 From a version without scheduled backups: after the upgrade the server backs itself up every
 day at 04:30 and keeps the last 30, since a `silvermere.toml` with no `backup.*` settings takes
 the defaults ([Backup and restore](#backup-and-restore)). Remove a cron line you added for

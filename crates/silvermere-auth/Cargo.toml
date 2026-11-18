@@ -21,12 +21,13 @@ jiff.workspace = true
 rand.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
 sqlx = { workspace = true, features = ["any"] }
-tokio.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 
 [[test]]
 name = "all"

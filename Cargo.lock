@@ -2243,6 +2243,7 @@ name = "silvermere-net"
 version = "0.1.17"
 dependencies = [
  "proptest",
+ "socket2",
  "tokio",
  "tracing",
 ]

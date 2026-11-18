@@ -49,6 +49,8 @@ pub struct ApiState {
     pub world: Arc<dyn WorldLoader>,
     /// The scheduled backup's state for `/v1/backup` and `/healthz` (T-150).
     pub backup: Arc<dyn BackupProbe>,
+    /// The planned shutdown for `/v1/shutdown`.
+    pub shutdown: Arc<dyn crate::shutdown::ShutdownPlan>,
 }
 
 impl ApiState {
@@ -75,6 +77,9 @@ fn message_of(code: &str) -> &'static str {
         "bad_id" => "the account id must be a positive integer",
         "no_such_account" => "no account has that id",
         "delete_failed" => "the account was not deleted",
+        "bad_delay" => "in_secs must be 0 to 86400",
+        "bad_body" => "the request body is not the JSON this route takes",
+        "shutdown_unavailable" => "this server cannot schedule its own shutdown",
         "not_found" => "no such route",
         "internal" => "internal error",
         _ => "error",
@@ -128,6 +133,8 @@ pub fn routes() -> Vec<RouteSpec> {
         r("POST", "/v1/broadcast", Some(Scope::Write), true),
         r("POST", "/v1/reload-world", Some(Scope::Write), true),
         r("DELETE", "/v1/accounts/{id}", Some(Scope::Admin), true),
+        r("POST", "/v1/shutdown", Some(Scope::Admin), true),
+        r("DELETE", "/v1/shutdown", Some(Scope::Admin), true),
     ];
     for table in reserved::RESOURCES {
         for (method, suffix) in [
@@ -182,7 +189,11 @@ pub fn router(state: ApiState) -> Router {
         .route("/v1/events", get(events::stream))
         .route("/v1/backup", get(backup::status))
         .route("/v1/reload-world", post(reload::reload_world))
-        .route("/v1/accounts/{id}", delete(accounts::delete));
+        .route("/v1/accounts/{id}", delete(accounts::delete))
+        .route(
+            "/v1/shutdown",
+            post(crate::shutdown::schedule).delete(crate::shutdown::cancel),
+        );
     let v1 = reserved::register(v1).layer(middleware::from_fn_with_state(state.clone(), guard));
     Router::new()
         .route("/healthz", get(health::healthz))

@@ -108,6 +108,8 @@ button[type="submit"]:not(.link) {
 .banner.ok { border-color: var(--ok); color: var(--ok); }
 .banner.warn { border-color: var(--warn); color: var(--warn); }
 .banner.error { border-color: var(--error); color: var(--error); }
+.banner.pending { display: flex; gap: 0.8rem; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.banner.pending p { margin: 0; flex: 1 1 20rem; }
 
 .settings section { margin-top: 1.5rem; }
 .bar {

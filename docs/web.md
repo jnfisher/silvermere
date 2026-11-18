@@ -28,13 +28,33 @@ a filter box. Change values and press **Save** for the section:
   startup. A value the server would refuse is shown with startup's message, and nothing is
   written.
 - A value put back to its default is taken out of the file.
-- Settings are read once, at startup: restart the server to apply a change. Until then the page
-  says the file has changes the running server has not loaded.
+- A saved change does not reach the running server by itself. The page lists what is waiting
+  and marks each field: *not loaded yet* or *needs a restart* ([below](#applying-a-change)).
 - A setting that an environment variable or a flag sets cannot be changed here (they win over
   the file), and the database URL and the admin tokens are never shown or written. The page
   says which is which.
 
 A session lasts 12 hours and ends when the server stops.
+
+### Applying a change
+
+Most of the game options (`[game]`) can go into the running game at once: press **Apply
+now** in the banner. It does what the in-game `SYSOP RELOAD` does: the game options are read
+from the file again (with the environment variables and the server's flags still on top)
+and the running game uses them from its next command. Nobody is disconnected. A value a
+sysop changed in the game since (with a `SYSOP` command) goes back to the file's.
+
+Everything else is read only when the server starts: restart it to apply those. That is
+every key outside `[game]`, and these game options, which set up the game's timers and
+caches at startup:
+
+`game.inactive_secs`, `game.rng_seed`, `game.characters_per_account`, `game.open_signup`,
+`game.addons`, `game.sec_create`, `game.sec_oth`, `game.sec_slow`, `game.sec_med`,
+`game.sec_fast`, `game.sec_energy`, `game.cleanup.at`, `game.cleanup.tz` and
+`game.buffers.monsbuf`.
+
+**Apply now** leaves them as they were. Each loaded change is logged on the `audit` target
+with the sysop's name.
 
 ## Reaching it from another computer
 
@@ -68,6 +88,8 @@ from `main` on every push (`.github/workflows/pages.yml`).
 
 - A Markdown file added to `docs/` becomes a page with no other change; to place it in the
   sidebar, add its name to `GROUPS` in `crates/silvermere-web/src/site.rs`.
+- A new `[game]` key that the engine reads only at startup goes in `GAME_KEYS_AT_STARTUP`
+  and `keep_startup_values` in `bin/silvermere/src/web.rs`, and in the list above.
 - The settings page takes its descriptions from the key tables of [config.md](config.md) and
   its values from the same code as `silvermere config show`, so a new setting appears once it
   is in the config and in that table (`docs_in_sync` fails until it is).

@@ -79,6 +79,12 @@ fn file_log(dir: &Path) -> String {
 #[cfg(unix)]
 /// Starts `silvermere serve` on a seeded temp data dir and waits for `/healthz`.
 fn start_serve(name: &str) -> Serve {
+    start_serve_with(name, &[]).0
+}
+
+#[cfg(unix)]
+/// [`start_serve`] with these environment variables too; also the admin address.
+fn start_serve_with(name: &str, env: &[(&str, &str)]) -> (Serve, String) {
     let d = tmp(name);
     let db_path = d.join("world.db");
     let url = format!("sqlite://{}", db_path.display());
@@ -102,6 +108,9 @@ fn start_serve(name: &str) -> Serve {
         c.env_remove(k);
     }
     c.env("SILVERMERE_DATABASE__URL", &url);
+    for (k, v) in env {
+        c.env(k, v);
+    }
     let mut child = c.spawn().unwrap();
     let stderr = child.stderr.take().unwrap();
     let (tx, rx) = std::sync::mpsc::channel();
@@ -126,12 +135,15 @@ fn start_serve(name: &str) -> Serve {
         assert!(Instant::now() < up, "/healthz never answered");
         std::thread::sleep(Duration::from_millis(100));
     }
-    Serve {
-        child,
-        lines,
-        db_path,
-        dir: d,
-    }
+    (
+        Serve {
+            child,
+            lines,
+            db_path,
+            dir: d,
+        },
+        admin,
+    )
 }
 
 #[cfg(unix)]
@@ -306,4 +318,76 @@ async fn a_player_online_sees_the_notice_before_the_socket_closes() {
         .unwrap();
     assert!(!row.character.status.contains(PlayerStatus::HUNGUP));
     db.close().await;
+}
+
+/// `silvermere sysop ARGS` against the server whose admin API is on `admin`; the exit
+/// code and stdout.
+#[cfg(unix)]
+fn sysop(dir: &Path, admin: &str, token: &str, args: &[&str]) -> (Option<i32>, String) {
+    let mut c = Command::new(env!("CARGO_BIN_EXE_silvermere"));
+    c.current_dir(dir).arg("sysop").args(args);
+    for (k, _) in std::env::vars().filter(|(k, _)| k.starts_with("SILVERMERE_")) {
+        c.env_remove(k);
+    }
+    c.env("SILVERMERE_SERVER__ADMIN_BIND", admin)
+        .env("SILVERMERE_ADMIN_TOKEN", token);
+    let out = c.output().unwrap();
+    (
+        out.status.code(),
+        String::from_utf8_lossy(&out.stdout).into_owned() + &String::from_utf8_lossy(&out.stderr),
+    )
+}
+
+// `silvermere sysop shutdown --in 2s`: the server stops by itself when the time comes, as
+// on SIGTERM (exit 0, the shutdown complete), and says it was planned.
+#[cfg(unix)]
+#[test]
+fn a_planned_shutdown_stops_the_server_when_due() {
+    const TOKEN: &str = "planned-shutdown-test-token";
+    let (mut s, admin) = start_serve_with("planned", &[("SILVERMERE_ADMIN_TOKEN", TOKEN)]);
+    let (code, out) = sysop(
+        &s.dir,
+        &admin,
+        TOKEN,
+        &["shutdown", "--in", "2s", "testing"],
+    );
+    assert_eq!(code, Some(0), "{out}");
+    assert!(
+        out.contains("The server will stop at") && out.contains("in 2 seconds"),
+        "{out}"
+    );
+    let status = wait_exit(&mut s.child, Duration::from_secs(20));
+    let lines = s.lines.join().unwrap();
+    assert_eq!(status.code(), Some(0), "{lines:?}");
+    assert!(
+        lines.iter().any(|l| l.contains("planned shutdown")),
+        "{lines:?}"
+    );
+    assert!(
+        lines.iter().any(|l| l.contains("shutdown complete")),
+        "{lines:?}"
+    );
+    let _ = std::fs::remove_dir_all(&s.dir);
+}
+
+// `--cancel` calls a plan off: the server keeps running.
+#[cfg(unix)]
+#[test]
+fn a_cancelled_shutdown_leaves_the_server_running() {
+    const TOKEN: &str = "planned-shutdown-test-token";
+    let (mut s, admin) = start_serve_with("cancel", &[("SILVERMERE_ADMIN_TOKEN", TOKEN)]);
+    let (code, out) = sysop(&s.dir, &admin, TOKEN, &["shutdown", "--in", "3s"]);
+    assert_eq!(code, Some(0), "{out}");
+    let (code, out) = sysop(&s.dir, &admin, TOKEN, &["shutdown", "--cancel"]);
+    assert_eq!(code, Some(0), "{out}");
+    assert!(out.contains("Cancelled the planned shutdown"), "{out}");
+    let (_, out) = sysop(&s.dir, &admin, TOKEN, &["shutdown", "--cancel"]);
+    assert!(out.contains("No shutdown was planned"), "{out}");
+    std::thread::sleep(Duration::from_secs(5));
+    assert!(s.child.try_wait().unwrap().is_none(), "still running");
+    assert!(healthz(&admin));
+    term(&s.child);
+    let status = wait_exit(&mut s.child, Duration::from_secs(15));
+    assert_eq!(status.code(), Some(0));
+    let _ = std::fs::remove_dir_all(&s.dir);
 }
