@@ -466,14 +466,16 @@ fn summon(world: &mut World, id: SessionId, n: i32) {
         ally: false,
         force: true,
     };
-    // read into the cache, and (sic) set without marking the monster changed
+    // read into the cache. Fixed: the game set these without marking the monster changed,
+    // so one pushed out of the cache, or there at a restart, forgot whom it followed
     if let Some(mon) = crate::monsters::generate::generate_monster(world, key, req)
         && combat::monster_slot(world, mon).is_some()
     {
-        world.active_monsters.set_quietly(mon, |m| {
+        if let Some(m) = world.active_monsters.peek_mut(mon) {
             m.following = name;
             m.friendly = 0;
-        });
+        }
+        world.active_monsters.mark_dirty(mon);
     }
 }
 

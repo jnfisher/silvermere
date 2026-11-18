@@ -143,15 +143,8 @@ pub(crate) fn dispose_of_item_in_trail(
         .map(|(&room, &map)| RoomKey { map, room })
         .collect();
     for key in trail {
-        // (sic) room 0 of map 0 is the game's empty cache slot, when it has one
-        if key == RoomKey::new(0, 0) && world.room_cache_free {
-            if add_item_to_empty_slot(world, item, false, charges)
-                || add_item_to_empty_slot(world, item, true, charges)
-            {
-                return true;
-            }
-            continue;
-        }
+        // Fixed: a trail entry not yet walked names room 0 of map 0, where the game lost the
+        // item in an empty slot of its room cache; here that entry is no room
         if world.room(key).is_none() {
             continue;
         }
@@ -161,34 +154,6 @@ pub(crate) fn dispose_of_item_in_trail(
             return true;
         }
     }
-    false
-}
-
-/// [`add_item_to_room`] into the game's empty room cache slot
-/// ([`crate::world::EmptyRoomSlot`]): the item is lost there.
-fn add_item_to_empty_slot(world: &mut World, item: ItemNo, hidden: bool, charges: i16) -> bool {
-    let key = RoomKey::new(0, 0);
-    if !world.items.contains_key(&item) || !limited::acquire(world, item, Holder::Room(key)) {
-        return false;
-    }
-    let (slots, most) = if hidden {
-        (&mut world.empty_room_slot.hiditems, NHIDITEMS)
-    } else {
-        (&mut world.empty_room_slot.items, NROOMITEMS)
-    };
-    if let Some(s) = slots.iter_mut().find(|s| s.item == item && charges == -1) {
-        s.count += 1;
-        return true;
-    }
-    if slots.len() < most {
-        slots.push(RoomItem {
-            item,
-            uses: charges,
-            count: 0,
-        });
-        return true;
-    }
-    limited::release(world, item, Holder::Room(key));
     false
 }
 
@@ -282,27 +247,26 @@ mod tests {
     use super::*;
     use crate::spells::test_fixture::{self as fx, ROOM, enter};
 
-    // (sic) A trail not yet walked names room 0 of map 0: the game finds its empty room
-    // cache slot there and the item is lost in it; with no empty slot the trail fails.
+    // A trail not yet walked names room 0 of map 0: no room, so the trail fails and the
+    // caller goes on to the lost-item room; nothing is recorded for the item
     #[test]
-    fn an_unwalked_trail_loses_the_item() {
+    fn an_unwalked_trail_takes_no_item() {
         let mut w = fx::world();
         let a = enter(&mut w, "Alf", ROOM);
         if let Some(c) = w.session_mut(a).and_then(|s| s.character.as_mut()) {
             c.trailrooms = Default::default();
             c.trailmaps = Default::default();
         }
-        w.room_cache_free = true;
-        assert!(dispose_of_item_in_trail(&mut w, a, ItemNo(1), -1));
-        assert!(dispose_of_item_in_trail(&mut w, a, ItemNo(1), -1));
-        assert_eq!(w.empty_room_slot.items.len(), 1);
-        assert_eq!(w.empty_room_slot.items[0].count, 1);
+        let owned = w.item_ownership.len();
+        for free in [true, false] {
+            w.room_cache_free = free;
+            assert!(!dispose_of_item_in_trail(&mut w, a, ItemNo(1), -1));
+        }
+        assert_eq!(w.item_ownership.len(), owned);
         assert!(
             w.room_state
                 .values()
                 .all(|r| r.items.iter().all(|s| s.item != ItemNo(1)))
         );
-        w.room_cache_free = false;
-        assert!(!dispose_of_item_in_trail(&mut w, a, ItemNo(1), -1));
     }
 }

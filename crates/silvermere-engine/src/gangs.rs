@@ -393,12 +393,10 @@ pub enum GangQuery {
     Members { gang: String },
     /// The stored character whose first name is `name` (any case): the key 1 lookups of
     /// removing an offline member and of PROMOTE/DEMOTE. `gang` is the commander's gang.
-    /// `in_game`: a player of that first name was in the game when asked.
     Offline {
         name: String,
         gang: String,
         op: OfflineOp,
-        in_game: bool,
     },
 }
 
@@ -422,18 +420,16 @@ pub enum GangAnswer {
     Offline(Option<(AccountId, Box<Character>)>),
 }
 
-/// Asks the store (after a flush, so the rows are current).
-/// The store lookup of the character named `name` for `op`, noting whether a player of that
-/// first name is in the game now.
-pub fn offline_query(world: &World, name: &str, gang: &str, op: OfflineOp) -> GangQuery {
+/// The store lookup of the character named `name` for `op`.
+pub fn offline_query(name: &str, gang: &str, op: OfflineOp) -> GangQuery {
     GangQuery::Offline {
         name: name.to_string(),
         gang: gang.to_string(),
         op,
-        in_game: matches!(get_user_number(world, name, true), UserMatch::One(_)),
     }
 }
 
+/// Asks the store (after a flush, so the rows are current).
 pub fn ask(world: &mut World, id: SessionId, query: GangQuery) {
     world.outbox.push(EngineOutput::GangQuery { id, query });
 }
@@ -444,16 +440,8 @@ pub fn on_query_answer(world: &mut World, id: SessionId, query: GangQuery, answe
         (GangQuery::Members { .. }, GangAnswer::Members(rows)) => {
             crate::display::gang::show_gang_members(world, id, &rows);
         }
-        (
-            GangQuery::Offline {
-                name,
-                gang,
-                op,
-                in_game,
-            },
-            GangAnswer::Offline(found),
-        ) => {
-            offline_edit(world, id, &name, &gang, op, in_game, found);
+        (GangQuery::Offline { name, gang, op }, GangAnswer::Offline(found)) => {
+            offline_edit(world, id, &name, &gang, op, found);
         }
         _ => {}
     }
@@ -461,16 +449,14 @@ pub fn on_query_answer(world: &mut World, id: SessionId, query: GangQuery, answe
 
 /// The part of UNINVITE MEMBER, PROMOTE and DEMOTE that works on a character record off
 /// line. A character who entered the game while the store looked is changed in memory
-/// instead, so the change is not lost. (sic) One in the game when asked (channel 0 taken
-/// for nobody) has only his record on file changed, as the game does: his next save
-/// writes over it.
+/// instead, so the change is not lost. Fixed: the game changed only the record on file of a
+/// member who was in the game when asked, and his next save wrote over it.
 fn offline_edit(
     world: &mut World,
     id: SessionId,
     name: &str,
     gang: &str,
     op: OfflineOp,
-    in_game: bool,
     found: Option<(AccountId, Box<Character>)>,
 ) {
     // T-088: the record queued for the account and not yet acknowledged is the one
@@ -481,12 +467,13 @@ fn offline_edit(
         None => queued_by_first_name(world, name),
     };
     let found = found.filter(|(_, c)| eq_ignore_case(&c.firstname, name));
-    let online = found.as_ref().filter(|_| !in_game).and_then(|(_, c)| {
-        match get_user_number(world, &c.firstname, true) {
-            UserMatch::One(s) => Some(s),
-            _ => None,
-        }
-    });
+    let online =
+        found
+            .as_ref()
+            .and_then(|(_, c)| match get_user_number(world, &c.firstname, true) {
+                UserMatch::One(s) => Some(s),
+                _ => None,
+            });
     let mut record = match (&found, online) {
         (Some(_), Some(s)) => player(world, s).cloned().map(|c| (None, c)),
         (Some((account, c)), None) => Some((Some(*account), (**c).clone())),

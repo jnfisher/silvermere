@@ -556,6 +556,30 @@ mod gang {
         );
     }
 
+    // The first session a server hands out is 0: a member there is promoted and demoted in
+    // the game like any other, and the leader there may be the one who commands
+    #[test]
+    fn the_member_on_the_first_session_is_promoted_in_the_game() {
+        let mut h = Harness::new();
+        let ann = h.player("Ann", "Lee");
+        let bob = h.player("Bob", "Smith");
+        assert_eq!(ann, SessionId(0));
+        assert_eq!(h.line(bob, "create gang Wolves"), "Gang created.\n");
+        h.line(bob, "invite member ann");
+        h.line(ann, "join gang wolves");
+        let from = h.log.len();
+        h.line(bob, "promote ann");
+        assert!(h.plr(ann).flags.contains(PlayerFlags::LIEUTENANT));
+        h.line(bob, "demote ann");
+        assert!(!h.plr(ann).flags.contains(PlayerFlags::LIEUTENANT));
+        // nothing was asked of the store
+        assert!(
+            h.log[from..]
+                .iter()
+                .all(|o| !matches!(o, EngineOutput::GangQuery { .. }))
+        );
+    }
+
     fn stored(name: &str, gang: &str, exp: u32, flags: PlayerFlags) -> Character {
         let mut c = silvermere_engine::clear_player();
         c.firstname = name.into();
@@ -570,8 +594,6 @@ mod gang {
     #[test]
     fn offline_members_through_the_store() {
         let mut h = Harness::new();
-        // the leader is not on channel 0, where naming nobody means himself
-        h.player("Cid", "Ray");
         let (bob, _ann) = wolves(&mut h);
         h.w().gangs.get_mut("WOLVES").unwrap().members = 3;
         let from = h.log.len();
@@ -584,8 +606,7 @@ mod gang {
                 GangQuery::Offline {
                     name: "dan".into(),
                     gang: "Wolves".into(),
-                    op: OfflineOp::Promote,
-                    in_game: false
+                    op: OfflineOp::Promote
                 }
             )]
         );
@@ -620,7 +641,6 @@ mod gang {
             name: "dan".into(),
             gang: "Wolves".into(),
             op: OfflineOp::Promote,
-            in_game: false,
         };
         let q2 = q.clone();
         assert_eq!(
@@ -660,7 +680,6 @@ mod gang {
             name: "dan".into(),
             gang: "Wolves".into(),
             op: OfflineOp::Demote,
-            in_game: false,
         };
         let d = dan.clone();
         assert_eq!(
@@ -700,7 +719,6 @@ mod gang {
             name: "zed".into(),
             gang: "Wolves".into(),
             op: OfflineOp::Uninvite,
-            in_game: false,
         };
         assert_eq!(
             h.answer(bob, move |w| gangs::on_query_answer(
@@ -1023,7 +1041,6 @@ mod gang {
             name: "bOB jR".into(),
             gang: "Wolves".into(),
             op: OfflineOp::Uninvite,
-            in_game: false,
         };
         assert_eq!(
             h.answer(bob, move |w| gangs::on_query_answer(
@@ -1038,7 +1055,6 @@ mod gang {
             name: "zed".into(),
             gang: "Wolves".into(),
             op: OfflineOp::Demote,
-            in_game: false,
         };
         assert_eq!(
             h.answer(bob, move |w| gangs::on_query_answer(

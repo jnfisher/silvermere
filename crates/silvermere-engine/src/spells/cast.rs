@@ -1574,16 +1574,19 @@ fn summon(world: &mut World, id: SessionId, n: i32, what: Summoned) {
                 .map(|p| p.firstname.clone())
                 .unwrap_or_default();
             let servant = matches!(what, Summoned::Servant);
-            // read into the cache, and (sic) set without marking it changed
+            // read into the cache. Fixed: the game set these without marking the record
+            // changed, so a servant pushed out of the cache, or there at a restart, lost
+            // its master
             if crate::combat::monster_slot(world, newmon).is_some() {
-                world.active_monsters.set_quietly(newmon, |m| {
+                if let Some(m) = world.active_monsters.peek_mut(newmon) {
                     m.following = name;
                     m.friendly = u8::from(servant);
                     if servant {
                         m.flags
                             .insert(silvermere_types::flags::ActiveMonsterFlags::CHARMED);
                     }
-                });
+                }
+                world.active_monsters.mark_dirty(newmon);
             }
         }
         Summoned::Hunts(target) => {

@@ -795,6 +795,14 @@ fn a_summoned_monster_is_forced_and_charmed() {
     assert_eq!(m.following, "Aldric");
     assert_eq!(m.friendly, 1);
     assert!(m.flags.contains(ActiveMonsterFlags::CHARMED));
+    // the servant's record counts as changed, so the next save writes its master and a
+    // push out of the monster cache keeps it
+    assert!(w.active_monsters.is_dirty(n));
+    silvermere_engine::monsters::active::save_active_monsters(&mut w);
+    assert!(!w.active_monsters.is_dirty(n));
+    let m = w.active_monsters.by_number(n).unwrap();
+    assert_eq!(m.following, "Aldric");
+    assert!(m.flags.contains(ActiveMonsterFlags::CHARMED));
 }
 
 // T-036, the T-035 hand-off: a monster a spell round makes flee

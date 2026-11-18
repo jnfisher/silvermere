@@ -138,6 +138,7 @@ impl OutputBatch {
     /// Takes the queued items, leaving the batch empty.
     pub fn take(&mut self) -> (Vec<Item>, bool) {
         let reprompt = std::mem::take(&mut self.reprompt);
+        self.joined.clear();
         (std::mem::take(&mut self.items), reprompt)
     }
 
@@ -195,5 +196,37 @@ pub fn render_items(out: &mut Vec<u8>, items: &[Item], palette: Palette, prompt:
                 PromptText::Marker(marker) => out.extend_from_slice(marker),
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A flush forgets which prompts were joined to their lines: the interrupt's clear of
+    // the next batch keeps a plain prompt alone, not the line before it
+    #[test]
+    fn a_flush_forgets_the_joined_prompts() {
+        let mut b = OutputBatch::default();
+        b.push(Msg::CmdNormal);
+        b.push_joined_prompt(None);
+        let (items, _) = b.take();
+        assert_eq!(items.len(), 2);
+        b.push(Msg::CmdNormal);
+        b.push_prompt(None);
+        b.interrupt_clear();
+        assert_eq!(b.items().len(), 1);
+        assert!(matches!(b.items()[0], Item::Prompt(_)));
+    }
+
+    // A prompt joined to its line keeps the line through the interrupt's clear
+    #[test]
+    fn the_interrupt_keeps_a_joined_line() {
+        let mut b = OutputBatch::default();
+        b.push(Msg::CmdNormal);
+        b.push(Msg::CmdNormal);
+        b.push_joined_prompt(None);
+        b.interrupt_clear();
+        assert_eq!(b.items().len(), 2);
     }
 }

@@ -330,7 +330,7 @@ pub fn uninvite_member(world: &mut World, id: SessionId, line: &CommandLine) -> 
     let tgt = match target {
         Target::None | Target::Monster => {
             // a member not in the game: the answer comes from the store
-            let query = offline_query(world, &name, &plr.gang, OfflineOp::Uninvite);
+            let query = offline_query(&name, &plr.gang, OfflineOp::Uninvite);
             ask(world, id, query);
             return Some(Handled::Wait);
         }
@@ -538,12 +538,8 @@ fn rank_command(world: &World, id: SessionId, line: &CommandLine) -> Option<Rank
     }
     Some(match find_any_action_target(world, line.arg(1)) {
         Target::User(t) if t == id => RankTarget::Myself,
-        // (sic) the game takes channel 0 for nobody: its player is looked for off line
-        Target::User(t) if t.0 == 0 => RankTarget::Offline,
         Target::User(t) => RankTarget::Online(t),
         Target::Monster => RankTarget::Monster,
-        // (sic) nobody is target 0 too, which a leader on channel 0 takes for himself
-        Target::None | Target::Multiple(_) if id.0 == 0 => RankTarget::Myself,
         Target::None | Target::Multiple(_) => RankTarget::Offline,
     })
 }
@@ -589,7 +585,7 @@ pub fn cmd_promote(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLi
             Handled::Done
         }
         Some(RankTarget::Offline) => {
-            let query = offline_query(world, line.arg(1), &plr.gang, OfflineOp::Promote);
+            let query = offline_query(line.arg(1), &plr.gang, OfflineOp::Promote);
             ask(world, id, query);
             Handled::Wait
         }
@@ -633,7 +629,7 @@ pub fn cmd_demote(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLin
             Handled::Done
         }
         Some(RankTarget::Offline) => {
-            let query = offline_query(world, line.arg(1), &plr.gang, OfflineOp::Demote);
+            let query = offline_query(line.arg(1), &plr.gang, OfflineOp::Demote);
             ask(world, id, query);
             Handled::Wait
         }
