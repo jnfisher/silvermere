@@ -2102,7 +2102,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "anyhow",
  "clap",
@@ -2136,7 +2136,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-api"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "axum",
  "metrics",
@@ -2157,7 +2157,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-auth"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "argon2",
  "jiff",
@@ -2175,7 +2175,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-db"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "jiff",
  "metrics",
@@ -2191,7 +2191,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-engine"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "fancy-regex",
  "insta",
@@ -2215,14 +2215,14 @@ dependencies = [
 
 [[package]]
 name = "silvermere-fsd"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "proptest",
 ]
 
 [[package]]
 name = "silvermere-import"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "jiff",
  "miniz_oxide",
@@ -2240,7 +2240,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-net"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "proptest",
  "socket2",
@@ -2250,7 +2250,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-rules"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "jiff",
  "proptest",
@@ -2262,7 +2262,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-testkit"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "fancy-regex",
  "insta",
@@ -2292,7 +2292,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-text"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "insta",
  "miniz_oxide",
@@ -2311,7 +2311,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-types"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "bitflags 2.13.2",
  "jiff",
@@ -2323,7 +2323,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-web"
-version = "0.1.17"
+version = "0.1.18"
 dependencies = [
  "axum",
  "pulldown-cmark",
