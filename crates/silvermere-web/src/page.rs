@@ -113,7 +113,7 @@ pub fn console(c: &Chrome<'_>, csrf: &str, notices: &[String]) -> String {
 <div class="console-grid">
   <section class="panel" id="players-panel">
     <h2>Players in the realm <span class="count" id="count"></span></h2>
-    <div class="table"><table id="players"><thead><tr><th>Name</th><th>Room</th><th>Level</th><th>Class</th><th>Race</th><th>Idle</th><th>Address</th><th></th></tr></thead><tbody></tbody></table></div>
+    <div class="table"><table id="players"><thead><tr><th>Name</th><th>Room</th><th>Level</th><th>Class</th><th>Race</th><th>Gang</th><th>Idle</th><th>Address</th><th></th></tr></thead><tbody></tbody></table></div>
     <p class="hint" id="nobody" hidden>Nobody is in the realm.</p>
     <form class="inline" id="find"><label>Any player, online or not <input id="find-name" placeholder="name" autocomplete="off" required></label> <button type="submit">Open</button></form>
   </section>

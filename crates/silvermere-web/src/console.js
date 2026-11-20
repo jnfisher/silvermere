@@ -194,7 +194,7 @@
       var room = el("td", p.room_name || "", "room");
       if (p.room) room.appendChild(el("span", " " + p.room, "where"));
       tr.appendChild(room);
-      [p.level, p.class, p.race, idle(p.idle_secs), p.ip || ""].forEach(function (v) {
+      [p.level, p.class, p.race, p.gang, idle(p.idle_secs), p.ip || ""].forEach(function (v) {
         tr.appendChild(el("td", v));
       });
       tr.appendChild(el("td", flags.join(", "), "flags"));
