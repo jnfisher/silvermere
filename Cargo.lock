@@ -2122,6 +2122,7 @@ dependencies = [
  "silvermere-engine",
  "silvermere-import",
  "silvermere-net",
+ "silvermere-rules",
  "silvermere-testkit",
  "silvermere-text",
  "silvermere-types",
