@@ -12,9 +12,27 @@ use crate::config::{Config, TokenScope};
 /// A reload reads every static table; the rest answer at once.
 const TIMEOUT: Duration = Duration::from_secs(30);
 
+/// The in-game line `game` runs: `SYSOP` and the words, unless the first word is `SYSOP`.
+pub fn sysop_line(words: &[String]) -> String {
+    let line = words.join(" ");
+    match words.first() {
+        Some(w) if w.eq_ignore_ascii_case("sysop") => line,
+        _ => format!("SYSOP {line}"),
+    }
+}
+
 /// Runs `action` against the server on `server.admin_bind`: exit 0 with the answer on
 /// stdout, else 1 with one line on stderr.
 pub fn run(cfg: &Config, action: &SysopCmd, json: bool) -> ExitCode {
+    if let SysopCmd::Spectate { player, typing } = action {
+        return match spectate(cfg, player, *typing) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("{e}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     match request(cfg, action) {
         Ok(body) => {
             if json {
@@ -90,6 +108,24 @@ fn request(cfg: &Config, action: &SysopCmd) -> Result<String, String> {
 /// web console runs the same calls in the server ([`crate::console`]).
 pub fn route(action: &SysopCmd) -> (&'static str, String, TokenScope, Option<String>) {
     match action {
+        SysopCmd::Spectate { player, .. } => (
+            "GET",
+            format!("/v1/players/{}/screen", segment(player)),
+            TokenScope::Admin,
+            None,
+        ),
+        SysopCmd::Type { player, line } => (
+            "POST",
+            format!("/v1/players/{}/input", segment(player)),
+            TokenScope::Admin,
+            Some(serde_json::json!({ "line": line.join(" ") }).to_string()),
+        ),
+        SysopCmd::Game { words } => (
+            "POST",
+            "/v1/sysop".into(),
+            TokenScope::Admin,
+            Some(serde_json::json!({ "line": sysop_line(words) }).to_string()),
+        ),
         SysopCmd::Restart { cancel: true, .. } => {
             ("DELETE", "/v1/restart".into(), TokenScope::Admin, None)
         }
@@ -185,6 +221,119 @@ pub fn route(action: &SysopCmd) -> (&'static str, String, TokenScope, Option<Str
     }
 }
 
+/// `spectate`: the player's screen on stdout until he leaves; with `typing`, each line read
+/// from stdin is typed for him.
+fn spectate(cfg: &Config, player: &str, typing: bool) -> Result<(), String> {
+    use std::io::{BufRead as _, Write as _};
+    let bind = &cfg.server.admin_bind;
+    let addr = reach(bind).ok_or_else(|| format!("server.admin_bind `{bind}` is not host:port"))?;
+    let token = token_for(cfg, TokenScope::Admin).ok_or_else(|| {
+        "the config has no admin API token with its secret for this (admin scope): set \
+         SILVERMERE_ADMIN_TOKEN to the server's token"
+            .to_owned()
+    })?;
+    let path = format!("/v1/players/{}/screen", segment(player));
+    let mut s =
+        std::net::TcpStream::connect_timeout(&addr, TIMEOUT).map_err(|e| match e.kind() {
+            std::io::ErrorKind::ConnectionRefused => {
+                format!("no server is running on {addr} (server.admin_bind)")
+            }
+            _ => format!("calling GET {path} on {addr}: {e}"),
+        })?;
+    // HTTP/1.0: the stream comes as it is, not in chunks, and ends with the connection
+    write!(
+        s,
+        "GET {path} HTTP/1.0\r\nHost: {addr}\r\nAuthorization: Bearer {token}\r\nAccept: text/event-stream\r\n\r\n"
+    )
+    .map_err(|e| format!("calling GET {path} on {addr}: {e}"))?;
+    let mut r = std::io::BufReader::new(s);
+    let mut status_line = String::new();
+    r.read_line(&mut status_line)
+        .map_err(|e| format!("reading the answer: {e}"))?;
+    let status: u16 = status_line
+        .split_whitespace()
+        .nth(1)
+        .and_then(|c| c.parse().ok())
+        .ok_or("not an HTTP answer")?;
+    loop {
+        let mut h = String::new();
+        if r.read_line(&mut h).map_err(|e| e.to_string())? == 0 || h.trim().is_empty() {
+            break;
+        }
+    }
+    if status != 200 {
+        let mut body = String::new();
+        let _ = std::io::Read::read_to_string(&mut r, &mut body);
+        let message = error_message(&body);
+        return Err(match status {
+            401 => format!("the server on {addr} does not know this token: {message}"),
+            403 => format!("the token lacks the admin scope: {message}"),
+            _ => format!("the server on {addr} answered {status}: {message}"),
+        });
+    }
+    if typing {
+        let (addr, player, token) = (addr, player.to_owned(), token.clone());
+        std::thread::spawn(move || {
+            for line in std::io::stdin().lines() {
+                let Ok(line) = line else { return };
+                let body = serde_json::json!({ "line": line }).to_string();
+                let path = format!("/v1/players/{}/input", segment(&player));
+                match call(addr, "POST", &path, Some(&token), Some(&body), TIMEOUT) {
+                    Ok((200, _)) => {}
+                    Ok((_, b)) => eprintln!("not typed: {}", error_message(&b)),
+                    Err(e) => eprintln!("not typed: {e}"),
+                }
+            }
+        });
+    }
+    let mut out = std::io::stdout();
+    let (mut event, mut data) = (String::new(), String::new());
+    let mut name = player.to_owned();
+    loop {
+        let mut line = String::new();
+        if r.read_line(&mut line)
+            .map_err(|e| format!("reading the screen: {e}"))?
+            == 0
+        {
+            return Ok(());
+        }
+        let line = line.trim_end_matches(['\r', '\n']);
+        if let Some(v) = line.strip_prefix("event:") {
+            event = v.trim().to_owned();
+        } else if let Some(v) = line.strip_prefix("data:") {
+            data.push_str(v.strip_prefix(' ').unwrap_or(v));
+        } else if line.is_empty() && !event.is_empty() {
+            let v: Value = serde_json::from_str(&data).unwrap_or(Value::Null);
+            match event.as_str() {
+                "screen" => {
+                    if let Some(n) = v.get("player").and_then(Value::as_str) {
+                        name = n.to_owned();
+                    }
+                    eprintln!(
+                        "Watching {name}{}. Ctrl-C to stop.",
+                        if typing {
+                            "; each line you type goes to the game as theirs"
+                        } else {
+                            ""
+                        }
+                    );
+                }
+                "end" => {
+                    eprintln!("\r\n{name} left the realm.");
+                    return Ok(());
+                }
+                _ => {}
+            }
+            if let Some(t) = v.get("text").and_then(Value::as_str) {
+                let _ = out.write_all(t.as_bytes());
+                let _ = out.flush();
+            }
+            event.clear();
+            data.clear();
+        }
+    }
+}
+
 /// Sends the call; the body of a `200`, else the error line.
 fn send(
     addr: std::net::SocketAddr,
@@ -268,17 +417,42 @@ pub fn render(action: &SysopCmd, body: &str) -> String {
             SysopCmd::Unmute { .. } | SysopCmd::Release { .. } | SysopCmd::Unban { .. } => {
                 lift_done(&v)
             }
-            SysopCmd::BanIp { .. } => Some(format!(
-                "Banned {}{}. Telnet connections from it are closed at once; players already in \
-                 the game stay until they leave (kick them to end it now).\n",
-                v.get("network")?.as_str()?,
-                until_words(v.get("until")?)
-            )),
+            SysopCmd::BanIp { .. } => {
+                let kicked: Vec<&str> = v
+                    .get("kicked")
+                    .and_then(Value::as_array)
+                    .map(|a| a.iter().filter_map(Value::as_str).collect())
+                    .unwrap_or_default();
+                Some(format!(
+                    "Banned {}{}. Telnet connections from it are refused; {}.\n",
+                    v.get("network")?.as_str()?,
+                    until_words(v.get("until")?),
+                    if kicked.is_empty() {
+                        "nobody in the realm came from it".to_owned()
+                    } else {
+                        format!("disconnected {} (saved first)", kicked.join(", "))
+                    }
+                ))
+            }
             SysopCmd::UnbanIp { .. } => Some(format!(
                 "Lifted the ban of {}.\n",
                 v.get("network")?.as_str()?
             )),
             SysopCmd::Moderation => moderation(&v),
+            SysopCmd::Spectate { .. } => None,
+            SysopCmd::Type { .. } => Some(format!(
+                "Typed for {}: {}\n",
+                v.get("player")?.as_str()?,
+                v.get("line")?.as_str()?
+            )),
+            SysopCmd::Game { .. } => {
+                let out = v.get("output")?.as_str()?;
+                Some(if out.ends_with('\n') {
+                    out.to_owned()
+                } else {
+                    format!("{out}\n")
+                })
+            }
             SysopCmd::Backup => Some(if v.get("ok")?.as_bool()? {
                 format!(
                     "Backup made: {} ({} KiB).\n",

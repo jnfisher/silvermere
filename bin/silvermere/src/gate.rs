@@ -92,6 +92,8 @@ pub struct GateDeps {
     /// How long the dialogue waits for a line before closing the connection; `None` for
     /// no limit (`net.login_timeout_secs = 0`).
     pub login_timeout: Option<std::time::Duration>,
+    /// The IP bans: a telnet login that finishes after its address was banned is closed.
+    pub ip_filter: Option<Arc<dyn silvermere_net::IpFilter>>,
 }
 
 /// Runs the gate until the transport side closes.
@@ -121,6 +123,18 @@ pub async fn run(
                     continue;
                 };
                 conn.login = None;
+                // banned while at the login prompt (the ban closes those already in the realm)
+                if conn.rlogin.is_none()
+                    && let (Some(filter), Some(peer)) = (&deps.ip_filter, conn.peer)
+                    && filter.refuses(peer)
+                {
+                    tracing::info!(%peer, "login from a banned address closed");
+                    deps.service.online().release(login.account.id);
+                    if let Some(tx) = &conn.tx {
+                        let _ = tx.try_send(SessionCommand::Close);
+                    }
+                    continue;
+                }
                 conn.account = Some(login.account.id);
                 login.peer = conn.peer;
                 if events_out.send((conn.net, GateEvent::LoggedIn(login))).await.is_err() {
@@ -586,7 +600,7 @@ async fn sanctions(
 
 /// The `SYS_*` INI keys and the developer gate the account holds, as the engine names
 /// them (T-055).
-fn sysop_keys(account: &Account) -> silvermere_engine::commands::sysop::Keys {
+pub fn sysop_keys(account: &Account) -> silvermere_engine::commands::sysop::Keys {
     use silvermere_engine::commands::sysop::Key;
     Perm::ALL
         .iter()

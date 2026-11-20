@@ -113,6 +113,28 @@ impl silvermere_api::Moderator for FakeModerator {
             Ok(json!({ "realm": { "closed": false }, "sanctions": [], "ip_bans": [] }))
         })
     }
+
+    /// A screen that shows one line, then the player leaves.
+    fn watch(
+        &self,
+        player: String,
+    ) -> silvermere_api::events::BoxFuture<
+        '_,
+        Result<silvermere_api::Watch, silvermere_api::ModError>,
+    > {
+        Box::pin(async move {
+            if player == "nobody" {
+                return Err(silvermere_api::ModError::NotConnected);
+            }
+            let (tx, stream) = tokio::sync::mpsc::channel(4);
+            tx.send("You hit the orc!\r\n".to_owned()).await.unwrap();
+            Ok(silvermere_api::Watch {
+                name: player,
+                recent: "[HP=10]:".into(),
+                stream,
+            })
+        })
+    }
 }
 
 struct Server {
@@ -262,6 +284,8 @@ fn body_for(method: &str, path: &str) -> Option<&'static str> {
     match (method, path) {
         ("POST", "/v1/broadcast" | "/v1/players/{name}/tell") => Some(r#"{"text":"hello"}"#),
         (_, "/v1/ip-bans") => Some(r#"{"network":"203.0.113.7"}"#),
+        ("POST", "/v1/players/{name}/input") => Some(r#"{"line":"look"}"#),
+        ("POST", "/v1/sysop") => Some(r#"{"line":"SYSOP LIST USERS"}"#),
         _ => None,
     }
 }
@@ -1078,4 +1102,87 @@ fn the_event_kinds_table_is_generated_from_event_kind_all() {
         "docs/admin-api.md event-kinds table is stale; replace it with:\n{generated}"
     );
     assert_eq!(EventKind::ALL.len(), generated.lines().count() - 2);
+}
+
+/// The screen stream: the screen as it stands, each write, then `end`; audited. A line typed
+/// and a SYSOP line reach the moderator; a line with a control character is refused.
+#[tokio::test]
+async fn watching_typing_and_sysop_lines() {
+    let srv = server().await;
+    const ADMIN: &str = "root-secret";
+    let r = request(
+        srv.addr,
+        "GET",
+        "/v1/players/Lars/screen",
+        Some(ADMIN),
+        None,
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let screen = r.body.find("event: screen").expect("screen");
+    let out = r.body.find("event: out").expect("out");
+    let end = r.body.find("event: end").expect("end");
+    assert!(screen < out && out < end, "{}", r.body);
+    assert!(r.body.contains(r#""player":"Lars""#), "{}", r.body);
+    assert!(r.body.contains("You hit the orc!"), "{}", r.body);
+    let r = request(
+        srv.addr,
+        "GET",
+        "/v1/players/nobody/screen",
+        Some(ADMIN),
+        None,
+    )
+    .await;
+    assert_eq!(
+        (r.status, r.json()["error"].as_str()),
+        (409, Some("not_connected"))
+    );
+
+    let r = request(
+        srv.addr,
+        "POST",
+        "/v1/players/Lars/input",
+        Some(ADMIN),
+        Some(r#"{"line":"look\r\nquit"}"#),
+    )
+    .await;
+    assert_eq!(
+        (r.status, r.json()["error"].as_str()),
+        (400, Some("bad_line"))
+    );
+    let r = request(
+        srv.addr,
+        "POST",
+        "/v1/sysop",
+        Some(ADMIN),
+        Some(r#"{"line":"   "}"#),
+    )
+    .await;
+    assert_eq!(
+        (r.status, r.json()["error"].as_str()),
+        (400, Some("bad_line"))
+    );
+    let r = request(
+        srv.addr,
+        "POST",
+        "/v1/sysop",
+        Some(ADMIN),
+        Some(r#"{"line":"SYSOP GOD Lars INFO"}"#),
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let acts = srv.moderator.actions.lock().unwrap().clone();
+    assert!(acts.iter().any(|(a, _)| matches!(
+        a,
+        silvermere_api::Action::SysopLine { line } if line == "SYSOP GOD Lars INFO"
+    )));
+
+    // the watch is audited, with the player
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let rows = srv.state.log.since(0, 100).await.unwrap();
+    assert!(
+        rows.iter()
+            .any(|e| e.kind == "admin.players.Lars.screen" && e.payload["player"] == "Lars"),
+        "{rows:?}"
+    );
 }

@@ -294,15 +294,16 @@ sign in with a sysop's game account. It shows, live:
 
 - who is in the realm, the room each stands in (`map:room` and its name), level, class, race,
   gang, idle time and the address they connect from;
-- a panel for each player: a line to them, **kick**, **jail** (held in the jail
-  room until a set time, then let out to town), **mute** (no gossip or auction), **ban** the
-  account or the address, each for a time you choose and with a reason they are told;
+- a panel for each player: a line to them, **watch** their screen live and type as them
+  (they are not told), **kick**, **jail** (held in the jail room until a set time, then let
+  out to town), **mute** (no gossip or auction), **ban** the account or the address, each for
+  a time you choose and with a reason they are told;
 - the bans, jails and mutes in force, each with a button to lift it;
 - logins, deaths, levels, sign-ins and every staff action as they happen;
 - the server's health, the last backup, and buttons to **close the realm** to all but sysops,
   **back up now**, **restart** or **shut down**;
-- a command line taking the same commands as `silvermere sysop` below. Every button runs one of
-  them there, so you always see what was done.
+- a command line taking the same commands as `silvermere sysop` below, the game's own `SYSOP`
+  commands among them. Every button runs one of them there, so you always see what was done.
 
 A **restart** warns the players on a countdown, saves everyone, takes a backup and starts the
 server again in the same process, so systemd and Docker see it keep running and the console
@@ -317,7 +318,9 @@ silvermere sysop tell Lars "please keep gossip civil"
 silvermere sysop jail Lars --for 1h "fighting in town" # release Lars to let him out early
 silvermere sysop mute Lars --for 1d "spamming gossip"
 silvermere sysop ban Lars --for 7d "cheating"          # refuses their logins; unban to lift
-silvermere sysop ban-ip 203.0.113.0/24 "bots"          # telnet only; the BBS door is never checked
+silvermere sysop ban-ip 203.0.113.0/24 "bots"          # disconnects them too; the BBS door is never checked
+silvermere sysop spectate Lars --type                  # his screen, live; your lines go in as his
+silvermere sysop game god Lars info                    # the game's own SYSOP commands
 silvermere sysop realm close "upgrading"               # only sysops log in; realm open to end it
 silvermere sysop restart --in 5m "upgrading to 1.0"    # --cancel calls it off
 silvermere sysop moderation                            # what is in force
@@ -387,7 +390,8 @@ curl -s -H "Authorization: Bearer TOKEN" localhost:8080/v1/who
 
 Paste the printed `[[admin.tokens]]` block into `silvermere.toml` and restart. Scopes are
 `read`, `write` (broadcast, a line to a player, reload the world) and `admin` (kick, ban, jail,
-mute, IP bans, closing the realm, restart and shutdown). Keep it on loopback: listening
+mute, IP bans, closing the realm, watching and typing for a player, the game's `SYSOP`
+commands, restart and shutdown). Keep it on loopback: listening
 anywhere else needs `admin.allow_remote = true` and logs a warning at every start. Routes, scopes and events:
 [docs/admin-api.md](docs/admin-api.md); metrics: [docs/metrics.md](docs/metrics.md).
 

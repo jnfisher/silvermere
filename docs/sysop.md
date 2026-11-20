@@ -64,6 +64,13 @@ with the operator's user-id and a detail (`shocst` in the original).
 Prefix matching, ignoring case: a word may be abbreviated, and the first sub-command in this order whose
 word and gate match runs.
 
+They also run outside the game, without your character in the realm: `silvermere sysop game
+list users` on the server, or `game list users` on the web console's command line
+([cli.md](cli.md#silvermere-sysop)). There they run with your account's keys (an API token's
+are the default sysop set) and answer what they would have shown you. The ones that act on or
+from your character are refused there: `GOTO`, `SUMMON`, `EXPRESS_TRAIN`, `MAP`, `RESET`,
+`REPORT USERS`, `REPORT NOTOPTEN` and `LIST GANG`.
+
 | Sub-command | Gate | Notes | Audit kind |
 |---|---|---|---|
 | `LANCE` | anyone (sic) | `Lcon n`, `Death Setting: n`; then an operator also gets `Command not recognized.` (sic). **Dropped**: the Reg#, demo, IP and SBBS lines | |

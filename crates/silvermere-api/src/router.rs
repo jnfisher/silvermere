@@ -110,6 +110,13 @@ fn message_of(code: &str) -> &'static str {
         "store_failed" => "the database refused the change; the cause is in the server log",
         "moderation_unavailable" => "this server has no moderation",
         "backup_unavailable" => "this server takes no backups",
+        "bad_line" => "line must be at most 254 characters with no control characters",
+        "not_sysop_line" => "the line must be an in-game SYSOP command, e.g. SYSOP LIST USERS",
+        "needs_character" => {
+            "this SYSOP command acts on or from your character in the realm (GOTO, SUMMON, \
+             EXPRESS_TRAIN, MAP, RESET, REPORT USERS, LIST GANG): use it in the game"
+        }
+        "server_full" => "every session slot is taken",
         "not_found" => "no such route",
         "internal" => "internal error",
         _ => "error",
@@ -183,6 +190,9 @@ pub fn routes() -> Vec<RouteSpec> {
         r("DELETE", "/v1/ip-bans", Some(Scope::Admin), true),
         r("POST", "/v1/realm/close", Some(Scope::Admin), true),
         r("POST", "/v1/realm/open", Some(Scope::Admin), true),
+        r("GET", "/v1/players/{name}/screen", Some(Scope::Admin), true),
+        r("POST", "/v1/players/{name}/input", Some(Scope::Admin), true),
+        r("POST", "/v1/sysop", Some(Scope::Admin), true),
     ];
     for table in reserved::RESOURCES {
         for (method, suffix) in [
@@ -260,7 +270,10 @@ pub fn router(state: ApiState) -> Router {
             post(crate::moderation::ban_ip).delete(crate::moderation::unban_ip),
         )
         .route("/v1/realm/close", post(crate::moderation::close_realm))
-        .route("/v1/realm/open", post(crate::moderation::open_realm));
+        .route("/v1/realm/open", post(crate::moderation::open_realm))
+        .route("/v1/players/{name}/screen", get(crate::spectate::screen))
+        .route("/v1/players/{name}/input", post(crate::spectate::input))
+        .route("/v1/sysop", post(crate::spectate::sysop_line));
     let v1 = reserved::register(v1).layer(middleware::from_fn_with_state(state.clone(), guard));
     Router::new()
         .route("/healthz", get(health::healthz))
@@ -321,8 +334,11 @@ async fn guard(State(state): State<ApiState>, mut req: Request, next: Next) -> R
         .trim_end_matches('/')
         .replace('/', ".");
     let method = req.method().to_string();
-    // the web console reads every few seconds: those reads are not audited
-    let console_read = caller.name.starts_with("web:") && req.method() == axum::http::Method::GET;
+    // the web console reads every few seconds: those reads are not audited (watching a
+    // player's screen is)
+    let console_read = caller.name.starts_with("web:")
+        && req.method() == axum::http::Method::GET
+        && !route.ends_with(".screen");
     req.extensions_mut().insert(caller.clone());
     let mut resp = next.run(req).await;
     if console_read {

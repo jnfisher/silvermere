@@ -201,6 +201,8 @@ pub struct Sinks {
     pub store: tmpsc::UnboundedSender<crate::store::Job>,
     /// Reads the game options again for SYSOP RELOAD (T-055); `None` in tests.
     pub reload: Option<ConfigReloader>,
+    /// Which connection each session is on, for the sysop watching a player.
+    pub links: Option<std::sync::Arc<crate::spectate::Links>>,
 }
 
 /// Reads the configuration file again and gives its `[game]` options (T-055).
@@ -222,6 +224,7 @@ impl Sinks {
             events: tmpsc::unbounded_channel().0,
             store: tmpsc::unbounded_channel().0,
             reload: None,
+            links: None,
         }
     }
 }
@@ -245,6 +248,7 @@ pub async fn forward_outputs(
         events,
         store,
         reload,
+        links,
     } = sinks;
     // The engine's std channel is read on a blocking thread and relayed here.
     let (relay_tx, mut relay) = tmpsc::unbounded_channel();
@@ -280,6 +284,9 @@ pub async fn forward_outputs(
                 match out {
                     EngineOutput::Opened { conn, id } => {
                         by_id.insert(id, conn);
+                        if let (Some(links), Some(tx)) = (&links, by_conn.get(&conn)) {
+                            links.link(id, silvermere_net::SessionId(conn.0 as u32), tx.clone());
+                        }
                         let _ = opened.send((conn, Some(id)));
                     }
                     EngineOutput::Refused { conn } => {
@@ -308,6 +315,9 @@ pub async fn forward_outputs(
                     EngineOutput::LineDone { id } => send(&by_conn, &by_id, id, SessionCommand::LineDone),
                     EngineOutput::Close { id } => {
                         send(&by_conn, &by_id, id, SessionCommand::Close);
+                        if let Some(links) = &links {
+                            links.unlink(id);
+                        }
                         if let Some(conn) = by_id.remove(&id) {
                             by_conn.remove(&conn);
                             let _ = opened.send((conn, None));

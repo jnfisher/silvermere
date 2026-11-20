@@ -84,6 +84,10 @@ pub enum SessionCommand {
     /// The engine has run the last `Line`: input typed behind it may be taken now (until
     /// then, or a short timeout, it waits unechoed; see `session_task::LINE_HOLD`).
     LineDone,
+    /// A line typed for the player by a sysop watching him ([`crate::Screens`]): it reaches
+    /// the engine as if he had typed it, with no echo on his screen. In character mode it goes
+    /// as keys, Enter last.
+    Inject(Vec<u8>),
     /// Flush queued output, then close.
     Close,
 }

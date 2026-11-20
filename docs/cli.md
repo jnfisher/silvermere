@@ -270,6 +270,9 @@ silvermere sysop moderation
 silvermere sysop backup
 silvermere sysop realm close [REASON]
 silvermere sysop realm open
+silvermere sysop spectate <PLAYER> [--type]
+silvermere sysop type <PLAYER> [LINE]...
+silvermere sysop game <WORDS>...
 silvermere sysop --json <SUBCOMMAND>
 ```
 
@@ -290,12 +293,15 @@ silvermere sysop --json <SUBCOMMAND>
 | `sysop release <PLAYER>` | lets the player out of jail, to town | `DELETE /v1/players/{name}/jail` | `admin` |
 | `sysop ban <PLAYER>` | refuses his logins with the reason and the end; a player in the game is disconnected, saved. Not for BBS door accounts | `PUT /v1/players/{name}/ban` | `admin` |
 | `sysop unban <PLAYER>` | lifts the ban | `DELETE /v1/players/{name}/ban` | `admin` |
-| `sysop ban-ip <NETWORK>` | closes telnet connections from an address or CIDR block (`203.0.113.7`, `203.0.113.0/24`, `2001:db8::/32`) before the login screen; the rlogin door is never checked, and players already in the game stay | `POST /v1/ip-bans` | `admin` |
+| `sysop ban-ip <NETWORK>` | refuses telnet connections from an address or CIDR block (`203.0.113.7`, `203.0.113.0/24`, `2001:db8::/32`) before the login screen, and disconnects the players in the realm who came from it, saved; the rlogin door is never checked | `POST /v1/ip-bans` | `admin` |
 | `sysop unban-ip <NETWORK>` | lifts the ban of the address or block | `DELETE /v1/ip-bans` | `admin` |
 | `sysop moderation` | lists the bans, jails and mutes in force, the IP bans, and whether the realm is closed | `GET /v1/moderation` | `read` |
 | `sysop backup` | takes a backup now on the running server, as a scheduled one (pruned to `backup.keep`, the after-backup command run); `silvermere backup` does the same from the outside | `POST /v1/backup` | `admin` |
 | `sysop realm close [REASON]` | only sysops may log in; every other player is told, saved and disconnected. It stays closed across restarts | `POST /v1/realm/close` | `admin` |
 | `sysop realm open` | everyone may log in again | `POST /v1/realm/open` | `admin` |
+| `sysop spectate <PLAYER>` | shows the player's screen as they see it, live, until they leave (Ctrl-C to stop); they are not told. With `--type`, each line you type goes to the game as theirs, and nothing on their screen shows it | `GET /v1/players/{name}/screen` | `admin` |
+| `sysop type <PLAYER> [LINE]...` | types one line for the player (none: Enter) | `POST /v1/players/{name}/input` | `admin` |
+| `sysop game <WORDS>...` | runs one of the game's own `SYSOP` commands outside the game and prints its answer: `game list users`, `game god Lars info`, `game speak "back in 5"` (`SYSOP` may be left out). Those that need your character in the realm are refused: `GOTO`, `SUMMON`, `EXPRESS_TRAIN`, `MAP`, `RESET`, `REPORT USERS`, `REPORT NOTOPTEN`, `LIST GANG` ([sysop.md](sysop.md#sub-commands)) | `POST /v1/sysop` | `admin` |
 
 | Flag | Meaning |
 |---|---|
@@ -303,6 +309,7 @@ silvermere sysop --json <SUBCOMMAND>
 | `--in <DURATION>` | with `shutdown` and `restart`: how long until the stop: `90s`, `5m`, `1h`, `1h30m` or a number of seconds, at most a day (default `5m`) |
 | `--cancel` | with `shutdown` and `restart`: call off the planned shutdown or restart instead |
 | `--for <DURATION>` | with `mute`, `jail`, `ban` and `ban-ip`: how long: `30m`, `12h`, `7d`, `1d12h` or a number of seconds; without it, until lifted |
+| `--type` | with `spectate`: each line read from the terminal is typed for the player |
 
 `<PLAYER>` is a character's first name or an account's username, ignoring case; the sanction
 is stored, so it holds for a player who is not connected from his next login. The reason is

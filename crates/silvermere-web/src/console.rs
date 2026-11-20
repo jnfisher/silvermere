@@ -51,14 +51,17 @@ pub trait Console: Send + Sync + 'static {
 }
 
 /// Whether an API call cannot be undone and so wants the password given lately: a ban,
-/// an IP ban, deleting an account, closing the realm, a planned shutdown or restart.
+/// an IP ban, deleting an account, closing the realm, a planned shutdown or restart, a line
+/// typed for a player and the game's own SYSOP commands.
 pub fn needs_password(method: &Method, path: &str) -> bool {
     let path = path.split('?').next().unwrap_or(path).trim_end_matches('/');
     match *method {
-        Method::POST => matches!(
-            path,
-            "/v1/shutdown" | "/v1/restart" | "/v1/realm/close" | "/v1/ip-bans"
-        ),
+        Method::POST => {
+            matches!(
+                path,
+                "/v1/shutdown" | "/v1/restart" | "/v1/realm/close" | "/v1/ip-bans" | "/v1/sysop"
+            ) || (path.starts_with("/v1/players/") && path.ends_with("/input"))
+        }
         Method::PUT => path.starts_with("/v1/players/") && path.ends_with("/ban"),
         Method::DELETE => path.starts_with("/v1/accounts/"),
         _ => false,
@@ -88,6 +91,8 @@ mod tests {
             (Method::POST, "/v1/ip-bans"),
             (Method::PUT, "/v1/players/Lars/ban"),
             (Method::DELETE, "/v1/accounts/7"),
+            (Method::POST, "/v1/sysop"),
+            (Method::POST, "/v1/players/Lars/input"),
         ] {
             assert!(needs_password(&m, p), "{m} {p}");
         }
@@ -99,6 +104,7 @@ mod tests {
             (Method::DELETE, "/v1/shutdown"),
             (Method::POST, "/v1/realm/open"),
             (Method::DELETE, "/v1/ip-bans"),
+            (Method::GET, "/v1/players/Lars/screen"),
         ] {
             assert!(!needs_password(&m, p), "{m} {p}");
         }

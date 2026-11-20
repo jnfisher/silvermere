@@ -93,6 +93,15 @@ pub enum AdminRequest {
         reason: String,
         reply: Sender<usize>,
     },
+    /// `silvermere sysop game`: one in-game `SYSOP ...` line run for the sysop `name`, who
+    /// holds `keys`, outside the game ([`crate::commands::sysop::run_from_console`]). The reply
+    /// is what the line shows the operator (CP437, ANSI).
+    SysopLine {
+        name: String,
+        keys: crate::commands::sysop::Keys,
+        line: String,
+        reply: Sender<Result<Vec<u8>, crate::commands::sysop::ConsoleRefusal>>,
+    },
 }
 
 /// One row of `/v1/who`: what `display_scan_of_users` shows for a player,
@@ -786,6 +795,16 @@ impl<C: Clock, R: Rng> Engine<C, R> {
             }
             AdminRequest::CloseRealm { reason, reply } => {
                 let _ = reply.send(crate::moderation::close_realm(world, &reason));
+            }
+            AdminRequest::SysopLine {
+                name,
+                keys,
+                line,
+                reply,
+            } => {
+                let _ = reply.send(crate::commands::sysop::run_from_console(
+                    world, &name, keys, &line, now,
+                ));
             }
         }
     }

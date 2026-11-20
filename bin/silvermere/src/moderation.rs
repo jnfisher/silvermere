@@ -72,6 +72,9 @@ pub struct Operator {
     engine: Sender<EngineInput>,
     realm: Arc<RealmGate>,
     ip_bans: Arc<IpBans>,
+    /// The players' screens and their connections, for watching a player and typing for
+    /// him; `None` for a server without them.
+    watching: Option<(Arc<silvermere_net::Screens>, Arc<crate::spectate::Links>)>,
 }
 
 /// A player as a sysop names him.
@@ -117,6 +120,107 @@ impl Operator {
             engine,
             realm,
             ip_bans,
+            watching: None,
+        }
+    }
+
+    /// The operator with the players' screens and connections to watch and type through.
+    pub fn watching(
+        mut self,
+        screens: Arc<silvermere_net::Screens>,
+        links: Arc<crate::spectate::Links>,
+    ) -> Self {
+        self.watching = Some((screens, links));
+        self
+    }
+
+    /// The player in the realm `name` means, and his connection.
+    async fn connection(
+        &self,
+        name: &str,
+    ) -> Result<
+        (
+            String,
+            silvermere_net::SessionId,
+            tokio::sync::mpsc::Sender<silvermere_net::SessionCommand>,
+        ),
+        ModError,
+    > {
+        let Some((_, links)) = &self.watching else {
+            return Err(ModError::Unavailable);
+        };
+        let p = self.player(name).await?;
+        let (reply, rx) = std::sync::mpsc::channel();
+        let who = self.ask(AdminRequest::Who { reply }, rx).await?;
+        let row = who
+            .into_iter()
+            .find(|r| r.account == Some(p.account))
+            .ok_or(ModError::NotConnected)?;
+        let (net, tx) = links.of(row.id).ok_or(ModError::NotConnected)?;
+        Ok((row.first_name, net, tx))
+    }
+
+    /// The player's screen as it stands and what follows.
+    pub async fn watch(&self, name: &str) -> Result<silvermere_api::Watch, ModError> {
+        let (name, net, _) = self.connection(name).await?;
+        let Some((screens, _)) = &self.watching else {
+            return Err(ModError::Unavailable);
+        };
+        let (recent, mut bytes) = screens.watch(net).ok_or(ModError::NotConnected)?;
+        let (tx, stream) = tokio::sync::mpsc::channel(256);
+        tokio::spawn(async move {
+            while let Some(b) = bytes.recv().await {
+                if tx.send(crate::spectate::screen_text(&b)).await.is_err() {
+                    return;
+                }
+            }
+        });
+        Ok(silvermere_api::Watch {
+            name,
+            recent: crate::spectate::screen_text(&recent),
+            stream,
+        })
+    }
+
+    /// Types `line` for the player, as if he had.
+    async fn input(&self, name: &str, line: &str) -> Result<Value, ModError> {
+        let (name, _, tx) = self.connection(name).await?;
+        tx.try_send(silvermere_net::SessionCommand::Inject(
+            silvermere_text::cp437::encode(line),
+        ))
+        .map_err(|_| ModError::NotConnected)?;
+        Ok(json!({ "player": name, "line": line }))
+    }
+
+    /// One in-game `SYSOP` line for `by`: a console sysop (`web:<name>`) with his account's
+    /// keys, a token with a sysop's default keys.
+    async fn sysop_line(&self, line: &str, by: &str) -> Result<Value, ModError> {
+        use silvermere_engine::commands::sysop::{ConsoleRefusal, Keys};
+        let (name, keys) = match by.strip_prefix("web:") {
+            Some(user) => {
+                let account = silvermere_auth::AccountStore::by_username(self.db.as_ref(), user)
+                    .await
+                    .map_err(|e| ModError::Store(e.to_string()))?;
+                let keys = match account {
+                    Some(a) => crate::gate::sysop_keys(&a),
+                    None => Keys::for_roles(true, false),
+                };
+                (user.to_owned(), keys)
+            }
+            None => (by.to_owned(), Keys::for_roles(true, false)),
+        };
+        let (reply, rx) = std::sync::mpsc::channel();
+        let req = AdminRequest::SysopLine {
+            name,
+            keys,
+            line: line.to_owned(),
+            reply,
+        };
+        match self.ask(req, rx).await? {
+            Ok(bytes) => Ok(json!({ "output": crate::spectate::screen_text(&bytes) })),
+            Err(ConsoleRefusal::NotSysop) => Err(ModError::NotSysopLine),
+            Err(ConsoleRefusal::NeedsCharacter) => Err(ModError::NeedsCharacter),
+            Err(ConsoleRefusal::ServerFull) => Err(ModError::ServerFull),
         }
     }
 
@@ -335,7 +439,56 @@ impl Operator {
             .await
             .map_err(store)?;
         self.ip_bans.load(&self.db).await.map_err(store)?;
-        Ok(json!({ "id": id, "network": canonical, "until": rfc(until) }))
+        let kicked = self.kick_from(&net, until, &reason).await?;
+        Ok(json!({ "id": id, "network": canonical, "until": rfc(until), "kicked": kicked }))
+    }
+
+    /// Disconnects the players in the realm whose telnet connection comes from `net`, told
+    /// why and saved first. Door callers all come from the BBS and are never checked.
+    async fn kick_from(
+        &self,
+        net: &Network,
+        until: Option<Timestamp>,
+        reason: &str,
+    ) -> Result<Vec<String>, ModError> {
+        let (reply, rx) = std::sync::mpsc::channel();
+        let who = self.ask(AdminRequest::Who { reply }, rx).await?;
+        let mut text = format!(
+            "banned{}",
+            silvermere_engine::moderation::until_text(until.map(|u| u.as_second()))
+        );
+        if !reason.is_empty() {
+            text.push_str(&format!(": {reason}"));
+        }
+        let mut kicked = Vec::new();
+        for row in who {
+            let (Some(ip), Some(account)) = (row.ip, row.account) else {
+                continue;
+            };
+            if !net.contains(silvermere_net::network::canonical(ip)) {
+                continue;
+            }
+            let door = self
+                .db
+                .accounts()
+                .get(account)
+                .await
+                .map_err(store)?
+                .is_some_and(|a| a.account.flags & silvermere_db::repo::accounts::FLAG_DOOR != 0);
+            if door {
+                continue;
+            }
+            let (reply, rx) = std::sync::mpsc::channel();
+            let req = AdminRequest::Kick {
+                account,
+                reason: text.clone(),
+                reply,
+            };
+            if let Some(name) = self.ask(req, rx).await? {
+                kicked.push(name);
+            }
+        }
+        Ok(kicked)
     }
 
     async fn unban_ip(&self, network: &str) -> Result<Value, ModError> {
@@ -450,6 +603,8 @@ impl Operator {
             Action::UnbanIp { network } => self.unban_ip(&network).await,
             Action::CloseRealm { reason } => self.close_realm(reason, by).await,
             Action::OpenRealm => self.open_realm().await,
+            Action::Input { player, line } => self.input(&player, &line).await,
+            Action::SysopLine { line } => self.sysop_line(&line, &by).await,
         }
     }
 }
@@ -461,5 +616,9 @@ impl silvermere_api::Moderator for Operator {
 
     fn status(&self) -> BoxFuture<'_, Result<Value, ModError>> {
         Box::pin(self.snapshot())
+    }
+
+    fn watch(&self, player: String) -> BoxFuture<'_, Result<silvermere_api::Watch, ModError>> {
+        Box::pin(async move { Operator::watch(self, &player).await })
     }
 }

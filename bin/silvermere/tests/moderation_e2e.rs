@@ -2,7 +2,8 @@
 //! `silvermere sysop` commands over the admin API. Jail moves a player to the jail room and
 //! holds him there; release lets him out to town; mute stops gossip; tell reaches him; kick
 //! and ban disconnect him, and a ban refuses his login; a closed realm refuses everyone but
-//! sysops; an IP ban closes connections before the login screen. The login and logoff events
+//! sysops; an IP ban disconnects the players from it and closes connections before the login
+//! screen. The login and logoff events
 //! carry the address.
 
 use crate::common;
@@ -291,9 +292,30 @@ async fn kick_ban_ip_ban_and_a_closed_realm_keep_players_out() {
     ok(&r, &["realm", "open"]).await;
     let i = Player::enter(&r, "Isolde").await;
 
-    // an IP ban closes a telnet connection before anything is sent
+    // an IP ban disconnects the players from it, closes a login under way when it ends,
+    // and closes a new telnet connection before anything is sent
+    let mut i = i;
+    let at = i.c.position();
+    let mut waiting = TelnetClient::connect(r.telnet_addr).await.unwrap();
+    waiting.until("Username:", WAIT).await.unwrap();
     let out = ok(&r, &["ban-ip", "127.0.0.0/8", "--for", "1h", "bots"]).await;
     assert!(out.starts_with("Banned 127.0.0.0/8 until "), "{out}");
+    assert!(out.contains("disconnected Isolde (saved first)"), "{out}");
+    i.wait_text(at, r"Reason: banned until \S+ \S+ UTC: bots")
+        .await;
+    drop(i);
+    waiting.send_line("Brynja").await.unwrap();
+    waiting.until("Password:", WAIT).await.unwrap();
+    waiting.send_line(&password("Brynja")).await.unwrap();
+    assert!(
+        waiting
+            .until(r"Make your selection", Duration::from_secs(3))
+            .await
+            .is_err(),
+        "a login from a banned address is closed: {}",
+        waiting.plain_from(0)
+    );
+    drop(waiting);
     let mut c = TelnetClient::connect(r.telnet_addr).await.unwrap();
     let got = c.read(Duration::from_secs(2)).await;
     assert!(
@@ -306,7 +328,9 @@ async fn kick_ban_ip_ban_and_a_closed_realm_keep_players_out() {
     ok(&r, &["unban-ip", "127.0.0.0/8"]).await;
     let mut c = TelnetClient::connect(r.telnet_addr).await.unwrap();
     c.until("Username:", WAIT).await.unwrap();
+    drop(c);
 
+    let i = Player::enter(&r, "Isolde").await;
     i.leave_ticking(&r).await;
     r.stop().await.unwrap();
 
@@ -384,4 +408,169 @@ async fn sanctions_hold_across_a_restart() {
     assert_eq!(room_of(&r, "Brynja").await, Some(jail));
     b.leave_ticking(&r).await;
     r.stop().await.unwrap();
+}
+
+/// `silvermere sysop spectate --type` running beside the test: what it printed so far
+/// (stdout, stderr), its stdin, and the process.
+struct Watcher {
+    child: std::process::Child,
+    stdin: std::process::ChildStdin,
+    out: std::sync::Arc<std::sync::Mutex<String>>,
+    err: std::sync::Arc<std::sync::Mutex<String>>,
+}
+
+impl Watcher {
+    fn start(r: &silvermere::Running, player: &str) -> Self {
+        use std::process::Stdio;
+        let addr = r.admin_addr.expect("admin listener").to_string();
+        let mut c = Command::new(env!("CARGO_BIN_EXE_silvermere"));
+        c.args(["sysop", "spectate", player, "--type"]);
+        for (k, _) in std::env::vars().filter(|(k, _)| k.starts_with("SILVERMERE_")) {
+            c.env_remove(k);
+        }
+        let mut child = c
+            .env("SILVERMERE_SERVER__ADMIN_BIND", addr)
+            .env("SILVERMERE_ADMIN_TOKEN", TOKEN)
+            .current_dir(std::env::temp_dir())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let collect = |mut from: Box<dyn std::io::Read + Send>| {
+            let into = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+            let to = into.clone();
+            std::thread::spawn(move || {
+                let mut buf = [0u8; 4096];
+                while let Ok(n) = from.read(&mut buf) {
+                    if n == 0 {
+                        break;
+                    }
+                    to.lock()
+                        .unwrap()
+                        .push_str(&String::from_utf8_lossy(&buf[..n]));
+                }
+            });
+            into
+        };
+        let out = collect(Box::new(child.stdout.take().unwrap()));
+        let err = collect(Box::new(child.stderr.take().unwrap()));
+        let stdin = child.stdin.take().unwrap();
+        Self {
+            child,
+            stdin,
+            out,
+            err,
+        }
+    }
+
+    /// Waits until stdout (`err`: stderr) holds `text`; what it holds.
+    async fn wait(&self, text: &str, err: bool) -> String {
+        let from = if err { &self.err } else { &self.out };
+        for _ in 0..200 {
+            let got = from.lock().unwrap().clone();
+            if got.contains(text) {
+                return got;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        panic!(
+            "the watcher never showed {text:?}; stdout {:?} stderr {:?}",
+            self.out.lock().unwrap(),
+            self.err.lock().unwrap()
+        );
+    }
+
+    fn type_line(&mut self, line: &str) {
+        use std::io::Write as _;
+        writeln!(self.stdin, "{line}").unwrap();
+        self.stdin.flush().unwrap();
+    }
+}
+
+/// A sysop watches a player's screen (his own typing included) and types for him; the player
+/// sees the answer but not the line. The game's own SYSOP commands run outside the game, and
+/// the ones that need a character in the realm are refused. Watching and typing are audited.
+#[tokio::test]
+async fn spectate_type_and_the_games_sysop_commands() {
+    let (_dir, url) = team_db();
+    place(&url, "Brynja", 2140).await;
+    let r = start_with(&url, |cfg| {
+        cfg.game.sec_fast = 86_400;
+        cfg.admin = admin();
+    })
+    .await;
+    let mut b = Player::enter(&r, "Brynja").await;
+    let here = room_of(&r, "Brynja").await.unwrap();
+    let title = on_world(&r, move |w| w.room(here).map(|r| r.name.clone()))
+        .await
+        .unwrap();
+
+    let (code, _, err) = sysop(&r, &["spectate", "Nobody"]).await;
+    assert_eq!(code, 1);
+    assert!(
+        err.contains("no character or account has that name"),
+        "{err}"
+    );
+
+    let mut w = Watcher::start(&r, "brynja");
+    w.wait(
+        "Watching Brynja; each line you type goes to the game as theirs",
+        true,
+    )
+    .await;
+    // what she types and what she is told
+    b.cmd("inventory").await;
+    w.wait("inventory", false).await;
+    w.wait("You are carrying", false).await;
+    // a line typed for her: the game answers on her screen, which never shows the line
+    let at = b.c.position();
+    w.type_line("look");
+    b.wait_text(at, &common::m3::escape(&title)).await;
+    assert!(
+        !b.c.plain_from(at).contains("look"),
+        "the player's screen never shows the line: {}",
+        b.c.plain_from(at)
+    );
+    // the one-shot form
+    assert_eq!(
+        ok(&r, &["type", "Brynja", "look"]).await,
+        "Typed for Brynja: look\n"
+    );
+
+    // the game's SYSOP commands, outside the game
+    let users = ok(&r, &["game", "list", "users"]).await;
+    assert!(users.contains("Brynja"), "{users}");
+    let status = ok(&r, &["game", "SYSOP", "status", "brynja"]).await;
+    assert!(status.contains("Brynja"), "{status}");
+    let (code, _, err) = sysop(&r, &["game", "goto", "Brynja"]).await;
+    assert_eq!(code, 1);
+    assert!(err.contains("acts on or from your character"), "{err}");
+
+    // she leaves: the watch ends
+    b.leave_ticking(&r).await;
+    w.wait("Brynja left the realm.", true).await;
+    let status = tokio::task::spawn_blocking(move || w.child.wait().unwrap())
+        .await
+        .unwrap();
+    assert!(status.success());
+    r.stop().await.unwrap();
+
+    let db = Db::connect_and_migrate(&url).await.unwrap();
+    let kinds: Vec<String> = db
+        .events()
+        .recent(200)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|e| e.event.kind)
+        .collect();
+    for k in [
+        "admin.players.brynja.screen",
+        "admin.players.Brynja.input",
+        "admin.sysop",
+    ] {
+        assert!(kinds.iter().any(|x| x == k), "{k} not in {kinds:?}");
+    }
+    db.close().await;
 }

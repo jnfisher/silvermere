@@ -91,22 +91,32 @@
     return '"' + s.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
   }
 
-  function run(line) {
-    print("sysop> " + line, "cmd");
+  // `quiet`: the line and its answer are shown only when it fails (a line typed for a
+  // watched player goes to the game, not the drawer)
+  function run(line, quiet) {
+    if (!quiet) print("sysop> " + line, "cmd");
+    var shown = function (r) { return show(r, quiet ? line : null); };
     return post("/console/line", { line: line }).then(function (r) {
       if (r.status === 401 && r.body.error === "password") {
         return askPassword().then(function (ok) {
           if (!ok) { print("Not done: the password was not given.", "err"); return false; }
-          return post("/console/line", { line: line }).then(show);
+          return post("/console/line", { line: line }).then(shown);
         });
       }
       if (r.status === 401) { signedOut(); return false; }
-      return show(r);
-    }).then(function (ok) { refreshSoon(); return ok; });
+      return shown(r);
+    }).then(function (ok) { if (!quiet) refreshSoon(); return ok; });
   }
 
-  function show(r) {
-    if (r.status === 200) { print(r.body.text.replace(/\n$/, ""), "ok"); return true; }
+  function show(r, quietLine) {
+    if (r.status === 200) {
+      if (quietLine === null || quietLine === undefined) {
+        // the game's own SYSOP commands answer in its colours: shown as plain text here
+        print(r.body.text.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "").replace(/\r/g, "").replace(/\n$/, ""), "ok");
+      }
+      return true;
+    }
+    if (quietLine) print("sysop> " + quietLine, "cmd");
     print((r.body && r.body.message) || "Failed.", "err");
     return false;
   }
@@ -120,6 +130,13 @@
     history.push(cmd);
     at = history.length;
     $("cmd").value = "";
+    // spectate NAME (or watch NAME) opens the player's screen above
+    var w = /^(?:spectate|watch)\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s*(?:--type)?$/i.exec(cmd);
+    if (w) {
+      print("sysop> " + cmd, "cmd");
+      watch(w[1] || w[2] || w[3]);
+      return;
+    }
     run(cmd);
   });
   $("cmd").addEventListener("keydown", function (e) {
@@ -251,6 +268,7 @@
     var on = sanctionsOf(name).map(function (s) { return s.kind + " " + when(s.until); });
     $("d-flags").textContent = on.length ? "In force: " + on.join("; ") : "Nothing in force.";
     $("d-ban-ip").hidden = !selected.ip;
+    $("d-watch").hidden = !row;
     renderPlayers();
   }
 
@@ -357,6 +375,7 @@
       var who = q(selected.name);
       var act = b.dataset.act;
       if (act === "close") { selected = null; $("detail").hidden = true; renderPlayers(); return; }
+      if (act === "watch") { watch(selected.name); return; }
       var line = {
         kick: "kick " + who + reasonPart(),
         jail: "jail " + who + forPart() + reasonPart(),
@@ -415,6 +434,190 @@
   $("b-shutdown").addEventListener("click", function () { plan("shut down"); });
   $("b-cancel").addEventListener("click", function () {
     run((state.plan && state.plan.restart ? "restart" : "shutdown") + " --cancel");
+  });
+
+  // ---- watching a player -----------------------------------------------------------------
+
+  // A small terminal: 80 columns, the screen the last 24 lines, a few hundred lines kept
+  // above it. It reads what the game sends: SGR colours, erase in line and screen, cursor
+  // moves and positions, CR, LF, backspace, tab.
+  var COLS = 80, ROWS = 24, KEEP = 500;
+  var term = {
+    lines: [[]], row: 0, col: 0, fg: 7, bg: 0, bold: false, esc: null, dirty: false,
+    reset: function () {
+      this.lines = [[]]; this.row = 0; this.col = 0; this.fg = 7; this.bg = 0; this.bold = false; this.esc = null;
+      this.touch();
+    },
+    top: function () { return Math.max(0, this.lines.length - ROWS); },
+    line: function (r) {
+      while (this.lines.length <= r) this.lines.push([]);
+      return this.lines[r];
+    },
+    style: function () { return "f" + this.fg + (this.bold ? " b" : "") + (this.bg ? " g" + this.bg : ""); },
+    put: function (ch) {
+      if (this.col >= COLS) { this.newline(); this.col = 0; }
+      var l = this.line(this.row);
+      while (l.length < this.col) l.push([" ", "f7"]);
+      l[this.col] = [ch, this.style()];
+      this.col += 1;
+    },
+    newline: function () {
+      this.row += 1;
+      this.line(this.row);
+      var over = this.lines.length - KEEP;
+      if (over > 0) { this.lines.splice(0, over); this.row -= over; }
+    },
+    sgr: function (params) {
+      if (!params.length) params = [0];
+      for (var i = 0; i < params.length; i++) {
+        var n = params[i];
+        if (n === 0) { this.fg = 7; this.bg = 0; this.bold = false; }
+        else if (n === 1) this.bold = true;
+        else if (n === 22) this.bold = false;
+        else if (n >= 30 && n <= 37) this.fg = n - 30;
+        else if (n === 39) this.fg = 7;
+        else if (n >= 40 && n <= 47) this.bg = n - 40;
+        else if (n === 49) this.bg = 0;
+      }
+    },
+    csi: function (params, final) {
+      var n = params.length ? params[0] : 0;
+      var l;
+      switch (final) {
+        case "m": this.sgr(params); break;
+        case "K":
+          l = this.line(this.row);
+          if (n === 2) l.length = 0; else if (n === 1) { for (var i = 0; i < this.col && i < l.length; i++) l[i] = [" ", "f7"]; } else l.length = Math.min(l.length, this.col);
+          break;
+        case "J":
+          if (n === 2) {
+            for (var k = 0; k < ROWS; k++) this.lines.push([]);
+            this.row = this.lines.length - ROWS; this.col = 0;
+          } else {
+            l = this.line(this.row); l.length = Math.min(l.length, this.col);
+            this.lines.length = this.row + 1;
+          }
+          break;
+        case "H": case "f":
+          this.row = this.top() + Math.max(1, params[0] || 1) - 1;
+          this.col = Math.max(1, params[1] || 1) - 1;
+          this.line(this.row);
+          break;
+        case "A": this.row = Math.max(this.top(), this.row - Math.max(1, n)); break;
+        case "B": this.row += Math.max(1, n); this.line(this.row); break;
+        case "C": this.col = Math.min(COLS - 1, this.col + Math.max(1, n)); break;
+        case "D": this.col = Math.max(0, this.col - Math.max(1, n)); break;
+      }
+    },
+    write: function (text) {
+      for (var i = 0; i < text.length; i++) {
+        var c = text[i];
+        if (this.esc !== null) {
+          this.esc += c;
+          if (this.esc === "[" ) continue;
+          if (this.esc[0] !== "[") { this.esc = null; continue; }
+          if (/[A-Za-z]/.test(c)) {
+            var body = this.esc.slice(1, -1);
+            var params = body ? body.split(";").map(function (p) { return parseInt(p, 10) || 0; }) : [];
+            this.csi(params, c);
+            this.esc = null;
+          } else if (this.esc.length > 20) this.esc = null;
+          continue;
+        }
+        if (c === "\x1b") this.esc = "";
+        else if (c === "\r") this.col = 0;
+        else if (c === "\n") this.newline();
+        else if (c === "\b") this.col = Math.max(0, this.col - 1);
+        else if (c === "\t") this.col = Math.min(COLS - 1, (Math.floor(this.col / 8) + 1) * 8);
+        else if (c === "\x07" || c < " ") continue;
+        else this.put(c);
+      }
+      this.touch();
+    },
+    touch: function () {
+      if (this.dirty) return;
+      this.dirty = true;
+      var self = this;
+      requestAnimationFrame(function () { self.dirty = false; self.render(); });
+    },
+    render: function () {
+      var pre = $("term");
+      var atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 4;
+      var frag = document.createDocumentFragment();
+      this.lines.forEach(function (l, r) {
+        var span = null, cls = null;
+        for (var i = 0; i < l.length; i++) {
+          if (!span || l[i][1] !== cls) {
+            cls = l[i][1];
+            span = el("span", "", cls);
+            frag.appendChild(span);
+          }
+          span.textContent += l[i][0];
+        }
+        if (r < this.lines.length - 1) frag.appendChild(document.createTextNode("\n"));
+      }, this);
+      pre.textContent = "";
+      pre.appendChild(frag);
+      if (atBottom) pre.scrollTop = pre.scrollHeight;
+    }
+  };
+
+  var watching = null; // { name, source }
+  function stopWatching(why) {
+    if (!watching) return;
+    watching.source.close();
+    $("w-state").textContent = why ? "(" + why + ")" : "";
+    $("w-text").disabled = true;
+    watching = null;
+  }
+
+  function watch(name) {
+    stopWatching();
+    term.reset();
+    $("watch").hidden = false;
+    $("w-name").textContent = name;
+    $("w-state").textContent = "(connecting…)";
+    $("w-text").disabled = false;
+    var source = new EventSource(base + "/console/api/v1/players/" + encodeURIComponent(name) + "/screen");
+    watching = { name: name, source: source };
+    var opened = false;
+    source.addEventListener("screen", function (m) {
+      opened = true;
+      var d = JSON.parse(m.data);
+      watching.name = d.player;
+      $("w-name").textContent = d.player;
+      $("w-state").textContent = "(live)";
+      term.write(d.text);
+      print("Watching " + d.player + ".", "ok");
+    });
+    source.addEventListener("out", function (m) { term.write(JSON.parse(m.data).text); });
+    source.addEventListener("end", function () {
+      print((watching ? watching.name : name) + " left the realm.", "hint");
+      stopWatching("left the realm");
+    });
+    source.onerror = function () {
+      if (!opened) {
+        print("Cannot watch " + name + ": not in the realm, or the server refused.", "err");
+        stopWatching("not watching");
+      } else if (source.readyState === EventSource.CLOSED) {
+        stopWatching("stopped");
+      }
+    };
+    $("watch").scrollIntoView({ block: "start", behavior: "smooth" });
+    $("w-text").focus();
+  }
+
+  $("w-line").addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (!watching) return;
+    var text = $("w-text").value;
+    $("w-text").value = "";
+    // after --, the line is the line, even one that starts with a dash
+    run("type " + q(watching.name) + (text ? " -- " + q(text) : ""), true);
+  });
+  $("w-stop").addEventListener("click", function () {
+    stopWatching();
+    $("watch").hidden = true;
   });
 
   // ---- the activity feed -----------------------------------------------------------------

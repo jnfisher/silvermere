@@ -25,6 +25,7 @@ pub mod reload;
 pub mod reserved;
 pub mod router;
 pub mod shutdown;
+pub mod spectate;
 pub mod who;
 
 pub use auth::{Scope, Token};
@@ -35,6 +36,7 @@ pub use moderation::{Action, ModError, Moderator, NoModeration};
 pub use reload::WorldLoader;
 pub use router::{ACTING_FOR, ApiState, RouteSpec, router, routes, serve};
 pub use shutdown::{NoShutdown, Planned, ShutdownPlan};
+pub use spectate::Watch;
 
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 

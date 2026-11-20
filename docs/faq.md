@@ -85,8 +85,24 @@ login, and across restarts. See [admin-api.md](admin-api.md#moderation).
 ### How do I ban an address?
 
 `silvermere sysop ban-ip 203.0.113.7` (or a block, `203.0.113.0/24`), or the console's **Ban
-address**. Telnet connections from it are closed before the login screen; players already on
-stay until you kick them. The BBS door is never checked: its callers all come from the BBS.
+address**. Telnet connections from it are closed before the login screen, and players in the
+realm who came from it are told, saved and disconnected. The BBS door is never checked: its
+callers all come from the BBS.
+
+### Can I watch what a player is doing?
+
+Yes. Click the player in the console, then **Watch**: their screen as they see it, live. Type
+a line under it and the game takes it as theirs; nothing on their screen shows it, and they
+are not told they are watched. From a shell: `silvermere sysop spectate NAME` (add `--type` to
+type as them). Watching and every line typed are audited. See
+[web.md](web.md#the-console).
+
+### Can I use the SYSOP commands without logging in to the game?
+
+Yes, most of them: `silvermere sysop game list users`, `game god Lars info`, `game speak
+"back in 5"`, or the same after `game` on the console's command line. The ones that need your
+character in the realm (`GOTO`, `SUMMON`, `MAP`, `RESET` and the paged reports) are refused
+there. See [sysop.md](sysop.md#sub-commands).
 
 ### How do I close the game for maintenance?
 

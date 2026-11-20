@@ -108,6 +108,11 @@ impl LineEditor {
         self.esc = EscState::None;
     }
 
+    /// Whether character mode is on.
+    pub fn char_mode(&self) -> bool {
+        self.char_mode
+    }
+
     /// The partial line typed so far.
     pub fn buffer(&self) -> &[u8] {
         &self.buf

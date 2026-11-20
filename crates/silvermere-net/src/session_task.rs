@@ -51,6 +51,8 @@ pub struct SessionConfig {
     /// the timers only after it (`MbbsHost.cs`:426, :458-459, :929; T-094). Off by default:
     /// a peer that never sends `LineStarted` would see each echo late.
     pub hold_line_echo: bool,
+    /// Where each player's screen is recorded for the sysop watching it; `None` for none.
+    pub screens: Option<Arc<crate::Screens>>,
 }
 
 impl Default for SessionConfig {
@@ -59,6 +61,7 @@ impl Default for SessionConfig {
             output_limit: 64 * 1024,
             heartbeat: None,
             hold_line_echo: false,
+            screens: None,
         }
     }
 }
@@ -298,7 +301,9 @@ async fn run(
     permit: Option<OwnedSemaphorePermit>,
     rlogin: Option<(RloginHello, Vec<u8>)>,
 ) {
+    let screens = config.screens.clone();
     let mut session = Session::new(stream, config);
+    session.id = id;
     let hello = rlogin.map(|(hello, ahead)| {
         session.raw = true;
         session.out.clear();
@@ -314,6 +319,9 @@ async fn run(
             );
         }
         other => tracing::debug!(?id, reason = ?other, "session ended"),
+    }
+    if let Some(screens) = screens {
+        screens.end(id);
     }
     // Free the slot before the engine hears about it, so a reconnect is not refused.
     drop(permit);
@@ -341,6 +349,8 @@ struct Session {
     raw: bool,
     /// The address the connection comes from, sent to the engine first.
     peer: Option<std::net::IpAddr>,
+    /// The connection's number, for its screen record.
+    id: SessionId,
 }
 
 impl Session {
@@ -362,11 +372,15 @@ impl Session {
             hold_until: None,
             held_echo: Vec::new(),
             raw: false,
+            id: SessionId(0),
         }
     }
 
     /// Queues output bytes: as they are on an rlogin session, IAC doubled on telnet.
     fn put(&mut self, bytes: &[u8]) {
+        if let Some(screens) = &self.config.screens {
+            screens.record(self.id, bytes);
+        }
         if self.raw {
             self.out.extend_from_slice(bytes);
         } else {
@@ -381,6 +395,14 @@ impl Session {
             Some(SessionCommand::SetEcho(mode)) => self.editor.set_echo(mode),
             Some(SessionCommand::SetCharMode(on)) => self.editor.set_char_mode(on),
             Some(SessionCommand::LineStarted) => self.release_echo(),
+            Some(SessionCommand::Inject(bytes)) => {
+                if self.editor.char_mode() {
+                    self.outbox.extend(bytes.into_iter().map(SessionEvent::Key));
+                    self.outbox.push_back(SessionEvent::Key(b'\r'));
+                } else {
+                    self.outbox.push_back(SessionEvent::Line(bytes));
+                }
+            }
             Some(SessionCommand::LineDone) => {
                 self.release_echo();
                 self.hold_until = None;

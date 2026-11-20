@@ -177,6 +177,19 @@ button[type="submit"]:not(.link) {
 #players td.room { max-width: 13rem; overflow: hidden; text-overflow: ellipsis; }
 #players td.room .where { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
 #detail { border-color: var(--accent); }
+#watch { margin-bottom: 0.9rem; border-color: var(--accent); }
+.term {
+  background: #000; color: #aaa; margin: 0 0 0.6rem; padding: 0.5rem 0.6rem;
+  font-family: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace; font-size: 0.82rem;
+  line-height: 1.25; height: 26rem; overflow: auto; white-space: pre; border-radius: 6px;
+}
+.term .f0 { color: #000; } .term .f1 { color: #a00; } .term .f2 { color: #0a0; } .term .f3 { color: #a50; }
+.term .f4 { color: #00a; } .term .f5 { color: #a0a; } .term .f6 { color: #0aa; } .term .f7 { color: #aaa; }
+.term .b.f0 { color: #555; } .term .b.f1 { color: #f55; } .term .b.f2 { color: #5f5; } .term .b.f3 { color: #ff5; }
+.term .b.f4 { color: #55f; } .term .b.f5 { color: #f5f; } .term .b.f6 { color: #5ff; } .term .b.f7 { color: #fff; }
+.term .g1 { background: #a00; } .term .g2 { background: #0a0; } .term .g3 { background: #a50; }
+.term .g4 { background: #00a; } .term .g5 { background: #a0a; } .term .g6 { background: #0aa; } .term .g7 { background: #aaa; }
+#w-line input { flex: 1; font-family: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace; }
 #detail h2 { font-size: 1.25rem; }
 .sanction { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0.6rem 0; }
 .sanction label { display: grid; gap: 0.2rem; font-size: 0.85rem; color: var(--muted); flex: 1 1 10rem; }

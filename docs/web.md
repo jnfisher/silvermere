@@ -69,8 +69,12 @@ with the sysop's name.
 - **Players in the realm**: who is on, the room each stands in (its name and `map:room`,
   read every 3 seconds while the page is in view), level, class, race, gang, idle time and the
   address they connect from, flagged when jailed or muted. Click a player, or open any player by
-  name (online or not), for the player panel: a line to them, and kick, jail, release, mute,
-  unmute, ban, unban and ban their address, for a chosen time with a reason.
+  name (online or not), for the player panel: a line to them, **watch** them, and kick, jail,
+  release, mute, unmute, ban, unban and ban their address, for a chosen time with a reason.
+- **Watching a player**: their screen as they see it, live, colours and all, with a line to
+  type as them. They are not told, and nothing on their screen shows what you type; the game
+  takes it as theirs. Watching and every line typed are audited. `spectate NAME` on the
+  command line opens it too.
 - **In force**: the bans, jails, mutes and IP bans, each with a button to lift it, and a
   form to ban an address or block.
 - **Activity**: logins, logoffs, deaths, levels, sign-ins and every staff action as they
@@ -80,6 +84,10 @@ with the sysop's name.
   ([cli.md](cli.md#silvermere-sysop)), typed as they are there (`jail Lars --for 1h "fighting
   in town"`; `help` lists them, `help jail` explains one). Every button runs one of these
   commands, shown here with its answer, so what a button does is what the command does.
+  `game` runs the game's own `SYSOP` commands from here (`game list users`, `game god Lars
+  info`; [sysop.md](sysop.md#sub-commands)), without your character in the realm.
+
+![Watching a player: the room and stat sheet from LOOK and STAT typed for them, their screen showing neither command](images/console-watch.png)
 
 Everything the console shows or does goes through the [admin API](admin-api.md), run inside
 the server for the signed-in sysop: the same checks, and audit rows that name `web:<sysop>`
@@ -93,7 +101,7 @@ then reconnects by itself, still signed in.
 
 Actions that cannot be undone ask for your password again unless you gave it in the last 10
 minutes: a ban, an IP ban, deleting an account, closing the realm, a planned shutdown or
-restart.
+restart, a line typed as a player, and the game's `SYSOP` commands.
 
 ## Signing in
 

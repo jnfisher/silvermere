@@ -140,6 +140,12 @@ impl ApiConsole {
                 };
             }
         };
+        if let crate::cli::SysopCmd::Spectate { .. } = parsed.action {
+            // a live stream, not one answer: the page opens it in the player panel
+            return LineOutcome::Error(
+                "spectate opens a live view: click the player, then Watch".to_owned(),
+            );
+        }
         let (method, path, _, body) = route(&parsed.action);
         let method: Method = method.parse().unwrap_or(Method::GET);
         if needs_password(&method, &path) && !fresh {

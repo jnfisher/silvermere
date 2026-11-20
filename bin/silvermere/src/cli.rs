@@ -327,6 +327,31 @@ pub enum SysopCmd {
         #[command(subcommand)]
         action: RealmCmd,
     },
+    /// Watch a player's screen as they play, until they leave (Ctrl-C to stop). They are
+    /// not told. In the web console, the player panel's Watch button.
+    Spectate {
+        /// A character's first name or an account's username
+        player: String,
+        /// Each line you type goes to the game as theirs (an empty line is Enter)
+        #[arg(long = "type")]
+        typing: bool,
+    },
+    /// Type a line for a player, as if they had typed it. Nothing on their screen shows it.
+    Type {
+        /// A character's first name or an account's username
+        player: String,
+        /// The line; none is Enter
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        line: Vec<String>,
+    },
+    /// Run one of the game's own SYSOP commands outside the game: `game list users`,
+    /// `game god Lars level 20`. The ones that need your character in the realm (GOTO,
+    /// SUMMON, EXPRESS_TRAIN, MAP, RESET, REPORT USERS, LIST GANG) are refused.
+    Game {
+        /// The SYSOP command's words (SYSOP itself may be left out)
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true, required = true)]
+        words: Vec<String>,
+    },
 }
 
 /// One line of the web console's command line: the `sysop` subcommands, without the

@@ -60,7 +60,8 @@ Stated here so they are not read as differences from a stock install.
   deleting him. silvermere's sysop can disconnect a player, send him a line, mute him, hold him
   in the jail room until a set time, ban his account or an IP address or block, and close the
   realm to all but sysops, from `silvermere sysop` or the admin API; each is stored and holds
-  across restarts. See [admin-api.md](admin-api.md#moderation),
+  across restarts. The sysop can also watch a player's screen and type as them, unseen, and run
+  the game's own `SYSOP` commands without logging in. See [admin-api.md](admin-api.md#moderation),
   [cli.md](cli.md#silvermere-sysop).
 - **Open signup.** Anyone may create an account with `NEW` (`game.open_signup = true`);
   [signup code](../crates/silvermere-auth/src/signup.rs). Set it to `false` and only a sysop can.

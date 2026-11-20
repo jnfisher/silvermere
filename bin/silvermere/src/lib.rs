@@ -15,6 +15,7 @@ pub mod gate;
 pub mod moderation;
 pub mod planned;
 pub mod restart;
+pub mod spectate;
 pub mod stock;
 pub mod store;
 pub mod web;
@@ -375,12 +376,16 @@ pub async fn serve_world_with_db(
     // tools; read back from the store below, before anyone connects
     let realm = std::sync::Arc::new(silvermere_auth::RealmGate::default());
     let ip_bans = std::sync::Arc::new(moderation::IpBans::default());
+    // the players' screens and their connections, for the sysop watching one
+    let screens = std::sync::Arc::new(silvermere_net::Screens::default());
+    let links = std::sync::Arc::new(spectate::Links::default());
     let net_cfg = silvermere_net::ServerConfig {
         ip_filter: Some(ip_bans.clone()),
         max_sessions: cfg.server.max_sessions as usize,
         // the engine and the login gate send `LineStarted` for every line they take (T-094)
         session: silvermere_net::SessionConfig {
             hold_line_echo: true,
+            screens: Some(screens.clone()),
             ..Default::default()
         },
         keepalive: (cfg.net.keepalive_secs > 0)
@@ -450,12 +455,15 @@ pub async fn serve_world_with_db(
         vitals.clone(),
         std::sync::Arc::new(backups.clone()),
         planned.clone(),
-        std::sync::Arc::new(moderation::Operator::new(
-            events_db.clone(),
-            to_engine.clone(),
-            realm.clone(),
-            ip_bans.clone(),
-        )),
+        std::sync::Arc::new(
+            moderation::Operator::new(
+                events_db.clone(),
+                to_engine.clone(),
+                realm.clone(),
+                ip_bans.clone(),
+            )
+            .watching(screens.clone(), links.clone()),
+        ),
     );
     // the web console's token: in memory only, for the console's in-process calls
     let console_secret = console::new_secret();
@@ -559,6 +567,7 @@ pub async fn serve_world_with_db(
                 },
                 login_timeout: (cfg.net.login_timeout_secs > 0)
                     .then(|| Duration::from_secs(u64::from(cfg.net.login_timeout_secs))),
+                ip_filter: Some(ip_bans.clone()),
             };
             tokio::spawn(gate::run(
                 net_rx,
@@ -602,6 +611,7 @@ pub async fn serve_world_with_db(
             events: game_events,
             store: store_tx,
             reload: Some(config_reloader(&cfg)),
+            links: Some(links.clone()),
         },
         vitals.engine_alive_flag(),
     ));

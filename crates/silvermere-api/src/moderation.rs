@@ -77,6 +77,11 @@ pub enum Action {
     CloseRealm { reason: String },
     /// Open the realm again.
     OpenRealm,
+    /// A line typed for the player as if he had typed it, by a sysop watching his screen;
+    /// nothing on his screen says so.
+    Input { player: String, line: String },
+    /// One in-game `SYSOP ...` line, run for the caller outside the game.
+    SysopLine { line: String },
 }
 
 /// Why an action was refused.
@@ -100,10 +105,16 @@ pub enum ModError {
     Store(String),
     /// This server has no moderation (the tests' in-process servers).
     Unavailable,
+    /// Not a `SYSOP ...` line.
+    NotSysopLine,
+    /// The `SYSOP` sub-command needs the sysop's character in the realm.
+    NeedsCharacter,
+    /// Every session slot is taken.
+    ServerFull,
 }
 
 impl ModError {
-    fn api(&self) -> ApiError {
+    pub(crate) fn api(&self) -> ApiError {
         match self {
             ModError::NoSuchPlayer => ApiError(StatusCode::NOT_FOUND, "no_such_player"),
             ModError::NotConnected => ApiError(StatusCode::CONFLICT, "not_connected"),
@@ -119,6 +130,9 @@ impl ModError {
             ModError::Unavailable => {
                 ApiError(StatusCode::SERVICE_UNAVAILABLE, "moderation_unavailable")
             }
+            ModError::NotSysopLine => ApiError(StatusCode::BAD_REQUEST, "not_sysop_line"),
+            ModError::NeedsCharacter => ApiError(StatusCode::CONFLICT, "needs_character"),
+            ModError::ServerFull => ApiError(StatusCode::SERVICE_UNAVAILABLE, "server_full"),
         }
     }
 }
@@ -130,6 +144,11 @@ pub trait Moderator: Send + Sync {
     fn act(&self, action: Action, by: String) -> BoxFuture<'_, Result<Value, ModError>>;
     /// The realm's state, the sanctions in force and the IP bans.
     fn status(&self) -> BoxFuture<'_, Result<Value, ModError>>;
+    /// The player's screen: what it shows now, then what follows, until he leaves.
+    fn watch(&self, player: String) -> BoxFuture<'_, Result<crate::spectate::Watch, ModError>> {
+        let _ = player;
+        Box::pin(async { Err(ModError::Unavailable) })
+    }
 }
 
 /// A server without moderation.
@@ -162,7 +181,12 @@ fn body<T: for<'de> Deserialize<'de> + Default>(raw: &[u8]) -> Result<T, ApiErro
     serde_json::from_slice(raw).map_err(|_| ApiError(StatusCode::BAD_REQUEST, "bad_body"))
 }
 
-async fn run(state: &ApiState, caller: &Caller, action: Action, audit: Value) -> Response {
+pub(crate) async fn run(
+    state: &ApiState,
+    caller: &Caller,
+    action: Action,
+    audit: Value,
+) -> Response {
     match state.moderation.act(action, caller.name.clone()).await {
         Ok(answer) => {
             let mut resp = Json(answer).into_response();

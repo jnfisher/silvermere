@@ -90,10 +90,13 @@ file publishes the port on the host's `127.0.0.1` only.
 | `POST` | `/v1/players/{name}/tell` | `write` | `{"text":"..."}` | `{"told":"Lars"}` |
 | `PUT` | `/v1/players/{name}/{kind}` | `admin` | `{"for_secs":n,"reason":"..."}` (both optional) | `{"player":"Lars","kind":"jail","until":"...","online":true,...}` |
 | `DELETE` | `/v1/players/{name}/{kind}` | `admin` | none | `{"player":"Lars","kind":"jail","lifted":true,...}` |
-| `POST` | `/v1/ip-bans` | `admin` | `{"network":"203.0.113.0/24","for_secs":n,"reason":"..."}` | `{"id":1,"network":"203.0.113.0/24","until":null}` |
+| `POST` | `/v1/ip-bans` | `admin` | `{"network":"203.0.113.0/24","for_secs":n,"reason":"..."}` | `{"id":1,"network":"203.0.113.0/24","until":null,"kicked":["Lars"]}` |
 | `DELETE` | `/v1/ip-bans` | `admin` | `{"network":"..."}` | `{"network":"...","lifted":true}` |
 | `POST` | `/v1/realm/close` | `admin` | `{"reason":"..."}` (optional) | `{"closed":true,"disconnected":n}` |
 | `POST` | `/v1/realm/open` | `admin` | none | `{"closed":false,"was_closed":true}` |
+| `GET` | `/v1/players/{name}/screen` | `admin` | none | SSE stream: `screen`, `out`, `end` |
+| `POST` | `/v1/players/{name}/input` | `admin` | `{"line":"look"}` | `{"player":"Lars","line":"look"}` |
+| `POST` | `/v1/sysop` | `admin` | `{"line":"SYSOP LIST USERS"}` | `{"output":"..."}` |
 <!-- built-routes:end -->
 
 Examples (`$T` is a token):
@@ -221,7 +224,7 @@ with what it set, and stored rows name the token in `by_whom`.
 | `PUT /v1/players/{name}/jail` | The player is moved to the jail room (`game.jail_room`) and held there: walking, following, being dragged, recall, teleports and summons out are refused. When the jail ends (or is lifted) he is told and moved to the reincarnation room, the town `SYSOP GOTO SILVERMERE` goes to. A jail that ended while he was away lets him out at his next entry to the realm. |
 | `PUT /v1/players/{name}/ban` | His logins are refused after the right password with `This account is banned until ...` and the reason, and the connection closes; a player in the game is disconnected, saved. A BBS door account (`door` flag) cannot be banned: `409 door_account`. |
 | `DELETE /v1/players/{name}/{kind}` | Lifts the mute, jail or ban. `404 not_sanctioned` when there was none. |
-| `POST /v1/ip-bans` | Telnet connections from the address or CIDR block are closed before the login screen; the rlogin door is never checked. Players already in the game stay. `network` is stored in its canonical form (`203.0.113.77/24` is `203.0.113.0/24`); banning it again replaces the ban. `400 bad_network` for anything else. |
+| `POST /v1/ip-bans` | Telnet connections from the address or CIDR block are closed before the login screen, and a login under way from it is closed when it finishes; the players in the realm who connected from it are told why, saved and disconnected (`kicked` names them). The rlogin door is never checked: its callers all come from the BBS. `network` is stored in its canonical form (`203.0.113.77/24` is `203.0.113.0/24`); banning it again replaces the ban. `400 bad_network` for anything else. |
 | `DELETE /v1/ip-bans` | Lifts the ban of `network`. `404 no_such_ban` when there is none. |
 | `POST /v1/realm/close` | Only sysops may log in (the rlogin door included, and no door signups); every player but the sysops is told `The realm is closed`, with the reason, saved and disconnected. It stays closed across restarts. |
 | `POST /v1/realm/open` | Everyone may log in again. |
@@ -240,6 +243,25 @@ A `PUT` answers `{"player":"Lars","account":12,"kind":"jail","until":"...","onli
 `until` is `null` for until lifted, and `online` says whether the running game was told (the
 player was connected). The rows are `account_sanctions`, `ip_bans` and `realm_closed`
 ([schema.md](schema.md)).
+
+### Watching a player, and the game's SYSOP commands
+
+`silvermere sysop spectate|type|game` call these routes, and the console's **Watch** button
+and command line ([web.md](web.md#the-console)). All three need the `admin` scope and are
+audited, watching included (`admin.players.<name>.screen`, `admin.players.<name>.input`
+with the `line`, `admin.sysop` with the `line`).
+
+| Route | What it does |
+|---|---|
+| `GET /v1/players/{name}/screen` | What the player sees, as server-sent events: first `screen` `{"player":"Lars","text":"..."}`, the screen as it stands (the last 8 KB written to it), then `out` `{"text":"..."}` for each write (the game's output and the echo of what the player types, ANSI codes kept), then `end` `{}` when the player leaves the realm. The player is not told. `409 not_connected` when the player is not in the realm. A watcher that stops reading is dropped. |
+| `POST /v1/players/{name}/input` | `line` goes to the game as if the player had typed it (as keys, Enter last, when the game is reading single keys); nothing on the player's screen shows it. An empty line is Enter. At most 254 characters, no control characters (`400 bad_line`). `409 not_connected` when the player is not in the realm. |
+| `POST /v1/sysop` | One of the game's own `SYSOP` commands ([sysop.md](sysop.md#sub-commands)), run for the caller outside the game: `output` is what it would have shown the caller (CP437 as text, ANSI codes kept, no prompt). It runs with a sysop's keys: a console sysop's own account's, a token's the default sysop set. The sub-commands that act on or from the operator's character in the realm are refused with `409 needs_character`: `GOTO`, `SUMMON`, `EXPRESS_TRAIN`, `MAP`, `RESET`, `REPORT USERS`, `REPORT NOTOPTEN` and `LIST GANG` (use them in the game). `400 not_sysop_line` for a line that is not `SYSOP ...`. |
+
+```sh
+curl -sN -H "Authorization: Bearer $T" localhost:8080/v1/players/Lars/screen
+curl -s -X POST -H "Authorization: Bearer $T" -H 'Content-Type: application/json' \
+     -d '{"line":"SYSOP GOD Lars INFO"}' localhost:8080/v1/sysop
+```
 
 ### `DELETE /v1/accounts/{id}`
 
@@ -430,7 +452,7 @@ here and in `/v1/who`.
 The web console ([web.md](web.md#the-console)) calls these routes inside the server with a
 token made at start and held in memory only, naming the signed-in sysop in the
 `X-Silvermere-Sysop` header: its rows name `web:<sysop>` as the token, and its `GET`s (it
-refreshes every few seconds) are not audited.
+refreshes every few seconds) are not audited, except watching a player's screen.
 
 Audit rows (`admin.*`): every authenticated call to a `/v1` route (including a `403` and the
 `501`s) is logged as `tracing::info!(target = "audit", route, token_name, status)` and
