@@ -446,13 +446,12 @@ fn planned(v: &Value) -> Option<String> {
         (0, true) => "The server is restarting now.\n".to_owned(),
         (_, false) => format!(
             "The server will stop at {local}, in {}. The players in the game are warned until \
-             then.\nCall it off with: silvermere sysop shutdown --cancel\n",
+             then.\nCall it off with: shutdown --cancel\n",
             crate::planned::how_long(secs)
         ),
         (_, true) => format!(
             "The server will restart at {local}, in {}. The players in the game are warned \
-             until then; a backup is taken before it starts again.\nCall it off with: \
-             silvermere sysop restart --cancel\n",
+             until then; a backup is taken before it starts again.\nCall it off with: restart --cancel\n",
             crate::planned::how_long(secs)
         ),
     })

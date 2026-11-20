@@ -195,9 +195,11 @@ async fn guard(
     if let Some(s) = live {
         let current = match &state.login {
             Some(check) => check.fingerprint(s.user.clone()).await,
-            None => None,
+            None => Ok(None),
         };
-        if current.as_deref() == Some(s.fingerprint.as_str()) {
+        if current.is_err() {
+            // the accounts cannot be read just now (a restart): the session stands, unrenewed
+        } else if current.as_ref().ok().and_then(|f| f.as_deref()) == Some(s.fingerprint.as_str()) {
             if !polling {
                 renew = Some(s.used_at(session::now()));
             }
@@ -771,7 +773,7 @@ async fn login(State(state): State<Shared>, Form(form): Form<Credentials>) -> Re
     let username = form.username.trim().to_owned();
     match check.login(username.clone(), form.password).await {
         LoginOutcome::Sysop(name) => {
-            let Some(fp) = check.fingerprint(name.clone()).await else {
+            let Ok(Some(fp)) = check.fingerprint(name.clone()).await else {
                 return html(
                     StatusCode::UNAUTHORIZED,
                     page::login(&c, Some("That account cannot sign in here."), &username),

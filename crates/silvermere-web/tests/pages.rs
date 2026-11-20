@@ -80,8 +80,8 @@ impl SysopLogin for OnlyBob {
     fn fingerprint(
         &self,
         username: String,
-    ) -> Pin<Box<dyn Future<Output = Option<String>> + Send + '_>> {
-        Box::pin(async move { (username == "Bob").then(|| "fp".to_owned()) })
+    ) -> Pin<Box<dyn Future<Output = Result<Option<String>, ()>> + Send + '_>> {
+        Box::pin(async move { Ok((username == "Bob").then(|| "fp".to_owned())) })
     }
 }
 

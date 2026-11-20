@@ -335,13 +335,20 @@ impl SysopLogin for AccountLogin {
     fn fingerprint(
         &self,
         username: String,
-    ) -> Pin<Box<dyn Future<Output = Option<String>> + Send + '_>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Option<String>, ()>> + Send + '_>> {
         Box::pin(async move {
-            let a = self.db.by_username(&username).await.ok()??;
+            let a = match self.db.by_username(&username).await {
+                Ok(Some(a)) => a,
+                Ok(None) => return Ok(None),
+                Err(e) => {
+                    tracing::warn!(%e, "web session check: the accounts cannot be read; the session stands");
+                    return Err(());
+                }
+            };
             if !has_role(&a, Role::Sysop) || a.password_hash.is_empty() {
-                return None;
+                return Ok(None);
             }
-            Some(password_fingerprint(&a.password_hash))
+            Ok(Some(password_fingerprint(&a.password_hash)))
         })
     }
 }

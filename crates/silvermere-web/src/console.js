@@ -180,29 +180,56 @@
     });
   }
 
+  // the rows by name, kept from one refresh to the next and updated in place, so a row
+  // never vanishes under the pointer
+  var rowsByName = {};
+  function setCell(td, text) {
+    if (td.textContent !== text) td.textContent = text;
+  }
   function renderPlayers() {
     var body = $("players").tBodies[0];
-    body.textContent = "";
+    var seen = {};
     state.players.forEach(function (p) {
-      var tr = document.createElement("tr");
-      var name = (p.first_name + " " + (p.last_name || "")).trim();
+      var key = p.first_name.toLowerCase();
+      seen[key] = true;
+      var tr = rowsByName[key];
+      if (!tr) {
+        tr = document.createElement("tr");
+        for (var i = 0; i < 9; i += 1) tr.appendChild(el("td"));
+        tr.cells[1].className = "room";
+        tr.cells[8].className = "flags";
+        tr.tabIndex = 0;
+        tr.addEventListener("click", function () { var r = findRow(key); select(r ? r.first_name : key, r && r.ip, r); });
+        tr.addEventListener("keydown", function (e) {
+          if (e.key === "Enter") { var r = findRow(key); select(r ? r.first_name : key, r && r.ip, r); }
+        });
+        rowsByName[key] = tr;
+      }
       var flags = [];
       if (p.jailed) flags.push("jailed");
       if (p.muted) flags.push("muted");
       if (p.hidden) flags.push("hidden");
-      tr.appendChild(el("td", name));
-      var room = el("td", p.room_name || "", "room");
-      if (p.room) room.appendChild(el("span", " " + p.room, "where"));
-      tr.appendChild(room);
-      [p.level, p.class, p.race, p.gang, idle(p.idle_secs), p.ip || ""].forEach(function (v) {
-        tr.appendChild(el("td", v));
+      setCell(tr.cells[0], (p.first_name + " " + (p.last_name || "")).trim());
+      var room = tr.cells[1];
+      var roomText = (p.room_name || "") + (p.room ? " " + p.room : "");
+      if (room.dataset.text !== roomText) {
+        room.dataset.text = roomText;
+        room.title = roomText;
+        room.textContent = p.room_name || "";
+        if (p.room) room.appendChild(el("span", " " + p.room, "where"));
+      }
+      [p.level, p.class, p.race, p.gang, idle(p.idle_secs), p.ip || ""].forEach(function (v, i) {
+        setCell(tr.cells[i + 2], String(v === undefined || v === null ? "" : v));
       });
-      tr.appendChild(el("td", flags.join(", "), "flags"));
-      tr.tabIndex = 0;
-      tr.addEventListener("click", function () { select(p.first_name, p.ip, p); });
-      tr.addEventListener("keydown", function (e) { if (e.key === "Enter") select(p.first_name, p.ip, p); });
-      if (selected && selected.name.toLowerCase() === p.first_name.toLowerCase()) tr.className = "here";
-      body.appendChild(tr);
+      setCell(tr.cells[8], flags.join(", "));
+      tr.className = selected && selected.name.toLowerCase() === key ? "here" : "";
+      body.appendChild(tr); // keeps the server's order; moves the row, never rebuilds it
+    });
+    Object.keys(rowsByName).forEach(function (key) {
+      if (!seen[key]) {
+        body.removeChild(rowsByName[key]);
+        delete rowsByName[key];
+      }
     });
     $("count").textContent = "(" + state.players.length + ")";
     $("nobody").hidden = state.players.length > 0;

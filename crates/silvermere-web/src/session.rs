@@ -48,12 +48,14 @@ pub trait SysopLogin: Send + Sync + 'static {
         password: String,
     ) -> Pin<Box<dyn Future<Output = LoginOutcome> + Send + '_>>;
 
-    /// A short fingerprint of the account's password, while it is a sysop; `None` when it
+    /// A short fingerprint of the account's password, while it is a sysop; `Ok(None)` when it
     /// is gone or no longer a sysop. A session made under another fingerprint has ended.
+    /// `Err` when the accounts cannot be read just now (the server restarting): the session
+    /// stands.
     fn fingerprint(
         &self,
         username: String,
-    ) -> Pin<Box<dyn Future<Output = Option<String>> + Send + '_>>;
+    ) -> Pin<Box<dyn Future<Output = Result<Option<String>, ()>> + Send + '_>>;
 }
 
 /// A signed-in sysop.

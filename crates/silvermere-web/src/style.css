@@ -140,7 +140,7 @@ button[type="submit"]:not(.link) {
 }
 
 /* ---- the console ------------------------------------------------------------------- */
-.console { max-width: 96rem; margin: 0 auto; padding: 0.75rem 1rem 22rem; }
+.console { max-width: 96rem; margin: 0 auto; padding: 0.75rem 1rem 17rem; }
 .console button[type="button"], .console button[type="submit"] {
   padding: 0.35rem 0.75rem; border: 1px solid var(--line); border-radius: 6px;
   background: var(--panel); color: var(--text); cursor: pointer; font: inherit; font-weight: 500;
@@ -163,7 +163,7 @@ button[type="submit"]:not(.link) {
 .stat b.warn { color: var(--warn); }
 .statusbar .buttons { margin-left: auto; }
 .buttons { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
-.console-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 0.9rem; align-items: start; }
+.console-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(20rem, 1fr); gap: 0.9rem; align-items: start; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 0.4rem 0.9rem 0.9rem; min-width: 0; }
 .panel h2 { font-size: 1.05rem; margin: 0.5rem 0 0.6rem; padding: 0; border: 0; }
 .panel .count { color: var(--muted); font-weight: 400; }
@@ -172,6 +172,9 @@ button[type="submit"]:not(.link) {
 #players tbody tr { cursor: pointer; }
 #players tbody tr:hover, #players tbody tr.here { background: var(--code); }
 #players td.flags { color: var(--warn); font-size: 0.85rem; }
+#players td, #players th { white-space: nowrap; padding: 0.3rem 0.5rem; }
+#players { font-size: 0.88rem; }
+#players td.room { max-width: 13rem; overflow: hidden; text-overflow: ellipsis; }
 #players td.room .where { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
 #detail { border-color: var(--accent); }
 #detail h2 { font-size: 1.25rem; }
@@ -196,7 +199,7 @@ form.inline label { display: grid; gap: 0.2rem; font-size: 0.85rem; color: var(-
   padding: 0.45rem 1rem; background: var(--code); font-weight: 600;
 }
 .drawer pre {
-  margin: 0; height: 13rem; overflow-y: auto; border-radius: 0; padding: 0.5rem 1rem;
+  margin: 0; height: 9rem; overflow-y: auto; border-radius: 0; padding: 0.5rem 1rem;
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
 .drawer pre .cmd { color: var(--accent); }

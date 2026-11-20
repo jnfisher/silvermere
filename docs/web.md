@@ -61,6 +61,8 @@ with the sysop's name.
 
 `/console` is the sysop's view of the running server, on one page:
 
+![The console with 64 players in the realm: the status bar, the players and where they stand, and a player's panel](images/console.png)
+
 - **The status bar**: players in the realm, the server's health, whether the realm is open,
   the last backup and any planned shutdown or restart, with buttons to close or open the
   realm, back up now, restart, shut down, and cancel what is planned.
@@ -103,7 +105,7 @@ signed in. It ends:
   12 hours at most;
 - when you sign out;
 - at once when the account is no longer a sysop or its password changes (every request
-  checks).
+  checks; while the accounts cannot be read, during a restart, the session stands).
 
 Delete `web-session.key` and restart to end every session.
 
