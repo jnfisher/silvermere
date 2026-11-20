@@ -14,7 +14,8 @@ web_bind = "127.0.0.1:8088"   # host:port; empty = off. The web pages: documenta
 
 [admin]
 # tokens = []   # none by default; one [[admin.tokens]] table per token, see below. Also SILVERMERE_ADMIN_TOKENS (a JSON array)
-# A non-loopback server.admin_bind refuses to start without at least one token.
+# allow_remote = false   # a non-loopback server.admin_bind refuses to start unless this is true
+# A non-loopback server.admin_bind also refuses to start without at least one token.
 # [[admin.tokens]]
 # name = "ops"   # shown in the audit rows
 # token = "<a long random secret>"

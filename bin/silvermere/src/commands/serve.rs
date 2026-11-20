@@ -24,7 +24,11 @@ pub fn run_with(cfg: &Config, args: &ServeArgs, first_start: bool) -> anyhow::Re
         print!("{}", cfg.to_toml()?);
         return Ok(ExitCode::SUCCESS);
     }
-    silvermere_api::check_bind(&cfg.server.admin_bind, cfg.admin.tokens.len())?;
+    silvermere_api::check_bind(
+        &cfg.server.admin_bind,
+        cfg.admin.tokens.len(),
+        cfg.admin.allow_remote,
+    )?;
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?;

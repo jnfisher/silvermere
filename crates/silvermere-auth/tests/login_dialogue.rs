@@ -672,3 +672,81 @@ async fn takeover_off_refuses_as_before() {
     assert!(!out.contains(&Output::Text(AuthMsg::TakeoverPrompt)));
     assert!(evicted.0.lock().unwrap().is_empty());
 }
+
+#[tokio::test]
+async fn a_banned_account_is_told_why_and_closed_after_the_right_password() {
+    let svc = service().await;
+    let id = svc.account("Kasimir").await.unwrap().unwrap().id;
+    let until = Timestamp::from_second(1_800_003_600).unwrap();
+    svc.store().set_ban(
+        id,
+        Some(silvermere_auth::account::Ban {
+            until: Some(until),
+            reason: "spamming gossip".into(),
+        }),
+    );
+    // a wrong password says nothing of the ban
+    let (out, _) = run(&svc, LoginConfig::default(), &["Kasimir", "wrong"]).await;
+    assert!(texts(&out).contains(&"Invalid Credentials".to_string()));
+    let (out, dlg) = run(&svc, LoginConfig::default(), &["Kasimir", "kangtest1"]).await;
+    assert_eq!(dlg.state(), &State::Closed(CloseReason::Banned));
+    assert!(
+        texts(&out).contains(
+            &"This account is banned until 2027-01-15 09:00 UTC. Reason: spamming gossip"
+                .to_string()
+        ),
+        "{:?}",
+        texts(&out)
+    );
+    assert_eq!(out.last(), Some(&Output::Close));
+    assert!(!svc.online().contains(id), "a refused login claims nothing");
+    // a ban with no end and no reason
+    svc.store().set_ban(
+        id,
+        Some(silvermere_auth::account::Ban {
+            until: None,
+            reason: String::new(),
+        }),
+    );
+    let (out, _) = run(&svc, LoginConfig::default(), &["Kasimir", "kangtest1"]).await;
+    assert!(texts(&out).contains(&"This account is banned.".to_string()));
+    // lifted: in again
+    svc.store().set_ban(id, None);
+    let (_, dlg) = run(&svc, LoginConfig::default(), &["Kasimir", "kangtest1"]).await;
+    assert!(matches!(dlg.state(), State::Done(_)));
+}
+
+#[tokio::test]
+async fn a_closed_realm_refuses_players_and_admits_sysops() {
+    let svc = service().await;
+    svc.store()
+        .insert(
+            &NewAccount {
+                username: "Boss".into(),
+                password_hash: password::hash_with("bosstest1", Cost::Low),
+                email: None,
+                sex: Sex::Male,
+                roles: [silvermere_auth::Role::Player, silvermere_auth::Role::Sysop]
+                    .into_iter()
+                    .collect(),
+            },
+            Timestamp::UNIX_EPOCH,
+        )
+        .await
+        .unwrap();
+    svc.realm().close("upgrading to 1.0");
+    let (out, dlg) = run(&svc, LoginConfig::default(), &["Kasimir", "kangtest1"]).await;
+    assert_eq!(dlg.state(), &State::Closed(CloseReason::RealmClosed));
+    assert!(
+        texts(&out).contains(
+            &"The realm is closed: upgrading to 1.0. Please try again later.".to_string()
+        ),
+        "{:?}",
+        texts(&out)
+    );
+    let (_, dlg) = run(&svc, LoginConfig::default(), &["Boss", "bosstest1"]).await;
+    assert!(matches!(dlg.state(), State::Done(_)), "a sysop logs in");
+    svc.realm().open();
+    let (_, dlg) = run(&svc, LoginConfig::default(), &["Kasimir", "kangtest1"]).await;
+    assert!(matches!(dlg.state(), State::Done(_)));
+}

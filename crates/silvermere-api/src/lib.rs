@@ -20,6 +20,7 @@ pub mod broadcast;
 pub mod events;
 pub mod health;
 pub mod metrics;
+pub mod moderation;
 pub mod reload;
 pub mod reserved;
 pub mod router;
@@ -30,6 +31,7 @@ pub use auth::{Scope, Token};
 pub use backup::{BackupProbe, NoBackups};
 pub use events::{EventKind, EventLog, EventRecord, NewEvent};
 pub use health::HealthProbe;
+pub use moderation::{Action, ModError, Moderator, NoModeration};
 pub use reload::WorldLoader;
 pub use router::{ApiState, RouteSpec, router, routes, serve};
 pub use shutdown::{NoShutdown, Planned, ShutdownPlan};
@@ -42,11 +44,30 @@ pub enum BindError {
     /// `server.admin_bind` is not `host:port`.
     #[error("server.admin_bind `{0}` is not host:port")]
     Invalid(String),
+    /// A non-loopback bind without `admin.allow_remote = true`.
+    #[error(
+        "server.admin_bind is {0}, which other computers can reach. The admin API is meant for \
+         this computer: anyone who can reach it can try tokens, and an admin token can delete \
+         accounts and shut the server down. To allow it anyway, set admin.allow_remote = true. \
+         See docs/admin-api.md#remote"
+    )]
+    NotAllowedRemote(String),
     /// A non-loopback bind with no token configured would expose an open admin API.
     #[error(
         "server.admin_bind `{0}` is reachable from other hosts but no [[admin.tokens]] is configured"
     )]
     OpenToTheNetwork(String),
+}
+
+/// The warning logged at every start, and shown by the web console, while the admin API
+/// listens on an address other computers reach (`admin.allow_remote = true`).
+pub fn remote_warning(bind: &str) -> String {
+    format!(
+        "The admin API is reachable from other computers ({bind}, admin.allow_remote = true). \
+         It is plain HTTP: tokens and everything sent to it can be read on the network. Keep it \
+         behind an SSH tunnel, a private network such as Tailscale, or a reverse proxy with TLS. \
+         In Docker this is expected: it is safe while the port is published on 127.0.0.1 only."
+    )
 }
 
 /// Whether `bind` resolves only to loopback addresses.
@@ -64,13 +85,17 @@ pub fn is_loopback_bind(bind: &str) -> Result<bool, BindError> {
     }))
 }
 
-/// The startup check: binding anything but a loopback
-/// address without at least one token refuses to start.
-pub fn check_bind(bind: &str, token_count: usize) -> Result<(), BindError> {
-    if is_loopback_bind(bind)? || token_count > 0 {
+/// The startup check: binding anything but a loopback address refuses to start unless
+/// `allow_remote` is set and at least one token is configured.
+pub fn check_bind(bind: &str, token_count: usize, allow_remote: bool) -> Result<(), BindError> {
+    if is_loopback_bind(bind)? {
         Ok(())
-    } else {
+    } else if !allow_remote {
+        Err(BindError::NotAllowedRemote(bind.to_string()))
+    } else if token_count == 0 {
         Err(BindError::OpenToTheNetwork(bind.to_string()))
+    } else {
+        Ok(())
     }
 }
 
@@ -80,20 +105,33 @@ mod tests {
 
     #[test]
     fn loopback_needs_no_token() {
-        assert!(check_bind("127.0.0.1:8080", 0).is_ok());
-        assert!(check_bind("[::1]:8080", 0).is_ok());
+        assert!(check_bind("127.0.0.1:8080", 0, false).is_ok());
+        assert!(check_bind("[::1]:8080", 0, false).is_ok());
     }
 
     #[test]
-    fn open_bind_needs_a_token() {
+    fn open_bind_needs_allow_remote_and_a_token() {
         assert!(matches!(
-            check_bind("0.0.0.0:8080", 0),
+            check_bind("0.0.0.0:8080", 1, false),
+            Err(BindError::NotAllowedRemote(_))
+        ));
+        assert!(matches!(
+            check_bind("0.0.0.0:8080", 0, true),
             Err(BindError::OpenToTheNetwork(_))
         ));
-        assert!(check_bind("0.0.0.0:8080", 1).is_ok());
+        assert!(check_bind("0.0.0.0:8080", 1, true).is_ok());
         assert!(matches!(
-            check_bind("nonsense", 1),
+            check_bind("nonsense", 1, true),
             Err(BindError::Invalid(_))
         ));
+    }
+
+    #[test]
+    fn the_refusal_names_the_setting() {
+        let e = check_bind("0.0.0.0:8080", 1, false)
+            .unwrap_err()
+            .to_string();
+        assert!(e.contains("admin.allow_remote = true"), "{e}");
+        assert!(e.contains("0.0.0.0:8080"), "{e}");
     }
 }

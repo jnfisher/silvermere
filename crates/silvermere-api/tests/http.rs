@@ -48,10 +48,47 @@ impl silvermere_api::ShutdownPlan for FakeShutdown {
     }
 }
 
+/// Moderation that only notes what it was asked; `nobody` is no player.
+#[derive(Default)]
+struct FakeModerator {
+    actions: Mutex<Vec<(silvermere_api::Action, String)>>,
+}
+
+impl silvermere_api::Moderator for FakeModerator {
+    fn act(
+        &self,
+        action: silvermere_api::Action,
+        by: String,
+    ) -> silvermere_api::events::BoxFuture<'_, Result<Value, silvermere_api::ModError>> {
+        use silvermere_api::Action;
+        let refused = matches!(
+            &action,
+            Action::Kick { player, .. } | Action::Put { player, .. } if player == "nobody"
+        );
+        self.actions.lock().unwrap().push((action, by));
+        Box::pin(async move {
+            if refused {
+                Err(silvermere_api::ModError::NoSuchPlayer)
+            } else {
+                Ok(json!({ "ok": true }))
+            }
+        })
+    }
+
+    fn status(
+        &self,
+    ) -> silvermere_api::events::BoxFuture<'_, Result<Value, silvermere_api::ModError>> {
+        Box::pin(async {
+            Ok(json!({ "realm": { "closed": false }, "sanctions": [], "ip_bans": [] }))
+        })
+    }
+}
+
 struct Server {
     addr: std::net::SocketAddr,
     state: ApiState,
     shutdown: Arc<FakeShutdown>,
+    moderator: Arc<FakeModerator>,
     world: Arc<FakeWorld>,
     /// Snapshots the fake engine received through `ReloadContent`.
     reloads: Arc<Mutex<usize>>,
@@ -100,6 +137,7 @@ async fn server() -> Server {
     }
     let world = Arc::new(FakeWorld::default());
     let shutdown = Arc::new(FakeShutdown::default());
+    let moderator = Arc::new(FakeModerator::default());
     let (_recorder, handle) = metrics::build();
     let state = ApiState {
         engine: tx.clone(),
@@ -114,6 +152,7 @@ async fn server() -> Server {
         world: world.clone(),
         backup: Arc::new(silvermere_api::NoBackups),
         shutdown: shutdown.clone(),
+        moderation: moderator.clone(),
         tokens: Arc::new(
             TOKENS
                 .iter()
@@ -131,6 +170,7 @@ async fn server() -> Server {
         addr,
         state,
         shutdown,
+        moderator,
         world,
         reloads,
         engine_fails,
@@ -182,10 +222,16 @@ async fn request(
 /// A concrete request path for a route template.
 fn concrete(path: &str) -> String {
     path.replace("{id}", "7")
+        .replace("{name}", "Lars")
+        .replace("{kind}", "jail")
 }
 
 fn body_for(method: &str, path: &str) -> Option<&'static str> {
-    (method == "POST" && path == "/v1/broadcast").then_some(r#"{"text":"hello"}"#)
+    match (method, path) {
+        ("POST", "/v1/broadcast" | "/v1/players/{name}/tell") => Some(r#"{"text":"hello"}"#),
+        (_, "/v1/ip-bans") => Some(r#"{"network":"203.0.113.7"}"#),
+        _ => None,
+    }
 }
 
 #[tokio::test]
@@ -382,6 +428,239 @@ async fn reload_failure_is_500_reload_failed_from_the_loader_or_the_engine() {
     );
     assert!(r.json()["message"].is_string());
     assert_eq!(*srv.reloads.lock().unwrap(), 1);
+}
+
+// The moderation routes: each body becomes its action, named by the token; the scopes,
+// the limits and the errors.
+#[tokio::test]
+async fn moderation_routes_check_their_bodies_and_pass_the_action_on() {
+    use silvermere_api::Action;
+    use silvermere_api::moderation::Kind;
+    let srv = server().await;
+    let call = |method: &'static str, path: &'static str, token, body: Option<&'static str>| {
+        request(srv.addr, method, path, Some(token), body)
+    };
+    let r = call(
+        "PUT",
+        "/v1/players/Lars/jail",
+        "root-secret",
+        Some(r#"{"for_secs":3600,"reason":" pk in town "}"#),
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let r = call("PUT", "/v1/players/Lars/mute", "root-secret", None).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let r = call("DELETE", "/v1/players/Lars/ban", "root-secret", None).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let r = call(
+        "POST",
+        "/v1/players/Lars/kick",
+        "root-secret",
+        Some(r#"{"reason":"break"}"#),
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let r = call(
+        "POST",
+        "/v1/players/Lars/tell",
+        "write-secret",
+        Some(r#"{"text":"hello"}"#),
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let r = call(
+        "POST",
+        "/v1/ip-bans",
+        "root-secret",
+        Some(r#"{"network":"203.0.113.0/24"}"#),
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let r = call(
+        "DELETE",
+        "/v1/ip-bans",
+        "root-secret",
+        Some(r#"{"network":"203.0.113.0/24"}"#),
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let r = call(
+        "POST",
+        "/v1/realm/close",
+        "root-secret",
+        Some(r#"{"reason":"upgrading"}"#),
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let r = call("POST", "/v1/realm/open", "root-secret", None).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let r = call("GET", "/v1/moderation", "read-secret", None).await;
+    assert_eq!(
+        (r.status, r.json()["realm"]["closed"].clone()),
+        (200, json!(false))
+    );
+    assert_eq!(
+        srv.moderator.actions.lock().unwrap().clone(),
+        vec![
+            (
+                Action::Put {
+                    player: "Lars".into(),
+                    kind: Kind::Jail,
+                    for_secs: Some(3600),
+                    reason: "pk in town".into()
+                },
+                "root".into()
+            ),
+            (
+                Action::Put {
+                    player: "Lars".into(),
+                    kind: Kind::Mute,
+                    for_secs: None,
+                    reason: String::new()
+                },
+                "root".into()
+            ),
+            (
+                Action::Lift {
+                    player: "Lars".into(),
+                    kind: Kind::Ban
+                },
+                "root".into()
+            ),
+            (
+                Action::Kick {
+                    player: "Lars".into(),
+                    reason: "break".into()
+                },
+                "root".into()
+            ),
+            (
+                Action::Tell {
+                    player: "Lars".into(),
+                    text: "hello".into()
+                },
+                "writer".into()
+            ),
+            (
+                Action::BanIp {
+                    network: "203.0.113.0/24".into(),
+                    for_secs: None,
+                    reason: String::new()
+                },
+                "root".into()
+            ),
+            (
+                Action::UnbanIp {
+                    network: "203.0.113.0/24".into()
+                },
+                "root".into()
+            ),
+            (
+                Action::CloseRealm {
+                    reason: "upgrading".into()
+                },
+                "root".into()
+            ),
+            (Action::OpenRealm, "root".into()),
+        ]
+    );
+    // refusals reach no moderator
+    for (method, path, token, body, status, code) in [
+        (
+            "PUT",
+            "/v1/players/Lars/jail",
+            "root-secret",
+            Some(r#"{"for_secs":0}"#),
+            400,
+            "bad_duration",
+        ),
+        (
+            "PUT",
+            "/v1/players/Lars/jail",
+            "root-secret",
+            Some(r#"{"for_secs":315360001}"#),
+            400,
+            "bad_duration",
+        ),
+        (
+            "PUT",
+            "/v1/players/Lars/ban",
+            "root-secret",
+            Some(r#"{"reason":"a\u001bb"}"#),
+            400,
+            "bad_text",
+        ),
+        (
+            "PUT",
+            "/v1/players/Lars/ban",
+            "root-secret",
+            Some(r#"{"until":"tomorrow"}"#),
+            400,
+            "bad_body",
+        ),
+        (
+            "PUT",
+            "/v1/players/Lars/frog",
+            "root-secret",
+            None,
+            404,
+            "not_found",
+        ),
+        (
+            "POST",
+            "/v1/players/Lars/tell",
+            "write-secret",
+            Some(r#"{"text":"  "}"#),
+            400,
+            "bad_text",
+        ),
+        (
+            "PUT",
+            "/v1/players/Lars/ban",
+            "write-secret",
+            None,
+            403,
+            "forbidden",
+        ),
+        (
+            "POST",
+            "/v1/players/Lars/kick",
+            "write-secret",
+            None,
+            403,
+            "forbidden",
+        ),
+        (
+            "POST",
+            "/v1/realm/close",
+            "write-secret",
+            None,
+            403,
+            "forbidden",
+        ),
+        (
+            "POST",
+            "/v1/players/Lars/tell",
+            "read-secret",
+            Some(r#"{"text":"x"}"#),
+            403,
+            "forbidden",
+        ),
+    ] {
+        let r = request(srv.addr, method, path, Some(token), body).await;
+        assert_eq!(
+            (r.status, r.json()["error"].clone()),
+            (status, json!(code)),
+            "{method} {path} {body:?}"
+        );
+    }
+    assert_eq!(srv.moderator.actions.lock().unwrap().len(), 9);
+    // the moderator's own refusal
+    let r = call("PUT", "/v1/players/nobody/ban", "root-secret", None).await;
+    assert_eq!(
+        (r.status, r.json()["error"].clone()),
+        (404, json!("no_such_player"))
+    );
 }
 
 // POST /v1/shutdown: the defaults, the limits, and the audit row; DELETE cancels.

@@ -105,6 +105,13 @@ pub fn move_user_with(
         }
         return false;
     }
+    // a sysop's jail (silvermere's own): nobody walks out of it
+    if crate::moderation::holds(world, id, None) {
+        if how == 3 {
+            stop_following(world, leader, id);
+        }
+        return false;
+    }
     // a march keeps a sneaker sneaking; nobody drags in a party
     let mut movesneak = sneak;
     let mut movedrag = drag.is_some();
@@ -567,6 +574,10 @@ pub fn clear_search_flags_of(plr: &mut Character, state: Option<&mut RoomState>)
 /// (not when the old room has the same), and entering a colliseum from outside under the
 /// arena-safe option keeps his hit points for later.
 pub fn set_user_location(world: &mut World, id: SessionId, room: RoomKey, no_history: bool) {
+    // a sysop's jail (silvermere's own): no teleport, recall or summons out of it
+    if crate::moderation::holds(world, id, Some(room)) {
+        return;
+    }
     let Some(rm) = world.room(room) else {
         return;
     };

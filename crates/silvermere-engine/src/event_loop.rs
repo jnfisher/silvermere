@@ -63,6 +63,36 @@ pub enum AdminRequest {
         account: silvermere_types::ids::AccountId,
         reply: Sender<session::AccountDeletion>,
     },
+    /// `silvermere sysop kick`: the player on `account` is told why, saved and
+    /// disconnected ([`crate::moderation::kick`]). The reply is his name, `None` when he
+    /// is not connected.
+    Kick {
+        account: silvermere_types::ids::AccountId,
+        reason: String,
+        reply: Sender<Option<String>>,
+    },
+    /// `silvermere sysop tell`: a line to the player on `account`
+    /// ([`crate::moderation::tell`]). The reply is his name, `None` when he is not connected.
+    Tell {
+        account: silvermere_types::ids::AccountId,
+        text: String,
+        reply: Sender<Option<String>>,
+    },
+    /// `silvermere sysop mute|jail` (`Some`) and `unmute|release` (`None`), stored by the
+    /// caller first ([`crate::moderation::set`]). The reply is the player's name, `None`
+    /// when he is not connected.
+    Sanction {
+        account: silvermere_types::ids::AccountId,
+        kind: crate::moderation::Kind,
+        sanction: Option<crate::moderation::Sanction>,
+        reply: Sender<Option<String>>,
+    },
+    /// `silvermere sysop realm close`: every player but the sysops is disconnected
+    /// ([`crate::moderation::close_realm`]); the reply is how many.
+    CloseRealm {
+        reason: String,
+        reply: Sender<usize>,
+    },
 }
 
 /// One row of `/v1/who`: what `display_scan_of_users` shows for a player,
@@ -86,6 +116,14 @@ pub struct WhoEntry {
     pub gang: String,
     /// Seconds since the session's last input.
     pub idle_secs: u64,
+    /// The address the connection comes from.
+    pub ip: Option<std::net::IpAddr>,
+    /// The account's id.
+    pub account: Option<silvermere_types::ids::AccountId>,
+    /// The sysop's mute is in force.
+    pub muted: bool,
+    /// The sysop's jail is in force.
+    pub jailed: bool,
     /// The sysop made himself invisible (`INVISB`): the in-game list skips him, the sysop's
     /// own view does not.
     pub hidden: bool,
@@ -222,6 +260,26 @@ pub enum GameEvent {
     Rerolled { id: SessionId },
     /// The session's character trained to `level` (`train_level`, T-039).
     Level { id: SessionId, level: u16 },
+    /// The session's character entered the realm, from `ip`.
+    Login {
+        id: SessionId,
+        name: String,
+        ip: Option<std::net::IpAddr>,
+    },
+    /// The session's character left the realm: `how` is `exit` (QUIT or X), `hangup` (the
+    /// connection dropped) or `closed` (the server closed it: a kick, a ban, the realm
+    /// closing, the shutdown).
+    Logoff {
+        id: SessionId,
+        name: String,
+        how: &'static str,
+    },
+    /// The session's character died in `room`.
+    Death {
+        id: SessionId,
+        name: String,
+        room: silvermere_types::ids::RoomKey,
+    },
     /// A sysop action (the operator-visible ones of the sysop commands and the sysop
     /// menu, T-055): `kind` is `sysop.<keyword>`, `user` the operator's user-id.
     Sysop {
@@ -254,6 +312,9 @@ impl GameEvent {
             Self::Suicided { .. } => "suicided",
             Self::Rerolled { .. } => "rerolled",
             Self::Level { .. } => "level",
+            Self::Login { .. } => "login",
+            Self::Logoff { .. } => "logoff",
+            Self::Death { .. } => "death",
             Self::Audit { kind, .. } => kind,
             Self::Sysop { kind, .. } => kind,
         }
@@ -267,6 +328,9 @@ impl GameEvent {
             | Self::Suicided { id }
             | Self::Rerolled { id }
             | Self::Level { id, .. }
+            | Self::Login { id, .. }
+            | Self::Logoff { id, .. }
+            | Self::Death { id, .. }
             | Self::Sysop { id, .. } => Some(*id),
             Self::Audit { .. } => None,
         }
@@ -323,6 +387,13 @@ pub enum PersistRequest {
     DeleteProfile(silvermere_types::ids::AccountId),
     /// Delete the account's kept evil points (the sysop menu's C, T-055).
     DeleteEvilPoints(silvermere_types::ids::AccountId),
+    /// A sysop's jail ended: delete its `account_sanctions` row, unless the row now holds
+    /// another one (its `until`, Unix seconds, differs).
+    LiftSanction {
+        account: silvermere_types::ids::AccountId,
+        kind: &'static str,
+        until: Option<i64>,
+    },
     /// Save a gang record (marked modified, written back when its buffer is saved; inserted
     /// when new, as CREATE does). T-044.
     Gang(silvermere_types::records::Gang),
@@ -638,6 +709,8 @@ impl<C: Clock, R: Rng> Engine<C, R> {
                 crate::state::sysop_menu::on_tick(world);
                 // the store's acknowledgements waiting on logins in progress (T-088)
                 crate::player::settle_characters_written(world);
+                // the sysop's mutes and jails whose time is up
+                crate::moderation::on_tick(world);
                 metrics::histogram!(crate::metrics::TICK_SECONDS).record(started.elapsed());
                 self.last_tick = Some(report);
             }
@@ -685,6 +758,31 @@ impl<C: Clock, R: Rng> Engine<C, R> {
             }
             AdminRequest::DeleteAccount { account, reply } => {
                 session::delete_account(world, account, reply);
+            }
+            AdminRequest::Kick {
+                account,
+                reason,
+                reply,
+            } => {
+                let _ = reply.send(crate::moderation::kick(world, account, &reason));
+            }
+            AdminRequest::Tell {
+                account,
+                text,
+                reply,
+            } => {
+                let _ = reply.send(crate::moderation::tell(world, account, &text));
+            }
+            AdminRequest::Sanction {
+                account,
+                kind,
+                sanction,
+                reply,
+            } => {
+                let _ = reply.send(crate::moderation::set(world, account, kind, sanction));
+            }
+            AdminRequest::CloseRealm { reason, reply } => {
+                let _ = reply.send(crate::moderation::close_realm(world, &reason));
             }
         }
     }
@@ -800,6 +898,14 @@ fn who_rows(world: &World, now: Instant) -> Vec<WhoEntry> {
                 idle_secs: now.saturating_duration_since(s.idle_since).as_secs(),
                 // No card sets `INVISB` yet (T-055 ports the sysop console).
                 hidden: false,
+                ip: s.peer,
+                account: s.account.as_ref().map(|a| a.id),
+                muted: s
+                    .sanctions
+                    .mute
+                    .as_ref()
+                    .is_some_and(|m| m.active_at(world.wall)),
+                jailed: crate::moderation::jailed(world, id),
             })
         })
         .collect();

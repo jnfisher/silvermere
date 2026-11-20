@@ -28,9 +28,12 @@ async fn pair() -> (
     // A small channel, so the engine side is the slow one.
     let (tx, mut events) = mpsc::channel(4);
     let commands = spawn_session(SessionId(7), server, tx);
+    // the address comes first, then the connection
     let (id, first) = events.recv().await.unwrap();
     assert_eq!(id, SessionId(7));
-    assert!(matches!(first, SessionEvent::Connected(_)));
+    assert_eq!(first, SessionEvent::Peer(LOOPBACK.ip()));
+    let (_, second) = events.recv().await.unwrap();
+    assert!(matches!(second, SessionEvent::Connected(_)));
     (client, events, commands)
 }
 
@@ -199,6 +202,7 @@ async fn a_lines_cr_echo_waits_for_the_engine_to_start_the_line() {
         ..SessionConfig::default()
     };
     let commands = spawn_session_with(SessionId(7), server, tx, config);
+    assert_eq!(next(&mut events).await, SessionEvent::Peer(LOOPBACK.ip()));
     assert!(matches!(
         next(&mut events).await,
         SessionEvent::Connected(_)
@@ -255,6 +259,7 @@ async fn serve_refuses_connections_over_the_cap() {
 
     let _first = TcpStream::connect(addr).await.unwrap();
     let (id, _commands) = registry.recv().await.unwrap();
+    assert_eq!(next(&mut events).await, SessionEvent::Peer(LOOPBACK.ip()));
     assert_eq!(
         next(&mut events).await,
         SessionEvent::Connected(Default::default())
@@ -336,4 +341,43 @@ async fn a_line_behind_a_held_one_is_taken_when_line_done_is_already_queued() {
             }
         }
     }
+}
+
+/// A refusing filter closes a telnet connection before anything is sent; the engine never
+/// hears of it, and the next allowed connection is served.
+#[tokio::test]
+async fn serve_closes_connections_the_ip_filter_refuses() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    #[derive(Debug, Default)]
+    struct Toggle(AtomicBool);
+    impl silvermere_net::IpFilter for Toggle {
+        fn refuses(&self, ip: std::net::IpAddr) -> bool {
+            assert_eq!(ip, LOOPBACK.ip());
+            self.0.load(Ordering::SeqCst)
+        }
+    }
+
+    let filter = Arc::new(Toggle(AtomicBool::new(true)));
+    let config = ServerConfig {
+        ip_filter: Some(filter.clone()),
+        ..ServerConfig::default()
+    };
+    let listener = bind(LOOPBACK, &config).unwrap();
+    let addr = listener.local_addr().unwrap();
+    let (tx, mut events) = mpsc::channel(16);
+    let (reg_tx, _registry) = mpsc::unbounded_channel();
+    tokio::spawn(serve(listener, config, tx, reg_tx));
+
+    let mut banned = TcpStream::connect(addr).await.unwrap();
+    let mut got = Vec::new();
+    timeout(Duration::from_secs(2), banned.read_to_end(&mut got))
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(got.is_empty(), "nothing is sent to a banned address");
+    filter.0.store(false, Ordering::SeqCst);
+    let _allowed = TcpStream::connect(addr).await.unwrap();
+    assert_eq!(next(&mut events).await, SessionEvent::Peer(LOOPBACK.ip()));
 }

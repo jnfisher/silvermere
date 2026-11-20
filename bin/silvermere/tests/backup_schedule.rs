@@ -224,6 +224,7 @@ async fn the_admin_api_shows_the_last_run_and_the_backups() {
     cfg.server.telnet_bind = "127.0.0.1:0".into();
     cfg.server.admin_bind = "127.0.0.1:0".into();
     cfg.admin = AdminCfg {
+        allow_remote: false,
         tokens: vec![TokenCfg {
             name: "ops".into(),
             sha256: None,
@@ -289,6 +290,7 @@ async fn a_scheduled_backup_runs_inside_a_serving_server() {
     cfg.server.admin_bind = "127.0.0.1:0".into();
     cfg.game.cleanup.tz = "UTC".into();
     cfg.admin = AdminCfg {
+        allow_remote: false,
         tokens: vec![TokenCfg {
             name: "ops".into(),
             sha256: None,

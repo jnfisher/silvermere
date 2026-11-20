@@ -51,6 +51,8 @@ pub struct ApiState {
     pub backup: Arc<dyn BackupProbe>,
     /// The planned shutdown for `/v1/shutdown`.
     pub shutdown: Arc<dyn crate::shutdown::ShutdownPlan>,
+    /// Kicks, bans, jail, mutes and the closed realm for the moderation routes.
+    pub moderation: Arc<dyn crate::moderation::Moderator>,
 }
 
 impl ApiState {
@@ -69,7 +71,10 @@ fn message_of(code: &str) -> &'static str {
     match code {
         "unauthorized" => "a valid bearer token is required",
         "forbidden" => "the token lacks the scope this route needs",
-        "bad_text" => "text must be 1 to 1000 characters with no control characters",
+        "bad_text" => {
+            "text must have no control characters and be 1 to 1000 characters for a broadcast, \
+             at most 200 for a reason or a message"
+        }
         "bad_query" => "the query string is not valid for this route",
         "engine_unavailable" => "the game engine is not running",
         "engine_timeout" => "the game engine did not answer in time",
@@ -80,6 +85,15 @@ fn message_of(code: &str) -> &'static str {
         "bad_delay" => "in_secs must be 0 to 86400",
         "bad_body" => "the request body is not the JSON this route takes",
         "shutdown_unavailable" => "this server cannot schedule its own shutdown",
+        "no_such_player" => "no character or account has that name",
+        "not_connected" => "the player is not connected",
+        "door_account" => "a BBS door account: the BBS manages its own users",
+        "bad_network" => "network must be an IP address or CIDR block",
+        "no_such_ban" => "no ban of that address or block",
+        "not_sanctioned" => "the player has no sanction of that kind",
+        "bad_duration" => "for_secs must be 1 to 315360000, or absent for until lifted",
+        "store_failed" => "the database refused the change; the cause is in the server log",
+        "moderation_unavailable" => "this server has no moderation",
         "not_found" => "no such route",
         "internal" => "internal error",
         _ => "error",
@@ -135,6 +149,20 @@ pub fn routes() -> Vec<RouteSpec> {
         r("DELETE", "/v1/accounts/{id}", Some(Scope::Admin), true),
         r("POST", "/v1/shutdown", Some(Scope::Admin), true),
         r("DELETE", "/v1/shutdown", Some(Scope::Admin), true),
+        r("GET", "/v1/moderation", Some(Scope::Read), true),
+        r("POST", "/v1/players/{name}/kick", Some(Scope::Admin), true),
+        r("POST", "/v1/players/{name}/tell", Some(Scope::Write), true),
+        r("PUT", "/v1/players/{name}/{kind}", Some(Scope::Admin), true),
+        r(
+            "DELETE",
+            "/v1/players/{name}/{kind}",
+            Some(Scope::Admin),
+            true,
+        ),
+        r("POST", "/v1/ip-bans", Some(Scope::Admin), true),
+        r("DELETE", "/v1/ip-bans", Some(Scope::Admin), true),
+        r("POST", "/v1/realm/close", Some(Scope::Admin), true),
+        r("POST", "/v1/realm/open", Some(Scope::Admin), true),
     ];
     for table in reserved::RESOURCES {
         for (method, suffix) in [
@@ -193,7 +221,20 @@ pub fn router(state: ApiState) -> Router {
         .route(
             "/v1/shutdown",
             post(crate::shutdown::schedule).delete(crate::shutdown::cancel),
-        );
+        )
+        .route("/v1/moderation", get(crate::moderation::status))
+        .route("/v1/players/{name}/kick", post(crate::moderation::kick))
+        .route("/v1/players/{name}/tell", post(crate::moderation::tell))
+        .route(
+            "/v1/players/{name}/{kind}",
+            axum::routing::put(crate::moderation::put).delete(crate::moderation::lift),
+        )
+        .route(
+            "/v1/ip-bans",
+            post(crate::moderation::ban_ip).delete(crate::moderation::unban_ip),
+        )
+        .route("/v1/realm/close", post(crate::moderation::close_realm))
+        .route("/v1/realm/open", post(crate::moderation::open_realm));
     let v1 = reserved::register(v1).layer(middleware::from_fn_with_state(state.clone(), guard));
     Router::new()
         .route("/healthz", get(health::healthz))

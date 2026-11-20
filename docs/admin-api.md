@@ -17,19 +17,53 @@ route needs `Authorization: Bearer <token>`:
 Every error body has the shape `{"error": "<code>", "message": "<human text>"}`; the codes
 are `unauthorized`, `forbidden`, `bad_text`, `engine_unavailable` (503), `engine_timeout`
 (504), `reload_failed` (500), `bad_id` (400), `no_such_account` (404), `delete_failed` (500),
-`bad_delay` (400), `bad_body` (400), `shutdown_unavailable` (503) and `reserved` (501).
+`bad_delay` (400), `bad_body` (400), `shutdown_unavailable` (503), `reserved` (501), and for
+the [moderation routes](#moderation) `no_such_player` (404), `not_connected` (409),
+`door_account` (409), `bad_network` (400), `no_such_ban` (404), `not_sanctioned` (404),
+`bad_duration` (400), `store_failed` (500) and `moderation_unavailable` (503).
 
 | Scope | Allows |
 |---|---|
-| `read` | the `GET` routes: `/v1/who` (hidden sysops omitted), `/v1/events` |
-| `write` | routes that change the running game: `/v1/broadcast`, `/v1/reload-world` |
-| `admin` | everything, including `DELETE /v1/accounts/{id}`, `/v1/shutdown` and the reserved world routes; `/v1/who` includes hidden sysops |
+| `read` | the `GET` routes: `/v1/who` (hidden sysops omitted), `/v1/events`, `/v1/backup`, `/v1/moderation` |
+| `write` | routes that change the running game: `/v1/broadcast`, `/v1/reload-world`, `/v1/players/{name}/tell` |
+| `admin` | everything, including `DELETE /v1/accounts/{id}`, `/v1/shutdown`, the moderation routes (kick, ban, jail, mute, IP bans, closing the realm) and the reserved world routes; `/v1/who` includes hidden sysops |
 
 `write` does not include `read`: give an operator tool both. (The T-018 names `broadcast`
 and `sysop` are still accepted in the config and mean `write` and `admin`.)
 
-Binding anything but a loopback address with no token configured refuses to start
-(`silvermere_api::check_bind`).
+Binding anything but a loopback address refuses to start unless `admin.allow_remote = true`
+and at least one token is configured (`silvermere_api::check_bind`, [below](#remote)).
+
+## Remote
+
+The admin API is for the computer the server runs on: the CLI, scripts and monitoring there.
+It is plain HTTP, its tokens are long-lived, and an `admin` token can delete accounts and shut
+the server down, so it is not made to face the internet.
+
+`server.admin_bind` on an address other computers reach (`0.0.0.0:8080`, a LAN address) is
+refused at start:
+
+```
+server.admin_bind is 0.0.0.0:8080, which other computers can reach. The admin API is meant for
+this computer: anyone who can reach it can try tokens, and an admin token can delete accounts
+and shut the server down. To allow it anyway, set admin.allow_remote = true. See
+docs/admin-api.md#remote
+```
+
+With `admin.allow_remote = true` (`SILVERMERE_ADMIN__ALLOW_REMOTE=true`) it starts if a token is
+configured, and logs this warning at every start:
+
+```
+The admin API is reachable from other computers (0.0.0.0:8080, admin.allow_remote = true). It
+is plain HTTP: tokens and everything sent to it can be read on the network. Keep it behind an
+SSH tunnel, a private network such as Tailscale, or a reverse proxy with TLS. In Docker this is
+expected: it is safe while the port is published on 127.0.0.1 only.
+```
+
+To reach it from another computer without opening it: `ssh -L 8080:127.0.0.1:8080
+you@server`, then use `http://127.0.0.1:8080` there. The Docker image sets
+`admin.allow_remote`, since inside the container the API must listen on `0.0.0.0`; the compose
+file publishes the port on the host's `127.0.0.1` only.
 
 ## Built routes
 
@@ -46,6 +80,15 @@ Binding anything but a loopback address with no token configured refuses to star
 | `DELETE` | `/v1/accounts/{id}` | `admin` | none | `{"deleted":{"account":id,"character":"..."}}` |
 | `POST` | `/v1/shutdown` | `admin` | `{"in_secs":n,"message":"..."}` (both optional) | `{"at":"...","in_secs":n}` |
 | `DELETE` | `/v1/shutdown` | `admin` | none | `{"cancelled":true}` |
+| `GET` | `/v1/moderation` | `read` | none | `{"realm":{...},"sanctions":[...],"ip_bans":[...]}` |
+| `POST` | `/v1/players/{name}/kick` | `admin` | `{"reason":"..."}` (optional) | `{"kicked":"Lars"}` |
+| `POST` | `/v1/players/{name}/tell` | `write` | `{"text":"..."}` | `{"told":"Lars"}` |
+| `PUT` | `/v1/players/{name}/{kind}` | `admin` | `{"for_secs":n,"reason":"..."}` (both optional) | `{"player":"Lars","kind":"jail","until":"...","online":true,...}` |
+| `DELETE` | `/v1/players/{name}/{kind}` | `admin` | none | `{"player":"Lars","kind":"jail","lifted":true,...}` |
+| `POST` | `/v1/ip-bans` | `admin` | `{"network":"203.0.113.0/24","for_secs":n,"reason":"..."}` | `{"id":1,"network":"203.0.113.0/24","until":null}` |
+| `DELETE` | `/v1/ip-bans` | `admin` | `{"network":"..."}` | `{"network":"...","lifted":true}` |
+| `POST` | `/v1/realm/close` | `admin` | `{"reason":"..."}` (optional) | `{"closed":true,"disconnected":n}` |
+| `POST` | `/v1/realm/open` | `admin` | none | `{"closed":false,"was_closed":true}` |
 <!-- built-routes:end -->
 
 Examples (`$T` is a token):
@@ -114,11 +157,13 @@ names, case-blind alphabetical).
 ```json
 {"players":[{"session_id":1,"first_name":"Abe","last_name":"Smith","title":"Apprentice",
   "class":"Warrior","race":"Human","level":3,"alignment":-5,"gang":"","idle_secs":7,
-  "hidden":false}]}
+  "hidden":false,"ip":"203.0.113.7","account":12,"muted":false,"jailed":false}]}
 ```
 
 `alignment` is the player's evil points; `gang` is empty for none;
-`idle_secs` is seconds since the last input. A sysop who made himself invisible is listed only
+`idle_secs` is seconds since the last input; `ip` is the address the connection comes from
+(an rlogin door player's is the BBS's); `account` is the account id; `muted` and `jailed` say
+whether a sysop's mute or jail is in force ([below](#moderation)). A sysop who made himself invisible is listed only
 for an `admin` token (the in-game list hides him from players).
 
 ### `POST /v1/broadcast`
@@ -146,6 +191,48 @@ monsters, gangs, bank books) is not touched. Answers
 (counts are the rows read.) If the database read or the engine's checks fail (a special room
 is missing from the new tables), nothing is replaced and the answer is
 `500 {"error":"reload_failed","message":"..."}`; the cause is in the server log.
+
+### Moderation
+
+A sysop's tools for the players (silvermere's own; the original had none of them).
+`silvermere sysop kick|tell|mute|unmute|jail|release|ban|unban|ban-ip|unban-ip|moderation|realm`
+call these routes ([cli.md](cli.md#silvermere-sysop)).
+
+`{name}` is a character's first name or an account's username, ignoring case (the account's
+username is tried first). Each sanction is stored before the running game is told, so it
+holds for a player who is not connected from his next login, and across restarts.
+`for_secs` is how long from now (1 to 315360000, ten years); absent or `null` is until lifted.
+A reason or text is at most 200 characters with no control character (`400 bad_text`).
+Each call is audited (`admin.players.<name>.<action>`, `admin.ip-bans`, `admin.realm.close`)
+with what it set, and stored rows name the token in `by_whom`.
+
+| Route | What it does |
+|---|---|
+| `POST /v1/players/{name}/kick` | The player is told `You have been disconnected by the sysop.`, with the reason, saved as a logoff saves (no hang-up penalty) and disconnected. `409 not_connected` when he is not connected. |
+| `POST /v1/players/{name}/tell` | `The sysop tells you: <text>` to the player, in the game or at the menus. `409 not_connected` when he is not connected. |
+| `PUT /v1/players/{name}/mute` | No gossip or auction (with text) until it ends: `You are muted until ...` |
+| `PUT /v1/players/{name}/jail` | The player is moved to the jail room (`game.jail_room`) and held there: walking, following, being dragged, recall, teleports and summons out are refused. When the jail ends (or is lifted) he is told and moved to the reincarnation room, the town `SYSOP GOTO SILVERMERE` goes to. A jail that ended while he was away lets him out at his next entry to the realm. |
+| `PUT /v1/players/{name}/ban` | His logins are refused after the right password with `This account is banned until ...` and the reason, and the connection closes; a player in the game is disconnected, saved. A BBS door account (`door` flag) cannot be banned: `409 door_account`. |
+| `DELETE /v1/players/{name}/{kind}` | Lifts the mute, jail or ban. `404 not_sanctioned` when there was none. |
+| `POST /v1/ip-bans` | Telnet connections from the address or CIDR block are closed before the login screen; the rlogin door is never checked. Players already in the game stay. `network` is stored in its canonical form (`203.0.113.77/24` is `203.0.113.0/24`); banning it again replaces the ban. `400 bad_network` for anything else. |
+| `DELETE /v1/ip-bans` | Lifts the ban of `network`. `404 no_such_ban` when there is none. |
+| `POST /v1/realm/close` | Only sysops may log in (the rlogin door included, and no door signups); every player but the sysops is told `The realm is closed`, with the reason, saved and disconnected. It stays closed across restarts. |
+| `POST /v1/realm/open` | Everyone may log in again. |
+| `GET /v1/moderation` | The realm's state, the sanctions in force and the IP bans in force. |
+
+```json
+{"realm":{"closed":true,"reason":"upgrading to 1.0","by":"ops","at":"2026-11-20T18:00:00Z"},
+ "sanctions":[{"account":12,"username":"lars","character":"Lars","kind":"jail",
+   "until":"2026-11-21T18:00:00Z","reason":"player killing in town","by":"ops",
+   "at":"2026-11-20T18:00:00Z"}],
+ "ip_bans":[{"id":1,"network":"203.0.113.0/24","until":null,"reason":"bots","by":"ops",
+   "at":"2026-11-20T18:05:00Z"}]}
+```
+
+A `PUT` answers `{"player":"Lars","account":12,"kind":"jail","until":"...","online":true}`:
+`until` is `null` for until lifted, and `online` says whether the running game was told (the
+player was connected). The rows are `account_sanctions`, `ip_bans` and `realm_closed`
+([schema.md](schema.md)).
 
 ### `DELETE /v1/accounts/{id}`
 
@@ -277,16 +364,26 @@ a client may already subscribe to it.
 |---|---|---|---|
 | `connected` | `connected` | yes | engine: a session opened or closed |
 | `closed` | `closed` | yes | engine: a session opened or closed |
-| `login` | `login` | not yet | engine: reserved, not emitted yet |
-| `logoff` | `logoff` | not yet | engine: reserved, not emitted yet |
-| `death` | `death` | not yet | engine: reserved, not emitted yet |
+| `login` | `login` | yes | engine: a character entered the realm |
+| `logoff` | `logoff` | yes | engine: a character left the realm |
+| `death` | `death` | yes | engine: a character died |
 | `level` | `level` | yes | engine: a character trained a level (train_level) |
 | `auth` | `auth.*` | yes | silvermere-auth: login failures, lockouts, account changes |
 | `admin` | `admin.*` | yes | this API: the audit row of each authenticated call |
 <!-- event-kinds:end -->
 
-Engine rows (`connected`, `closed`, `level`) carry the `session`. The payload of `level` is
-`{"level": N}`, the level the character trained to; the others have `{}`.
+Engine rows (`connected`, `closed`, `login`, `logoff`, `death`, `level`) carry the
+`session`. Their payloads:
+
+| Kind | Payload |
+|---|---|
+| `login` | `{"name": "Lars", "ip": "203.0.113.7"}`: the character entered the realm, from that address (`null` when unknown) |
+| `logoff` | `{"name": "Lars", "how": "exit"}`: the character left the realm; `how` is `exit` (QUIT or X), `hangup` (the connection dropped) or `closed` (the server closed it: a kick, a ban, the realm closing, the shutdown) |
+| `death` | `{"name": "Lars"}`, with the `room` where he died |
+| `level` | `{"level": N}`, the level the character trained to |
+
+`connected` and `closed` have `{}`. Tokens with the `read` scope see the players' addresses
+here and in `/v1/who`.
 
 Audit rows (`admin.*`): every authenticated call to a `/v1` route (including a `403` and the
 `501`s) is logged as `tracing::info!(target = "audit", route, token_name, status)` and

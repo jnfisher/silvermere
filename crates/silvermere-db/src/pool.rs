@@ -187,6 +187,10 @@ impl Db {
     pub fn events(&self) -> Events<'_> {
         Events::new(self)
     }
+    /// Bans, jail, mutes, IP bans and the closed realm.
+    pub fn moderation(&self) -> crate::repo::Moderation<'_> {
+        crate::repo::Moderation::new(self)
+    }
 }
 
 /// `sqlite:` URLs get `mode=rwc` so the file is created; a bare `sqlite://` means an

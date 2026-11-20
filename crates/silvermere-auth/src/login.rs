@@ -37,6 +37,7 @@ use crate::AuthError;
 use crate::account::{Account, AccountFlags, AccountStore, NewAccount, Sex, USERNAME_MAX, is_new};
 use crate::lockout::{Lockout, LockoutConfig};
 use crate::password::{self, Secret};
+use crate::roles::{Role, has_role};
 use crate::signup::SignupState;
 
 /// The catalogue of this crate's texts, `messages/auth.toml`.
@@ -74,6 +75,18 @@ pub enum AuthMsg {
     },
     /// The account already has a session.
     DuplicateLogin,
+    /// A sysop banned the account; the connection closes.
+    Banned {
+        /// ` until 2026-12-01 18:00 UTC`, or empty for a ban with no end.
+        until: String,
+        /// ` Reason: ...`, or empty.
+        reason: String,
+    },
+    /// The realm is closed to all but sysops; the connection closes.
+    RealmClosed {
+        /// `: <the sysop's reason>`, or empty.
+        reason: String,
+    },
     /// The account already has a session: disconnect it? (`net.login_takeover`)
     TakeoverPrompt,
     /// The takeover question again, after an answer that is neither Y nor N.
@@ -121,12 +134,14 @@ impl AuthMsg {
     /// Every key of `messages/auth.toml`, in the catalogue's (sorted) order.
     pub const KEYS: &'static [&'static str] = &[
         "account_locked",
+        "banned",
         "banner",
         "duplicate_login",
         "invalid_credentials",
         "login_intro",
         "no_password",
         "password_prompt",
+        "realm_closed",
         "rlogin_refused",
         "signup_closed",
         "signup_confirm_prompt",
@@ -162,6 +177,8 @@ impl AuthMsg {
             Self::InvalidCredentials => "invalid_credentials",
             Self::AccountLocked { .. } => "account_locked",
             Self::DuplicateLogin => "duplicate_login",
+            Self::Banned { .. } => "banned",
+            Self::RealmClosed { .. } => "realm_closed",
             Self::TakeoverPrompt => "takeover_prompt",
             Self::TakeoverQuestion => "takeover_question",
             Self::TakeoverFailed => "takeover_failed",
@@ -184,6 +201,32 @@ impl AuthMsg {
         }
     }
 
+    /// The ban message for `ban`.
+    pub fn banned(ban: &crate::account::Ban) -> Self {
+        Self::Banned {
+            until: ban
+                .until
+                .map(|u| format!(" until {}", u.strftime("%Y-%m-%d %H:%M UTC")))
+                .unwrap_or_default(),
+            reason: if ban.reason.is_empty() {
+                String::new()
+            } else {
+                format!(" Reason: {}", ban.reason)
+            },
+        }
+    }
+
+    /// The closed-realm message for the sysop's `reason` (may be empty).
+    pub fn realm_closed(reason: &str) -> Self {
+        Self::RealmClosed {
+            reason: if reason.is_empty() {
+                String::new()
+            } else {
+                format!(": {reason}")
+            },
+        }
+    }
+
     /// The pattern registry name, if the entry has one.
     pub fn pattern(&self) -> Option<&'static str> {
         auth_catalogue().messages[self.key()].pattern.as_deref()
@@ -193,6 +236,10 @@ impl AuthMsg {
         match (self, name) {
             (Self::Banner { banner }, "banner") => banner.clone(),
             (Self::AccountLocked { minutes }, "minutes") => minutes.to_string(),
+            (Self::Banned { until, .. }, "until") => until.clone(),
+            (Self::Banned { reason, .. }, "reason") | (Self::RealmClosed { reason }, "reason") => {
+                reason.clone()
+            }
             (Self::SignupPasswordInvalid { max }, "max") => max.to_string(),
             _ => panic!("{}: no argument {name}", self.key()),
         }
@@ -242,6 +289,10 @@ pub enum CloseReason {
     TooManyAttempts,
     /// The account already has a session.
     DuplicateLogin,
+    /// A sysop banned the account.
+    Banned,
+    /// The realm is closed to all but sysops.
+    RealmClosed,
 }
 
 /// A question for the account store; answered with [`LoginDialogue::on_reply`].
@@ -281,7 +332,7 @@ pub enum Request {
 }
 
 /// Why an authentication was refused.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Refusal {
     /// Unknown name or wrong password.
     InvalidCredentials,
@@ -296,6 +347,10 @@ pub enum Refusal {
     NoPassword,
     /// rlogin named an account that is not a door account ([`LoginService::trusted_login`]).
     NotDoorAccount,
+    /// A sysop banned the account.
+    Banned(crate::account::Ban),
+    /// The realm is closed to all but sysops; the sysop's reason, possibly empty.
+    RealmClosed(String),
 }
 
 /// The store's answer to a [`Request`].
@@ -582,6 +637,18 @@ impl LoginDialogue {
 
     /// A refused login: say why, and ask again or close after the last attempt.
     fn refused(&mut self, refusal: Refusal, out: &mut Vec<Output>) {
+        let ends = match &refusal {
+            Refusal::Banned(ban) => Some((AuthMsg::banned(ban), CloseReason::Banned)),
+            Refusal::RealmClosed(reason) => {
+                Some((AuthMsg::realm_closed(reason), CloseReason::RealmClosed))
+            }
+            _ => None,
+        };
+        if let Some((msg, reason)) = ends {
+            out.push(Output::Text(msg));
+            self.close(reason, out);
+            return;
+        }
         out.push(Output::Text(match refusal {
             Refusal::Locked { minutes } => AuthMsg::AccountLocked { minutes },
             Refusal::NoPassword => AuthMsg::NoPassword,
@@ -648,6 +715,33 @@ impl Online {
     }
 }
 
+/// Whether the realm is open: a closed realm logs in only sysops. Shared by every login
+/// (`LoginService::realm`); the server sets it from the stored state at start and when a
+/// sysop closes or opens the realm.
+#[derive(Debug, Default)]
+pub struct RealmGate(Mutex<Option<String>>);
+
+impl RealmGate {
+    fn lock(&self) -> std::sync::MutexGuard<'_, Option<String>> {
+        self.0.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Closes the realm, telling whoever is refused `reason` (may be empty).
+    pub fn close(&self, reason: &str) {
+        *self.lock() = Some(reason.to_string());
+    }
+
+    /// Opens the realm.
+    pub fn open(&self) {
+        *self.lock() = None;
+    }
+
+    /// The reason, while the realm is closed.
+    pub fn closed(&self) -> Option<String> {
+        self.lock().clone()
+    }
+}
+
 /// How long a takeover waits for the other session to let go of the account. The
 /// transport gives a closing session at most five seconds to drain its output.
 pub const TAKEOVER_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
@@ -667,6 +761,7 @@ pub struct LoginService<S, C> {
     clock: C,
     lockout: Lockout,
     online: Online,
+    realm: std::sync::Arc<RealmGate>,
     cost: password::Cost,
     evict: Option<std::sync::Arc<dyn Evict>>,
 }
@@ -678,6 +773,7 @@ impl<S: std::fmt::Debug, C: std::fmt::Debug> std::fmt::Debug for LoginService<S,
             .field("clock", &self.clock)
             .field("lockout", &self.lockout)
             .field("online", &self.online)
+            .field("realm", &self.realm)
             .field("cost", &self.cost)
             .field("evict", &self.evict.is_some())
             .finish()
@@ -701,6 +797,7 @@ impl<S: AccountStore, C: Clock> LoginService<S, C> {
             clock,
             lockout: Lockout::new(lockout),
             online: Online::default(),
+            realm: std::sync::Arc::default(),
             cost: password::Cost::Default,
             evict: None,
         }
@@ -709,6 +806,12 @@ impl<S: AccountStore, C: Clock> LoginService<S, C> {
     /// Lets a login take an account over from its other session ([`Self::take_over`]).
     pub fn with_evict(mut self, evict: std::sync::Arc<dyn Evict>) -> Self {
         self.evict = Some(evict);
+        self
+    }
+
+    /// Shares `realm` with the sysop's tools, which close and open it.
+    pub fn with_realm(mut self, realm: std::sync::Arc<RealmGate>) -> Self {
+        self.realm = realm;
         self
     }
 
@@ -736,6 +839,41 @@ impl<S: AccountStore, C: Clock> LoginService<S, C> {
     /// The online set; the session releases its account here when it ends.
     pub fn online(&self) -> &Online {
         &self.online
+    }
+
+    /// Whether the realm is open to everyone or to sysops only.
+    pub fn realm(&self) -> &RealmGate {
+        &self.realm
+    }
+
+    /// Why `account`, whose password checked out, may not log in now: a closed realm
+    /// (sysops excepted), then a ban. Audited as `auth.login_refused`.
+    async fn barred(
+        &self,
+        account: &Account,
+        now: Timestamp,
+        via: Option<&str>,
+    ) -> Result<Option<Refusal>, AuthError> {
+        let id = account.id;
+        let refusal = match self.realm.closed() {
+            Some(reason) if !has_role(account, Role::Sysop) => Some(Refusal::RealmClosed(reason)),
+            _ if via.is_some() => None,
+            _ => self.store.ban(id, now).await?.map(Refusal::Banned),
+        };
+        if let Some(r) = &refusal {
+            let why = match r {
+                Refusal::Banned(_) => "banned",
+                _ => "realm_closed",
+            };
+            tracing::info!(target: "audit", account = id.0, username = %account.username, reason = why, "login refused");
+            let mut payload =
+                serde_json::json!({ "account": id.0, "username": account.username, "reason": why });
+            if let Some(via) = via {
+                payload["via"] = via.into();
+            }
+            self.audit(now, "auth.login_refused", payload).await?;
+        }
+        Ok(refusal)
     }
 
     /// The account named `username` with its lockout fields filled in.
@@ -997,6 +1135,9 @@ impl<S: AccountStore, C: Clock> LoginService<S, C> {
             }
             return Ok(Err(Refusal::InvalidCredentials));
         }
+        if let Some(refusal) = self.barred(&account, now, None).await? {
+            return Ok(Err(refusal));
+        }
         Ok(Ok(account))
     }
 
@@ -1084,6 +1225,9 @@ impl<S: AccountStore, C: Clock> LoginService<S, C> {
             return Ok(Err(Refusal::Locked {
                 minutes: Lockout::minutes_left(until, now),
             }));
+        }
+        if let Some(refusal) = self.barred(&account, now, Some("rlogin")).await? {
+            return Ok(Err(refusal));
         }
         if self.online.contains(id)
             && !(take_over && self.evict_and_wait(&account, Some("rlogin")).await?)

@@ -34,6 +34,10 @@ fn row(id: u16, slot: usize, first: &str, hidden: bool) -> WhoEntry {
         gang: String::new(),
         idle_secs: 7,
         hidden,
+        ip: Some(std::net::IpAddr::from([203, 0, 113, 7])),
+        account: Some(silvermere_types::ids::AccountId(i64::from(id))),
+        muted: false,
+        jailed: id == 2,
     }
 }
 
@@ -89,6 +93,7 @@ fn harness() -> Harness {
         world: Arc::new(common::FakeWorld::default()),
         backup: Arc::new(silvermere_api::NoBackups),
         shutdown: Arc::new(silvermere_api::NoShutdown),
+        moderation: Arc::new(silvermere_api::NoModeration),
         tokens: Arc::new(vec![
             Token::new("reader", "read-secret", &[Scope::Read]),
             Token::new("caster", "cast-secret", &[Scope::Write]),

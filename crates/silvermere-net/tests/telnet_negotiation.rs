@@ -34,6 +34,7 @@ async fn start() -> Harness {
         events,
         commands,
     };
+    assert!(matches!(h.event().await, SessionEvent::Peer(_)));
     assert_eq!(
         h.event().await,
         SessionEvent::Connected(Capabilities::default())

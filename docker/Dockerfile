@@ -52,10 +52,11 @@ COPY --from=builder --chown=65532:65532 /out/data /data
 # Relative defaults (sqlite://data/silvermere.db) land in /data.
 WORKDIR /
 # The binary defaults to a loopback admin bind; in a container the port is published instead.
-# check_bind refuses a non-loopback admin bind without a token, so supply SILVERMERE_ADMIN_TOKENS
-# (compose does, from .env).
+# A non-loopback admin bind needs admin.allow_remote and a token, so supply
+# SILVERMERE_ADMIN_TOKENS (compose does, from .env) and publish 8080 on the host's 127.0.0.1.
 ENV SILVERMERE_DATA_DIR=/data \
-    SILVERMERE_SERVER__ADMIN_BIND=0.0.0.0:8080
+    SILVERMERE_SERVER__ADMIN_BIND=0.0.0.0:8080 \
+    SILVERMERE_ADMIN__ALLOW_REMOTE=true
 VOLUME /data
 EXPOSE 2323 8080 8088
 USER 65532:65532

@@ -19,7 +19,7 @@ database, asks for a sysop account if there is none, then serves.
 | [`restore`](#silvermere-restore) | put a backup back | no, it refuses |
 | [`migrate`](#silvermere-migrate) | apply schema migrations | no, it refuses |
 | [`admin token`](#silvermere-admin-token) | make admin API tokens | yes |
-| [`sysop`](#silvermere-sysop) | sysop commands over the admin API | needs one running |
+| [`sysop`](#silvermere-sysop) | sysop commands over the admin API: who, broadcast, kick, ban, jail, mute, close the realm, shutdown | needs one running |
 | [`healthcheck`](#silvermere-healthcheck) | probe the admin API's `/healthz` | needs one running |
 
 ## Global flags
@@ -254,6 +254,19 @@ silvermere sysop broadcast <MESSAGE>
 silvermere sysop reload-world
 silvermere sysop shutdown [--in <DURATION>] [MESSAGE]
 silvermere sysop shutdown --cancel
+silvermere sysop kick <PLAYER> [REASON]
+silvermere sysop tell <PLAYER> <MESSAGE>
+silvermere sysop mute <PLAYER> [--for <DURATION>] [REASON]
+silvermere sysop unmute <PLAYER>
+silvermere sysop jail <PLAYER> [--for <DURATION>] [REASON]
+silvermere sysop release <PLAYER>
+silvermere sysop ban <PLAYER> [--for <DURATION>] [REASON]
+silvermere sysop unban <PLAYER>
+silvermere sysop ban-ip <NETWORK> [--for <DURATION>] [REASON]
+silvermere sysop unban-ip <NETWORK>
+silvermere sysop moderation
+silvermere sysop realm close [REASON]
+silvermere sysop realm open
 silvermere sysop --json <SUBCOMMAND>
 ```
 
@@ -264,12 +277,31 @@ silvermere sysop --json <SUBCOMMAND>
 | `sysop reload-world` | reads the static world tables again from the database, with nobody disconnected | `POST /v1/reload-world` | `write` |
 | `sysop shutdown [MESSAGE]` | stops the server after warning the players in the game (when it is planned, then at 1 hour, 30, 15, 10, 5, 2 and 1 minutes, 30 and 10 seconds before), every character saved; `MESSAGE` goes with each warning. A second call replaces the plan | `POST /v1/shutdown` | `admin` |
 | `sysop shutdown --cancel` | calls the planned shutdown off and tells the players | `DELETE /v1/shutdown` | `admin` |
+| `sysop kick <PLAYER> [REASON]` | disconnects the player, saved as a logoff saves (no hang-up penalty), telling him why | `POST /v1/players/{name}/kick` | `admin` |
+| `sysop tell <PLAYER> <MESSAGE>` | `The sysop tells you: ...` to one player, in the game or at the menus | `POST /v1/players/{name}/tell` | `write` |
+| `sysop mute <PLAYER>` | no gossip or auction until it ends or is lifted | `PUT /v1/players/{name}/mute` | `admin` |
+| `sysop unmute <PLAYER>` | lifts the mute | `DELETE /v1/players/{name}/mute` | `admin` |
+| `sysop jail <PLAYER>` | moves the player to the jail room and holds him there: no walking, recall or teleport out. When it ends he is moved to town | `PUT /v1/players/{name}/jail` | `admin` |
+| `sysop release <PLAYER>` | lets the player out of jail, to town | `DELETE /v1/players/{name}/jail` | `admin` |
+| `sysop ban <PLAYER>` | refuses his logins with the reason and the end; a player in the game is disconnected, saved. Not for BBS door accounts | `PUT /v1/players/{name}/ban` | `admin` |
+| `sysop unban <PLAYER>` | lifts the ban | `DELETE /v1/players/{name}/ban` | `admin` |
+| `sysop ban-ip <NETWORK>` | closes telnet connections from an address or CIDR block (`203.0.113.7`, `203.0.113.0/24`, `2001:db8::/32`) before the login screen; the rlogin door is never checked, and players already in the game stay | `POST /v1/ip-bans` | `admin` |
+| `sysop unban-ip <NETWORK>` | lifts the ban of the address or block | `DELETE /v1/ip-bans` | `admin` |
+| `sysop moderation` | lists the bans, jails and mutes in force, the IP bans, and whether the realm is closed | `GET /v1/moderation` | `read` |
+| `sysop realm close [REASON]` | only sysops may log in; every other player is told, saved and disconnected. It stays closed across restarts | `POST /v1/realm/close` | `admin` |
+| `sysop realm open` | everyone may log in again | `POST /v1/realm/open` | `admin` |
 
 | Flag | Meaning |
 |---|---|
 | `--json` | print the server's JSON answer as it came, for scripts |
 | `--in <DURATION>` | with `shutdown`: how long until the stop: `90s`, `5m`, `1h`, `1h30m` or a number of seconds, at most a day (default `5m`) |
 | `--cancel` | with `shutdown`: call off the planned shutdown instead |
+| `--for <DURATION>` | with `mute`, `jail`, `ban` and `ban-ip`: how long: `30m`, `12h`, `7d`, `1d12h` or a number of seconds; without it, until lifted |
+
+`<PLAYER>` is a character's first name or an account's username, ignoring case; the sanction
+is stored, so it holds for a player who is not connected from his next login. The reason is
+told to the player (an IP ban's is kept for the sysops only). Details:
+[admin-api.md](admin-api.md#moderation).
 
 After the stop, the systemd service stays stopped until `systemctl start silvermere`; Docker's
 `restart: unless-stopped` starts it again at once. To upgrade under the service: plan the

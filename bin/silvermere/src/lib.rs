@@ -11,6 +11,7 @@ pub mod cmd_import;
 pub mod commands;
 pub mod config;
 pub mod gate;
+pub mod moderation;
 pub mod planned;
 pub mod stock;
 pub mod store;
@@ -368,7 +369,12 @@ pub async fn serve_world_with_db(
 ) -> anyhow::Result<Running> {
     world.compat = engine_compat(&cfg);
     let addr: SocketAddr = cfg.server.telnet_bind.parse()?;
+    // the closed realm and the IP bans, shared by the login, the listener and the sysop's
+    // tools; read back from the store below, before anyone connects
+    let realm = std::sync::Arc::new(silvermere_auth::RealmGate::default());
+    let ip_bans = std::sync::Arc::new(moderation::IpBans::default());
     let net_cfg = silvermere_net::ServerConfig {
+        ip_filter: Some(ip_bans.clone()),
         max_sessions: cfg.server.max_sessions as usize,
         // the engine and the login gate send `LineStarted` for every line they take (T-094)
         session: silvermere_net::SessionConfig {
@@ -416,6 +422,9 @@ pub async fn serve_world_with_db(
                 .with_context(|| format!("opening {}", cfg.database_shown()))?,
         ),
     };
+    moderation::restore(&events_db, &realm, &ip_bans)
+        .await
+        .context("reading the closed realm and the IP bans")?;
     let (shutdown, stop) = watch::channel(false);
     let (to_engine, from_bin) = mpsc::channel();
     let (outputs, from_engine) = mpsc::channel();
@@ -439,6 +448,12 @@ pub async fn serve_world_with_db(
         vitals.clone(),
         std::sync::Arc::new(backups.clone()),
         planned.clone(),
+        std::sync::Arc::new(moderation::Operator::new(
+            events_db.clone(),
+            to_engine.clone(),
+            realm.clone(),
+            ip_bans.clone(),
+        )),
     );
     silvermere_engine::metrics::describe_all();
     metrics::gauge!(
@@ -508,7 +523,8 @@ pub async fn serve_world_with_db(
                 silvermere_auth::SystemClock,
                 silvermere_auth::LockoutConfig::default(),
             )
-            .with_evict(std::sync::Arc::new(gate::GateEvict(control_tx.clone())));
+            .with_evict(std::sync::Arc::new(gate::GateEvict(control_tx.clone())))
+            .with_realm(realm.clone());
             let deps = gate::GateDeps {
                 service: std::sync::Arc::new(service),
                 db,

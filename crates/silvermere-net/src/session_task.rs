@@ -78,6 +78,8 @@ pub struct ServerConfig {
     /// it when the probes go unanswered ([`crate::keepalive`]); `None` for no probes.
     pub keepalive: Option<Duration>,
     pub session: SessionConfig,
+    /// The IP bans: a telnet connection it refuses is closed before anything is sent.
+    pub ip_filter: Option<Arc<dyn crate::network::IpFilter>>,
 }
 
 impl Default for ServerConfig {
@@ -88,6 +90,7 @@ impl Default for ServerConfig {
             socket_send_buffer: 32 * 1024,
             keepalive: None,
             session: SessionConfig::default(),
+            ip_filter: None,
         }
     }
 }
@@ -200,6 +203,14 @@ async fn accept_loop(
         {
             // whoever connects here says who they are: only the BBS may
             tracing::warn!(%peer, "rlogin from an address not in server.rlogin_trusted; closed");
+            drop(stream);
+            continue;
+        }
+        if rlogin.is_none()
+            && let Some(filter) = &shared.config.ip_filter
+            && filter.refuses(crate::network::canonical(peer.ip()))
+        {
+            tracing::info!(%peer, "connection from a banned address closed");
             drop(stream);
             continue;
         }
@@ -328,11 +339,18 @@ struct Session {
     held_echo: Vec<u8>,
     /// An rlogin session: plain bytes both ways, no telnet commands.
     raw: bool,
+    /// The address the connection comes from, sent to the engine first.
+    peer: Option<std::net::IpAddr>,
 }
 
 impl Session {
     fn new(stream: TcpStream, config: SessionConfig) -> Self {
+        let peer = stream
+            .peer_addr()
+            .ok()
+            .map(|a| crate::network::canonical(a.ip()));
         Self {
+            peer,
             stream: Some(stream),
             config,
             codec: TelnetCodec::new(),
@@ -388,6 +406,14 @@ impl Session {
         mut commands: mpsc::Receiver<SessionCommand>,
         rlogin: Option<RloginHello>,
     ) -> Reason {
+        if let Some(peer) = self.peer
+            && to_engine
+                .send((id, SessionEvent::Peer(peer)))
+                .await
+                .is_err()
+        {
+            return Reason::Closed;
+        }
         if let Some(hello) = rlogin
             && to_engine
                 .send((id, SessionEvent::Rlogin(hello)))

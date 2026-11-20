@@ -114,4 +114,23 @@ pub fn enter_realm(world: &mut World, id: SessionId, today: i64) {
     );
     crate::combat::check_kill_user(world, id);
     crate::metrics::login();
+    let ip = world.session(id).and_then(|s| s.peer);
+    world.outbox.push(crate::event_loop::EngineOutput::Event(
+        crate::event_loop::GameEvent::Login {
+            id,
+            name: name_for_event(world, id),
+            ip,
+        },
+    ));
+    // a sysop's jail (silvermere's own)
+    crate::moderation::on_enter_realm(world, id);
+}
+
+/// The character's first name, for the events.
+pub(crate) fn name_for_event(world: &World, id: SessionId) -> String {
+    world
+        .session(id)
+        .and_then(|s| s.character.as_ref())
+        .map(|c| c.firstname.clone())
+        .unwrap_or_default()
 }

@@ -287,7 +287,7 @@ pub fn apply(
 /// Why `config set` and `config unset` leave a key that holds a secret alone, and what to
 /// do instead.
 fn secret_refusal(key: &str, unset: bool) -> Option<String> {
-    let tokens = key == "admin.tokens" || key.starts_with("admin.");
+    let tokens = key == "admin.tokens" || key.starts_with("admin.tokens.");
     Some(match (tokens, key == "database.url", unset) {
         (true, _, false) => format!(
             "{key} holds secrets, so `config set` does not write it: make a token with \

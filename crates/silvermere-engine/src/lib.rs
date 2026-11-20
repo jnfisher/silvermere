@@ -41,6 +41,7 @@ pub mod help;
 pub mod ids;
 pub mod items;
 pub mod metrics;
+pub mod moderation;
 pub mod monsters;
 pub mod movement;
 pub mod output;

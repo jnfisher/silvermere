@@ -19,7 +19,11 @@ accounts; [cli.md](cli.md) has every command-line tool).
    - `RELOAD` reads the game options of the config file again.
 5. Roles and passwords are managed outside the game: `silvermere account grant NAME gameop`,
    `silvermere account passwd NAME`, and so on ([cli.md](cli.md#silvermere-account)).
-6. The [admin API](admin-api.md) is for scripts and monitoring, not a web console.
+6. Outside the game, `silvermere sysop` lists who is on and moderates them: `kick`, `tell`,
+   `mute`, `jail` (held in the jail room until a set time), `ban`, `ban-ip`, `realm close`
+   and `realm open`, `moderation` to list what is in force, and a planned `shutdown`
+   ([cli.md](cli.md#silvermere-sysop)). It calls the [admin API](admin-api.md#moderation) on
+   this computer.
 
 What an operator can do in the game: the `SYSOP` command and the `[MAJORMUD Sysop]` menu,
 added by T-055. The code is

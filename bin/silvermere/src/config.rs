@@ -36,6 +36,9 @@ pub struct Config {
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AdminCfg {
+    /// The admin API may listen on an address other computers reach. Off: a non-loopback
+    /// `server.admin_bind` refuses to start, token or not.
+    pub allow_remote: bool,
     /// `[[admin.tokens]]`; none means no `/v1` call can authenticate, and a
     /// non-loopback `server.admin_bind` refuses to start.
     pub tokens: Vec<TokenCfg>,

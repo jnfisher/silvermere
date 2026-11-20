@@ -6,7 +6,7 @@ use std::time::Duration;
 use serde_json::Value;
 
 use super::api_client::{call, reach, token_for};
-use crate::cli::SysopCmd;
+use crate::cli::{RealmCmd, SanctionArgs, SysopCmd};
 use crate::config::{Config, TokenScope};
 
 /// A reload reads every static table; the rest answer at once.
@@ -31,25 +31,117 @@ pub fn run(cfg: &Config, action: &SysopCmd, json: bool) -> ExitCode {
     }
 }
 
+/// A player's name as one path segment: letters, digits and `-_.~` as they are, the rest
+/// percent-encoded.
+fn segment(name: &str) -> String {
+    let mut out = String::new();
+    for b in name.bytes() {
+        if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+/// `PUT /v1/players/{name}/{kind}` for `mute`, `jail` and `ban`.
+fn put(kind: &str, a: &SanctionArgs) -> (&'static str, String, TokenScope, Option<String>) {
+    (
+        "PUT",
+        format!("/v1/players/{}/{kind}", segment(&a.player)),
+        TokenScope::Admin,
+        Some(
+            serde_json::json!({
+                "for_secs": a.for_secs,
+                "reason": a.reason.clone().unwrap_or_default(),
+            })
+            .to_string(),
+        ),
+    )
+}
+
+fn lift(kind: &str, player: &str) -> (&'static str, String, TokenScope, Option<String>) {
+    (
+        "DELETE",
+        format!("/v1/players/{}/{kind}", segment(player)),
+        TokenScope::Admin,
+        None,
+    )
+}
+
 /// The call for `action`; the body of a `200`.
 fn request(cfg: &Config, action: &SysopCmd) -> Result<String, String> {
     let bind = &cfg.server.admin_bind;
     let addr = reach(bind).ok_or_else(|| format!("server.admin_bind `{bind}` is not host:port"))?;
-    let (method, path, scope, body) = match action {
-        SysopCmd::Who => ("GET", "/v1/who", TokenScope::Read, None),
-        SysopCmd::Broadcast { message } => (
+    let (method, path, scope, body): (&str, String, TokenScope, Option<String>) = match action {
+        SysopCmd::Kick { player, reason } => (
             "POST",
-            "/v1/broadcast",
+            format!("/v1/players/{}/kick", segment(player)),
+            TokenScope::Admin,
+            Some(serde_json::json!({ "reason": reason.clone().unwrap_or_default() }).to_string()),
+        ),
+        SysopCmd::Tell { player, message } => (
+            "POST",
+            format!("/v1/players/{}/tell", segment(player)),
             TokenScope::Write,
             Some(serde_json::json!({ "text": message }).to_string()),
         ),
-        SysopCmd::ReloadWorld => ("POST", "/v1/reload-world", TokenScope::Write, None),
+        SysopCmd::Mute(a) => put("mute", a),
+        SysopCmd::Jail(a) => put("jail", a),
+        SysopCmd::Ban(a) => put("ban", a),
+        SysopCmd::Unmute { player } => lift("mute", player),
+        SysopCmd::Release { player } => lift("jail", player),
+        SysopCmd::Unban { player } => lift("ban", player),
+        SysopCmd::BanIp {
+            network,
+            for_secs,
+            reason,
+        } => (
+            "POST",
+            "/v1/ip-bans".into(),
+            TokenScope::Admin,
+            Some(
+                serde_json::json!({
+                    "network": network,
+                    "for_secs": for_secs,
+                    "reason": reason.clone().unwrap_or_default(),
+                })
+                .to_string(),
+            ),
+        ),
+        SysopCmd::UnbanIp { network } => (
+            "DELETE",
+            "/v1/ip-bans".into(),
+            TokenScope::Admin,
+            Some(serde_json::json!({ "network": network }).to_string()),
+        ),
+        SysopCmd::Moderation => ("GET", "/v1/moderation".into(), TokenScope::Read, None),
+        SysopCmd::Realm {
+            action: RealmCmd::Close { reason },
+        } => (
+            "POST",
+            "/v1/realm/close".into(),
+            TokenScope::Admin,
+            Some(serde_json::json!({ "reason": reason.clone().unwrap_or_default() }).to_string()),
+        ),
+        SysopCmd::Realm {
+            action: RealmCmd::Open,
+        } => ("POST", "/v1/realm/open".into(), TokenScope::Admin, None),
+        SysopCmd::Who => ("GET", "/v1/who".into(), TokenScope::Read, None),
+        SysopCmd::Broadcast { message } => (
+            "POST",
+            "/v1/broadcast".into(),
+            TokenScope::Write,
+            Some(serde_json::json!({ "text": message }).to_string()),
+        ),
+        SysopCmd::ReloadWorld => ("POST", "/v1/reload-world".into(), TokenScope::Write, None),
         SysopCmd::Shutdown { cancel: true, .. } => {
-            ("DELETE", "/v1/shutdown", TokenScope::Admin, None)
+            ("DELETE", "/v1/shutdown".into(), TokenScope::Admin, None)
         }
         SysopCmd::Shutdown { delay, message, .. } => (
             "POST",
-            "/v1/shutdown",
+            "/v1/shutdown".into(),
             TokenScope::Admin,
             Some(
                 serde_json::json!({
@@ -60,6 +152,7 @@ fn request(cfg: &Config, action: &SysopCmd) -> Result<String, String> {
             ),
         ),
     };
+    let path = path.as_str();
     let token = token_for(cfg, scope).ok_or_else(|| {
         format!(
             "the config has no admin API token with its secret for this ({} scope): set \
@@ -67,8 +160,20 @@ fn request(cfg: &Config, action: &SysopCmd) -> Result<String, String> {
             scope_name(scope)
         )
     })?;
+    send(addr, method, path, scope, &token, body)
+}
+
+/// Sends the call; the body of a `200`, else the error line.
+fn send(
+    addr: std::net::SocketAddr,
+    method: &str,
+    path: &str,
+    scope: TokenScope,
+    token: &str,
+    body: Option<String>,
+) -> Result<String, String> {
     let (status, body) =
-        call(addr, method, path, Some(&token), body.as_deref(), TIMEOUT).map_err(|e| {
+        call(addr, method, path, Some(token), body.as_deref(), TIMEOUT).map_err(|e| {
             match e.kind() {
                 std::io::ErrorKind::ConnectionRefused => {
                     format!("no server is running on {addr} (server.admin_bind)")
@@ -119,8 +224,159 @@ fn render(action: &SysopCmd, body: &str) -> String {
                 .to_owned(),
             ),
             SysopCmd::Shutdown { .. } => planned(&v),
+            SysopCmd::Kick { .. } => Some(format!(
+                "Disconnected {}; the character was saved.\n",
+                v.get("kicked")?.as_str()?
+            )),
+            SysopCmd::Tell { .. } => Some(format!("Told {}.\n", v.get("told")?.as_str()?)),
+            SysopCmd::Mute(_) | SysopCmd::Jail(_) | SysopCmd::Ban(_) => put_done(&v),
+            SysopCmd::Unmute { .. } | SysopCmd::Release { .. } | SysopCmd::Unban { .. } => {
+                lift_done(&v)
+            }
+            SysopCmd::BanIp { .. } => Some(format!(
+                "Banned {}{}. Telnet connections from it are closed at once; players already in \
+                 the game stay until they leave (kick them to end it now).\n",
+                v.get("network")?.as_str()?,
+                until_words(v.get("until")?)
+            )),
+            SysopCmd::UnbanIp { .. } => Some(format!(
+                "Lifted the ban of {}.\n",
+                v.get("network")?.as_str()?
+            )),
+            SysopCmd::Moderation => moderation(&v),
+            SysopCmd::Realm {
+                action: RealmCmd::Close { .. },
+            } => {
+                let n = v.get("disconnected")?.as_u64()?;
+                Some(format!(
+                    "The realm is closed: only sysops may log in. Disconnected {n} player{}, \
+                     saved.\nOpen it with: silvermere sysop realm open\n",
+                    plural(n)
+                ))
+            }
+            SysopCmd::Realm {
+                action: RealmCmd::Open,
+            } => Some(
+                if v.get("was_closed")?.as_bool()? {
+                    "The realm is open.\n"
+                } else {
+                    "The realm was already open.\n"
+                }
+                .to_owned(),
+            ),
         });
     shown.unwrap_or_else(|| format!("{}\n", body.trim()))
+}
+
+/// ` until 2026-12-01 18:00 EST` in this computer's time zone, or ` until lifted`.
+fn until_words(until: &Value) -> String {
+    match until
+        .as_str()
+        .and_then(|t| t.parse::<jiff::Timestamp>().ok())
+    {
+        Some(t) => format!(
+            " until {}",
+            t.to_zoned(jiff::tz::TimeZone::system())
+                .strftime("%Y-%m-%d %H:%M %Z")
+        ),
+        None => " until lifted".to_owned(),
+    }
+}
+
+fn put_done(v: &Value) -> Option<String> {
+    let player = v.get("player")?.as_str()?;
+    let online = v.get("online")?.as_bool()?;
+    let until = until_words(v.get("until")?);
+    Some(match v.get("kind")?.as_str()? {
+        "ban" => format!(
+            "Banned {player}{until}.{}\n",
+            if online {
+                " Disconnected from the game."
+            } else {
+                ""
+            }
+        ),
+        "jail" => format!(
+            "Jailed {player}{until}.{}\n",
+            if online {
+                " Moved to the jail room."
+            } else {
+                " Held there from the next entry to the realm."
+            }
+        ),
+        _ => format!(
+            "Muted {player}{until}: no gossip or auction.{}\n",
+            if online { " Told in the game." } else { "" }
+        ),
+    })
+}
+
+fn lift_done(v: &Value) -> Option<String> {
+    let player = v.get("player")?.as_str()?;
+    Some(match v.get("kind")?.as_str()? {
+        "ban" => format!("Lifted {player}'s ban.\n"),
+        "jail" => format!("Released {player} from jail.\n"),
+        _ => format!("Lifted {player}'s mute.\n"),
+    })
+}
+
+/// `sysop moderation`: the realm, then the sanctions and the IP bans in force.
+fn moderation(v: &Value) -> Option<String> {
+    let realm = v.get("realm")?;
+    let mut out = if realm.get("closed")?.as_bool()? {
+        let reason = realm.get("reason").and_then(Value::as_str).unwrap_or("");
+        format!(
+            "The realm is closed{}: only sysops may log in.\n",
+            if reason.is_empty() {
+                String::new()
+            } else {
+                format!(" ({reason})")
+            }
+        )
+    } else {
+        "The realm is open.\n".to_owned()
+    };
+    let sanctions = v.get("sanctions")?.as_array()?;
+    let ip_bans = v.get("ip_bans")?.as_array()?;
+    if sanctions.is_empty() && ip_bans.is_empty() {
+        out.push_str("No bans, jails or mutes are in force.\n");
+        return Some(out);
+    }
+    for s in sanctions {
+        let who = s
+            .get("character")
+            .and_then(Value::as_str)
+            .filter(|c| !c.is_empty())
+            .or_else(|| s.get("username").and_then(Value::as_str))
+            .unwrap_or("?");
+        let reason = s.get("reason").and_then(Value::as_str).unwrap_or("");
+        out.push_str(&format!(
+            "{:<5} {who}{}{} (by {})\n",
+            s.get("kind")?.as_str()?,
+            until_words(s.get("until")?),
+            if reason.is_empty() {
+                String::new()
+            } else {
+                format!(": {reason}")
+            },
+            s.get("by").and_then(Value::as_str).unwrap_or("?"),
+        ));
+    }
+    for b in ip_bans {
+        let reason = b.get("reason").and_then(Value::as_str).unwrap_or("");
+        out.push_str(&format!(
+            "ip    {}{}{} (by {})\n",
+            b.get("network")?.as_str()?,
+            until_words(b.get("until")?),
+            if reason.is_empty() {
+                String::new()
+            } else {
+                format!(": {reason}")
+            },
+            b.get("by").and_then(Value::as_str).unwrap_or("?"),
+        ));
+    }
+    Some(out)
 }
 
 /// When a planned shutdown happens, in this computer's time zone.
@@ -256,6 +512,58 @@ mod tests {
             ),
             "World reloaded in 42 ms: 131 rooms, 500 text blocks.\n"
         );
+    }
+
+    #[test]
+    fn moderation_answers_say_what_happened() {
+        let mute = SysopCmd::Mute(SanctionArgs {
+            player: "lars".into(),
+            for_secs: None,
+            reason: None,
+        });
+        assert_eq!(
+            render(
+                &mute,
+                r#"{"player":"Lars","account":3,"kind":"mute","until":null,"online":true}"#
+            ),
+            "Muted Lars until lifted: no gossip or auction. Told in the game.\n"
+        );
+        let release = SysopCmd::Release {
+            player: "lars".into(),
+        };
+        assert_eq!(
+            render(
+                &release,
+                r#"{"player":"Lars","account":3,"kind":"jail","lifted":true,"online":false}"#
+            ),
+            "Released Lars from jail.\n"
+        );
+        assert_eq!(
+            render(
+                &SysopCmd::Moderation,
+                r#"{"realm":{"closed":false},"sanctions":[],"ip_bans":[]}"#
+            ),
+            "The realm is open.\nNo bans, jails or mutes are in force.\n"
+        );
+        assert_eq!(
+            render(
+                &SysopCmd::Moderation,
+                r#"{"realm":{"closed":true,"reason":"upgrading"},
+                    "sanctions":[{"account":3,"username":"lars","character":"Lars","kind":"ban",
+                      "until":null,"reason":"spam","by":"ops"}],
+                    "ip_bans":[{"id":1,"network":"203.0.113.0/24","until":null,"reason":"",
+                      "by":"ops"}]}"#
+            ),
+            "The realm is closed (upgrading): only sysops may log in.\n\
+             ban   Lars until lifted: spam (by ops)\n\
+             ip    203.0.113.0/24 until lifted (by ops)\n"
+        );
+    }
+
+    #[test]
+    fn names_are_one_path_segment() {
+        assert_eq!(segment("Lars"), "Lars");
+        assert_eq!(segment("a b/c"), "a%20b%2Fc");
     }
 
     #[test]

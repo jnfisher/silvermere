@@ -47,6 +47,9 @@ pub enum Reason {
 /// Session task -> engine.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionEvent {
+    /// The address the connection comes from (an IPv4-mapped IPv6 address as IPv4). Sent
+    /// once, first, when the socket knows it.
+    Peer(std::net::IpAddr),
     /// An rlogin connection ([`crate::rlogin`]): who the trusted client says is calling.
     /// Sent once, just before `Connected`.
     Rlogin(RloginHello),

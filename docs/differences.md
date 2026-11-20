@@ -56,6 +56,12 @@ Stated here so they are not read as differences from a stock install.
   the plain refusal). Connections that died without closing are also found by TCP keepalive
   within about two minutes (`net.keepalive_secs`). See [auth.md](auth.md#the-dialogue),
   [net.md](net.md#dead-connections).
+- **Moderation from outside the game.** The original had no way to keep a player out besides
+  deleting him. silvermere's sysop can disconnect a player, send him a line, mute him, hold him
+  in the jail room until a set time, ban his account or an IP address or block, and close the
+  realm to all but sysops, from `silvermere sysop` or the admin API; each is stored and holds
+  across restarts. See [admin-api.md](admin-api.md#moderation),
+  [cli.md](cli.md#silvermere-sysop).
 - **Open signup.** Anyone may create an account with `NEW` (`game.open_signup = true`);
   [signup code](../crates/silvermere-auth/src/signup.rs). Set it to `false` and only a sysop can.
 - **Inactive timeout 3600 seconds.** `game.inactive_secs = 3600`. The login dialogue has its own

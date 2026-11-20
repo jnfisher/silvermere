@@ -23,6 +23,7 @@ mod m3_party;
 mod m3_shops;
 mod m3_social_training;
 mod metrics_endpoint;
+mod moderation_e2e;
 mod name_check_latency;
 mod queued_characters;
 mod rlogin_e2e;

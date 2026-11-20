@@ -102,9 +102,9 @@ impl EventKind {
     pub const fn source(self) -> &'static str {
         match self {
             EventKind::Connected | EventKind::Closed => "engine: a session opened or closed",
-            EventKind::Login | EventKind::Logoff | EventKind::Death => {
-                "engine: reserved, not emitted yet"
-            }
+            EventKind::Login => "engine: a character entered the realm",
+            EventKind::Logoff => "engine: a character left the realm",
+            EventKind::Death => "engine: a character died",
             EventKind::Level => "engine: a character trained a level (train_level)",
             EventKind::Auth => "silvermere-auth: login failures, lockouts, account changes",
             EventKind::Admin => "this API: the audit row of each authenticated call",
@@ -117,6 +117,9 @@ impl EventKind {
             self,
             EventKind::Connected
                 | EventKind::Closed
+                | EventKind::Login
+                | EventKind::Logoff
+                | EventKind::Death
                 | EventKind::Level
                 | EventKind::Auth
                 | EventKind::Admin
@@ -215,9 +218,20 @@ impl NewEvent {
             kind: ev.kind().to_string(),
             session: ev.session().map(|s| s.0),
             character: None,
-            room: None,
+            room: match ev {
+                GameEvent::Death { room, .. } => Some(RoomRef {
+                    map: room.map.0,
+                    room: room.room.0,
+                }),
+                _ => None,
+            },
             payload: match ev {
                 GameEvent::Level { level, .. } => json!({ "level": level }),
+                GameEvent::Login { name, ip, .. } => {
+                    json!({ "name": name, "ip": ip.map(|ip| ip.to_string()) })
+                }
+                GameEvent::Logoff { name, how, .. } => json!({ "name": name, "how": how }),
+                GameEvent::Death { name, .. } => json!({ "name": name }),
                 GameEvent::Audit { fields, .. } => {
                     let mut m = serde_json::Map::new();
                     for (k, v) in fields {

@@ -33,8 +33,8 @@ pub use account::{
 };
 pub use lockout::{Lockout, LockoutConfig};
 pub use login::{
-    AuthMsg, Clock, CloseReason, EchoMode, LoginConfig, LoginDialogue, LoginService, Output, State,
-    SystemClock,
+    AuthMsg, Clock, CloseReason, EchoMode, LoginConfig, LoginDialogue, LoginService, Output,
+    RealmGate, State, SystemClock,
 };
 pub use password::Secret;
 pub use roles::{Perm, PermSet, Role, RoleSet, has_permission, has_role};

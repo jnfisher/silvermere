@@ -103,6 +103,13 @@ pub fn check_kill_user(world: &mut World, id: SessionId) -> KillOutcome {
         tracing::info!(target: "audit", ?id, name = %plr.firstname, "User {} has been killed.", plr.firstname);
     }
     crate::metrics::death();
+    world.outbox.push(crate::event_loop::EngineOutput::Event(
+        crate::event_loop::GameEvent::Death {
+            id,
+            name: plr.firstname.clone(),
+            room: key,
+        },
+    ));
     cleanup_when_user_leaves(world, id);
     if let Some(s) = world.session_mut(id) {
         s.party.dragging = None;
