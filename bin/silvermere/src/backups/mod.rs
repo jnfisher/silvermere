@@ -328,6 +328,15 @@ impl Shared {
 }
 
 impl silvermere_api::BackupProbe for Shared {
+    fn run_now(&self) -> Result<serde_json::Value, String> {
+        let run = scheduled_run(&self.cfg, jiff::Timestamp::now());
+        let _ = write_status(&folder(&self.cfg), &run);
+        if let Ok(mut s) = self.state.lock() {
+            s.last = Some(run.clone());
+        }
+        serde_json::to_value(&run).map_err(|e| e.to_string())
+    }
+
     fn last_ok(&self) -> Option<bool> {
         self.state.lock().ok()?.last.as_ref().map(|r| r.ok)
     }

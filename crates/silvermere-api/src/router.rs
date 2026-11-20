@@ -94,6 +94,7 @@ fn message_of(code: &str) -> &'static str {
         "bad_duration" => "for_secs must be 1 to 315360000, or absent for until lifted",
         "store_failed" => "the database refused the change; the cause is in the server log",
         "moderation_unavailable" => "this server has no moderation",
+        "backup_unavailable" => "this server takes no backups",
         "not_found" => "no such route",
         "internal" => "internal error",
         _ => "error",
@@ -144,11 +145,15 @@ pub fn routes() -> Vec<RouteSpec> {
         r("GET", "/v1/who", Some(Scope::Read), true),
         r("GET", "/v1/events", Some(Scope::Read), true),
         r("GET", "/v1/backup", Some(Scope::Read), true),
+        r("POST", "/v1/backup", Some(Scope::Admin), true),
         r("POST", "/v1/broadcast", Some(Scope::Write), true),
         r("POST", "/v1/reload-world", Some(Scope::Write), true),
         r("DELETE", "/v1/accounts/{id}", Some(Scope::Admin), true),
+        r("GET", "/v1/shutdown", Some(Scope::Read), true),
         r("POST", "/v1/shutdown", Some(Scope::Admin), true),
         r("DELETE", "/v1/shutdown", Some(Scope::Admin), true),
+        r("POST", "/v1/restart", Some(Scope::Admin), true),
+        r("DELETE", "/v1/restart", Some(Scope::Admin), true),
         r("GET", "/v1/moderation", Some(Scope::Read), true),
         r("POST", "/v1/players/{name}/kick", Some(Scope::Admin), true),
         r("POST", "/v1/players/{name}/tell", Some(Scope::Write), true),
@@ -215,12 +220,18 @@ pub fn router(state: ApiState) -> Router {
         .route("/v1/who", get(who::who))
         .route("/v1/broadcast", post(broadcast_route::broadcast))
         .route("/v1/events", get(events::stream))
-        .route("/v1/backup", get(backup::status))
+        .route("/v1/backup", get(backup::status).post(backup::run_now))
         .route("/v1/reload-world", post(reload::reload_world))
         .route("/v1/accounts/{id}", delete(accounts::delete))
         .route(
             "/v1/shutdown",
-            post(crate::shutdown::schedule).delete(crate::shutdown::cancel),
+            get(crate::shutdown::status)
+                .post(crate::shutdown::schedule)
+                .delete(crate::shutdown::cancel),
+        )
+        .route(
+            "/v1/restart",
+            post(crate::shutdown::schedule_restart).delete(crate::shutdown::cancel),
         )
         .route("/v1/moderation", get(crate::moderation::status))
         .route("/v1/players/{name}/kick", post(crate::moderation::kick))

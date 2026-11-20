@@ -75,6 +75,21 @@ fn request(cfg: &Config, action: &SysopCmd) -> Result<String, String> {
     let bind = &cfg.server.admin_bind;
     let addr = reach(bind).ok_or_else(|| format!("server.admin_bind `{bind}` is not host:port"))?;
     let (method, path, scope, body): (&str, String, TokenScope, Option<String>) = match action {
+        SysopCmd::Restart { cancel: true, .. } => {
+            ("DELETE", "/v1/restart".into(), TokenScope::Admin, None)
+        }
+        SysopCmd::Restart { delay, message, .. } => (
+            "POST",
+            "/v1/restart".into(),
+            TokenScope::Admin,
+            Some(
+                serde_json::json!({
+                    "in_secs": delay,
+                    "message": message.clone().unwrap_or_default(),
+                })
+                .to_string(),
+            ),
+        ),
         SysopCmd::Kick { player, reason } => (
             "POST",
             format!("/v1/players/{}/kick", segment(player)),
@@ -224,6 +239,15 @@ fn render(action: &SysopCmd, body: &str) -> String {
                 .to_owned(),
             ),
             SysopCmd::Shutdown { .. } => planned(&v),
+            SysopCmd::Restart { cancel: true, .. } => Some(
+                if v.get("cancelled")?.as_bool()? {
+                    "Cancelled the planned restart; the players were told.\n"
+                } else {
+                    "No restart or shutdown was planned.\n"
+                }
+                .to_owned(),
+            ),
+            SysopCmd::Restart { .. } => planned(&v),
             SysopCmd::Kick { .. } => Some(format!(
                 "Disconnected {}; the character was saved.\n",
                 v.get("kicked")?.as_str()?
@@ -391,14 +415,21 @@ fn planned(v: &Value) -> Option<String> {
                 .to_string()
         })
         .unwrap_or_else(|_| at.to_owned());
-    Some(if secs == 0 {
-        "The server is stopping now.\n".to_owned()
-    } else {
-        format!(
+    let restart = v.get("restart").and_then(Value::as_bool) == Some(true);
+    Some(match (secs, restart) {
+        (0, false) => "The server is stopping now.\n".to_owned(),
+        (0, true) => "The server is restarting now.\n".to_owned(),
+        (_, false) => format!(
             "The server will stop at {local}, in {}. The players in the game are warned until \
              then.\nCall it off with: silvermere sysop shutdown --cancel\n",
             crate::planned::how_long(secs)
-        )
+        ),
+        (_, true) => format!(
+            "The server will restart at {local}, in {}. The players in the game are warned \
+             until then; a backup is taken before it starts again.\nCall it off with: \
+             silvermere sysop restart --cancel\n",
+            crate::planned::how_long(secs)
+        ),
     })
 }
 

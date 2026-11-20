@@ -17,7 +17,8 @@ route needs `Authorization: Bearer <token>`:
 Every error body has the shape `{"error": "<code>", "message": "<human text>"}`; the codes
 are `unauthorized`, `forbidden`, `bad_text`, `engine_unavailable` (503), `engine_timeout`
 (504), `reload_failed` (500), `bad_id` (400), `no_such_account` (404), `delete_failed` (500),
-`bad_delay` (400), `bad_body` (400), `shutdown_unavailable` (503), `reserved` (501), and for
+`bad_delay` (400), `bad_body` (400), `shutdown_unavailable` (503), `restart_refused` (503,
+with the reason as the `message`), `backup_unavailable` (503), `reserved` (501), and for
 the [moderation routes](#moderation) `no_such_player` (404), `not_connected` (409),
 `door_account` (409), `bad_network` (400), `no_such_ban` (404), `not_sanctioned` (404),
 `bad_duration` (400), `store_failed` (500) and `moderation_unavailable` (503).
@@ -75,11 +76,15 @@ file publishes the port on the host's `127.0.0.1` only.
 | `GET` | `/v1/who` | `read` | none | `{"players":[...]}` |
 | `GET` | `/v1/events` | `read` | `?kinds=a,b`, `Last-Event-ID` | SSE stream |
 | `GET` | `/v1/backup` | `read` | none | `{"enabled":true,"next":"...","last":{...},"backups":[...]}` |
+| `POST` | `/v1/backup` | `admin` | none | `{"at":"...","ok":true,"file":"...","bytes":n,...}` |
 | `POST` | `/v1/broadcast` | `write` | `{"text":"..."}` | `{"delivered":n}` |
 | `POST` | `/v1/reload-world` | `write` | none | `{"reloaded":{...},"ms":t}` |
 | `DELETE` | `/v1/accounts/{id}` | `admin` | none | `{"deleted":{"account":id,"character":"..."}}` |
-| `POST` | `/v1/shutdown` | `admin` | `{"in_secs":n,"message":"..."}` (both optional) | `{"at":"...","in_secs":n}` |
+| `GET` | `/v1/shutdown` | `read` | none | `{"planned":null}` or `{"planned":{"at":"...","in_secs":n,"restart":false}}` |
+| `POST` | `/v1/shutdown` | `admin` | `{"in_secs":n,"message":"..."}` (both optional) | `{"at":"...","in_secs":n,"restart":false}` |
 | `DELETE` | `/v1/shutdown` | `admin` | none | `{"cancelled":true}` |
+| `POST` | `/v1/restart` | `admin` | `{"in_secs":n,"message":"..."}` (both optional) | `{"at":"...","in_secs":n,"restart":true}` |
+| `DELETE` | `/v1/restart` | `admin` | none | `{"cancelled":true}` |
 | `GET` | `/v1/moderation` | `read` | none | `{"realm":{...},"sanctions":[...],"ip_bans":[...]}` |
 | `POST` | `/v1/players/{name}/kick` | `admin` | `{"reason":"..."}` (optional) | `{"kicked":"Lars"}` |
 | `POST` | `/v1/players/{name}/tell` | `write` | `{"text":"..."}` | `{"told":"Lars"}` |
@@ -307,6 +312,39 @@ it.
 
 Audited as `admin.shutdown` with `in_secs`, `at` and `text`. A server that cannot stop
 itself (one run in-process by the tests) answers `503 shutdown_unavailable`.
+
+### `POST /v1/restart`
+
+Plans a restart: the same countdown and warnings as [`POST /v1/shutdown`](#post-v1shutdown)
+(`The server will restart in 5 minutes: ...`), then the server stops as it does on SIGTERM,
+every character saved, takes a backup (as a scheduled one, when `backup.enabled`), and starts
+again **in the same process**:
+
+- on Linux and macOS the process replaces itself with its program file, same arguments and
+  environment. The process id does not change, so systemd keeps the service `active
+  (running)` and Docker's main process never exits: neither restarts anything. A program file
+  replaced before the restart is the one that starts, so replacing the file and restarting is
+  an upgrade.
+- on Windows the server starts again inside the process, with the settings read anew. A
+  running `.exe` cannot be replaced there, so an upgrade is still stop, replace, start.
+
+The settings change that needs a restart ([web.md](web.md#applying-a-change)) takes effect.
+Before the countdown is accepted, and again when it comes due, the server checks that the
+settings file loads and that the program file runs (`--version`); if not, the restart is
+refused with `503 {"error":"restart_refused","message":"<why>"}` (or, when due, called off:
+the players are told `The planned restart is cancelled.` and the server keeps running).
+A restart replaces a planned shutdown and the other way round; `DELETE /v1/restart` (or
+`DELETE /v1/shutdown`) cancels whichever is planned. Audited as `admin.restart`.
+
+`GET /v1/shutdown` says what is planned: `{"planned": null}`, or the plan with `in_secs`
+counted from now and `restart`.
+
+### `POST /v1/backup`
+
+Takes a backup now, as a scheduled one is taken (into the backups folder, pruned to
+`backup.keep`, the after-backup command run), and answers the run as `last` in
+[`GET /v1/backup`](#get-v1backup) shows it. A failed backup is still a `200`, with `"ok":
+false` and the `error`. Audited as `admin.backup`.
 
 ### `DELETE /v1/shutdown`
 

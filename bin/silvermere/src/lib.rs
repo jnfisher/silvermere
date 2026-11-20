@@ -13,6 +13,7 @@ pub mod config;
 pub mod gate;
 pub mod moderation;
 pub mod planned;
+pub mod restart;
 pub mod stock;
 pub mod store;
 pub mod web;

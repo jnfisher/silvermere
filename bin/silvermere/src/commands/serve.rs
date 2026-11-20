@@ -18,12 +18,39 @@ pub fn run(cfg: &Config, args: &ServeArgs) -> anyhow::Result<ExitCode> {
 }
 
 /// [`run`]; `first_start` (T-109) adds the plain "Silvermere is running" line for a
-/// double-clicked console.
+/// double-clicked console. A planned restart comes back here ([`crate::restart`]): the
+/// backup, then the program file again in this process (Unix), else `serve` once more with
+/// the settings read anew.
 pub fn run_with(cfg: &Config, args: &ServeArgs, first_start: bool) -> anyhow::Result<ExitCode> {
     if args.print_config {
         print!("{}", cfg.to_toml()?);
         return Ok(ExitCode::SUCCESS);
     }
+    let mut cfg = cfg.clone();
+    loop {
+        let (code, restart) = serve_once(&cfg, args, first_start)?;
+        if !restart {
+            return Ok(code);
+        }
+        crate::restart::backup_first(&cfg);
+        eprintln!("silvermere: restarting");
+        // `SILVERMERE_RESTART_IN_PROCESS=1` takes the other platforms' way (tests)
+        #[cfg(unix)]
+        if std::env::var_os("SILVERMERE_RESTART_IN_PROCESS").is_none() {
+            let e = crate::restart::relaunch();
+            tracing::error!(%e, "starting the program file again failed; restarting in this process");
+        }
+        tracing::info!("restarting in this process");
+        cfg = crate::restart::reload_config()?;
+    }
+}
+
+/// One run of the server; the exit code, and whether a planned restart ended it.
+fn serve_once(
+    cfg: &Config,
+    args: &ServeArgs,
+    first_start: bool,
+) -> anyhow::Result<(ExitCode, bool)> {
     silvermere_api::check_bind(
         &cfg.server.admin_bind,
         cfg.admin.tokens.len(),
@@ -58,12 +85,12 @@ pub fn run_with(cfg: &Config, args: &ServeArgs, first_start: bool) -> anyhow::Re
             .context("counting rooms")?;
         if rooms == 0 {
             eprintln!("{NO_WORLD}");
-            return Ok(ExitCode::from(super::EXIT_NO_WORLD));
+            return Ok((ExitCode::from(super::EXIT_NO_WORLD), false));
         }
         // T-109: rooms are written first, so a cut-off import leaves rooms and no items
         if silvermere_db::world_import::state(&db).await? == WorldImport::Unfinished {
             eprintln!("{}", super::UNFINISHED_IMPORT);
-            return Ok(ExitCode::from(super::EXIT_NO_WORLD));
+            return Ok((ExitCode::from(super::EXIT_NO_WORLD), false));
         }
         // As at the original's start-up, the special rooms (all on map 1) must exist.
         // `World::load` makes the same check; this one answers before the whole world is read.
@@ -122,20 +149,38 @@ pub fn run_with(cfg: &Config, args: &ServeArgs, first_start: bool) -> anyhow::Re
             }
         }
         let mut planned = running.planned.due();
-        let lost = tokio::select! {
-            stop = signals.next() => {
-                tracing::info!(signal = stop.name(), "stop requested");
-                None
+        let mut restart = false;
+        let lost = loop {
+            tokio::select! {
+                stop = signals.next() => {
+                    tracing::info!(signal = stop.name(), "stop requested");
+                    break None;
+                }
+                Ok(_) = planned.wait_for(|due| *due) => {
+                    if running.planned.restart_due() {
+                        // the program file or the settings may have changed since it was planned
+                        let checked = tokio::task::spawn_blocking(crate::restart::check)
+                            .await
+                            .unwrap_or_else(|e| Err(e.to_string()));
+                        if let Err(why) = checked {
+                            running.planned.call_off_restart(&why);
+                            eprintln!("silvermere: planned restart called off: {why}");
+                            continue;
+                        }
+                        restart = true;
+                        tracing::info!("planned restart (silvermere sysop restart)");
+                        eprintln!("silvermere: planned restart");
+                    } else {
+                        tracing::info!("planned shutdown (silvermere sysop shutdown)");
+                        eprintln!("silvermere: planned shutdown");
+                    }
+                    break None;
+                }
+                lost = &mut guard_lost => break Some(lost.map_or_else(
+                    |e| format!("the writer guard's watchdog stopped: {e}"),
+                    |lost| lost.to_string(),
+                )),
             }
-            Ok(_) = planned.wait_for(|due| *due) => {
-                tracing::info!("planned shutdown (silvermere sysop shutdown)");
-                eprintln!("silvermere: planned shutdown");
-                None
-            }
-            lost = &mut guard_lost => Some(lost.map_or_else(
-                |e| format!("the writer guard's watchdog stopped: {e}"),
-                |lost| lost.to_string(),
-            )),
         };
         if let Some(why) = &lost {
             // Another process may be writing the store now: save what is queued and stop.
@@ -189,15 +234,15 @@ pub fn run_with(cfg: &Config, args: &ServeArgs, first_start: bool) -> anyhow::Re
                     done.elapsed.as_millis()
                 );
                 Ok(if lost.is_some() {
-                    ExitCode::from(1)
+                    (ExitCode::from(1), false)
                 } else {
-                    ExitCode::SUCCESS
+                    (ExitCode::SUCCESS, restart)
                 })
             }
             Err(e) => {
                 tracing::error!(%e, "shutdown failed; characters may not be saved");
                 eprintln!("silvermere: shutdown failed: {e:#}");
-                Ok(ExitCode::from(1))
+                Ok((ExitCode::from(1), false))
             }
         }
     })

@@ -254,6 +254,19 @@ pub enum SysopCmd {
         /// Said to the players with each warning, such as `upgrading to 0.2`
         message: Option<String>,
     },
+    /// Restart the server after warning the players in the game; every character is saved,
+    /// a backup taken, and the server comes back in the same process.
+    Restart {
+        /// How long until the restart: `90s`, `5m`, `1h` or `1h30m`, or a number of seconds;
+        /// at most 24h
+        #[arg(long = "in", value_name = "DURATION", default_value = "5m", value_parser = parse_delay)]
+        delay: u64,
+        /// Call off the planned restart instead
+        #[arg(long, conflicts_with = "message")]
+        cancel: bool,
+        /// Said to the players with each warning, such as `upgrading to 1.0`
+        message: Option<String>,
+    },
     /// Disconnect a player, saved, telling him why.
     Kick {
         /// A character's first name or an account's username

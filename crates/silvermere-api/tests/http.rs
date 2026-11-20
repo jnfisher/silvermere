@@ -40,11 +40,42 @@ impl silvermere_api::ShutdownPlan for FakeShutdown {
         Ok(silvermere_api::Planned {
             at: "2026-11-18T20:05:00Z".into(),
             in_secs: after.as_secs(),
+            restart: false,
         })
     }
 
     fn cancel(&self) -> bool {
         self.plans.lock().unwrap().pop().is_some()
+    }
+
+    fn schedule_restart(
+        &self,
+        after: Duration,
+        message: String,
+    ) -> Result<silvermere_api::Planned, String> {
+        self.plans.lock().unwrap().push((after.as_secs(), message));
+        Ok(silvermere_api::Planned {
+            at: "2026-11-18T20:05:00Z".into(),
+            in_secs: after.as_secs(),
+            restart: true,
+        })
+    }
+}
+
+/// Backups that are made at once, in name only.
+struct FakeBackups;
+
+impl silvermere_api::BackupProbe for FakeBackups {
+    fn last_ok(&self) -> Option<bool> {
+        None
+    }
+
+    fn status(&self) -> Value {
+        json!({ "enabled": true, "next": null, "last": null, "backups": [] })
+    }
+
+    fn run_now(&self) -> Result<Value, String> {
+        Ok(json!({ "at": "2026-11-18T20:05:00Z", "ok": true, "file": "b.db", "bytes": 1 }))
     }
 }
 
@@ -150,7 +181,7 @@ async fn server() -> Server {
         }),
         metrics: handle,
         world: world.clone(),
-        backup: Arc::new(silvermere_api::NoBackups),
+        backup: Arc::new(FakeBackups),
         shutdown: shutdown.clone(),
         moderation: moderator.clone(),
         tokens: Arc::new(

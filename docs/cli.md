@@ -254,6 +254,8 @@ silvermere sysop broadcast <MESSAGE>
 silvermere sysop reload-world
 silvermere sysop shutdown [--in <DURATION>] [MESSAGE]
 silvermere sysop shutdown --cancel
+silvermere sysop restart [--in <DURATION>] [MESSAGE]
+silvermere sysop restart --cancel
 silvermere sysop kick <PLAYER> [REASON]
 silvermere sysop tell <PLAYER> <MESSAGE>
 silvermere sysop mute <PLAYER> [--for <DURATION>] [REASON]
@@ -277,6 +279,8 @@ silvermere sysop --json <SUBCOMMAND>
 | `sysop reload-world` | reads the static world tables again from the database, with nobody disconnected | `POST /v1/reload-world` | `write` |
 | `sysop shutdown [MESSAGE]` | stops the server after warning the players in the game (when it is planned, then at 1 hour, 30, 15, 10, 5, 2 and 1 minutes, 30 and 10 seconds before), every character saved; `MESSAGE` goes with each warning. A second call replaces the plan | `POST /v1/shutdown` | `admin` |
 | `sysop shutdown --cancel` | calls the planned shutdown off and tells the players | `DELETE /v1/shutdown` | `admin` |
+| `sysop restart [MESSAGE]` | as `shutdown`, then a backup, and the server starts again in the same process: systemd and Docker see it keep running. Refused when the settings would not load or the program file does not run ([admin-api.md](admin-api.md#post-v1restart)) | `POST /v1/restart` | `admin` |
+| `sysop restart --cancel` | calls the planned restart off and tells the players | `DELETE /v1/restart` | `admin` |
 | `sysop kick <PLAYER> [REASON]` | disconnects the player, saved as a logoff saves (no hang-up penalty), telling him why | `POST /v1/players/{name}/kick` | `admin` |
 | `sysop tell <PLAYER> <MESSAGE>` | `The sysop tells you: ...` to one player, in the game or at the menus | `POST /v1/players/{name}/tell` | `write` |
 | `sysop mute <PLAYER>` | no gossip or auction until it ends or is lifted | `PUT /v1/players/{name}/mute` | `admin` |
@@ -294,8 +298,8 @@ silvermere sysop --json <SUBCOMMAND>
 | Flag | Meaning |
 |---|---|
 | `--json` | print the server's JSON answer as it came, for scripts |
-| `--in <DURATION>` | with `shutdown`: how long until the stop: `90s`, `5m`, `1h`, `1h30m` or a number of seconds, at most a day (default `5m`) |
-| `--cancel` | with `shutdown`: call off the planned shutdown instead |
+| `--in <DURATION>` | with `shutdown` and `restart`: how long until the stop: `90s`, `5m`, `1h`, `1h30m` or a number of seconds, at most a day (default `5m`) |
+| `--cancel` | with `shutdown` and `restart`: call off the planned shutdown or restart instead |
 | `--for <DURATION>` | with `mute`, `jail`, `ban` and `ban-ip`: how long: `30m`, `12h`, `7d`, `1d12h` or a number of seconds; without it, until lifted |
 
 `<PLAYER>` is a character's first name or an account's username, ignoring case; the sanction
