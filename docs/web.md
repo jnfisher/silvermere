@@ -64,8 +64,9 @@ with the sysop's name.
 - **The status bar**: players in the realm, the server's health, whether the realm is open,
   the last backup and any planned shutdown or restart, with buttons to close or open the
   realm, back up now, restart, shut down, and cancel what is planned.
-- **Players in the realm**: who is on, level, class, race, gang, idle time and the address
-  they connect from, flagged when jailed or muted. Click a player, or open any player by
+- **Players in the realm**: who is on, the room each stands in (its name and `map:room`,
+  read every 3 seconds while the page is in view), level, class, race, idle time and the
+  address they connect from, flagged when jailed or muted. Click a player, or open any player by
   name (online or not), for the player panel: a line to them, and kick, jail, release, mute,
   unmute, ban, unban and ban their address, for a chosen time with a reason.
 - **In force**: the bans, jails, mutes and IP bans, each with a button to lift it, and a

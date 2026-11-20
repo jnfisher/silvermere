@@ -190,7 +190,11 @@
       if (p.jailed) flags.push("jailed");
       if (p.muted) flags.push("muted");
       if (p.hidden) flags.push("hidden");
-      [name, p.level, p.class, p.race, p.gang, idle(p.idle_secs), p.ip || ""].forEach(function (v) {
+      tr.appendChild(el("td", name));
+      var room = el("td", p.room_name || "", "room");
+      if (p.room) room.appendChild(el("span", " " + p.room, "where"));
+      tr.appendChild(room);
+      [p.level, p.class, p.race, idle(p.idle_secs), p.ip || ""].forEach(function (v) {
         tr.appendChild(el("td", v));
       });
       tr.appendChild(el("td", flags.join(", "), "flags"));
@@ -211,7 +215,9 @@
     $("d-name").textContent = name;
     var meta = row
       ? "Level " + row.level + " " + row.race + " " + row.class +
-        (row.gang ? ", " + row.gang : "") + " · idle " + idle(row.idle_secs) +
+        (row.gang ? ", " + row.gang : "") +
+        (row.room ? " · in " + row.room_name + " (" + row.room + ")" : "") +
+        " · idle " + idle(row.idle_secs) +
         (row.ip ? " · from " + row.ip : "") + " · account " + row.account
       : "Not in the realm.";
     $("d-meta").textContent = meta;
@@ -477,8 +483,15 @@
     refresh();
   }
 
+  // who stands where changes without an event: the player list is read every 3 seconds
+  // while the page is in view, the rest every 15
+  function refreshPlayers() {
+    if (document.hidden) return;
+    api("v1/who", true).then(function (w) { state.players = w.players; renderPlayers(); }).catch(function () {});
+  }
   refresh();
   listen();
   setInterval(refresh, 15000);
-  print("Signed in. Type help for the commands; every button runs one here.", "hint");
+  setInterval(refreshPlayers, 3000);
+  print("Signed in. Type help for the commands.", "hint");
 })();

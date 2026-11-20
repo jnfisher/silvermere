@@ -124,6 +124,9 @@ pub struct WhoEntry {
     pub muted: bool,
     /// The sysop's jail is in force.
     pub jailed: bool,
+    /// Where the character stands, and the room's name.
+    pub room: Option<silvermere_types::ids::RoomKey>,
+    pub room_name: String,
     /// The sysop made himself invisible (`INVISB`): the in-game list skips him, the sysop's
     /// own view does not.
     pub hidden: bool,
@@ -906,6 +909,12 @@ fn who_rows(world: &World, now: Instant) -> Vec<WhoEntry> {
                     .as_ref()
                     .is_some_and(|m| m.active_at(world.wall)),
                 jailed: crate::moderation::jailed(world, id),
+                room: s.room_key(),
+                room_name: s
+                    .room_key()
+                    .and_then(|k| world.room(k))
+                    .map(|r| r.name.clone())
+                    .unwrap_or_default(),
             })
         })
         .collect();

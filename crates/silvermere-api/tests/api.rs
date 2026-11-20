@@ -38,6 +38,8 @@ fn row(id: u16, slot: usize, first: &str, hidden: bool) -> WhoEntry {
         account: Some(silvermere_types::ids::AccountId(i64::from(id))),
         muted: false,
         jailed: id == 2,
+        room: Some(silvermere_types::ids::RoomKey::new(1, 2140)),
+        room_name: "Town Square".into(),
     }
 }
 

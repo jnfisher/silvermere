@@ -162,13 +162,15 @@ names, case-blind alphabetical).
 ```json
 {"players":[{"session_id":1,"first_name":"Abe","last_name":"Smith","title":"Apprentice",
   "class":"Warrior","race":"Human","level":3,"alignment":-5,"gang":"","idle_secs":7,
-  "hidden":false,"ip":"203.0.113.7","account":12,"muted":false,"jailed":false}]}
+  "hidden":false,"ip":"203.0.113.7","account":12,"muted":false,"jailed":false,
+  "room":"1:2140","room_name":"Town Square"}]}
 ```
 
 `alignment` is the player's evil points; `gang` is empty for none;
 `idle_secs` is seconds since the last input; `ip` is the address the connection comes from
 (an rlogin door player's is the BBS's); `account` is the account id; `muted` and `jailed` say
-whether a sysop's mute or jail is in force ([below](#moderation)). A sysop who made himself invisible is listed only
+whether a sysop's mute or jail is in force ([below](#moderation)); `room` is where the
+character stands (`map:room`) and `room_name` that room's name. A sysop who made himself invisible is listed only
 for an `admin` token (the in-game list hides him from players).
 
 ### `POST /v1/broadcast`

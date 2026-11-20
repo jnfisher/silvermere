@@ -172,6 +172,7 @@ button[type="submit"]:not(.link) {
 #players tbody tr { cursor: pointer; }
 #players tbody tr:hover, #players tbody tr.here { background: var(--code); }
 #players td.flags { color: var(--warn); font-size: 0.85rem; }
+#players td.room .where { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
 #detail { border-color: var(--accent); }
 #detail h2 { font-size: 1.25rem; }
 .sanction { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0.6rem 0; }
