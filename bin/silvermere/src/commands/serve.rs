@@ -28,7 +28,7 @@ pub fn run_with(cfg: &Config, args: &ServeArgs, first_start: bool) -> anyhow::Re
     }
     let mut cfg = cfg.clone();
     loop {
-        let (code, restart) = serve_once(&cfg, args, first_start)?;
+        let (code, restart) = serve_once(&cfg, first_start)?;
         if !restart {
             return Ok(code);
         }
@@ -46,11 +46,7 @@ pub fn run_with(cfg: &Config, args: &ServeArgs, first_start: bool) -> anyhow::Re
 }
 
 /// One run of the server; the exit code, and whether a planned restart ended it.
-fn serve_once(
-    cfg: &Config,
-    args: &ServeArgs,
-    first_start: bool,
-) -> anyhow::Result<(ExitCode, bool)> {
+fn serve_once(cfg: &Config, first_start: bool) -> anyhow::Result<(ExitCode, bool)> {
     silvermere_api::check_bind(
         &cfg.server.admin_bind,
         cfg.admin.tokens.len(),
