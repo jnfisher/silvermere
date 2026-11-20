@@ -59,11 +59,61 @@ variable or the flag to edit the value in the file. See [Precedence](config.md#p
 
 With the name and password of a game account that has the sysop role. The page is on
 `http://127.0.0.1:8088` on the server itself; see [web.md](web.md) to reach it from another
-computer.
+computer. Signing in opens the [console](web.md#the-console); the settings are a click away.
 
 ### How do I stop strangers making accounts?
 
 Set `game.open_signup` to `false`; then only `silvermere account create` makes accounts.
+
+## Running the realm
+
+### Where do I see who is playing?
+
+In the [console](web.md#the-console), `http://127.0.0.1:8088/console`: every player in the
+realm, the room they stand in, their level, class, race, gang, idle time and address, kept up
+to date as they move. From a shell: `silvermere sysop who`. In the game: `SYSOP LIST USERS`.
+
+### How do I kick, mute, jail or ban a player?
+
+Click the player in the console and choose, with a time and a reason the player is told; or
+from a shell, `silvermere sysop kick|mute|jail|ban NAME [--for 1h] [REASON]`, and
+`unmute`, `release`, `unban` to lift it. A jailed player is held in the jail room (no walking,
+recall or teleport out) until the time is up, then let out to town. A ban refuses the account's
+logins and disconnects the player if on. Each holds for a player who is offline from the next
+login, and across restarts. See [admin-api.md](admin-api.md#moderation).
+
+### How do I ban an address?
+
+`silvermere sysop ban-ip 203.0.113.7` (or a block, `203.0.113.0/24`), or the console's **Ban
+address**. Telnet connections from it are closed before the login screen; players already on
+stay until you kick them. The BBS door is never checked: its callers all come from the BBS.
+
+### How do I close the game for maintenance?
+
+**Close realm** in the console, or `silvermere sysop realm close "reason"`. Everyone but the
+sysops is told, saved and disconnected, and only sysops can log in until **Open realm**
+(`silvermere sysop realm open`). It stays closed across restarts.
+
+### Can I restart the server from the console?
+
+Yes: **Restart** (or `silvermere sysop restart --in 5m "reason"`) warns the players, saves
+everyone, takes a backup and starts the server again in the same process. systemd and Docker
+see it keep running, and the console reconnects by itself, still signed in. It is refused if
+the settings would not load or the program file does not run. See
+[POST /v1/restart](admin-api.md#post-v1restart).
+
+### Can I open the console to the internet?
+
+Not directly: it is plain HTTP. Use an SSH tunnel, a private network such as Tailscale, or a
+reverse proxy with TLS, and add the proxy's name to `server.web_hosts`. See
+[Reaching it from another computer](web.md#reaching-it-from-another-computer). The admin API
+stays on this computer unless you set `admin.allow_remote`.
+
+### How do I test my server with many players?
+
+`tools/demo/run.sh stress` imports the stock world, makes 64 characters of every class and
+level and lets them play, then reports how the server kept up. See
+[The demo and stress run](testing.md#the-demo-and-stress-run).
 
 ## Hosting
 
@@ -95,7 +145,8 @@ Yes: every day at 04:30, keeping the last 30. `silvermere backup --list` shows t
 ### How do I upgrade?
 
 Replace the program and start it; the new version migrates the database on its first start.
-See [Upgrading](install.md#upgrading).
+See [Upgrading](install.md#upgrading). On Linux and macOS you can replace the program file and
+then **Restart** from the console: the new version starts in the same process.
 
 ### How do I bring over an existing game?
 

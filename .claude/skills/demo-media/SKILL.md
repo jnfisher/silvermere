@@ -44,8 +44,10 @@ tools/demo/run.sh all demo-run 5          # both
 ## What goes in the repository
 
 Only small, finished images, into `docs/images/` and referenced from the docs (the
-screenshots, or one MP4). GIFs and the rest stay out of git: hand them to the user, or point
-to the workflow's artifact.
+screenshots). Everything under `docs/` is built into the server program, so nothing large goes
+there. The one GIF in git is the README's, `.github/media/console-dark.gif` (the `dark` scene
+at 880 px, about 1.5 MB); replace it only when asked. The rest stay out of git: hand them to
+the user, or point to the workflow's artifact.
 
 ## The scenes
 
