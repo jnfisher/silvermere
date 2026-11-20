@@ -1,6 +1,10 @@
 /target
 # a data directory run from the clone (the import writes assets/ and cache/ there; T-120)
 /data/
+# a test server run from a crate's folder writes its data directory there
+bin/silvermere/data/
+# the web pages' session key (data_dir/web-session.key): a secret
+web-session.key
 *.db
 *.db-wal
 *.db-shm
