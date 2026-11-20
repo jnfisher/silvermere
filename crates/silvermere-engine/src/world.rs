@@ -617,12 +617,12 @@ impl World {
             return;
         }
         self.touch(id);
+        self.outbox
+            .push(crate::event_loop::EngineOutput::Close { id });
         if self.is_in_game(id) {
             let name = crate::state::login::enter::name_for_event(self, id);
             crate::state::login::leave::logoff_event(self, id, name, "closed");
         }
-        self.outbox
-            .push(crate::event_loop::EngineOutput::Close { id });
         self.outbox.push(crate::event_loop::EngineOutput::Event(
             crate::event_loop::GameEvent::Closed { id },
         ));
