@@ -10,6 +10,7 @@ pub mod cli;
 pub mod cmd_import;
 pub mod commands;
 pub mod config;
+pub mod console;
 pub mod gate;
 pub mod moderation;
 pub mod planned;
@@ -442,7 +443,7 @@ pub async fn serve_world_with_db(
     let vitals = admin::Vitals::with_persist(persist.watch());
     let backups = backups::Shared::load(&cfg);
     let planned = std::sync::Arc::new(planned::PlannedShutdown::new(to_engine.clone()));
-    let state = admin::api_state(
+    let mut state = admin::api_state(
         &cfg,
         events_db.clone(),
         to_engine.clone(),
@@ -456,6 +457,14 @@ pub async fn serve_world_with_db(
             ip_bans.clone(),
         )),
     );
+    // the web console's token: in memory only, for the console's in-process calls
+    let console_secret = console::new_secret();
+    state.console = Some(silvermere_api::Token::new(
+        "web-console",
+        &console_secret,
+        &[silvermere_api::Scope::Admin],
+    ));
+    let console_app = silvermere_api::router(state.clone());
     silvermere_engine::metrics::describe_all();
     metrics::gauge!(
         silvermere_engine::metrics::BUILD_INFO,
@@ -497,6 +506,19 @@ pub async fn serve_world_with_db(
                     login: Some(std::sync::Arc::new(web::AccountLogin::new(
                         events_db.clone(),
                     ))),
+                    sessions: silvermere_web::Sessions::with_key(web::session_key(&cfg.data_dir)),
+                    hosts: Some(web::web_hosts(&cfg)),
+                    console: Some(std::sync::Arc::new(console::ApiConsole::new(
+                        console_app,
+                        console_secret,
+                    ))),
+                    notices: if silvermere_api::is_loopback_bind(&cfg.server.admin_bind)
+                        .unwrap_or(true)
+                    {
+                        Vec::new()
+                    } else {
+                        vec![silvermere_api::remote_warning(&cfg.server.admin_bind)]
+                    },
                     ..silvermere_web::WebState::open(env!("CARGO_PKG_VERSION"))
                 };
                 admin_tasks.push(tokio::spawn(async move {

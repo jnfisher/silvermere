@@ -279,11 +279,12 @@ pub trait EventLog: Send + Sync {
     -> BoxFuture<'_, Result<Vec<EventRecord>, LogError>>;
 }
 
-fn frame(rec: &EventRecord) -> Event {
-    Event::default()
-        .id(rec.id.to_string())
-        .event(rec.kind.clone())
-        .json_data(rec)
+/// One frame: named by the event's kind, or with `plain` unnamed (a browser's
+/// `EventSource` hears unnamed frames with one handler; the kind is in the data).
+fn frame(rec: &EventRecord, plain: bool) -> Event {
+    let e = Event::default().id(rec.id.to_string());
+    let e = if plain { e } else { e.event(rec.kind.clone()) };
+    e.json_data(rec)
         .unwrap_or_else(|_| Event::default().event("error"))
 }
 
@@ -292,6 +293,8 @@ fn frame(rec: &EventRecord) -> Event {
 pub struct StreamQuery {
     /// Comma-separated kinds to send, e.g. `login,death`; absent means all.
     pub kinds: Option<String>,
+    /// `1`: frames without the `event:` name (for a browser's `EventSource`).
+    pub plain: Option<u8>,
 }
 
 pub async fn stream(
@@ -304,6 +307,7 @@ pub async fn stream(
         return ApiError(StatusCode::FORBIDDEN, "forbidden").into_response();
     }
     let after = last_event_id(&headers);
+    let plain = query.plain == Some(1);
     let filter: Vec<String> = query
         .kinds
         .iter()
@@ -347,7 +351,7 @@ pub async fn stream(
                     if !kind_passes(&filter, &rec.kind) {
                         continue;
                     }
-                    if tx.send(Ok(frame(&rec))).await.is_err() {
+                    if tx.send(Ok(frame(&rec, plain))).await.is_err() {
                         return;
                     }
                 }

@@ -142,6 +142,10 @@ pub struct ServerCfg {
     /// Web pages listen address (`silvermere_web`): the documentation, the FAQ and the
     /// settings editor. Empty: off.
     pub web_bind: String,
+    /// More host names the web pages answer to (a reverse proxy's public name, the
+    /// computer's name on the network), besides `localhost`, the loopback addresses and
+    /// the `web_bind` address.
+    pub web_hosts: Vec<String>,
 }
 
 /// `[net]`.
@@ -287,6 +291,7 @@ impl Default for ServerCfg {
             rlogin_bind: String::new(),
             rlogin_trusted: Vec::new(),
             web_bind: "127.0.0.1:8088".into(),
+            web_hosts: Vec::new(),
         }
     }
 }

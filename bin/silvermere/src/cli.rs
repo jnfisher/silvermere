@@ -267,6 +267,8 @@ pub enum SysopCmd {
         /// Said to the players with each warning, such as `upgrading to 1.0`
         message: Option<String>,
     },
+    /// Take a backup now on the running server, as a scheduled one is taken.
+    Backup,
     /// Disconnect a player, saved, telling him why.
     Kick {
         /// A character's first name or an account's username
@@ -325,6 +327,23 @@ pub enum SysopCmd {
         #[command(subcommand)]
         action: RealmCmd,
     },
+}
+
+/// One line of the web console's command line: the `sysop` subcommands, without the
+/// program's name.
+#[derive(Debug, Parser)]
+#[command(
+    name = "sysop",
+    no_binary_name = true,
+    disable_version_flag = true,
+    about = "The sysop's commands. Type a command, or help COMMAND."
+)]
+pub struct ConsoleLine {
+    /// Print the server's JSON answer as it came.
+    #[arg(long, global = true)]
+    pub json: bool,
+    #[command(subcommand)]
+    pub action: SysopCmd,
 }
 
 /// `sysop mute|jail|ban` arguments.

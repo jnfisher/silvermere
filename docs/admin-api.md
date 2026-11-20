@@ -383,6 +383,8 @@ when it can take the guard itself, as above.
 is sent every 15 seconds. The stream is the live tail of the `events` table: every event is
 also a row there, with the same id and payload.
 
+- `?plain=1` sends the frames without the `event:` name, so a browser's `EventSource` hears
+  every kind with one handler (the kind is in the data); the web console uses it.
 - `?kinds=login,death` sends only those kinds. A word without a dot also covers its
   family: `auth` sends `auth.login_failed`, `auth.lockout` and the rest; `auth.lockout`
   sends only that one.
@@ -422,6 +424,11 @@ Engine rows (`connected`, `closed`, `login`, `logoff`, `death`, `level`) carry t
 
 `connected` and `closed` have `{}`. Tokens with the `read` scope see the players' addresses
 here and in `/v1/who`.
+
+The web console ([web.md](web.md#the-console)) calls these routes inside the server with a
+token made at start and held in memory only, naming the signed-in sysop in the
+`X-Silvermere-Sysop` header: its rows name `web:<sysop>` as the token, and its `GET`s (it
+refreshes every few seconds) are not audited.
 
 Audit rows (`admin.*`): every authenticated call to a `/v1` route (including a `403` and the
 `501`s) is logged as `tracing::info!(target = "audit", route, token_name, status)` and

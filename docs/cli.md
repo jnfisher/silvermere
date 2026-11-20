@@ -267,6 +267,7 @@ silvermere sysop unban <PLAYER>
 silvermere sysop ban-ip <NETWORK> [--for <DURATION>] [REASON]
 silvermere sysop unban-ip <NETWORK>
 silvermere sysop moderation
+silvermere sysop backup
 silvermere sysop realm close [REASON]
 silvermere sysop realm open
 silvermere sysop --json <SUBCOMMAND>
@@ -292,6 +293,7 @@ silvermere sysop --json <SUBCOMMAND>
 | `sysop ban-ip <NETWORK>` | closes telnet connections from an address or CIDR block (`203.0.113.7`, `203.0.113.0/24`, `2001:db8::/32`) before the login screen; the rlogin door is never checked, and players already in the game stay | `POST /v1/ip-bans` | `admin` |
 | `sysop unban-ip <NETWORK>` | lifts the ban of the address or block | `DELETE /v1/ip-bans` | `admin` |
 | `sysop moderation` | lists the bans, jails and mutes in force, the IP bans, and whether the realm is closed | `GET /v1/moderation` | `read` |
+| `sysop backup` | takes a backup now on the running server, as a scheduled one (pruned to `backup.keep`, the after-backup command run); `silvermere backup` does the same from the outside | `POST /v1/backup` | `admin` |
 | `sysop realm close [REASON]` | only sysops may log in; every other player is told, saved and disconnected. It stays closed across restarts | `POST /v1/realm/close` | `admin` |
 | `sysop realm open` | everyone may log in again | `POST /v1/realm/open` | `admin` |
 

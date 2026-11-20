@@ -210,6 +210,7 @@ pub fn api_state(
         backup,
         shutdown,
         moderation,
+        console: None,
     }
 }
 

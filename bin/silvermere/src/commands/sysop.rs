@@ -74,7 +74,22 @@ fn lift(kind: &str, player: &str) -> (&'static str, String, TokenScope, Option<S
 fn request(cfg: &Config, action: &SysopCmd) -> Result<String, String> {
     let bind = &cfg.server.admin_bind;
     let addr = reach(bind).ok_or_else(|| format!("server.admin_bind `{bind}` is not host:port"))?;
-    let (method, path, scope, body): (&str, String, TokenScope, Option<String>) = match action {
+    let (method, path, scope, body) = route(action);
+    let path = path.as_str();
+    let token = token_for(cfg, scope).ok_or_else(|| {
+        format!(
+            "the config has no admin API token with its secret for this ({} scope): set \
+             SILVERMERE_ADMIN_TOKEN to the server's token",
+            scope_name(scope)
+        )
+    })?;
+    send(addr, method, path, scope, &token, body)
+}
+
+/// The admin API call `action` is: method, path, the scope it needs, the JSON body. The
+/// web console runs the same calls in the server ([`crate::console`]).
+pub fn route(action: &SysopCmd) -> (&'static str, String, TokenScope, Option<String>) {
+    match action {
         SysopCmd::Restart { cancel: true, .. } => {
             ("DELETE", "/v1/restart".into(), TokenScope::Admin, None)
         }
@@ -132,6 +147,7 @@ fn request(cfg: &Config, action: &SysopCmd) -> Result<String, String> {
             Some(serde_json::json!({ "network": network }).to_string()),
         ),
         SysopCmd::Moderation => ("GET", "/v1/moderation".into(), TokenScope::Read, None),
+        SysopCmd::Backup => ("POST", "/v1/backup".into(), TokenScope::Admin, None),
         SysopCmd::Realm {
             action: RealmCmd::Close { reason },
         } => (
@@ -166,16 +182,7 @@ fn request(cfg: &Config, action: &SysopCmd) -> Result<String, String> {
                 .to_string(),
             ),
         ),
-    };
-    let path = path.as_str();
-    let token = token_for(cfg, scope).ok_or_else(|| {
-        format!(
-            "the config has no admin API token with its secret for this ({} scope): set \
-             SILVERMERE_ADMIN_TOKEN to the server's token",
-            scope_name(scope)
-        )
-    })?;
-    send(addr, method, path, scope, &token, body)
+    }
 }
 
 /// Sends the call; the body of a `200`, else the error line.
@@ -199,16 +206,20 @@ fn send(
     if status == 200 {
         return Ok(body);
     }
-    // the API's error body: {"error": code, "message": text}
-    let message = serde_json::from_str::<Value>(&body)
-        .ok()
-        .and_then(|v| v.get("message").and_then(Value::as_str).map(str::to_owned))
-        .unwrap_or_else(|| body.trim().to_owned());
+    let message = error_message(&body);
     Err(match status {
         401 => format!("the server on {addr} does not know this token: {message}"),
         403 => format!("the token lacks the {} scope: {message}", scope_name(scope)),
         _ => format!("the server on {addr} answered {status}: {message}"),
     })
+}
+
+/// The `message` of the API's error body `{"error": code, "message": text}`, else the body.
+pub fn error_message(body: &str) -> String {
+    serde_json::from_str::<Value>(body)
+        .ok()
+        .and_then(|v| v.get("message").and_then(Value::as_str).map(str::to_owned))
+        .unwrap_or_else(|| body.trim().to_owned())
 }
 
 fn scope_name(scope: TokenScope) -> &'static str {
@@ -220,7 +231,7 @@ fn scope_name(scope: TokenScope) -> &'static str {
 }
 
 /// The answer as text. An answer that is not the documented shape is printed as it came.
-fn render(action: &SysopCmd, body: &str) -> String {
+pub fn render(action: &SysopCmd, body: &str) -> String {
     let shown = serde_json::from_str::<Value>(body)
         .ok()
         .and_then(|v| match action {
@@ -268,6 +279,20 @@ fn render(action: &SysopCmd, body: &str) -> String {
                 v.get("network")?.as_str()?
             )),
             SysopCmd::Moderation => moderation(&v),
+            SysopCmd::Backup => Some(if v.get("ok")?.as_bool()? {
+                format!(
+                    "Backup made: {} ({} KiB).\n",
+                    v.get("file")?.as_str()?,
+                    v.get("bytes").and_then(Value::as_u64).unwrap_or(0) / 1024
+                )
+            } else {
+                format!(
+                    "The backup failed: {}\n",
+                    v.get("error")
+                        .and_then(Value::as_str)
+                        .unwrap_or("see the server log")
+                )
+            }),
             SysopCmd::Realm {
                 action: RealmCmd::Close { .. },
             } => {

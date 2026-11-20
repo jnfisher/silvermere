@@ -94,6 +94,7 @@ fn harness() -> Harness {
         backup: Arc::new(silvermere_api::NoBackups),
         shutdown: Arc::new(silvermere_api::NoShutdown),
         moderation: Arc::new(silvermere_api::NoModeration),
+        console: None,
         tokens: Arc::new(vec![
             Token::new("reader", "read-secret", &[Scope::Read]),
             Token::new("caster", "cast-secret", &[Scope::Write]),

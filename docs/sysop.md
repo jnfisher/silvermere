@@ -23,7 +23,8 @@ accounts; [cli.md](cli.md) has every command-line tool).
    `mute`, `jail` (held in the jail room until a set time), `ban`, `ban-ip`, `realm close`
    and `realm open`, `moderation` to list what is in force, and a planned `shutdown`
    ([cli.md](cli.md#silvermere-sysop)). It calls the [admin API](admin-api.md#moderation) on
-   this computer.
+   this computer. The same commands, with buttons and a live view of the players, are in the
+   web [console](web.md#the-console) at `http://127.0.0.1:8088/console`.
 
 What an operator can do in the game: the `SYSOP` command and the `[MAJORMUD Sysop]` menu,
 added by T-055. The code is

@@ -33,7 +33,7 @@ pub use events::{EventKind, EventLog, EventRecord, NewEvent};
 pub use health::HealthProbe;
 pub use moderation::{Action, ModError, Moderator, NoModeration};
 pub use reload::WorldLoader;
-pub use router::{ApiState, RouteSpec, router, routes, serve};
+pub use router::{ACTING_FOR, ApiState, RouteSpec, router, routes, serve};
 pub use shutdown::{NoShutdown, Planned, ShutdownPlan};
 
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};

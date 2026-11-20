@@ -53,6 +53,21 @@ pub struct ApiState {
     pub shutdown: Arc<dyn crate::shutdown::ShutdownPlan>,
     /// Kicks, bans, jail, mutes and the closed realm for the moderation routes.
     pub moderation: Arc<dyn crate::moderation::Moderator>,
+    /// The web console's token: made at start, held in memory only, never configured. A
+    /// call with it names the signed-in sysop in [`ACTING_FOR`] and is audited as
+    /// `web:<name>`; without that header it is refused.
+    pub console: Option<Token>,
+}
+
+/// The header a web console call names its sysop in.
+pub const ACTING_FOR: &str = "x-silvermere-sysop";
+
+/// A sysop's name as the console may give it: 1 to 64 letters, digits, `-`, `_`, `.`.
+fn acting_name_ok(name: &str) -> bool {
+    (1..=64).contains(&name.len())
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"-_.".contains(&b))
 }
 
 impl ApiState {
@@ -271,7 +286,29 @@ async fn guard(State(state): State<ApiState>, mut req: Request, next: Next) -> R
         .headers()
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok());
-    let Some(caller) = authenticate(&state.tokens, header) else {
+    // the web console's own token first: it acts for the sysop it names
+    let console = state
+        .console
+        .as_ref()
+        .and_then(|t| authenticate(std::slice::from_ref(t), header));
+    let caller = match console {
+        Some(c) => {
+            let acting = req
+                .headers()
+                .get(ACTING_FOR)
+                .and_then(|v| v.to_str().ok())
+                .filter(|n| acting_name_ok(n));
+            match acting {
+                Some(name) => Some(crate::auth::Caller {
+                    name: format!("web:{name}"),
+                    scopes: c.scopes,
+                }),
+                None => None,
+            }
+        }
+        None => authenticate(&state.tokens, header),
+    };
+    let Some(caller) = caller else {
         let mut resp = ApiError(StatusCode::UNAUTHORIZED, "unauthorized").into_response();
         resp.headers_mut()
             .insert(header::WWW_AUTHENTICATE, "Bearer".parse().expect("static"));
@@ -284,8 +321,14 @@ async fn guard(State(state): State<ApiState>, mut req: Request, next: Next) -> R
         .trim_end_matches('/')
         .replace('/', ".");
     let method = req.method().to_string();
+    // the web console reads every few seconds: those reads are not audited
+    let console_read = caller.name.starts_with("web:") && req.method() == axum::http::Method::GET;
     req.extensions_mut().insert(caller.clone());
     let mut resp = next.run(req).await;
+    if console_read {
+        tracing::debug!(target: "audit", route = %route, token_name = %caller.name, "console read");
+        return resp;
+    }
     let status = resp.status().as_u16();
     let detail = resp.extensions_mut().remove::<AuditDetail>();
 

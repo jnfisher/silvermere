@@ -13,6 +13,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod console;
 pub mod export;
 pub mod page;
 pub mod session;
@@ -29,6 +30,7 @@ use axum::http::header::{self, HeaderMap, HeaderValue};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 
+pub use console::{Console, LineOutcome};
 pub use export::export;
 pub use session::{LoginOutcome, Sessions, SysopLogin};
 pub use settings::{Change, Kind, Lock, SettingValue, Settings, SettingsView, Source};
@@ -49,6 +51,16 @@ pub struct WebState {
     pub login: Option<Arc<dyn SysopLogin>>,
     /// Who is signed in.
     pub sessions: Sessions,
+    /// The host names the pages answer to (the `Host` header without its port, lower
+    /// case); `None` answers to any (a public copy, the tests). Anything else is refused,
+    /// so a web page elsewhere cannot reach these pages through a name it controls (DNS
+    /// rebinding).
+    pub hosts: Option<Vec<String>>,
+    /// The admin API for the console; `None`: the console says it is not available.
+    pub console: Option<Arc<dyn Console>>,
+    /// Lines the console shows on top for the sysop (the admin API reachable from other
+    /// computers, say).
+    pub notices: Vec<String>,
 }
 
 impl WebState {
@@ -60,6 +72,9 @@ impl WebState {
             settings: None,
             login: None,
             sessions: Sessions::default(),
+            hosts: None,
+            console: None,
+            notices: Vec::new(),
         }
     }
 }
@@ -68,13 +83,18 @@ type Shared = Arc<WebState>;
 
 /// The routes.
 pub fn router(state: WebState) -> Router {
-    Router::new()
+    let router = Router::new()
         .route("/", get(home))
         .route("/docs", get(docs_index))
         .route("/docs/{*slug}", get(doc))
         .route("/faq", get(faq))
         .route("/settings", get(settings_page).post(settings_save))
         .route("/settings/apply", axum::routing::post(settings_apply))
+        .route("/console", get(console_page))
+        .route("/console/api/{*path}", axum::routing::any(console_api))
+        .route("/console/line", axum::routing::post(console_line))
+        .route("/console/password", axum::routing::post(console_password))
+        .route("/assets/console.js", get(console_script))
         .route("/login", get(login_page).post(login))
         .route("/logout", axum::routing::post(logout))
         .route("/assets/style.css", get(style))
@@ -83,8 +103,122 @@ pub fn router(state: WebState) -> Router {
         // kept for playing in the browser
         .route("/play", get(not_built))
         .route("/ws", get(not_built))
-        .fallback(not_found)
-        .with_state(Arc::new(state))
+        .fallback(not_found);
+    let state = Arc::new(state);
+    router
+        .layer(axum::middleware::from_fn_with_state(state.clone(), guard))
+        .with_state(state)
+}
+
+/// The host part of a `Host` header, lower case: `[::1]:8088` is `::1`.
+fn host_name(host: &str) -> String {
+    let host = host.trim();
+    let name = if let Some(rest) = host.strip_prefix('[') {
+        rest.split(']').next().unwrap_or("")
+    } else {
+        host.rsplit_once(':')
+            .filter(|(_, port)| port.chars().all(|c| c.is_ascii_digit()))
+            .map_or(host, |(h, _)| h)
+    };
+    name.to_ascii_lowercase()
+}
+
+/// Every request: the `Host` must be one the pages answer to, a request that changes
+/// something must come from these pages (`Origin`, `Sec-Fetch-Site`), and a signed-in
+/// session is checked against the account (still a sysop, same password) and its cookie
+/// renewed, which keeps it from going idle.
+async fn guard(
+    State(state): State<Shared>,
+    mut req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Response {
+    let headers = req.headers();
+    let host = headers
+        .get(header::HOST)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if let Some(allowed) = &state.hosts
+        && !allowed.contains(&host_name(host))
+    {
+        tracing::warn!(
+            host,
+            "web request for a host name these pages do not answer to; refused (server.web_hosts)"
+        );
+        return (
+            StatusCode::MISDIRECTED_REQUEST,
+            [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+            format!(
+                "This server does not answer to the name {:?}. Add it to server.web_hosts.\n",
+                host_name(host)
+            ),
+        )
+            .into_response();
+    }
+    let unsafe_method = !matches!(
+        *req.method(),
+        axum::http::Method::GET | axum::http::Method::HEAD | axum::http::Method::OPTIONS
+    );
+    if unsafe_method {
+        let origin_ok = match headers.get(header::ORIGIN).and_then(|v| v.to_str().ok()) {
+            None => true,
+            Some(origin) => origin
+                .split_once("://")
+                .is_some_and(|(_, rest)| rest.eq_ignore_ascii_case(host)),
+        };
+        let site_ok = headers
+            .get("sec-fetch-site")
+            .and_then(|v| v.to_str().ok())
+            .is_none_or(|s| s == "same-origin" || s == "none");
+        if !origin_ok || !site_ok {
+            tracing::warn!(host, "web request from another site refused");
+            return (
+                StatusCode::FORBIDDEN,
+                "Refused: this request came from another site.\n",
+            )
+                .into_response();
+        }
+    }
+    let assets = req
+        .uri()
+        .path()
+        .starts_with(&format!("{}/assets/", state.site.base));
+    let cookie = headers.get(header::COOKIE).and_then(|v| v.to_str().ok());
+    let live = if assets {
+        None
+    } else {
+        state.sessions.find(cookie)
+    };
+    // the console's own refreshes do not count as use: an open page still goes idle
+    let polling = headers.contains_key("x-console-poll");
+    let mut renew = None;
+    let mut ended = false;
+    if let Some(s) = live {
+        let current = match &state.login {
+            Some(check) => check.fingerprint(s.user.clone()).await,
+            None => None,
+        };
+        if current.as_deref() == Some(s.fingerprint.as_str()) {
+            if !polling {
+                renew = Some(s.used_at(session::now()));
+            }
+        } else {
+            tracing::info!(target: "audit", user = %s.user, "web session ended: the account changed");
+            req.headers_mut().remove(header::COOKIE);
+            ended = true;
+        }
+    }
+    let mut resp = next.run(req).await;
+    if !resp.headers().contains_key(header::SET_COOKIE) {
+        let value = match (&renew, ended) {
+            (Some(s), _) => Some(state.sessions.set_cookie(s)),
+            (None, true) => Some(session::clear_cookie()),
+            (None, false) => None,
+        };
+        if let Some(v) = value.and_then(|v| HeaderValue::from_str(&v).ok()) {
+            resp.headers_mut().insert(header::SET_COOKIE, v);
+        }
+    }
+    resp
 }
 
 /// Serves the pages on `listener` until `shutdown` completes.
@@ -98,6 +232,12 @@ pub async fn serve(
         .await
 }
 
+/// Nothing loads from elsewhere, no script but this site's files (none inline), and no
+/// other site may frame the pages.
+pub const CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self'; \
+    img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; \
+    base-uri 'none'; form-action 'self'";
+
 /// A page with the headers every page carries: nothing loads from elsewhere, and no other
 /// site may frame it.
 fn html(status: StatusCode, body: String) -> Response {
@@ -105,10 +245,7 @@ fn html(status: StatusCode, body: String) -> Response {
         status,
         [
             (header::CONTENT_TYPE, "text/html; charset=utf-8"),
-            (
-                header::CONTENT_SECURITY_POLICY,
-                "default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
-            ),
+            (header::CONTENT_SECURITY_POLICY, CSP),
             (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
             (header::REFERRER_POLICY, "same-origin"),
             (header::CACHE_CONTROL, "no-store"),
@@ -236,6 +373,195 @@ async fn not_built(State(state): State<Shared>, headers: HeaderMap) -> Response 
             "Playing in the browser is not part of this version. Connect with a telnet client.",
         ),
     )
+}
+
+async fn console_script() -> Response {
+    asset("text/javascript; charset=utf-8", page::CONSOLE_SCRIPT)
+}
+
+/// A JSON error for the console's calls.
+fn json_error(status: StatusCode, code: &str, message: &str) -> Response {
+    let body = format!(
+        "{{\"error\":{},\"message\":{}}}",
+        json_string(code),
+        json_string(message)
+    );
+    (status, [(header::CONTENT_TYPE, "application/json")], body).into_response()
+}
+
+/// `s` as a JSON string.
+fn json_string(s: &str) -> String {
+    let mut out = String::from("\"");
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+async fn console_page(State(state): State<Shared>, headers: HeaderMap) -> Response {
+    let Some(s) = session(&state, &headers) else {
+        return see_other(&format!("{}/login", state.site.base), None);
+    };
+    let c = chrome(&state, Some(&s));
+    if state.console.is_none() {
+        return html(
+            StatusCode::SERVICE_UNAVAILABLE,
+            page::notice(&c, "Console", "This server has no console."),
+        );
+    }
+    html(StatusCode::OK, page::console(&c, &s.csrf, &state.notices))
+}
+
+/// The session of a console call, and for one that changes something its CSRF token.
+fn console_session(
+    state: &WebState,
+    headers: &HeaderMap,
+    changes: bool,
+) -> Result<Session, Box<Response>> {
+    let Some(s) = session(state, headers) else {
+        return Err(Box::new(json_error(
+            StatusCode::UNAUTHORIZED,
+            "signed_out",
+            "Your session has ended: sign in again.",
+        )));
+    };
+    let token = headers.get("x-csrf-token").and_then(|v| v.to_str().ok());
+    if changes && token != Some(s.csrf.as_str()) {
+        return Err(Box::new(json_error(
+            StatusCode::FORBIDDEN,
+            "csrf",
+            "This page is out of date: reload it.",
+        )));
+    }
+    Ok(s)
+}
+
+/// `/console/api/v1/...` and `/console/api/healthz`: the admin API as the signed-in sysop.
+async fn console_api(
+    State(state): State<Shared>,
+    method: axum::http::Method,
+    headers: HeaderMap,
+    Path(path): Path<String>,
+    axum::extract::RawQuery(query): axum::extract::RawQuery,
+    body: axum::body::Bytes,
+) -> Response {
+    let changes = method != axum::http::Method::GET;
+    let s = match console_session(&state, &headers, changes) {
+        Ok(s) => s,
+        Err(r) => return *r,
+    };
+    let Some(console) = &state.console else {
+        return json_error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "no_console",
+            "This server has no console.",
+        );
+    };
+    if !(path.starts_with("v1/") || path == "healthz") || path.contains("..") {
+        return json_error(StatusCode::NOT_FOUND, "not_found", "no such route");
+    }
+    let mut full = format!("/{path}");
+    if let Some(q) = query {
+        full.push('?');
+        full.push_str(&q);
+    }
+    if console::needs_password(&method, &full) && !s.fresh(session::now()) {
+        return console::password_wanted();
+    }
+    let last = headers
+        .get("last-event-id")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
+    console.call(&s.user, method, &full, body, last).await
+}
+
+#[derive(serde::Deserialize)]
+struct LineBody {
+    line: String,
+}
+
+/// `POST /console/line`: one command line, as `silvermere sysop` takes it.
+async fn console_line(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    axum::Json(body): axum::Json<LineBody>,
+) -> Response {
+    let s = match console_session(&state, &headers, true) {
+        Ok(s) => s,
+        Err(r) => return *r,
+    };
+    let Some(console) = &state.console else {
+        return json_error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "no_console",
+            "This server has no console.",
+        );
+    };
+    match console
+        .line(&s.user, &body.line, s.fresh(session::now()))
+        .await
+    {
+        LineOutcome::Text(text) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "application/json")],
+            format!("{{\"text\":{}}}", json_string(&text)),
+        )
+            .into_response(),
+        LineOutcome::Error(e) => json_error(StatusCode::BAD_REQUEST, "failed", &e),
+        LineOutcome::NeedsPassword => console::password_wanted(),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct PasswordBody {
+    password: String,
+}
+
+/// `POST /console/password`: the password given again, for the actions that want it.
+async fn console_password(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    axum::Json(body): axum::Json<PasswordBody>,
+) -> Response {
+    let s = match console_session(&state, &headers, true) {
+        Ok(s) => s,
+        Err(r) => return *r,
+    };
+    let Some(check) = &state.login else {
+        return json_error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "no_login",
+            "Signing in is not available.",
+        );
+    };
+    match check.login(s.user.clone(), body.password).await {
+        LoginOutcome::Sysop(name) if name == s.user => {
+            tracing::info!(target: "audit", user = %s.user, "web console: password given again");
+            let renewed = s.reauthenticated(session::now());
+            let mut resp = (
+                StatusCode::OK,
+                [(header::CONTENT_TYPE, "application/json")],
+                "{\"ok\":true}",
+            )
+                .into_response();
+            if let Ok(v) = HeaderValue::from_str(&state.sessions.set_cookie(&renewed)) {
+                resp.headers_mut().insert(header::SET_COOKIE, v);
+            }
+            resp
+        }
+        LoginOutcome::Sysop(_) => json_error(
+            StatusCode::UNAUTHORIZED,
+            "wrong_password",
+            "That is not your password.",
+        ),
+        LoginOutcome::Refused(why) => json_error(StatusCode::UNAUTHORIZED, "wrong_password", &why),
+    }
 }
 
 async fn style() -> Response {
@@ -423,7 +749,7 @@ async fn settings_apply(
 
 async fn login_page(State(state): State<Shared>, headers: HeaderMap) -> Response {
     if session(&state, &headers).is_some() {
-        return see_other(&format!("{}/settings", state.site.base), None);
+        return see_other(&format!("{}/console", state.site.base), None);
     }
     html(StatusCode::OK, page::login(&chrome(&state, None), None, ""))
 }
@@ -445,10 +771,16 @@ async fn login(State(state): State<Shared>, Form(form): Form<Credentials>) -> Re
     let username = form.username.trim().to_owned();
     match check.login(username.clone(), form.password).await {
         LoginOutcome::Sysop(name) => {
-            let cookie = state.sessions.open(&name);
+            let Some(fp) = check.fingerprint(name.clone()).await else {
+                return html(
+                    StatusCode::UNAUTHORIZED,
+                    page::login(&c, Some("That account cannot sign in here."), &username),
+                );
+            };
+            let s = state.sessions.open(&name, &fp, session::now());
             see_other(
-                &format!("{}/settings", state.site.base),
-                Some(session::set_cookie(&cookie)),
+                &format!("{}/console", state.site.base),
+                Some(state.sessions.set_cookie(&s)),
             )
         }
         LoginOutcome::Refused(why) => html(
@@ -467,10 +799,28 @@ async fn logout(
     if let Some(s) = state.sessions.find(cookie)
         && posted.iter().any(|(k, v)| k == "csrf" && *v == s.csrf)
     {
-        state.sessions.close(cookie);
+        tracing::info!(target: "audit", user = %s.user, "web sign-out");
+        state.sessions.close(&s);
     }
     see_other(
         &format!("{}/", state.site.base),
         Some(session::clear_cookie()),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::host_name;
+
+    #[test]
+    fn the_host_name_drops_the_port_and_brackets() {
+        assert_eq!(host_name("127.0.0.1:8088"), "127.0.0.1");
+        assert_eq!(host_name("LocalHost"), "localhost");
+        assert_eq!(host_name("[::1]:8088"), "::1");
+        assert_eq!(
+            host_name("silvermere.example.org:443"),
+            "silvermere.example.org"
+        );
+        assert_eq!(host_name(""), "");
+    }
 }

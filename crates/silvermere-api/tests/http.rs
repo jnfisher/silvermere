@@ -184,6 +184,7 @@ async fn server() -> Server {
         backup: Arc::new(FakeBackups),
         shutdown: shutdown.clone(),
         moderation: moderator.clone(),
+        console: Some(Token::new("web-console", "console-secret", &[Scope::Admin])),
         tokens: Arc::new(
             TOKENS
                 .iter()
@@ -692,6 +693,43 @@ async fn moderation_routes_check_their_bodies_and_pass_the_action_on() {
         (r.status, r.json()["error"].clone()),
         (404, json!("no_such_player"))
     );
+}
+
+// The web console's token acts for the sysop it names, audited as web:<name>; without a
+// name, or with one that is not a name, it is refused, and the header means nothing with
+// any other token.
+#[tokio::test]
+async fn the_console_token_acts_for_the_named_sysop() {
+    let srv = server().await;
+    let call = |token: &'static str, acting: Option<&'static str>| {
+        let addr = srv.addr;
+        async move {
+            let extra = acting.map_or(String::new(), |n| format!("X-Silvermere-Sysop: {n}\r\n"));
+            let req = format!(
+                "POST /v1/players/Lars/tell HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\
+                 Authorization: Bearer {token}\r\n{extra}Content-Type: application/json\r\n\
+                 Content-Length: 13\r\n\r\n{{\"text\":\"hi\"}}"
+            );
+            let mut s = TcpStream::connect(addr).await.unwrap();
+            s.write_all(req.as_bytes()).await.unwrap();
+            let mut raw = String::new();
+            s.read_to_string(&mut raw).await.unwrap();
+            raw.split(' ').nth(1).unwrap().parse::<u16>().unwrap()
+        }
+    };
+    assert_eq!(call("console-secret", Some("Boss")).await, 200);
+    assert_eq!(call("console-secret", None).await, 401);
+    assert_eq!(call("console-secret", Some("a b")).await, 401);
+    assert_eq!(call("write-secret", Some("Boss")).await, 200);
+    let by: Vec<String> = srv
+        .moderator
+        .actions
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|(_, by)| by.clone())
+        .collect();
+    assert_eq!(by, ["web:Boss", "writer"]);
 }
 
 // POST /v1/shutdown: the defaults, the limits, and the audit row; DELETE cancels.

@@ -2105,6 +2105,7 @@ name = "silvermere"
 version = "0.1.18"
 dependencies = [
  "anyhow",
+ "axum",
  "clap",
  "figment",
  "jiff",
@@ -2129,6 +2130,7 @@ dependencies = [
  "tokio",
  "toml 1.1.8+spec-1.1.0",
  "toml_edit 0.25.17+spec-1.1.0",
+ "tower",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -2330,6 +2332,7 @@ dependencies = [
  "pulldown-cmark",
  "rand 0.10.3",
  "serde",
+ "sha2 0.11.1",
  "tokio",
  "tower",
  "tracing",

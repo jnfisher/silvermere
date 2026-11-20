@@ -76,6 +76,13 @@ impl SysopLogin for OnlyBob {
             }
         })
     }
+
+    fn fingerprint(
+        &self,
+        username: String,
+    ) -> Pin<Box<dyn Future<Output = Option<String>> + Send + '_>> {
+        Box::pin(async move { (username == "Bob").then(|| "fp".to_owned()) })
+    }
 }
 
 fn state(fake: Arc<Fake>) -> WebState {
@@ -119,7 +126,7 @@ fn post(path: &str, cookie: Option<&str>, form: &str) -> Request<Body> {
 async fn sign_in(app: &axum::Router) -> (String, String) {
     let (status, headers, _) = call(app, post("/login", None, "username=bob&password=right")).await;
     assert_eq!(status, StatusCode::SEE_OTHER);
-    assert_eq!(headers[header::LOCATION], "/settings");
+    assert_eq!(headers[header::LOCATION], "/console");
     let set = headers[header::SET_COOKIE].to_str().unwrap();
     assert!(
         set.contains("HttpOnly") && set.contains("SameSite=Strict"),
