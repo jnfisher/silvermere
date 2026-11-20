@@ -27,4 +27,10 @@ impl World {
         self.outbox
             .push(EngineOutput::Event(GameEvent::Level { id, level }));
     }
+
+    /// Queues `event` for the events table and the admin stream, as the game does when it
+    /// happens (tooling and tests).
+    pub fn emit_event(&mut self, event: GameEvent) {
+        self.outbox.push(EngineOutput::Event(event));
+    }
 }
