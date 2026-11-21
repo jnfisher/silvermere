@@ -4,7 +4,7 @@ use silvermere_fsd::{Form, Mode};
 
 use crate::support::show;
 
-const CLEAR: &[u8] = b"\x1B[0m\x1B[2J\x1B[0m";
+const CLEAR: &[u8] = b"\x1B[0m\x1B[2J\x1B[H\x1B[0m";
 
 fn background(f: &Form) -> Vec<u8> {
     let mut out = Vec::new();

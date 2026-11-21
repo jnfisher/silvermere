@@ -236,7 +236,7 @@ fn filled_template(answers: &[String]) -> Vec<u8> {
             t.push(b);
         }
     }
-    let mut out = b"\x1b[0m\x1b[2J\x1b[0m".to_vec();
+    let mut out = b"\x1b[0m\x1b[2J\x1b[H\x1b[0m".to_vec();
     let (mut i, mut n) = (0, 0);
     while i < t.len() {
         let c = t[i];

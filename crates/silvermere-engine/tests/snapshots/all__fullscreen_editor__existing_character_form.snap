@@ -2,7 +2,7 @@
 source: crates/silvermere-engine/tests/fullscreen_editor.rs
 expression: "crate::common::redact(&escape(&got))"
 ---
-\e[0;37;40m\e[0m\e[2J\e[0m\e[0m    .─────────────────────────────────────.──.\r\n
+\e[0;37;40m\e[0m\e[2J\e[H\e[0m\e[0m    .─────────────────────────────────────.──.\r\n
    / \e[1;36mM A J O R  M U D \e[0;36mCharacter Creation \e[37m/    \  \e[1;30m┌─    \e[35m[package text]    \e[30m─┐\r\n
   \e[0m│                                     ├──.   │ \e[1;30m│                          │\r\n
   \e[0m│ \e[31m» \e[36mGiven Name   \e[1;37mKraag              \e[0;31m« \e[37m│___\_/  \e[1;30m│ \e[35m1st \e[0;35m10 points: \e[1m1 \e[0;35mCP each \e[1;30m│\r\n
