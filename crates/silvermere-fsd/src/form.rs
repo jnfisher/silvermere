@@ -172,9 +172,10 @@ impl Form {
 
     /// Draws the full-screen background: clears the screen and shows the template with the
     /// answers filled in, the help area blank and avoided fields as blanks (as the library's
-    /// `fsdbkg`).
+    /// `fsdbkg`). `ESC[H` follows the clear, as in `creation-fsd/raw.bin`: a VT terminal's
+    /// `ESC[2J` leaves the cursor where it was, and the fields are placed by absolute row.
     pub fn background(&self, out: &mut Vec<u8>) {
-        out.extend_from_slice(b"\x1B[0m\x1B[2J\x1B[0m");
+        out.extend_from_slice(b"\x1B[0m\x1B[2J\x1B[H\x1B[0m");
         let mut text = self.template.clone();
         if let Some(help) = &self.help {
             let end = (help.offset + help.width).min(text.len());
