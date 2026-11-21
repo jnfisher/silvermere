@@ -515,7 +515,5 @@ an installed copy.
 silvermere is released under the MIT license. See [LICENSE](LICENSE).
 
 MajorMUD® is a registered trademark. In November 2026 the MajorMUD trademark, software and
-copyrights were acquired by Richard A. "Rick" Hadsall Jr., who has said he intends to release
-MajorMUD as open source under the GPL-3.0. Until that happens, silvermere stays under the MIT
-license. silvermere is an independent project, not affiliated with or endorsed by the owner of
-MajorMUD.
+copyrights were acquired by Richard A. "Rick" Hadsall Jr. silvermere is an independent project,
+not affiliated with or endorsed by the owner of MajorMUD.
