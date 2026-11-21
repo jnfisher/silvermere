@@ -36,7 +36,7 @@ of input as the password, and a pasted block's next line is already waiting.
 - [Upgrading](#upgrading)
 - [Troubleshooting](#troubleshooting)
 
-The image and release archives are published from the first tagged release. Until then, build locally (`docker compose -f docker/compose.yaml build`, or `cargo build --release`); for Fly.io or Kubernetes, push your own build to your own registry and use that image name below.
+Each tagged release publishes the Docker image and the release archives. To run an unreleased build, build it locally (`docker compose -f docker/compose.yaml build`, or `cargo build --release`); for Fly.io or Kubernetes, push your own build to your own registry and use that image name below.
 
 Ports: telnet `2323`, admin API `8080` and the web pages `8088` (both loopback by default). Image: `ghcr.io/jnfisher/silvermere`
 (`latest` and version tags). Settings are in [config.md](config.md); `silvermere config show`
@@ -79,7 +79,7 @@ From a clone of the repository:
 
 ```sh
 cp docker/.env.example docker/.env          # then set SILVERMERE_ADMIN_TOKEN: openssl rand -hex 32
-docker compose -f docker/compose.yaml build # until a release image is published; after that, pull works
+docker compose -f docker/compose.yaml pull  # the release image; `build` instead for an unreleased build
 docker compose -f docker/compose.yaml --profile import run --rm import   # downloads the stock world once
 docker compose -f docker/compose.yaml up -d --wait
 docker compose -f docker/compose.yaml exec silvermere /silvermere account create NAME --sysop
