@@ -218,8 +218,14 @@ form.inline label { display: grid; gap: 0.2rem; font-size: 0.85rem; color: var(-
 .drawer-grip:hover, .drawer-grip:focus-visible, .drawer.resizing .drawer-grip { background: var(--accent); opacity: 0.5; outline: none; }
 .drawer.resizing { user-select: none; }
 .drawer pre {
-  margin: 0; height: var(--drawer-h, 20rem); overflow-y: auto; border-radius: 0; padding: 0.5rem 1rem;
+  margin: 0; height: var(--drawer-h, 13.6rem); overflow-y: auto; border-radius: 0; padding: 0.5rem 1rem;
   white-space: pre-wrap; overflow-wrap: anywhere;
+}
+@media (max-width: 60rem) { .drawer pre { height: var(--drawer-h, 12.2rem); } }
+/* nine whole lines by default (8 on a narrow screen), never a line cut in half */
+@supports (height: 1lh) {
+  .drawer pre { height: var(--drawer-h, calc(9lh + 1rem)); }
+  @media (max-width: 60rem) { .drawer pre { height: var(--drawer-h, calc(8lh + 1rem)); } }
 }
 /* maximized: the command line takes the window, the site header still showing */
 .drawer.max pre { height: calc(100vh - 11rem); }
@@ -236,11 +242,10 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
 dialog label { display: grid; gap: 0.25rem; margin: 0.6rem 0; }
 @media (max-width: 60rem) {
   /* one column: the player panel and what is in force right under the players */
-  .console-grid { display: flex; flex-direction: column; }
+  .console-grid { display: flex; flex-direction: column; align-items: stretch; }
   .console-grid .col { display: contents; }
   #players-panel { order: 1; } #detail { order: 2; } #moderation-panel { order: 3; }
   #activity-panel { order: 4; } #backups-panel { order: 5; }
   .statusbar .buttons { margin-left: 0; }
-  .drawer pre { height: var(--drawer-h, 12rem); }
   .drawer .drawer-head .hint { display: none; }
 }
