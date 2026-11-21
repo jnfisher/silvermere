@@ -21,7 +21,8 @@ services:
       SILVERMERE_SERVER__TELNET_BIND: "0.0.0.0:2323"
       SILVERMERE_SERVER__ADMIN_BIND: "0.0.0.0:8080"
       SILVERMERE_SERVER__WEB_BIND: "0.0.0.0:8088"
-      # A non-loopback admin bind refuses to start without a token.
+      # A non-loopback admin bind needs admin.allow_remote (the image sets it) and a token.
+      # The port is published on the host's 127.0.0.1 above: keep it that way.
       SILVERMERE_ADMIN_TOKENS: '[{"name":"ops","token":"${SILVERMERE_ADMIN_TOKEN:?set SILVERMERE_ADMIN_TOKEN in docker/.env}","scopes":["read","broadcast","sysop"]}]'
       SILVERMERE_LOGGING__FORMAT: json
       # SILVERMERE_DATABASE_URL: postgres://silvermere:${POSTGRES_PASSWORD}@postgres:5432/silvermere

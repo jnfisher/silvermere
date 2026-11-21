@@ -162,10 +162,9 @@ async fn admin_api_answers_and_streams_events() {
         .expect("engine joins");
 }
 
-/// `serve` refuses a non-loopback admin bind with no token, with a message that says why.
-#[test]
-fn serve_refuses_open_admin_bind_without_tokens() {
-    let dir = std::env::temp_dir().join(format!("silvermere-admin-{}", std::process::id()));
+/// `serve` with `--admin-bind` and the environment `env`; its exit status and stderr.
+fn serve_with_admin_bind(tag: &str, env: &[(&str, &str)]) -> (bool, String) {
+    let dir = std::env::temp_dir().join(format!("silvermere-admin-{tag}-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let mut c = Command::new(env!("CARGO_BIN_EXE_silvermere"));
     c.current_dir(&dir)
@@ -173,9 +172,40 @@ fn serve_refuses_open_admin_bind_without_tokens() {
     for (k, _) in std::env::vars().filter(|(k, _)| k.starts_with("SILVERMERE_")) {
         c.env_remove(k);
     }
+    for (k, v) in env {
+        c.env(k, v);
+    }
     let o = c.output().unwrap();
-    let err = String::from_utf8_lossy(&o.stderr);
-    assert!(!o.status.success());
+    (
+        o.status.success(),
+        String::from_utf8_lossy(&o.stderr).into_owned(),
+    )
+}
+
+/// `serve` refuses a non-loopback admin bind without `admin.allow_remote`, even with a
+/// token, and says which setting allows it.
+#[test]
+fn serve_refuses_open_admin_bind_without_allow_remote() {
+    let (ok, err) = serve_with_admin_bind(
+        "remote",
+        &[(
+            "SILVERMERE_ADMIN_TOKENS",
+            r#"[{"name":"ops","token":"a-long-enough-test-secret","scopes":["read"]}]"#,
+        )],
+    );
+    assert!(!ok);
+    assert!(
+        err.contains("0.0.0.0:8080") && err.contains("admin.allow_remote = true"),
+        "{err}"
+    );
+}
+
+/// With `admin.allow_remote`, `serve` still refuses a non-loopback admin bind with no
+/// token, with a message that says why.
+#[test]
+fn serve_refuses_open_admin_bind_without_tokens() {
+    let (ok, err) = serve_with_admin_bind("tokens", &[("SILVERMERE_ADMIN__ALLOW_REMOTE", "true")]);
+    assert!(!ok);
     assert!(
         err.contains("0.0.0.0:8080") && err.contains("[[admin.tokens]]"),
         "{err}"

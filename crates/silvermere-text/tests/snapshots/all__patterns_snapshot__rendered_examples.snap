@@ -2862,6 +2862,51 @@ message_not_sent
   palette 1: \x1b[0;37m--- Message Not Sent ---\r\n
   palette 2: \x1b[0;37m--- Message Not Sent ---\r\n
   palette 3: \x1b[0;37m--- Message Not Sent ---\r\n
+mod_jailed
+  palette 0: \x1b[1;31mYou are held in jail until 2026-12-01 18:00 UTC. Reason: player killing in town\r\n
+  palette 1: \x1b[1;31mYou are held in jail until 2026-12-01 18:00 UTC. Reason: player killing in town\r\n
+  palette 2: \x1b[1;31mYou are held in jail until 2026-12-01 18:00 UTC. Reason: player killing in town\r\n
+  palette 3: \x1b[1;31mYou are held in jail until 2026-12-01 18:00 UTC. Reason: player killing in town\r\n
+mod_jailed_now
+  palette 0: \x1b[79D\x1b[K\x1b[1;31mThe sysop has sent you to jail until 2026-12-01 18:00 UTC. Reason: player killing in town\r\n
+  palette 1: \x1b[79D\x1b[K\x1b[1;31mThe sysop has sent you to jail until 2026-12-01 18:00 UTC. Reason: player killing in town\r\n
+  palette 2: \x1b[79D\x1b[K\x1b[1;31mThe sysop has sent you to jail until 2026-12-01 18:00 UTC. Reason: player killing in town\r\n
+  palette 3: \x1b[79D\x1b[K\x1b[1;31mThe sysop has sent you to jail until 2026-12-01 18:00 UTC. Reason: player killing in town\r\n
+mod_kicked
+  palette 0: \x1b[79D\x1b[K\x1b[1;31mYou have been disconnected by the sysop. Reason: please take a break\r\nYour character has been saved.\r\n
+  palette 1: \x1b[79D\x1b[K\x1b[1;31mYou have been disconnected by the sysop. Reason: please take a break\r\nYour character has been saved.\r\n
+  palette 2: \x1b[79D\x1b[K\x1b[1;31mYou have been disconnected by the sysop. Reason: please take a break\r\nYour character has been saved.\r\n
+  palette 3: \x1b[79D\x1b[K\x1b[1;31mYou have been disconnected by the sysop. Reason: please take a break\r\nYour character has been saved.\r\n
+mod_muted
+  palette 0: \x1b[1;31mYou are muted until 2026-12-01 18:00 UTC. Reason: spamming gossip\r\n
+  palette 1: \x1b[1;31mYou are muted until 2026-12-01 18:00 UTC. Reason: spamming gossip\r\n
+  palette 2: \x1b[1;31mYou are muted until 2026-12-01 18:00 UTC. Reason: spamming gossip\r\n
+  palette 3: \x1b[1;31mYou are muted until 2026-12-01 18:00 UTC. Reason: spamming gossip\r\n
+mod_muted_now
+  palette 0: \x1b[79D\x1b[K\x1b[1;31mThe sysop has muted you until 2026-12-01 18:00 UTC. Reason: spamming gossip\r\n
+  palette 1: \x1b[79D\x1b[K\x1b[1;31mThe sysop has muted you until 2026-12-01 18:00 UTC. Reason: spamming gossip\r\n
+  palette 2: \x1b[79D\x1b[K\x1b[1;31mThe sysop has muted you until 2026-12-01 18:00 UTC. Reason: spamming gossip\r\n
+  palette 3: \x1b[79D\x1b[K\x1b[1;31mThe sysop has muted you until 2026-12-01 18:00 UTC. Reason: spamming gossip\r\n
+mod_realm_closed
+  palette 0: \x1b[79D\x1b[K\x1b[1;33mThe realm is closed: upgrading to 1.0. Your character has been saved.\r\n
+  palette 1: \x1b[79D\x1b[K\x1b[1;33mThe realm is closed: upgrading to 1.0. Your character has been saved.\r\n
+  palette 2: \x1b[79D\x1b[K\x1b[1;33mThe realm is closed: upgrading to 1.0. Your character has been saved.\r\n
+  palette 3: \x1b[79D\x1b[K\x1b[1;33mThe realm is closed: upgrading to 1.0. Your character has been saved.\r\n
+mod_released
+  palette 0: \x1b[79D\x1b[K\x1b[1;33mYour time in jail is over. You are free to go.\r\n
+  palette 1: \x1b[79D\x1b[K\x1b[1;33mYour time in jail is over. You are free to go.\r\n
+  palette 2: \x1b[79D\x1b[K\x1b[1;33mYour time in jail is over. You are free to go.\r\n
+  palette 3: \x1b[79D\x1b[K\x1b[1;33mYour time in jail is over. You are free to go.\r\n
+mod_told
+  palette 0: \x1b[79D\x1b[K\x1b[1;33mThe sysop tells you: Please keep gossip civil.\r\n
+  palette 1: \x1b[79D\x1b[K\x1b[1;33mThe sysop tells you: Please keep gossip civil.\r\n
+  palette 2: \x1b[79D\x1b[K\x1b[1;33mThe sysop tells you: Please keep gossip civil.\r\n
+  palette 3: \x1b[79D\x1b[K\x1b[1;33mThe sysop tells you: Please keep gossip civil.\r\n
+mod_unmuted
+  palette 0: \x1b[79D\x1b[K\x1b[1;33mYou may use gossip and auction again.\r\n
+  palette 1: \x1b[79D\x1b[K\x1b[1;33mYou may use gossip and auction again.\r\n
+  palette 2: \x1b[79D\x1b[K\x1b[1;33mYou may use gossip and auction again.\r\n
+  palette 3: \x1b[79D\x1b[K\x1b[1;33mYou may use gossip and auction again.\r\n
 monster_arrival_blank
   palette 0: \x1b[79D\x1b[K\x1b[1;33m
   palette 1: \x1b[79D\x1b[K\x1b[1;33m

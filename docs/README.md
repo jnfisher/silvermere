@@ -8,7 +8,7 @@
 | [deploy-checklist.md](deploy-checklist.md) | A real VPS deploy step by step (SQLite, then hosted PostgreSQL), with what to check and paste back |
 | [cli.md](cli.md) | every `silvermere` command and flag, with where its details are |
 | [sysop.md](sysop.md) | first steps for a new sysop, and the sysop commands |
-| [web.md](web.md) | the server's own web pages: documentation, FAQ and the settings editor |
+| [web.md](web.md) | the server's own web pages: documentation, FAQ, the settings editor and the sysop console |
 | [faq.md](faq.md) | short answers to what sysops ask first |
 | [config.md](config.md) | every `silvermere.toml` key, its environment variable, default and original name |
 | [config-defaults.md](config-defaults.md) | every option of the original and what became of it (generated) |

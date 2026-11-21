@@ -391,3 +391,117 @@ fn a_cancelled_shutdown_leaves_the_server_running() {
     assert_eq!(status.code(), Some(0));
     let _ = std::fs::remove_dir_all(&s.dir);
 }
+
+// `silvermere sysop restart --in 1s`: the server stops as on SIGTERM, takes a backup, and
+// starts again in the same process (what systemd and Docker see: the process never exits),
+// listening on the same admin address; `--cancel` with nothing planned says so.
+#[cfg(unix)]
+#[test]
+fn a_planned_restart_comes_back_in_the_same_process() {
+    planned_restart("restart", false);
+}
+
+// The same with `serve` run again inside the process, as on Windows.
+#[cfg(unix)]
+#[test]
+fn a_planned_restart_in_process_comes_back_too() {
+    planned_restart("restart-in", true);
+}
+
+#[cfg(unix)]
+fn planned_restart(name: &str, in_process: bool) {
+    use std::sync::{Arc, Mutex};
+    const TOKEN: &str = "planned-restart-test-token";
+    let d = tmp(name);
+    let db_path = d.join("world.db");
+    let url = format!("sqlite://{}", db_path.display());
+    tokio::runtime::Runtime::new().unwrap().block_on(async {
+        let db = Db::connect_and_migrate(&url).await.unwrap();
+        common::seed(&db, &[]).await;
+        db.close().await;
+    });
+    // a fixed admin port, so the server comes back where the test looks
+    let admin = {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        l.local_addr().unwrap().to_string()
+    };
+    let mut c = Command::new(env!("CARGO_BIN_EXE_silvermere"));
+    c.current_dir(&d)
+        .args([
+            "serve",
+            "--telnet-bind",
+            "127.0.0.1:0",
+            "--admin-bind",
+            &admin,
+        ])
+        .stderr(Stdio::piped())
+        .stdout(Stdio::null());
+    for (k, _) in std::env::vars().filter(|(k, _)| k.starts_with("SILVERMERE_")) {
+        c.env_remove(k);
+    }
+    c.env("SILVERMERE_DATABASE__URL", &url)
+        .env("SILVERMERE_ADMIN_TOKEN", TOKEN);
+    if in_process {
+        c.env("SILVERMERE_RESTART_IN_PROCESS", "1");
+    }
+    let mut child = c.spawn().unwrap();
+    let stderr = child.stderr.take().unwrap();
+    let lines = Arc::new(Mutex::new(Vec::<String>::new()));
+    {
+        let lines = lines.clone();
+        std::thread::spawn(move || {
+            for line in std::io::BufReader::new(stderr)
+                .lines()
+                .map_while(Result::ok)
+            {
+                lines.lock().unwrap().push(line);
+            }
+        });
+    }
+    let count = |needle: &str| {
+        lines
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|l| l.contains(needle))
+            .count()
+    };
+    let wait = |what: &str, done: &dyn Fn() -> bool| {
+        let until = Instant::now() + Duration::from_secs(60);
+        while !done() {
+            assert!(
+                Instant::now() < until,
+                "{what}: {:?}",
+                lines.lock().unwrap()
+            );
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    };
+    wait("first start", &|| healthz(&admin));
+    let (code, out) = sysop(&d, &admin, TOKEN, &["restart", "--in", "1s", "testing"]);
+    assert_eq!(code, Some(0), "{out}");
+    assert!(
+        out.contains("The server will restart at") && out.contains("in 1 second"),
+        "{out}"
+    );
+    wait("the restart", &|| count("telnet listening on") == 2);
+    wait("the admin API again", &|| healthz(&admin));
+    assert!(
+        child.try_wait().unwrap().is_none(),
+        "the same process runs on"
+    );
+    assert_eq!(count("planned restart"), 1);
+    assert_eq!(count("shutdown complete"), 1);
+    let backups: Vec<_> = std::fs::read_dir(d.join("data/backups"))
+        .unwrap()
+        .flatten()
+        .filter(|e| e.file_name().to_string_lossy().ends_with(".db"))
+        .collect();
+    assert_eq!(backups.len(), 1, "a backup before the restart");
+    let (_, out) = sysop(&d, &admin, TOKEN, &["restart", "--cancel"]);
+    assert!(out.contains("No restart or shutdown was planned"), "{out}");
+    term(&child);
+    let status = wait_exit(&mut child, Duration::from_secs(15));
+    assert_eq!(status.code(), Some(0));
+    let _ = std::fs::remove_dir_all(&d);
+}

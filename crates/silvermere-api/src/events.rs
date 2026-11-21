@@ -102,9 +102,9 @@ impl EventKind {
     pub const fn source(self) -> &'static str {
         match self {
             EventKind::Connected | EventKind::Closed => "engine: a session opened or closed",
-            EventKind::Login | EventKind::Logoff | EventKind::Death => {
-                "engine: reserved, not emitted yet"
-            }
+            EventKind::Login => "engine: a character entered the realm",
+            EventKind::Logoff => "engine: a character left the realm",
+            EventKind::Death => "engine: a character died",
             EventKind::Level => "engine: a character trained a level (train_level)",
             EventKind::Auth => "silvermere-auth: login failures, lockouts, account changes",
             EventKind::Admin => "this API: the audit row of each authenticated call",
@@ -117,6 +117,9 @@ impl EventKind {
             self,
             EventKind::Connected
                 | EventKind::Closed
+                | EventKind::Login
+                | EventKind::Logoff
+                | EventKind::Death
                 | EventKind::Level
                 | EventKind::Auth
                 | EventKind::Admin
@@ -215,9 +218,20 @@ impl NewEvent {
             kind: ev.kind().to_string(),
             session: ev.session().map(|s| s.0),
             character: None,
-            room: None,
+            room: match ev {
+                GameEvent::Death { room, .. } => Some(RoomRef {
+                    map: room.map.0,
+                    room: room.room.0,
+                }),
+                _ => None,
+            },
             payload: match ev {
                 GameEvent::Level { level, .. } => json!({ "level": level }),
+                GameEvent::Login { name, ip, .. } => {
+                    json!({ "name": name, "ip": ip.map(|ip| ip.to_string()) })
+                }
+                GameEvent::Logoff { name, how, .. } => json!({ "name": name, "how": how }),
+                GameEvent::Death { name, .. } => json!({ "name": name }),
                 GameEvent::Audit { fields, .. } => {
                     let mut m = serde_json::Map::new();
                     for (k, v) in fields {
@@ -265,11 +279,12 @@ pub trait EventLog: Send + Sync {
     -> BoxFuture<'_, Result<Vec<EventRecord>, LogError>>;
 }
 
-fn frame(rec: &EventRecord) -> Event {
-    Event::default()
-        .id(rec.id.to_string())
-        .event(rec.kind.clone())
-        .json_data(rec)
+/// One frame: named by the event's kind, or with `plain` unnamed (a browser's
+/// `EventSource` hears unnamed frames with one handler; the kind is in the data).
+fn frame(rec: &EventRecord, plain: bool) -> Event {
+    let e = Event::default().id(rec.id.to_string());
+    let e = if plain { e } else { e.event(rec.kind.clone()) };
+    e.json_data(rec)
         .unwrap_or_else(|_| Event::default().event("error"))
 }
 
@@ -278,6 +293,8 @@ fn frame(rec: &EventRecord) -> Event {
 pub struct StreamQuery {
     /// Comma-separated kinds to send, e.g. `login,death`; absent means all.
     pub kinds: Option<String>,
+    /// `1`: frames without the `event:` name (for a browser's `EventSource`).
+    pub plain: Option<u8>,
 }
 
 pub async fn stream(
@@ -290,6 +307,7 @@ pub async fn stream(
         return ApiError(StatusCode::FORBIDDEN, "forbidden").into_response();
     }
     let after = last_event_id(&headers);
+    let plain = query.plain == Some(1);
     let filter: Vec<String> = query
         .kinds
         .iter()
@@ -333,7 +351,7 @@ pub async fn stream(
                     if !kind_passes(&filter, &rec.kind) {
                         continue;
                     }
-                    if tx.send(Ok(frame(&rec))).await.is_err() {
+                    if tx.send(Ok(frame(&rec, plain))).await.is_err() {
                         return;
                     }
                 }

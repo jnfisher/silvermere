@@ -36,6 +36,9 @@ pub struct Config {
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AdminCfg {
+    /// The admin API may listen on an address other computers reach. Off: a non-loopback
+    /// `server.admin_bind` refuses to start, token or not.
+    pub allow_remote: bool,
     /// `[[admin.tokens]]`; none means no `/v1` call can authenticate, and a
     /// non-loopback `server.admin_bind` refuses to start.
     pub tokens: Vec<TokenCfg>,
@@ -139,6 +142,10 @@ pub struct ServerCfg {
     /// Web pages listen address (`silvermere_web`): the documentation, the FAQ and the
     /// settings editor. Empty: off.
     pub web_bind: String,
+    /// More host names the web pages answer to (a reverse proxy's public name, the
+    /// computer's name on the network), besides `localhost`, the loopback addresses and
+    /// the `web_bind` address.
+    pub web_hosts: Vec<String>,
 }
 
 /// `[net]`.
@@ -284,6 +291,7 @@ impl Default for ServerCfg {
             rlogin_bind: String::new(),
             rlogin_trusted: Vec::new(),
             web_bind: "127.0.0.1:8088".into(),
+            web_hosts: Vec::new(),
         }
     }
 }

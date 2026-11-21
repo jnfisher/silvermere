@@ -293,6 +293,23 @@ async fn handle(
         Job::Persist(PersistRequest::DeleteEvilPoints(a)) => {
             persist.send(Write::EvilPointsDelete(a)).await?;
         }
+        Job::Persist(PersistRequest::LiftSanction {
+            account,
+            kind,
+            until,
+        }) => {
+            // the engine names the kind and the end it held; neither can be out of range
+            let until = until.map(|u| jiff::Timestamp::from_second(u).ok());
+            match (silvermere_db::repo::SanctionKind::parse(kind), until) {
+                (Some(kind), None) => {
+                    db.moderation().lift_if(account, kind, None).await?;
+                }
+                (Some(kind), Some(Some(u))) => {
+                    db.moderation().lift_if(account, kind, Some(u)).await?;
+                }
+                _ => tracing::warn!(account = account.0, kind, "sanction to lift not understood"),
+            }
+        }
         Job::Persist(PersistRequest::DeleteProfile(a)) => {
             persist.flush().await?;
             db.profiles().delete(a).await?;

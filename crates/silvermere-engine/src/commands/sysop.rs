@@ -459,78 +459,231 @@ pub fn cmd_sysop(world: &mut World, id: SessionId, _cmd: Cmd, line: &CommandLine
     chain(world, id, op, line)
 }
 
-/// The sub-commands, tried in turn.
-fn chain(world: &mut World, id: SessionId, op: Op, line: &CommandLine) -> Handled {
+/// The sub-command a word reaches, as [`chain`] tries them in turn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Sub {
+    Debug,
+    Monster,
+    Dump,
+    Reset,
+    Buffers,
+    Reload,
+    Summon,
+    ExpressTrain,
+    Goto,
+    Lightning,
+    Transfer,
+    Values,
+    Status,
+    Disband,
+    Speak,
+    Arena,
+    Disable,
+    Enable,
+    Gangsize,
+    God,
+    List,
+    Report,
+    Map,
+    Configure,
+    Tweak,
+    NotRecognized,
+}
+
+impl Sub {
+    /// Whether the sub-command acts on, or from, the operator's character in the realm
+    /// (its room, its movements, its record), or pages its answer over later ticks: the
+    /// console has no character to lend it ([`run_from_console`]).
+    pub fn needs_character(self, line: &CommandLine) -> bool {
+        match self {
+            Sub::Summon | Sub::ExpressTrain | Sub::Goto | Sub::Map | Sub::Reset => true,
+            Sub::Report => {
+                line.argc() > 2
+                    && ["users", "notopten"]
+                        .iter()
+                        .any(|w| starts_with_ignore_case(line.arg(2), w))
+            }
+            Sub::List => line.argc() >= 4 && starts_with_ignore_case(line.arg(2), "gang"),
+            _ => false,
+        }
+    }
+}
+
+/// The sub-command `line`'s second word reaches for an operator with `op`'s gates: the
+/// order resolves abbreviations as the original does, and a word whose gate fails falls
+/// through to the next.
+fn pick(op: Op, line: &CommandLine) -> Sub {
     let argc = line.argc();
     let w = line.arg(1);
     let dev = op.has(Key::Debug);
     if op.sysop && starts_with_ignore_case(w, "debug") && dev {
-        debug(world, id, line);
+        Sub::Debug
     } else if op.sysop && starts_with_ignore_case(w, "monster") && dev {
-        monster(world, id, line);
+        Sub::Monster
     } else if starts_with_ignore_case(w, "dump") && op.sysop && dev {
-        dump(world);
+        Sub::Dump
     } else if starts_with_ignore_case(w, "reset") && op.sysop && op.has(Key::SysResetRooms) {
-        reset(world, id, line);
+        Sub::Reset
     } else if starts_with_ignore_case(w, "buffers") && op.has(Key::SysBuffers) {
-        buffers(world, id, line);
+        Sub::Buffers
     } else if starts_with_ignore_case(w, "reload") {
-        // the INI settings are read again; the log is `tracing`, nothing to reopen
-        world.outbox.push(EngineOutput::ReloadConfig { id });
-        push(world, id, Msg::SysopReloaded);
-        audit(world, id, "sysop.reload", "INI settings reloaded".into());
+        Sub::Reload
     } else if op.sysop && starts_with_ignore_case(w, "summon") && argc > 2 && dev {
-        summon(world, id, line);
+        Sub::Summon
     } else if op.sysop && starts_with_ignore_case(w, "express_train") && argc > 2 && dev {
-        express_train(world, id, line);
+        Sub::ExpressTrain
     } else if starts_with_ignore_case(w, "goto") && argc > 2 && op.has(Key::SysGoto) {
-        goto(world, id, op, line);
+        Sub::Goto
     } else if starts_with_ignore_case(w, "lightning") && op.has(Key::SysLightning) {
-        return lightning(world, id, line);
+        Sub::Lightning
     } else if op.sysop && starts_with_ignore_case(w, "transfer") {
-        // the line typed ahead of the game's entry, which there never is: the game prints
-        // its null pointer as the system's printf does
-        let last = world
-            .session(id)
-            .map(|s| s.ust.lastinput.clone())
-            .filter(|l| !l.is_empty())
-            .unwrap_or_else(|| "<null pointer>".into());
-        push(world, id, Msg::SysopTransferInfo { line: last });
+        Sub::Transfer
     } else if dev && op.sysop && starts_with_ignore_case(w, "values") {
-        values(world, id, line);
+        Sub::Values
     } else if starts_with_ignore_case(w, "status") && op.has(Key::SysStatus) {
-        status(world, id, line);
+        Sub::Status
     } else if starts_with_ignore_case(w, "disband") && (op.sysop || op.has(Key::SysDisband)) {
-        gang_flag(world, id, line, GangCmd::Disband);
+        Sub::Disband
     } else if starts_with_ignore_case(w, "speak") && op.has(Key::SysSpeak) {
-        speak(world, id, line);
+        Sub::Speak
     } else if starts_with_ignore_case(w, "arena") && op.sysop {
-        arena(world, id, line);
+        Sub::Arena
     } else if starts_with_ignore_case(w, "disable") && op.sysop && op.has(Key::SysDisableGangs) {
-        gang_flag(world, id, line, GangCmd::Disable);
+        Sub::Disable
     } else if starts_with_ignore_case(w, "enable") && op.sysop && op.has(Key::SysDisableGangs) {
-        gang_flag(world, id, line, GangCmd::Enable);
+        Sub::Enable
     } else if starts_with_ignore_case(w, "gangsize") && op.sysop {
-        gangsize(world, id, line);
+        Sub::Gangsize
     } else if starts_with_ignore_case(w, "god") {
-        return god(world, id, op, line);
+        Sub::God
     } else if starts_with_ignore_case(w, "list") {
-        return list(world, id, op, line);
+        Sub::List
     } else if starts_with_ignore_case(w, "report") && op.has(Key::SysReport) {
-        return report(world, id, line);
+        Sub::Report
     } else if starts_with_ignore_case(w, "map") && op.has(Key::SysMap) {
-        let Some(here) = world.session(id).and_then(|s| s.room_key()) else {
-            return Handled::Done;
-        };
-        crate::display::sysop::print_map(world, id, here, false, 26, 7);
+        Sub::Map
     } else if starts_with_ignore_case(w, "configure") && op.sysop {
-        configure(world, id, op, line);
+        Sub::Configure
     } else if op.sysop && starts_with_ignore_case(w, "tweak") && dev {
-        tweak(world, id, line);
+        Sub::Tweak
     } else {
-        push(world, id, Msg::SysopNotRecognized);
+        Sub::NotRecognized
+    }
+}
+
+/// The sub-commands, tried in turn.
+fn chain(world: &mut World, id: SessionId, op: Op, line: &CommandLine) -> Handled {
+    match pick(op, line) {
+        Sub::Debug => debug(world, id, line),
+        Sub::Monster => monster(world, id, line),
+        Sub::Dump => dump(world),
+        Sub::Reset => reset(world, id, line),
+        Sub::Buffers => buffers(world, id, line),
+        Sub::Reload => {
+            // the INI settings are read again; the log is `tracing`, nothing to reopen
+            world.outbox.push(EngineOutput::ReloadConfig { id });
+            push(world, id, Msg::SysopReloaded);
+            audit(world, id, "sysop.reload", "INI settings reloaded".into());
+        }
+        Sub::Summon => summon(world, id, line),
+        Sub::ExpressTrain => express_train(world, id, line),
+        Sub::Goto => goto(world, id, op, line),
+        Sub::Lightning => return lightning(world, id, line),
+        Sub::Transfer => {
+            // the line typed ahead of the game's entry, which there never is: the game prints
+            // its null pointer as the system's printf does
+            let last = world
+                .session(id)
+                .map(|s| s.ust.lastinput.clone())
+                .filter(|l| !l.is_empty())
+                .unwrap_or_else(|| "<null pointer>".into());
+            push(world, id, Msg::SysopTransferInfo { line: last });
+        }
+        Sub::Values => values(world, id, line),
+        Sub::Status => status(world, id, line),
+        Sub::Disband => gang_flag(world, id, line, GangCmd::Disband),
+        Sub::Speak => speak(world, id, line),
+        Sub::Arena => arena(world, id, line),
+        Sub::Disable => gang_flag(world, id, line, GangCmd::Disable),
+        Sub::Enable => gang_flag(world, id, line, GangCmd::Enable),
+        Sub::Gangsize => gangsize(world, id, line),
+        Sub::God => return god(world, id, op, line),
+        Sub::List => return list(world, id, op, line),
+        Sub::Report => return report(world, id, line),
+        Sub::Map => {
+            let Some(here) = world.session(id).and_then(|s| s.room_key()) else {
+                return Handled::Done;
+            };
+            crate::display::sysop::print_map(world, id, here, false, 26, 7);
+        }
+        Sub::Configure => configure(world, id, op, line),
+        Sub::Tweak => tweak(world, id, line),
+        Sub::NotRecognized => push(world, id, Msg::SysopNotRecognized),
     }
     Handled::Done
+}
+
+/// Why [`run_from_console`] did not run a line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConsoleRefusal {
+    /// The line is not `SYSOP ...` (the word may be abbreviated as in the game).
+    NotSysop,
+    /// The sub-command needs the operator's character in the realm ([`Sub::needs_character`]).
+    NeedsCharacter,
+    /// Every session slot is taken.
+    ServerFull,
+}
+
+/// Runs one `SYSOP ...` line for a sysop outside the game (the web console or `silvermere
+/// sysop game`): an operator session of its own for the length of the line, with `name` as its
+/// user-id and the `keys` the account holds, in no room and in no list the players see. The
+/// answer is what the line would have shown the operator, without prompts. The sub-commands
+/// that need a character in the realm are refused.
+pub fn run_from_console(
+    world: &mut World,
+    name: &str,
+    keys: Keys,
+    text: &str,
+    now: std::time::Instant,
+) -> Result<Vec<u8>, ConsoleRefusal> {
+    let line = CommandLine::parse(text.trim());
+    if line.argc() == 0 || super::parse::parse_command(line.arg(0)) != Some(Cmd::Sysop) {
+        return Err(ConsoleRefusal::NotSysop);
+    }
+    let op = Op {
+        sysop: true,
+        gameop: false,
+        keys,
+    };
+    if line.argc() > 1 && pick(op, &line).needs_character(&line) {
+        return Err(ConsoleRefusal::NeedsCharacter);
+    }
+    let id = world.ids.alloc().map_err(|_| ConsoleRefusal::ServerFull)?;
+    let mut s =
+        crate::player_session::PlayerSession::new(id, crate::player_session::Caps::default(), now);
+    s.flags.sysop = true;
+    s.sysop_keys = keys;
+    let mut c = crate::player_session::clear_player();
+    c.userid = name.to_owned();
+    c.firstname = name.to_owned();
+    s.character = Some(c);
+    world.sessions.insert(id, s);
+    cmd_sysop(world, id, Cmd::Sysop, &line);
+    let palette = crate::tell::palette_of(world, id);
+    let mut bytes = Vec::new();
+    if let Some(mut s) = world.sessions.remove(&id) {
+        let (items, _) = s.output.take();
+        crate::output::render_items(
+            &mut bytes,
+            &items,
+            palette,
+            crate::output::PromptText::Marker(b""),
+        );
+    }
+    world.ids.free(id);
+    world.touched.retain(|t| *t != id);
+    world.sysop.reports.remove(&id);
+    Ok(bytes)
 }
 
 /// SYSOP DEBUG [OFF | ON | PARTIAL | BUFFERS]; alone it flips off and on.

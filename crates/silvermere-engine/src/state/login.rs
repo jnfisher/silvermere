@@ -42,6 +42,11 @@ pub struct Login {
     pub may_auction: bool,
     /// The `SYS_*` INI keys and the developer gate the account holds (T-055).
     pub sysop_keys: crate::commands::sysop::Keys,
+    /// The address the connection comes from.
+    pub peer: Option<std::net::IpAddr>,
+    /// The sysop's mute and jail on the account (a jail that has ended included, so the
+    /// next entry lets the player out).
+    pub sanctions: crate::moderation::Sanctions,
 }
 
 /// The user behind `id` has logged in. The channel's game state is reset (`clear_player`,
@@ -78,6 +83,8 @@ pub fn logged_in(world: &mut World, id: SessionId, login: Login) {
     s.flags.sysop = login.account.sysop;
     s.flags.gameop = login.account.gameop;
     s.sysop_keys = login.sysop_keys;
+    s.peer = login.peer;
+    s.sanctions = login.sanctions;
     s.account = Some(login.account);
     s.character = character.map(|c| *c);
     // A stored row is a finished character (T-023: `save_player` writes only those).

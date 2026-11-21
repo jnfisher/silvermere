@@ -331,6 +331,98 @@ impl SysopLogin for AccountLogin {
     ) -> Pin<Box<dyn Future<Output = LoginOutcome> + Send + '_>> {
         Box::pin(self.check(username, password))
     }
+
+    fn fingerprint(
+        &self,
+        username: String,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<String>, ()>> + Send + '_>> {
+        Box::pin(async move {
+            let a = match self.db.by_username(&username).await {
+                Ok(Some(a)) => a,
+                Ok(None) => return Ok(None),
+                Err(e) => {
+                    tracing::warn!(%e, "web session check: the accounts cannot be read; the session stands");
+                    return Err(());
+                }
+            };
+            if !has_role(&a, Role::Sysop) || a.password_hash.is_empty() {
+                return Ok(None);
+            }
+            Ok(Some(password_fingerprint(&a.password_hash)))
+        })
+    }
+}
+
+/// The first 8 bytes of the SHA-256 of a stored password hash, as hex: changes when the
+/// password does, and tells nothing of it.
+pub fn password_fingerprint(hash: &str) -> String {
+    silvermere_api::auth::sha256(hash)[..8]
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
+/// The key the web sessions are signed with: `<data_dir>/web-session.key`, made on first
+/// use (readable by this user only), so a restart keeps everyone signed in. When it cannot
+/// be kept, a key for this run only.
+pub fn session_key(data_dir: &std::path::Path) -> [u8; 32] {
+    let path = data_dir.join("web-session.key");
+    let parse = |text: &str| -> Option<[u8; 32]> {
+        let text = text.trim();
+        let mut key = [0u8; 32];
+        if text.len() != 64 {
+            return None;
+        }
+        for (i, b) in key.iter_mut().enumerate() {
+            *b = u8::from_str_radix(&text[i * 2..i * 2 + 2], 16).ok()?;
+        }
+        Some(key)
+    };
+    if let Some(key) = std::fs::read_to_string(&path)
+        .ok()
+        .as_deref()
+        .and_then(parse)
+    {
+        return key;
+    }
+    let mut key = [0u8; 32];
+    rand::Rng::fill_bytes(&mut rand::rng(), &mut key);
+    let text: String = key.iter().map(|b| format!("{b:02x}")).collect();
+    let written = (|| -> std::io::Result<()> {
+        std::fs::create_dir_all(data_dir)?;
+        let mut opts = std::fs::OpenOptions::new();
+        opts.write(true).create_new(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut opts, 0o600);
+        std::io::Write::write_all(&mut opts.open(&path)?, text.as_bytes())
+    })();
+    if let Err(e) = written {
+        tracing::warn!(%e, file = %path.display(), "the web session key cannot be kept: signing in again after a restart");
+    }
+    key
+}
+
+/// The host names the web pages answer to: `localhost`, the loopback addresses, the bind
+/// address, and `server.web_hosts`.
+pub fn web_hosts(cfg: &Config) -> Vec<String> {
+    let mut hosts: Vec<String> = ["localhost", "127.0.0.1", "::1"]
+        .iter()
+        .map(|h| (*h).to_owned())
+        .collect();
+    if let Ok(addr) = cfg.server.web_bind.parse::<std::net::SocketAddr>()
+        && !addr.ip().is_unspecified()
+    {
+        hosts.push(addr.ip().to_string());
+    }
+    hosts.extend(
+        cfg.server
+            .web_hosts
+            .iter()
+            .map(|h| h.trim().trim_matches(['[', ']']).to_ascii_lowercase()),
+    );
+    hosts.sort();
+    hosts.dedup();
+    hosts
 }
 
 #[cfg(test)]

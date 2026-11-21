@@ -259,8 +259,9 @@ the server runs from:
 | Docker | `/data/silvermere.toml`, in the volume |
 
 The easiest way to see and change settings is in a browser: the server has web pages of its
-own on `http://127.0.0.1:8088` (this documentation, a FAQ and a settings editor a sysop signs
-in to with his game account; [docs/web.md](docs/web.md)).
+own on `http://127.0.0.1:8088` (this documentation, a FAQ, a settings editor and the
+[sysop console](#running-the-realm), which a sysop signs in to with his game account;
+[docs/web.md](docs/web.md)).
 
 `silvermere config` reads and writes the same file with the same checks as startup, run from that folder:
 
@@ -283,6 +284,58 @@ The server reads its settings when it starts, so restart it after a change:
 service). Command-line flags and `SILVERMERE_*` environment variables
 override the file; `config show` names the one in effect. Every key, its default and its range:
 [docs/config.md](docs/config.md).
+
+## Running the realm
+
+<p align="center"><img src=".github/media/console-dark.gif" alt="The sysop console in dark mode with 64 players online: the status bar, the players and the rooms they stand in, and a player's panel with Kick, Jail, Mute and Ban" width="880"></p>
+
+The **sysop console** is a page of the server's own web site, `http://127.0.0.1:8088/console`:
+sign in with a sysop's game account. It shows, live:
+
+- who is in the realm, the room each stands in (`map:room` and its name), level, class, race,
+  gang, idle time and the address they connect from;
+- a panel for each player: a line to them, **watch** their screen live and type as them
+  (they are not told), **kick**, **jail** (held in the jail room until a set time, then let
+  out to town), **mute** (no gossip or auction), **ban** the account or the address, each for
+  a time you choose and with a reason they are told;
+- the bans, jails and mutes in force, each with a button to lift it;
+- logins, deaths, levels, sign-ins and every staff action as they happen;
+- the server's health, the last backup, and buttons to **close the realm** to all but sysops,
+  **back up now**, **restart** or **shut down**;
+- a command line taking the same commands as `silvermere sysop` below, the game's own `SYSOP`
+  commands among them. Every button runs one of them there, so you always see what was done.
+
+A **restart** warns the players on a countdown, saves everyone, takes a backup and starts the
+server again in the same process, so systemd and Docker see it keep running and the console
+reconnects by itself. Replace the program file first and the restart is an upgrade (Linux and
+macOS). Light and dark follow your system; it works on a phone too.
+
+The same from a shell on the server:
+
+```sh
+silvermere sysop who                                  # who is on, where, from which address
+silvermere sysop tell Lars "please keep gossip civil"
+silvermere sysop jail Lars --for 1h "fighting in town" # release Lars to let him out early
+silvermere sysop mute Lars --for 1d "spamming gossip"
+silvermere sysop ban Lars --for 7d "cheating"          # refuses their logins; unban to lift
+silvermere sysop ban-ip 203.0.113.0/24 "bots"          # disconnects them too; the BBS door is never checked
+silvermere sysop spectate Lars --type                  # his screen, live; your lines go in as his
+silvermere sysop game god Lars info                    # the game's own SYSOP commands
+silvermere sysop realm close "upgrading"               # only sysops log in; realm open to end it
+silvermere sysop restart --in 5m "upgrading to 1.0"    # --cancel calls it off
+silvermere sysop moderation                            # what is in force
+```
+
+They call the [admin API](#admin-api) on this computer and need an `admin` token in
+`silvermere.toml` (`SILVERMERE_ADMIN_TOKEN` also works). Bans, jails, mutes and a closed realm
+are stored and hold across restarts.
+
+The console is plain HTTP on the server's own loopback address. To use it from elsewhere, use
+an SSH tunnel (`ssh -L 8088:127.0.0.1:8088 you@server`), a private network such as Tailscale,
+or a reverse proxy with TLS; [docs/web.md](docs/web.md) covers each, and how sessions, password
+re-entry for what cannot be undone and the host names it answers to keep it safe. Every
+command: [docs/cli.md](docs/cli.md#silvermere-sysop). In the game, `SYSOP` still has the
+original's own commands ([docs/sysop.md](docs/sysop.md)).
 
 ## Building from source
 
@@ -316,11 +369,12 @@ How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md).
 | `crates/silvermere-db` | schema, migrations, repositories, persistence worker |
 | `crates/silvermere-auth` | accounts, passwords, roles, login |
 | `crates/silvermere-net` | telnet transport, line discipline, CP437 |
-| `crates/silvermere-api` | admin HTTP API: health, metrics, who, broadcast, events |
+| `crates/silvermere-api` | admin HTTP API: health, metrics, who, moderation, restart, events |
+| `crates/silvermere-web` | the web pages: documentation, FAQ, settings, the sysop console |
 | `crates/silvermere-import` | one-time importer for the legacy world files |
 | `crates/silvermere-testkit` | test client, scripted sessions, fixtures |
 | `bin/silvermere` | the server binary |
-| `tools/` | schema-doc generator, message converter, docs checker, differential harness |
+| `tools/` | schema-doc generator, message converter, docs checker, differential harness, demo and stress run |
 
 ## Admin API
 
@@ -335,7 +389,10 @@ curl -s -H "Authorization: Bearer TOKEN" localhost:8080/v1/who
 ```
 
 Paste the printed `[[admin.tokens]]` block into `silvermere.toml` and restart. Scopes are
-`read`, `write` (broadcast, reload the world) and `admin`. Routes, scopes and events:
+`read`, `write` (broadcast, a line to a player, reload the world) and `admin` (kick, ban, jail,
+mute, IP bans, closing the realm, watching and typing for a player, the game's `SYSOP`
+commands, restart and shutdown). Keep it on loopback: listening
+anywhere else needs `admin.allow_remote = true` and logs a warning at every start. Routes, scopes and events:
 [docs/admin-api.md](docs/admin-api.md); metrics: [docs/metrics.md](docs/metrics.md).
 
 ## How we know it's faithful

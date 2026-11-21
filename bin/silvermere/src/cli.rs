@@ -254,6 +254,172 @@ pub enum SysopCmd {
         /// Said to the players with each warning, such as `upgrading to 0.2`
         message: Option<String>,
     },
+    /// Restart the server after warning the players in the game; every character is saved,
+    /// a backup taken, and the server comes back in the same process.
+    Restart {
+        /// How long until the restart: `90s`, `5m`, `1h` or `1h30m`, or a number of seconds;
+        /// at most 24h
+        #[arg(long = "in", value_name = "DURATION", default_value = "5m", value_parser = parse_delay)]
+        delay: u64,
+        /// Call off the planned restart instead
+        #[arg(long, conflicts_with = "message")]
+        cancel: bool,
+        /// Said to the players with each warning, such as `upgrading to 1.0`
+        message: Option<String>,
+    },
+    /// Take a backup now on the running server, as a scheduled one is taken.
+    Backup,
+    /// Disconnect a player, saved, telling him why.
+    Kick {
+        /// A character's first name or an account's username
+        player: String,
+        /// Told to the player
+        reason: Option<String>,
+    },
+    /// Send a line to one player.
+    Tell {
+        /// A character's first name or an account's username
+        player: String,
+        message: String,
+    },
+    /// Stop a player using gossip and auction.
+    Mute(SanctionArgs),
+    /// Lift a player's mute.
+    Unmute {
+        /// A character's first name or an account's username
+        player: String,
+    },
+    /// Hold a player in the jail room.
+    Jail(SanctionArgs),
+    /// Let a player out of jail, to town.
+    Release {
+        /// A character's first name or an account's username
+        player: String,
+    },
+    /// Refuse a player's logins; one in the game is disconnected. Not for BBS door accounts.
+    Ban(SanctionArgs),
+    /// Lift a player's ban.
+    Unban {
+        /// A character's first name or an account's username
+        player: String,
+    },
+    /// Refuse telnet connections from an address or CIDR block (not the rlogin door).
+    #[command(name = "ban-ip")]
+    BanIp {
+        /// An address or CIDR block: 203.0.113.7, 203.0.113.0/24, 2001:db8::/32
+        network: String,
+        /// How long: `30m`, `12h`, `7d`, or seconds; without it, until lifted
+        #[arg(long = "for", value_name = "DURATION", value_parser = parse_for)]
+        for_secs: Option<u64>,
+        /// Kept for the sysops; the caller is not told
+        reason: Option<String>,
+    },
+    /// Lift the ban of an address or CIDR block.
+    #[command(name = "unban-ip")]
+    UnbanIp {
+        /// The address or CIDR block as it was banned
+        network: String,
+    },
+    /// List the bans, jails and mutes in force, the IP bans, and whether the realm is closed.
+    Moderation,
+    /// Close the realm to all but sysops, or open it again.
+    Realm {
+        #[command(subcommand)]
+        action: RealmCmd,
+    },
+    /// Watch a player's screen as they play, until they leave (Ctrl-C to stop). They are
+    /// not told. In the web console, the player panel's Watch button.
+    Spectate {
+        /// A character's first name or an account's username
+        player: String,
+        /// Each line you type goes to the game as theirs (an empty line is Enter)
+        #[arg(long = "type")]
+        typing: bool,
+    },
+    /// Type a line for a player, as if they had typed it. Nothing on their screen shows it.
+    Type {
+        /// A character's first name or an account's username
+        player: String,
+        /// The line; none is Enter
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        line: Vec<String>,
+    },
+    /// Run one of the game's own SYSOP commands outside the game: `game list users`,
+    /// `game god Lars level 20`. The ones that need your character in the realm (GOTO,
+    /// SUMMON, EXPRESS_TRAIN, MAP, RESET, REPORT USERS, LIST GANG) are refused.
+    Game {
+        /// The SYSOP command's words (SYSOP itself may be left out)
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true, required = true)]
+        words: Vec<String>,
+    },
+}
+
+/// One line of the web console's command line: the `sysop` subcommands, without the
+/// program's name.
+#[derive(Debug, Parser)]
+#[command(
+    name = "sysop",
+    no_binary_name = true,
+    disable_version_flag = true,
+    about = "The sysop's commands. Type a command, or help COMMAND."
+)]
+pub struct ConsoleLine {
+    /// Print the server's JSON answer as it came.
+    #[arg(long, global = true)]
+    pub json: bool,
+    #[command(subcommand)]
+    pub action: SysopCmd,
+}
+
+/// `sysop mute|jail|ban` arguments.
+#[derive(Debug, Args)]
+pub struct SanctionArgs {
+    /// A character's first name or an account's username
+    pub player: String,
+    /// How long: `30m`, `12h`, `7d`, or seconds; without it, until lifted
+    #[arg(long = "for", value_name = "DURATION", value_parser = parse_for)]
+    pub for_secs: Option<u64>,
+    /// Told to the player
+    pub reason: Option<String>,
+}
+
+/// `sysop realm`.
+#[derive(Debug, Subcommand)]
+pub enum RealmCmd {
+    /// Disconnect every player but the sysops, saved, and refuse their logins.
+    Close {
+        /// Told to the players and to whoever is refused
+        reason: Option<String>,
+    },
+    /// Let everyone log in again.
+    Open,
+}
+
+/// [`parse_delay`] with days (`7d`) too, for the sanctions: at least a second.
+pub fn parse_for(text: &str) -> Result<u64, String> {
+    let text = text.trim();
+    let bad = || format!("`{text}` is not a duration: use 30m, 12h, 7d, 1d12h or seconds");
+    let mut days: u64 = 0;
+    let rest = match text.split_once(['d', 'D']) {
+        Some((d, rest)) => {
+            days = d.parse().map_err(|_| bad())?;
+            rest
+        }
+        None => text,
+    };
+    let rest_secs = if rest.is_empty() {
+        0
+    } else {
+        parse_delay(rest).map_err(|_| bad())?
+    };
+    let secs = days
+        .checked_mul(86_400)
+        .and_then(|d| d.checked_add(rest_secs))
+        .ok_or_else(bad)?;
+    if secs == 0 {
+        return Err(bad());
+    }
+    Ok(secs)
 }
 
 /// `90s`, `5m`, `1h`, `1h30m` or a plain number of seconds, as seconds.

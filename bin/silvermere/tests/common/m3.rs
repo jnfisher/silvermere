@@ -407,7 +407,7 @@ pub async fn tick(r: &silvermere::Running, n: u32) {
 }
 
 /// `text` as a regex that matches it literally.
-fn escape(text: &str) -> String {
+pub fn escape(text: &str) -> String {
     let mut out = String::new();
     for ch in text.chars() {
         if r"\.+*?()|[]{}^$#&-~".contains(ch) {

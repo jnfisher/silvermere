@@ -40,6 +40,12 @@ pub async fn who(State(state): State<ApiState>, Extension(caller): Extension<Cal
                 "gang": r.gang,
                 "idle_secs": r.idle_secs,
                 "hidden": r.hidden,
+                "ip": r.ip.map(|ip| ip.to_string()),
+                "account": r.account.map(|a| a.0),
+                "muted": r.muted,
+                "jailed": r.jailed,
+                "room": r.room.map(|k| format!("{}:{}", k.map.0, k.room.0)),
+                "room_name": r.room_name,
             })
         })
         .collect();

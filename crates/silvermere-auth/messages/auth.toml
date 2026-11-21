@@ -43,6 +43,12 @@ args = { minutes = "u32" }
 example = { minutes = "15" }
 note = "silvermere's own (the BBS had no lockout): config lockout.max_failures failures within lockout.window_secs lock the account for lockout.lock_secs."
 
+[messages.banned]
+text = "\r\n\u001B[1m\u001B[31mThis account is banned{until}.{reason}\u001B[0m\r\n"
+args = { until = "String", reason = "String" }
+example = { until = " until 2026-12-01 18:00 UTC", reason = " Reason: spamming gossip" }
+note = "silvermere's own. A sysop banned the account (`silvermere sysop ban`); said after the right password, then the connection closes. `until` and `reason` are empty for a ban with no end or no reason. The rlogin door is never checked."
+
 [messages.duplicate_login]
 text = "\r\n\u001B[1m\u001B[31mThis account is already logged on.\u001B[0m\r\n"
 note = "silvermere's own. compat.duplicate_login. MBBSEmu refused a second session at the username prompt with `{user} is already logged in -- only 1 connection allowed per user.` and re-asked; silvermere checks after the password (so the text says nothing about an account to someone without its password) and closes the connection."
@@ -66,6 +72,12 @@ note = "silvermere's own. Sent to the connection that a takeover disconnects, ju
 [messages.no_password]
 text = "\r\n\u001B[1m\u001B[31mThis account has no password yet. Ask the sysop to set one.\u001B[0m\r\n"
 note = "silvermere's own. An account with no password (an import creates its players' accounts without one) is refused with this whatever is typed; it does not count towards the lockout."
+
+[messages.realm_closed]
+text = "\r\n\u001B[1m\u001B[33mThe realm is closed{reason}. Please try again later.\u001B[0m\r\n"
+args = { reason = "String" }
+example = { reason = ": upgrading to 1.0" }
+note = "silvermere's own. A sysop closed the realm (`silvermere sysop realm close`): only sysops log in. Said after the right password (or at once from the rlogin door), then the connection closes."
 
 [messages.rlogin_refused]
 text = "\r\n\u001B[1m\u001B[31mThis account can't be used from the BBS door. Log in over telnet instead.\u001B[0m\r\n"

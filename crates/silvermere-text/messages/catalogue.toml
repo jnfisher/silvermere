@@ -5099,3 +5099,48 @@ pattern = "syntax"
 
 [messages.feedback_sent]
 text = "{@ANSI_CLRLINE}Thank you for your input... email sent.\r"
+
+# --- Moderation (silvermere's own: `silvermere sysop` and the admin API) ---------------------
+
+[messages.mod_told]
+text = "{@ANSI_CLRLINE}{@ANSI_YELLOW}The sysop tells you: {text}\r"
+example = { text = "Please keep gossip civil." }
+note = "silvermere's own. `silvermere sysop tell`: a line to one player."
+
+[messages.mod_kicked]
+text = "{@ANSI_CLRLINE}{@ANSI_LTRED}You have been disconnected by the sysop.{reason}\rYour character has been saved.\r"
+example = { reason = " Reason: please take a break" }
+note = "silvermere's own. `silvermere sysop kick`, and a ban on a player in the game; `reason` is empty or ` Reason: ...`. The connection closes after it."
+
+[messages.mod_realm_closed]
+text = "{@ANSI_CLRLINE}{@ANSI_YELLOW}The realm is closed{reason}. Your character has been saved.\r"
+example = { reason = ": upgrading to 1.0" }
+note = "silvermere's own. `silvermere sysop realm close`: every player but the sysops is saved and disconnected after it."
+
+[messages.mod_muted]
+text = "{@ANSI_LTRED}You are muted{until}.{reason}\r"
+example = { until = " until 2026-12-01 18:00 UTC", reason = " Reason: spamming gossip" }
+note = "silvermere's own. GOSSIP or AUCTION with text while a sysop's mute is in force."
+
+[messages.mod_muted_now]
+text = "{@ANSI_CLRLINE}{@ANSI_LTRED}The sysop has muted you{until}.{reason}\r"
+example = { until = " until 2026-12-01 18:00 UTC", reason = " Reason: spamming gossip" }
+note = "silvermere's own. `silvermere sysop mute`, to a player in the game."
+
+[messages.mod_unmuted]
+text = "{@ANSI_CLRLINE}{@ANSI_YELLOW}You may use gossip and auction again.\r"
+note = "silvermere's own. A mute lifted by the sysop or over."
+
+[messages.mod_jailed]
+text = "{@ANSI_LTRED}You are held in jail{until}.{reason}\r"
+example = { until = " until 2026-12-01 18:00 UTC", reason = " Reason: player killing in town" }
+note = "silvermere's own. A jailed player tries to leave the jail room, and on entering the realm."
+
+[messages.mod_jailed_now]
+text = "{@ANSI_CLRLINE}{@ANSI_LTRED}The sysop has sent you to jail{until}.{reason}\r"
+example = { until = " until 2026-12-01 18:00 UTC", reason = " Reason: player killing in town" }
+note = "silvermere's own. `silvermere sysop jail`, to a player in the game; the jail room follows."
+
+[messages.mod_released]
+text = "{@ANSI_CLRLINE}{@ANSI_YELLOW}Your time in jail is over. You are free to go.\r"
+note = "silvermere's own. A jail lifted by the sysop or over; the player is moved to town."

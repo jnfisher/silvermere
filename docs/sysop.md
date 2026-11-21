@@ -19,7 +19,12 @@ accounts; [cli.md](cli.md) has every command-line tool).
    - `RELOAD` reads the game options of the config file again.
 5. Roles and passwords are managed outside the game: `silvermere account grant NAME gameop`,
    `silvermere account passwd NAME`, and so on ([cli.md](cli.md#silvermere-account)).
-6. The [admin API](admin-api.md) is for scripts and monitoring, not a web console.
+6. Outside the game, `silvermere sysop` lists who is on and moderates them: `kick`, `tell`,
+   `mute`, `jail` (held in the jail room until a set time), `ban`, `ban-ip`, `realm close`
+   and `realm open`, `moderation` to list what is in force, and a planned `shutdown`
+   ([cli.md](cli.md#silvermere-sysop)). It calls the [admin API](admin-api.md#moderation) on
+   this computer. The same commands, with buttons and a live view of the players, are in the
+   web [console](web.md#the-console) at `http://127.0.0.1:8088/console`.
 
 What an operator can do in the game: the `SYSOP` command and the `[MAJORMUD Sysop]` menu,
 added by T-055. The code is
@@ -58,6 +63,13 @@ with the operator's user-id and a detail (`shocst` in the original).
 
 Prefix matching, ignoring case: a word may be abbreviated, and the first sub-command in this order whose
 word and gate match runs.
+
+They also run outside the game, without your character in the realm: `silvermere sysop game
+list users` on the server, or `game list users` on the web console's command line
+([cli.md](cli.md#silvermere-sysop)). There they run with your account's keys (an API token's
+are the default sysop set) and answer what they would have shown you. The ones that act on or
+from your character are refused there: `GOTO`, `SUMMON`, `EXPRESS_TRAIN`, `MAP`, `RESET`,
+`REPORT USERS`, `REPORT NOTOPTEN` and `LIST GANG`.
 
 | Sub-command | Gate | Notes | Audit kind |
 |---|---|---|---|

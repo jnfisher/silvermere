@@ -311,6 +311,19 @@ fn game_channel(world: &mut World, id: SessionId, line: &CommandLine, ch: Channe
         s.output.push(refused);
         return Handled::Done;
     }
+    // a sysop's mute (silvermere's own)
+    if let Some(msg) = crate::moderation::muted(world, id) {
+        if let Some(s) = world.session_mut(id) {
+            s.output.push(msg);
+        }
+        return Handled::Done;
+    }
+    let Some(s) = world.session_mut(id) else {
+        return Handled::NotCommand;
+    };
+    let Some(plr) = s.character.as_mut() else {
+        return Handled::NotCommand;
+    };
     if plr.flags.contains(mask) {
         s.output.push(turned_off);
         return Handled::Done;

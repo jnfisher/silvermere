@@ -39,6 +39,12 @@ fn a_line_queued_before_logoff_arrives_before_close() {
                 bytes: silvermere_text::render(&Msg::TournamentNotice, p).bytes
             },
             EngineOutput::Close { id: a },
+            // Ann was in the realm: the server closed her session
+            EngineOutput::Event(GameEvent::Logoff {
+                id: a,
+                name: "Ann".into(),
+                how: "closed",
+            }),
             EngineOutput::Event(GameEvent::Closed { id: a }),
         ]
     );

@@ -40,11 +40,100 @@ impl silvermere_api::ShutdownPlan for FakeShutdown {
         Ok(silvermere_api::Planned {
             at: "2026-11-18T20:05:00Z".into(),
             in_secs: after.as_secs(),
+            restart: false,
         })
     }
 
     fn cancel(&self) -> bool {
         self.plans.lock().unwrap().pop().is_some()
+    }
+
+    fn schedule_restart(
+        &self,
+        after: Duration,
+        message: String,
+    ) -> Result<silvermere_api::Planned, String> {
+        self.plans.lock().unwrap().push((after.as_secs(), message));
+        Ok(silvermere_api::Planned {
+            at: "2026-11-18T20:05:00Z".into(),
+            in_secs: after.as_secs(),
+            restart: true,
+        })
+    }
+}
+
+/// Backups that are made at once, in name only.
+struct FakeBackups;
+
+impl silvermere_api::BackupProbe for FakeBackups {
+    fn last_ok(&self) -> Option<bool> {
+        None
+    }
+
+    fn status(&self) -> Value {
+        json!({ "enabled": true, "next": null, "last": null, "backups": [] })
+    }
+
+    fn run_now(&self) -> Result<Value, String> {
+        Ok(json!({ "at": "2026-11-18T20:05:00Z", "ok": true, "file": "b.db", "bytes": 1 }))
+    }
+}
+
+/// Moderation that only notes what it was asked; `nobody` is no player.
+#[derive(Default)]
+struct FakeModerator {
+    actions: Mutex<Vec<(silvermere_api::Action, String)>>,
+}
+
+impl silvermere_api::Moderator for FakeModerator {
+    fn act(
+        &self,
+        action: silvermere_api::Action,
+        by: String,
+    ) -> silvermere_api::events::BoxFuture<'_, Result<Value, silvermere_api::ModError>> {
+        use silvermere_api::Action;
+        let refused = matches!(
+            &action,
+            Action::Kick { player, .. } | Action::Put { player, .. } if player == "nobody"
+        );
+        self.actions.lock().unwrap().push((action, by));
+        Box::pin(async move {
+            if refused {
+                Err(silvermere_api::ModError::NoSuchPlayer)
+            } else {
+                Ok(json!({ "ok": true }))
+            }
+        })
+    }
+
+    fn status(
+        &self,
+    ) -> silvermere_api::events::BoxFuture<'_, Result<Value, silvermere_api::ModError>> {
+        Box::pin(async {
+            Ok(json!({ "realm": { "closed": false }, "sanctions": [], "ip_bans": [] }))
+        })
+    }
+
+    /// A screen that shows one line, then the player leaves.
+    fn watch(
+        &self,
+        player: String,
+    ) -> silvermere_api::events::BoxFuture<
+        '_,
+        Result<silvermere_api::Watch, silvermere_api::ModError>,
+    > {
+        Box::pin(async move {
+            if player == "nobody" {
+                return Err(silvermere_api::ModError::NotConnected);
+            }
+            let (tx, stream) = tokio::sync::mpsc::channel(4);
+            tx.send("You hit the orc!\r\n".to_owned()).await.unwrap();
+            Ok(silvermere_api::Watch {
+                name: player,
+                recent: "[HP=10]:".into(),
+                stream,
+            })
+        })
     }
 }
 
@@ -52,6 +141,7 @@ struct Server {
     addr: std::net::SocketAddr,
     state: ApiState,
     shutdown: Arc<FakeShutdown>,
+    moderator: Arc<FakeModerator>,
     world: Arc<FakeWorld>,
     /// Snapshots the fake engine received through `ReloadContent`.
     reloads: Arc<Mutex<usize>>,
@@ -100,6 +190,7 @@ async fn server() -> Server {
     }
     let world = Arc::new(FakeWorld::default());
     let shutdown = Arc::new(FakeShutdown::default());
+    let moderator = Arc::new(FakeModerator::default());
     let (_recorder, handle) = metrics::build();
     let state = ApiState {
         engine: tx.clone(),
@@ -112,8 +203,10 @@ async fn server() -> Server {
         }),
         metrics: handle,
         world: world.clone(),
-        backup: Arc::new(silvermere_api::NoBackups),
+        backup: Arc::new(FakeBackups),
         shutdown: shutdown.clone(),
+        moderation: moderator.clone(),
+        console: Some(Token::new("web-console", "console-secret", &[Scope::Admin])),
         tokens: Arc::new(
             TOKENS
                 .iter()
@@ -131,6 +224,7 @@ async fn server() -> Server {
         addr,
         state,
         shutdown,
+        moderator,
         world,
         reloads,
         engine_fails,
@@ -182,10 +276,18 @@ async fn request(
 /// A concrete request path for a route template.
 fn concrete(path: &str) -> String {
     path.replace("{id}", "7")
+        .replace("{name}", "Lars")
+        .replace("{kind}", "jail")
 }
 
 fn body_for(method: &str, path: &str) -> Option<&'static str> {
-    (method == "POST" && path == "/v1/broadcast").then_some(r#"{"text":"hello"}"#)
+    match (method, path) {
+        ("POST", "/v1/broadcast" | "/v1/players/{name}/tell") => Some(r#"{"text":"hello"}"#),
+        (_, "/v1/ip-bans") => Some(r#"{"network":"203.0.113.7"}"#),
+        ("POST", "/v1/players/{name}/input") => Some(r#"{"line":"look"}"#),
+        ("POST", "/v1/sysop") => Some(r#"{"line":"SYSOP LIST USERS"}"#),
+        _ => None,
+    }
 }
 
 #[tokio::test]
@@ -382,6 +484,276 @@ async fn reload_failure_is_500_reload_failed_from_the_loader_or_the_engine() {
     );
     assert!(r.json()["message"].is_string());
     assert_eq!(*srv.reloads.lock().unwrap(), 1);
+}
+
+// The moderation routes: each body becomes its action, named by the token; the scopes,
+// the limits and the errors.
+#[tokio::test]
+async fn moderation_routes_check_their_bodies_and_pass_the_action_on() {
+    use silvermere_api::Action;
+    use silvermere_api::moderation::Kind;
+    let srv = server().await;
+    let call = |method: &'static str, path: &'static str, token, body: Option<&'static str>| {
+        request(srv.addr, method, path, Some(token), body)
+    };
+    let r = call(
+        "PUT",
+        "/v1/players/Lars/jail",
+        "root-secret",
+        Some(r#"{"for_secs":3600,"reason":" pk in town "}"#),
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let r = call("PUT", "/v1/players/Lars/mute", "root-secret", None).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let r = call("DELETE", "/v1/players/Lars/ban", "root-secret", None).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let r = call(
+        "POST",
+        "/v1/players/Lars/kick",
+        "root-secret",
+        Some(r#"{"reason":"break"}"#),
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let r = call(
+        "POST",
+        "/v1/players/Lars/tell",
+        "write-secret",
+        Some(r#"{"text":"hello"}"#),
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let r = call(
+        "POST",
+        "/v1/ip-bans",
+        "root-secret",
+        Some(r#"{"network":"203.0.113.0/24"}"#),
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let r = call(
+        "DELETE",
+        "/v1/ip-bans",
+        "root-secret",
+        Some(r#"{"network":"203.0.113.0/24"}"#),
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let r = call(
+        "POST",
+        "/v1/realm/close",
+        "root-secret",
+        Some(r#"{"reason":"upgrading"}"#),
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let r = call("POST", "/v1/realm/open", "root-secret", None).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let r = call("GET", "/v1/moderation", "read-secret", None).await;
+    assert_eq!(
+        (r.status, r.json()["realm"]["closed"].clone()),
+        (200, json!(false))
+    );
+    assert_eq!(
+        srv.moderator.actions.lock().unwrap().clone(),
+        vec![
+            (
+                Action::Put {
+                    player: "Lars".into(),
+                    kind: Kind::Jail,
+                    for_secs: Some(3600),
+                    reason: "pk in town".into()
+                },
+                "root".into()
+            ),
+            (
+                Action::Put {
+                    player: "Lars".into(),
+                    kind: Kind::Mute,
+                    for_secs: None,
+                    reason: String::new()
+                },
+                "root".into()
+            ),
+            (
+                Action::Lift {
+                    player: "Lars".into(),
+                    kind: Kind::Ban
+                },
+                "root".into()
+            ),
+            (
+                Action::Kick {
+                    player: "Lars".into(),
+                    reason: "break".into()
+                },
+                "root".into()
+            ),
+            (
+                Action::Tell {
+                    player: "Lars".into(),
+                    text: "hello".into()
+                },
+                "writer".into()
+            ),
+            (
+                Action::BanIp {
+                    network: "203.0.113.0/24".into(),
+                    for_secs: None,
+                    reason: String::new()
+                },
+                "root".into()
+            ),
+            (
+                Action::UnbanIp {
+                    network: "203.0.113.0/24".into()
+                },
+                "root".into()
+            ),
+            (
+                Action::CloseRealm {
+                    reason: "upgrading".into()
+                },
+                "root".into()
+            ),
+            (Action::OpenRealm, "root".into()),
+        ]
+    );
+    // refusals reach no moderator
+    for (method, path, token, body, status, code) in [
+        (
+            "PUT",
+            "/v1/players/Lars/jail",
+            "root-secret",
+            Some(r#"{"for_secs":0}"#),
+            400,
+            "bad_duration",
+        ),
+        (
+            "PUT",
+            "/v1/players/Lars/jail",
+            "root-secret",
+            Some(r#"{"for_secs":315360001}"#),
+            400,
+            "bad_duration",
+        ),
+        (
+            "PUT",
+            "/v1/players/Lars/ban",
+            "root-secret",
+            Some(r#"{"reason":"a\u001bb"}"#),
+            400,
+            "bad_text",
+        ),
+        (
+            "PUT",
+            "/v1/players/Lars/ban",
+            "root-secret",
+            Some(r#"{"until":"tomorrow"}"#),
+            400,
+            "bad_body",
+        ),
+        (
+            "PUT",
+            "/v1/players/Lars/frog",
+            "root-secret",
+            None,
+            404,
+            "not_found",
+        ),
+        (
+            "POST",
+            "/v1/players/Lars/tell",
+            "write-secret",
+            Some(r#"{"text":"  "}"#),
+            400,
+            "bad_text",
+        ),
+        (
+            "PUT",
+            "/v1/players/Lars/ban",
+            "write-secret",
+            None,
+            403,
+            "forbidden",
+        ),
+        (
+            "POST",
+            "/v1/players/Lars/kick",
+            "write-secret",
+            None,
+            403,
+            "forbidden",
+        ),
+        (
+            "POST",
+            "/v1/realm/close",
+            "write-secret",
+            None,
+            403,
+            "forbidden",
+        ),
+        (
+            "POST",
+            "/v1/players/Lars/tell",
+            "read-secret",
+            Some(r#"{"text":"x"}"#),
+            403,
+            "forbidden",
+        ),
+    ] {
+        let r = request(srv.addr, method, path, Some(token), body).await;
+        assert_eq!(
+            (r.status, r.json()["error"].clone()),
+            (status, json!(code)),
+            "{method} {path} {body:?}"
+        );
+    }
+    assert_eq!(srv.moderator.actions.lock().unwrap().len(), 9);
+    // the moderator's own refusal
+    let r = call("PUT", "/v1/players/nobody/ban", "root-secret", None).await;
+    assert_eq!(
+        (r.status, r.json()["error"].clone()),
+        (404, json!("no_such_player"))
+    );
+}
+
+// The web console's token acts for the sysop it names, audited as web:<name>; without a
+// name, or with one that is not a name, it is refused, and the header means nothing with
+// any other token.
+#[tokio::test]
+async fn the_console_token_acts_for_the_named_sysop() {
+    let srv = server().await;
+    let call = |token: &'static str, acting: Option<&'static str>| {
+        let addr = srv.addr;
+        async move {
+            let extra = acting.map_or(String::new(), |n| format!("X-Silvermere-Sysop: {n}\r\n"));
+            let req = format!(
+                "POST /v1/players/Lars/tell HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\
+                 Authorization: Bearer {token}\r\n{extra}Content-Type: application/json\r\n\
+                 Content-Length: 13\r\n\r\n{{\"text\":\"hi\"}}"
+            );
+            let mut s = TcpStream::connect(addr).await.unwrap();
+            s.write_all(req.as_bytes()).await.unwrap();
+            let mut raw = String::new();
+            s.read_to_string(&mut raw).await.unwrap();
+            raw.split(' ').nth(1).unwrap().parse::<u16>().unwrap()
+        }
+    };
+    assert_eq!(call("console-secret", Some("Boss")).await, 200);
+    assert_eq!(call("console-secret", None).await, 401);
+    assert_eq!(call("console-secret", Some("a b")).await, 401);
+    assert_eq!(call("write-secret", Some("Boss")).await, 200);
+    let by: Vec<String> = srv
+        .moderator
+        .actions
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|(_, by)| by.clone())
+        .collect();
+    assert_eq!(by, ["web:Boss", "writer"]);
 }
 
 // POST /v1/shutdown: the defaults, the limits, and the audit row; DELETE cancels.
@@ -730,4 +1102,87 @@ fn the_event_kinds_table_is_generated_from_event_kind_all() {
         "docs/admin-api.md event-kinds table is stale; replace it with:\n{generated}"
     );
     assert_eq!(EventKind::ALL.len(), generated.lines().count() - 2);
+}
+
+/// The screen stream: the screen as it stands, each write, then `end`; audited. A line typed
+/// and a SYSOP line reach the moderator; a line with a control character is refused.
+#[tokio::test]
+async fn watching_typing_and_sysop_lines() {
+    let srv = server().await;
+    const ADMIN: &str = "root-secret";
+    let r = request(
+        srv.addr,
+        "GET",
+        "/v1/players/Lars/screen",
+        Some(ADMIN),
+        None,
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let screen = r.body.find("event: screen").expect("screen");
+    let out = r.body.find("event: out").expect("out");
+    let end = r.body.find("event: end").expect("end");
+    assert!(screen < out && out < end, "{}", r.body);
+    assert!(r.body.contains(r#""player":"Lars""#), "{}", r.body);
+    assert!(r.body.contains("You hit the orc!"), "{}", r.body);
+    let r = request(
+        srv.addr,
+        "GET",
+        "/v1/players/nobody/screen",
+        Some(ADMIN),
+        None,
+    )
+    .await;
+    assert_eq!(
+        (r.status, r.json()["error"].as_str()),
+        (409, Some("not_connected"))
+    );
+
+    let r = request(
+        srv.addr,
+        "POST",
+        "/v1/players/Lars/input",
+        Some(ADMIN),
+        Some(r#"{"line":"look\r\nquit"}"#),
+    )
+    .await;
+    assert_eq!(
+        (r.status, r.json()["error"].as_str()),
+        (400, Some("bad_line"))
+    );
+    let r = request(
+        srv.addr,
+        "POST",
+        "/v1/sysop",
+        Some(ADMIN),
+        Some(r#"{"line":"   "}"#),
+    )
+    .await;
+    assert_eq!(
+        (r.status, r.json()["error"].as_str()),
+        (400, Some("bad_line"))
+    );
+    let r = request(
+        srv.addr,
+        "POST",
+        "/v1/sysop",
+        Some(ADMIN),
+        Some(r#"{"line":"SYSOP GOD Lars INFO"}"#),
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let acts = srv.moderator.actions.lock().unwrap().clone();
+    assert!(acts.iter().any(|(a, _)| matches!(
+        a,
+        silvermere_api::Action::SysopLine { line } if line == "SYSOP GOD Lars INFO"
+    )));
+
+    // the watch is audited, with the player
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let rows = srv.state.log.since(0, 100).await.unwrap();
+    assert!(
+        rows.iter()
+            .any(|e| e.kind == "admin.players.Lars.screen" && e.payload["player"] == "Lars"),
+        "{rows:?}"
+    );
 }

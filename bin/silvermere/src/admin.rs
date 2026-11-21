@@ -180,7 +180,14 @@ pub fn api_state(
     vitals: Arc<Vitals>,
     backup: Arc<dyn silvermere_api::BackupProbe>,
     shutdown: Arc<dyn silvermere_api::ShutdownPlan>,
+    moderation: Arc<dyn silvermere_api::Moderator>,
 ) -> ApiState {
+    if matches!(
+        silvermere_api::is_loopback_bind(&cfg.server.admin_bind),
+        Ok(false)
+    ) {
+        tracing::warn!("{}", silvermere_api::remote_warning(&cfg.server.admin_bind));
+    }
     if cfg.admin.legacy_env_token
         && matches!(
             silvermere_api::is_loopback_bind(&cfg.server.admin_bind),
@@ -202,6 +209,8 @@ pub fn api_state(
         tokens: Arc::new(cfg.admin.tokens.iter().map(|t| t.to_token()).collect()),
         backup,
         shutdown,
+        moderation,
+        console: None,
     }
 }
 

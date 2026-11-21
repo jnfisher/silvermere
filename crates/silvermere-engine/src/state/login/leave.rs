@@ -190,6 +190,7 @@ pub fn finish_exit(world: &mut World, id: SessionId) {
     s.output.push_raw(wccmmud("usrexit"));
     s.output.push(Msg::MudMenuPromptCr);
     save_player(world, id);
+    logoff_event(world, id, who.clone(), "exit");
     // The BBS invisible flag is not carried.
     tell_game(
         world,
@@ -199,6 +200,13 @@ pub fn finish_exit(world: &mut World, id: SessionId) {
         None,
         &Msg::PlayerLeftRealm { who },
     );
+}
+
+/// The `logoff` event of a character leaving the realm.
+pub(crate) fn logoff_event(world: &mut World, id: SessionId, name: String, how: &'static str) {
+    world.outbox.push(crate::event_loop::EngineOutput::Event(
+        crate::event_loop::GameEvent::Logoff { id, name, how },
+    ));
 }
 
 /// `X` at the main menu: out of the module. `cleanup_when_user_leaves` and `clear_player`
@@ -240,6 +248,8 @@ pub fn hangup(world: &mut World, id: SessionId) {
         save_player(world, id);
         return;
     };
+    let name = super::enter::name_for_event(world, id);
+    logoff_event(world, id, name, "hangup");
     let situation = HangupSituation {
         in_autocombat: crate::combat::autocombat::is_inside_autocombat(world, id),
         being_attacked: crate::combat::autocombat::is_being_attacked(world, id),

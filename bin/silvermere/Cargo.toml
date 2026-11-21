@@ -25,6 +25,7 @@ silvermere-text.workspace = true
 silvermere-types.workspace = true
 silvermere-web.workspace = true
 anyhow.workspace = true
+axum.workspace = true
 clap.workspace = true
 figment.workspace = true
 jiff.workspace = true
@@ -37,12 +38,14 @@ serde_json.workspace = true
 sqlx.workspace = true
 tokio.workspace = true
 toml.workspace = true
+tower.workspace = true
 toml_edit.workspace = true
 tracing.workspace = true
 tracing-appender.workspace = true
 tracing-subscriber.workspace = true
 
 [dev-dependencies]
+silvermere-rules.workspace = true
 silvermere-testkit.workspace = true
 metrics-util.workspace = true
 tokio = { workspace = true, features = ["test-util"] }

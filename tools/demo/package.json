@@ -1,0 +1,8 @@
+{
+  "name": "silvermere-demo",
+  "private": true,
+  "description": "Records the console's demo scenes (tools/demo/record.js); run.sh installs and runs it",
+  "dependencies": {
+    "playwright": "1.63.0"
+  }
+}

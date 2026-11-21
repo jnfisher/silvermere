@@ -10,8 +10,12 @@ pub mod cli;
 pub mod cmd_import;
 pub mod commands;
 pub mod config;
+pub mod console;
 pub mod gate;
+pub mod moderation;
 pub mod planned;
+pub mod restart;
+pub mod spectate;
 pub mod stock;
 pub mod store;
 pub mod web;
@@ -368,11 +372,20 @@ pub async fn serve_world_with_db(
 ) -> anyhow::Result<Running> {
     world.compat = engine_compat(&cfg);
     let addr: SocketAddr = cfg.server.telnet_bind.parse()?;
+    // the closed realm and the IP bans, shared by the login, the listener and the sysop's
+    // tools; read back from the store below, before anyone connects
+    let realm = std::sync::Arc::new(silvermere_auth::RealmGate::default());
+    let ip_bans = std::sync::Arc::new(moderation::IpBans::default());
+    // the players' screens and their connections, for the sysop watching one
+    let screens = std::sync::Arc::new(silvermere_net::Screens::default());
+    let links = std::sync::Arc::new(spectate::Links::default());
     let net_cfg = silvermere_net::ServerConfig {
+        ip_filter: Some(ip_bans.clone()),
         max_sessions: cfg.server.max_sessions as usize,
         // the engine and the login gate send `LineStarted` for every line they take (T-094)
         session: silvermere_net::SessionConfig {
             hold_line_echo: true,
+            screens: Some(screens.clone()),
             ..Default::default()
         },
         keepalive: (cfg.net.keepalive_secs > 0)
@@ -416,6 +429,9 @@ pub async fn serve_world_with_db(
                 .with_context(|| format!("opening {}", cfg.database_shown()))?,
         ),
     };
+    moderation::restore(&events_db, &realm, &ip_bans)
+        .await
+        .context("reading the closed realm and the IP bans")?;
     let (shutdown, stop) = watch::channel(false);
     let (to_engine, from_bin) = mpsc::channel();
     let (outputs, from_engine) = mpsc::channel();
@@ -432,14 +448,31 @@ pub async fn serve_world_with_db(
     let vitals = admin::Vitals::with_persist(persist.watch());
     let backups = backups::Shared::load(&cfg);
     let planned = std::sync::Arc::new(planned::PlannedShutdown::new(to_engine.clone()));
-    let state = admin::api_state(
+    let mut state = admin::api_state(
         &cfg,
         events_db.clone(),
         to_engine.clone(),
         vitals.clone(),
         std::sync::Arc::new(backups.clone()),
         planned.clone(),
+        std::sync::Arc::new(
+            moderation::Operator::new(
+                events_db.clone(),
+                to_engine.clone(),
+                realm.clone(),
+                ip_bans.clone(),
+            )
+            .watching(screens.clone(), links.clone()),
+        ),
     );
+    // the web console's token: in memory only, for the console's in-process calls
+    let console_secret = console::new_secret();
+    state.console = Some(silvermere_api::Token::new(
+        "web-console",
+        &console_secret,
+        &[silvermere_api::Scope::Admin],
+    ));
+    let console_app = silvermere_api::router(state.clone());
     silvermere_engine::metrics::describe_all();
     metrics::gauge!(
         silvermere_engine::metrics::BUILD_INFO,
@@ -481,6 +514,19 @@ pub async fn serve_world_with_db(
                     login: Some(std::sync::Arc::new(web::AccountLogin::new(
                         events_db.clone(),
                     ))),
+                    sessions: silvermere_web::Sessions::with_key(web::session_key(&cfg.data_dir)),
+                    hosts: Some(web::web_hosts(&cfg)),
+                    console: Some(std::sync::Arc::new(console::ApiConsole::new(
+                        console_app,
+                        console_secret,
+                    ))),
+                    notices: if silvermere_api::is_loopback_bind(&cfg.server.admin_bind)
+                        .unwrap_or(true)
+                    {
+                        Vec::new()
+                    } else {
+                        vec![silvermere_api::remote_warning(&cfg.server.admin_bind)]
+                    },
                     ..silvermere_web::WebState::open(env!("CARGO_PKG_VERSION"))
                 };
                 admin_tasks.push(tokio::spawn(async move {
@@ -508,7 +554,8 @@ pub async fn serve_world_with_db(
                 silvermere_auth::SystemClock,
                 silvermere_auth::LockoutConfig::default(),
             )
-            .with_evict(std::sync::Arc::new(gate::GateEvict(control_tx.clone())));
+            .with_evict(std::sync::Arc::new(gate::GateEvict(control_tx.clone())))
+            .with_realm(realm.clone());
             let deps = gate::GateDeps {
                 service: std::sync::Arc::new(service),
                 db,
@@ -520,6 +567,7 @@ pub async fn serve_world_with_db(
                 },
                 login_timeout: (cfg.net.login_timeout_secs > 0)
                     .then(|| Duration::from_secs(u64::from(cfg.net.login_timeout_secs))),
+                ip_filter: Some(ip_bans.clone()),
             };
             tokio::spawn(gate::run(
                 net_rx,
@@ -563,6 +611,7 @@ pub async fn serve_world_with_db(
             events: game_events,
             store: store_tx,
             reload: Some(config_reloader(&cfg)),
+            links: Some(links.clone()),
         },
         vitals.engine_alive_flag(),
     ));

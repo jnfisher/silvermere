@@ -136,8 +136,8 @@ mod tests {
         let sqlite: Vec<_> = SQLITE_MIGRATIONS.iter().map(|m| m.version).collect();
         let postgres: Vec<_> = POSTGRES_MIGRATIONS.iter().map(|m| m.version).collect();
         assert_eq!(sqlite, postgres);
-        // 0001 the schema, 0002 world_import (T-109)
-        assert_eq!(sqlite, vec![1, 2]);
+        // 0001 the schema, 0002 world_import (T-109), 0003 moderation
+        assert_eq!(sqlite, vec![1, 2, 3]);
     }
 }
 

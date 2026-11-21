@@ -131,6 +131,28 @@ impl TelnetClient {
         })
     }
 
+    /// [`TelnetClient::connect`] from the local address `from` (any port): on Linux every
+    /// 127.x.y.z is the loopback, so many clients can come from different addresses.
+    pub async fn connect_from(addr: SocketAddr, from: std::net::IpAddr) -> io::Result<Self> {
+        let socket = if from.is_ipv4() {
+            tokio::net::TcpSocket::new_v4()?
+        } else {
+            tokio::net::TcpSocket::new_v6()?
+        };
+        socket.bind(SocketAddr::new(from, 0))?;
+        let stream = socket.connect(addr).await?;
+        Ok(Self {
+            addr,
+            stream: Some(stream),
+            naws: None,
+            iac: Iac::Data,
+            raw: Vec::new(),
+            read_pos: 0,
+            last_rx: Instant::now(),
+            skipped: String::new(),
+        })
+    }
+
     /// Answers `DO NAWS` with this window size instead of refusing it.
     pub fn with_naws(mut self, columns: u16, rows: u16) -> Self {
         self.naws = Some((columns, rows));

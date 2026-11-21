@@ -51,6 +51,8 @@ pub struct SessionConfig {
     /// the timers only after it (`MbbsHost.cs`:426, :458-459, :929; T-094). Off by default:
     /// a peer that never sends `LineStarted` would see each echo late.
     pub hold_line_echo: bool,
+    /// Where each player's screen is recorded for the sysop watching it; `None` for none.
+    pub screens: Option<Arc<crate::Screens>>,
 }
 
 impl Default for SessionConfig {
@@ -59,6 +61,7 @@ impl Default for SessionConfig {
             output_limit: 64 * 1024,
             heartbeat: None,
             hold_line_echo: false,
+            screens: None,
         }
     }
 }
@@ -78,6 +81,8 @@ pub struct ServerConfig {
     /// it when the probes go unanswered ([`crate::keepalive`]); `None` for no probes.
     pub keepalive: Option<Duration>,
     pub session: SessionConfig,
+    /// The IP bans: a telnet connection it refuses is closed before anything is sent.
+    pub ip_filter: Option<Arc<dyn crate::network::IpFilter>>,
 }
 
 impl Default for ServerConfig {
@@ -88,6 +93,7 @@ impl Default for ServerConfig {
             socket_send_buffer: 32 * 1024,
             keepalive: None,
             session: SessionConfig::default(),
+            ip_filter: None,
         }
     }
 }
@@ -203,6 +209,14 @@ async fn accept_loop(
             drop(stream);
             continue;
         }
+        if rlogin.is_none()
+            && let Some(filter) = &shared.config.ip_filter
+            && filter.refuses(crate::network::canonical(peer.ip()))
+        {
+            tracing::info!(%peer, "connection from a banned address closed");
+            drop(stream);
+            continue;
+        }
         // Small writes (echo, prompts) must not wait on Nagle.
         let _ = stream.set_nodelay(true);
         if let Some(idle) = shared.config.keepalive
@@ -287,7 +301,9 @@ async fn run(
     permit: Option<OwnedSemaphorePermit>,
     rlogin: Option<(RloginHello, Vec<u8>)>,
 ) {
+    let screens = config.screens.clone();
     let mut session = Session::new(stream, config);
+    session.id = id;
     let hello = rlogin.map(|(hello, ahead)| {
         session.raw = true;
         session.out.clear();
@@ -303,6 +319,9 @@ async fn run(
             );
         }
         other => tracing::debug!(?id, reason = ?other, "session ended"),
+    }
+    if let Some(screens) = screens {
+        screens.end(id);
     }
     // Free the slot before the engine hears about it, so a reconnect is not refused.
     drop(permit);
@@ -328,11 +347,20 @@ struct Session {
     held_echo: Vec<u8>,
     /// An rlogin session: plain bytes both ways, no telnet commands.
     raw: bool,
+    /// The address the connection comes from, sent to the engine first.
+    peer: Option<std::net::IpAddr>,
+    /// The connection's number, for its screen record.
+    id: SessionId,
 }
 
 impl Session {
     fn new(stream: TcpStream, config: SessionConfig) -> Self {
+        let peer = stream
+            .peer_addr()
+            .ok()
+            .map(|a| crate::network::canonical(a.ip()));
         Self {
+            peer,
             stream: Some(stream),
             config,
             codec: TelnetCodec::new(),
@@ -344,11 +372,15 @@ impl Session {
             hold_until: None,
             held_echo: Vec::new(),
             raw: false,
+            id: SessionId(0),
         }
     }
 
     /// Queues output bytes: as they are on an rlogin session, IAC doubled on telnet.
     fn put(&mut self, bytes: &[u8]) {
+        if let Some(screens) = &self.config.screens {
+            screens.record(self.id, bytes);
+        }
         if self.raw {
             self.out.extend_from_slice(bytes);
         } else {
@@ -363,6 +395,14 @@ impl Session {
             Some(SessionCommand::SetEcho(mode)) => self.editor.set_echo(mode),
             Some(SessionCommand::SetCharMode(on)) => self.editor.set_char_mode(on),
             Some(SessionCommand::LineStarted) => self.release_echo(),
+            Some(SessionCommand::Inject(bytes)) => {
+                if self.editor.char_mode() {
+                    self.outbox.extend(bytes.into_iter().map(SessionEvent::Key));
+                    self.outbox.push_back(SessionEvent::Key(b'\r'));
+                } else {
+                    self.outbox.push_back(SessionEvent::Line(bytes));
+                }
+            }
             Some(SessionCommand::LineDone) => {
                 self.release_echo();
                 self.hold_until = None;
@@ -388,6 +428,14 @@ impl Session {
         mut commands: mpsc::Receiver<SessionCommand>,
         rlogin: Option<RloginHello>,
     ) -> Reason {
+        if let Some(peer) = self.peer
+            && to_engine
+                .send((id, SessionEvent::Peer(peer)))
+                .await
+                .is_err()
+        {
+            return Reason::Closed;
+        }
         if let Some(hello) = rlogin
             && to_engine
                 .send((id, SessionEvent::Rlogin(hello)))

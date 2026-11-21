@@ -10,6 +10,7 @@ mod events;
 mod guard;
 mod keys;
 mod migrate;
+mod moderation;
 mod persist;
 mod persist_batch;
 mod persist_latency;

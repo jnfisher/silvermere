@@ -256,6 +256,33 @@ async fn every_emitted_event_kind_is_on_the_stream_and_in_the_table() {
         })
         .unwrap();
     read_until(&mut sse, &mut seen, "event: level").await;
+    // login, logoff and death, as the engine emits them when a character enters the realm,
+    // leaves it and dies (moderation_e2e drives the first two through real logins)
+    r.to_engine
+        .send(silvermere_engine::EngineInput::Custom {
+            session: None,
+            run: Box::new(|w| {
+                use silvermere_engine::GameEvent;
+                let id = silvermere_engine::SessionId(0);
+                w.emit_event(GameEvent::Login {
+                    id,
+                    name: "Aldric".into(),
+                    ip: Some(std::net::IpAddr::from([127, 0, 0, 1])),
+                });
+                w.emit_event(GameEvent::Death {
+                    id,
+                    name: "Aldric".into(),
+                    room: silvermere_types::ids::RoomKey::new(1, 1),
+                });
+                w.emit_event(GameEvent::Logoff {
+                    id,
+                    name: "Aldric".into(),
+                    how: "exit",
+                });
+            }),
+        })
+        .unwrap();
+    read_until(&mut sse, &mut seen, "event: logoff").await;
 
     let mut frames: BTreeMap<i64, (String, Value)> = BTreeMap::new();
     for frame in seen.split("\n\n").filter(|f| f.contains("event: ")) {

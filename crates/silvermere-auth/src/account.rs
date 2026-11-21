@@ -276,6 +276,25 @@ pub trait AccountStore: Send + Sync {
     fn delete_characters(&self, id: AccountId) -> impl Future<Output = StoreResult<()>> + Send;
     /// Appends an audit row to `events`.
     fn audit(&self, event: Event) -> impl Future<Output = StoreResult<()>> + Send;
+    /// The account's ban in force at `now`, if any (`account_sanctions`). A store without
+    /// bans has none.
+    fn ban(
+        &self,
+        id: AccountId,
+        now: Timestamp,
+    ) -> impl Future<Output = StoreResult<Option<Ban>>> + Send {
+        let _ = (id, now);
+        async { Ok(None) }
+    }
+}
+
+/// A sysop's ban on an account: no login until it ends or is lifted.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Ban {
+    /// When it ends; `None` until lifted.
+    pub until: Option<Timestamp>,
+    /// Told to the player; may be empty.
+    pub reason: String,
 }
 
 fn to_row(account: &Account) -> db_accounts::Account {
@@ -391,6 +410,19 @@ impl AccountStore for Db {
     async fn audit(&self, event: Event) -> StoreResult<()> {
         self.events().append(&event).await.map(|_| ())
     }
+
+    async fn ban(&self, id: AccountId, now: Timestamp) -> StoreResult<Option<Ban>> {
+        Ok(self
+            .moderation()
+            .of(id)
+            .await?
+            .into_iter()
+            .find(|s| s.kind == silvermere_db::repo::SanctionKind::Ban && s.active_at(now))
+            .map(|s| Ban {
+                until: s.until,
+                reason: s.reason,
+            }))
+    }
 }
 
 impl<S: AccountStore> AccountStore for std::sync::Arc<S> {
@@ -432,6 +464,14 @@ impl<S: AccountStore> AccountStore for std::sync::Arc<S> {
     fn audit(&self, event: Event) -> impl Future<Output = StoreResult<()>> + Send {
         (**self).audit(event)
     }
+
+    fn ban(
+        &self,
+        id: AccountId,
+        now: Timestamp,
+    ) -> impl Future<Output = StoreResult<Option<Ban>>> + Send {
+        (**self).ban(id, now)
+    }
 }
 
 /// An in-memory [`AccountStore`] for tests and database-free tools.
@@ -445,12 +485,22 @@ struct MemoryInner {
     accounts: Vec<Account>,
     next_id: i64,
     events: Vec<Event>,
+    bans: Vec<(AccountId, Ban)>,
 }
 
 impl MemoryStore {
     /// An empty store.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Bans `id` (replacing a ban it had); `None` lifts it.
+    pub fn set_ban(&self, id: AccountId, ban: Option<Ban>) {
+        let mut inner = self.lock();
+        inner.bans.retain(|(a, _)| *a != id);
+        if let Some(ban) = ban {
+            inner.bans.push((id, ban));
+        }
     }
 
     /// The audit events appended so far.
@@ -528,6 +578,15 @@ impl AccountStore for MemoryStore {
     async fn audit(&self, event: Event) -> StoreResult<()> {
         self.lock().events.push(event);
         Ok(())
+    }
+
+    async fn ban(&self, id: AccountId, now: Timestamp) -> StoreResult<Option<Ban>> {
+        Ok(self
+            .lock()
+            .bans
+            .iter()
+            .find(|(a, b)| *a == id && b.until.is_none_or(|u| u > now))
+            .map(|(_, b)| b.clone()))
     }
 }
 

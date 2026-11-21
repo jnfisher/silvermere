@@ -51,6 +51,23 @@ pub struct ApiState {
     pub backup: Arc<dyn BackupProbe>,
     /// The planned shutdown for `/v1/shutdown`.
     pub shutdown: Arc<dyn crate::shutdown::ShutdownPlan>,
+    /// Kicks, bans, jail, mutes and the closed realm for the moderation routes.
+    pub moderation: Arc<dyn crate::moderation::Moderator>,
+    /// The web console's token: made at start, held in memory only, never configured. A
+    /// call with it names the signed-in sysop in [`ACTING_FOR`] and is audited as
+    /// `web:<name>`; without that header it is refused.
+    pub console: Option<Token>,
+}
+
+/// The header a web console call names its sysop in.
+pub const ACTING_FOR: &str = "x-silvermere-sysop";
+
+/// A sysop's name as the console may give it: 1 to 64 letters, digits, `-`, `_`, `.`.
+fn acting_name_ok(name: &str) -> bool {
+    (1..=64).contains(&name.len())
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"-_.".contains(&b))
 }
 
 impl ApiState {
@@ -69,7 +86,10 @@ fn message_of(code: &str) -> &'static str {
     match code {
         "unauthorized" => "a valid bearer token is required",
         "forbidden" => "the token lacks the scope this route needs",
-        "bad_text" => "text must be 1 to 1000 characters with no control characters",
+        "bad_text" => {
+            "text must have no control characters and be 1 to 1000 characters for a broadcast, \
+             at most 200 for a reason or a message"
+        }
         "bad_query" => "the query string is not valid for this route",
         "engine_unavailable" => "the game engine is not running",
         "engine_timeout" => "the game engine did not answer in time",
@@ -80,6 +100,23 @@ fn message_of(code: &str) -> &'static str {
         "bad_delay" => "in_secs must be 0 to 86400",
         "bad_body" => "the request body is not the JSON this route takes",
         "shutdown_unavailable" => "this server cannot schedule its own shutdown",
+        "no_such_player" => "no character or account has that name",
+        "not_connected" => "the player is not connected",
+        "door_account" => "a BBS door account: the BBS manages its own users",
+        "bad_network" => "network must be an IP address or CIDR block",
+        "no_such_ban" => "no ban of that address or block",
+        "not_sanctioned" => "the player has no sanction of that kind",
+        "bad_duration" => "for_secs must be 1 to 315360000, or absent for until lifted",
+        "store_failed" => "the database refused the change; the cause is in the server log",
+        "moderation_unavailable" => "this server has no moderation",
+        "backup_unavailable" => "this server takes no backups",
+        "bad_line" => "line must be at most 254 characters with no control characters",
+        "not_sysop_line" => "the line must be an in-game SYSOP command, e.g. SYSOP LIST USERS",
+        "needs_character" => {
+            "this SYSOP command acts on or from your character in the realm (GOTO, SUMMON, \
+             EXPRESS_TRAIN, MAP, RESET, REPORT USERS, LIST GANG): use it in the game"
+        }
+        "server_full" => "every session slot is taken",
         "not_found" => "no such route",
         "internal" => "internal error",
         _ => "error",
@@ -130,11 +167,32 @@ pub fn routes() -> Vec<RouteSpec> {
         r("GET", "/v1/who", Some(Scope::Read), true),
         r("GET", "/v1/events", Some(Scope::Read), true),
         r("GET", "/v1/backup", Some(Scope::Read), true),
+        r("POST", "/v1/backup", Some(Scope::Admin), true),
         r("POST", "/v1/broadcast", Some(Scope::Write), true),
         r("POST", "/v1/reload-world", Some(Scope::Write), true),
         r("DELETE", "/v1/accounts/{id}", Some(Scope::Admin), true),
+        r("GET", "/v1/shutdown", Some(Scope::Read), true),
         r("POST", "/v1/shutdown", Some(Scope::Admin), true),
         r("DELETE", "/v1/shutdown", Some(Scope::Admin), true),
+        r("POST", "/v1/restart", Some(Scope::Admin), true),
+        r("DELETE", "/v1/restart", Some(Scope::Admin), true),
+        r("GET", "/v1/moderation", Some(Scope::Read), true),
+        r("POST", "/v1/players/{name}/kick", Some(Scope::Admin), true),
+        r("POST", "/v1/players/{name}/tell", Some(Scope::Write), true),
+        r("PUT", "/v1/players/{name}/{kind}", Some(Scope::Admin), true),
+        r(
+            "DELETE",
+            "/v1/players/{name}/{kind}",
+            Some(Scope::Admin),
+            true,
+        ),
+        r("POST", "/v1/ip-bans", Some(Scope::Admin), true),
+        r("DELETE", "/v1/ip-bans", Some(Scope::Admin), true),
+        r("POST", "/v1/realm/close", Some(Scope::Admin), true),
+        r("POST", "/v1/realm/open", Some(Scope::Admin), true),
+        r("GET", "/v1/players/{name}/screen", Some(Scope::Admin), true),
+        r("POST", "/v1/players/{name}/input", Some(Scope::Admin), true),
+        r("POST", "/v1/sysop", Some(Scope::Admin), true),
     ];
     for table in reserved::RESOURCES {
         for (method, suffix) in [
@@ -187,13 +245,35 @@ pub fn router(state: ApiState) -> Router {
         .route("/v1/who", get(who::who))
         .route("/v1/broadcast", post(broadcast_route::broadcast))
         .route("/v1/events", get(events::stream))
-        .route("/v1/backup", get(backup::status))
+        .route("/v1/backup", get(backup::status).post(backup::run_now))
         .route("/v1/reload-world", post(reload::reload_world))
         .route("/v1/accounts/{id}", delete(accounts::delete))
         .route(
             "/v1/shutdown",
-            post(crate::shutdown::schedule).delete(crate::shutdown::cancel),
-        );
+            get(crate::shutdown::status)
+                .post(crate::shutdown::schedule)
+                .delete(crate::shutdown::cancel),
+        )
+        .route(
+            "/v1/restart",
+            post(crate::shutdown::schedule_restart).delete(crate::shutdown::cancel),
+        )
+        .route("/v1/moderation", get(crate::moderation::status))
+        .route("/v1/players/{name}/kick", post(crate::moderation::kick))
+        .route("/v1/players/{name}/tell", post(crate::moderation::tell))
+        .route(
+            "/v1/players/{name}/{kind}",
+            axum::routing::put(crate::moderation::put).delete(crate::moderation::lift),
+        )
+        .route(
+            "/v1/ip-bans",
+            post(crate::moderation::ban_ip).delete(crate::moderation::unban_ip),
+        )
+        .route("/v1/realm/close", post(crate::moderation::close_realm))
+        .route("/v1/realm/open", post(crate::moderation::open_realm))
+        .route("/v1/players/{name}/screen", get(crate::spectate::screen))
+        .route("/v1/players/{name}/input", post(crate::spectate::input))
+        .route("/v1/sysop", post(crate::spectate::sysop_line));
     let v1 = reserved::register(v1).layer(middleware::from_fn_with_state(state.clone(), guard));
     Router::new()
         .route("/healthz", get(health::healthz))
@@ -219,7 +299,29 @@ async fn guard(State(state): State<ApiState>, mut req: Request, next: Next) -> R
         .headers()
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok());
-    let Some(caller) = authenticate(&state.tokens, header) else {
+    // the web console's own token first: it acts for the sysop it names
+    let console = state
+        .console
+        .as_ref()
+        .and_then(|t| authenticate(std::slice::from_ref(t), header));
+    let caller = match console {
+        Some(c) => {
+            let acting = req
+                .headers()
+                .get(ACTING_FOR)
+                .and_then(|v| v.to_str().ok())
+                .filter(|n| acting_name_ok(n));
+            match acting {
+                Some(name) => Some(crate::auth::Caller {
+                    name: format!("web:{name}"),
+                    scopes: c.scopes,
+                }),
+                None => None,
+            }
+        }
+        None => authenticate(&state.tokens, header),
+    };
+    let Some(caller) = caller else {
         let mut resp = ApiError(StatusCode::UNAUTHORIZED, "unauthorized").into_response();
         resp.headers_mut()
             .insert(header::WWW_AUTHENTICATE, "Bearer".parse().expect("static"));
@@ -232,8 +334,17 @@ async fn guard(State(state): State<ApiState>, mut req: Request, next: Next) -> R
         .trim_end_matches('/')
         .replace('/', ".");
     let method = req.method().to_string();
+    // the web console reads every few seconds: those reads are not audited (watching a
+    // player's screen is)
+    let console_read = caller.name.starts_with("web:")
+        && req.method() == axum::http::Method::GET
+        && !route.ends_with(".screen");
     req.extensions_mut().insert(caller.clone());
     let mut resp = next.run(req).await;
+    if console_read {
+        tracing::debug!(target: "audit", route = %route, token_name = %caller.name, "console read");
+        return resp;
+    }
     let status = resp.status().as_u16();
     let detail = resp.extensions_mut().remove::<AuditDetail>();
 

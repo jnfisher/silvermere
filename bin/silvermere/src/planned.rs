@@ -5,6 +5,10 @@
 //! The warnings are broadcasts, as `SYSOP SPEAK` sends them: at the time the plan is made,
 //! then at each of [`WARN_AT`] still ahead. Scheduling again replaces the plan; cancelling
 //! tells the players it is off.
+//!
+//! A planned restart (`POST /v1/restart`) counts down the same way; when it is due `serve`
+//! asks [`PlannedShutdown::restart_due`] and, after the stop, starts again
+//! ([`crate::restart`]). It is refused up front when a restart would not come back.
 
 use std::sync::Mutex;
 use std::sync::mpsc::Sender;
@@ -24,6 +28,8 @@ pub struct PlannedShutdown {
     due: watch::Sender<bool>,
     plan: Mutex<Option<(Planned, tokio::task::AbortHandle)>>,
     runtime: tokio::runtime::Handle,
+    /// Asked before a restart is planned; `Err` refuses it ([`crate::restart::check`]).
+    restart_check: fn() -> Result<(), String>,
 }
 
 impl PlannedShutdown {
@@ -34,7 +40,33 @@ impl PlannedShutdown {
             due: watch::channel(false).0,
             plan: Mutex::new(None),
             runtime: tokio::runtime::Handle::current(),
+            restart_check: crate::restart::check,
         }
+    }
+
+    /// [`PlannedShutdown::new`] with another restart check (tests).
+    pub fn with_restart_check(mut self, check: fn() -> Result<(), String>) -> Self {
+        self.restart_check = check;
+        self
+    }
+
+    /// A restart that came due but would not come back: the plan is dropped, the server keeps
+    /// running and the players are told.
+    pub fn call_off_restart(&self, why: &str) {
+        tracing::error!(%why, "planned restart called off; the server keeps running");
+        self.lock().take();
+        self.due.send_replace(false);
+        let engine = self
+            .engine
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
+        Self::say(&engine, RESTART_CANCELLED.into());
+    }
+
+    /// Whether the plan that came due is a restart.
+    pub fn restart_due(&self) -> bool {
+        *self.due.borrow() && self.lock().as_ref().is_some_and(|(p, _)| p.restart)
     }
 
     /// Becomes `true` when a plan's time has come.
@@ -42,9 +74,17 @@ impl PlannedShutdown {
         self.due.subscribe()
     }
 
-    /// The plan in force, if any.
+    /// The plan in force, if any, `in_secs` counted from now.
     pub fn current(&self) -> Option<Planned> {
-        self.lock().as_ref().map(|(p, _)| p.clone())
+        self.lock().as_ref().map(|(p, _)| {
+            let left = p.at.parse::<jiff::Timestamp>().ok().map_or(0, |at| {
+                (at.as_second() - jiff::Timestamp::now().as_second()).max(0)
+            });
+            Planned {
+                in_secs: left as u64,
+                ..p.clone()
+            }
+        })
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Option<(Planned, tokio::task::AbortHandle)>> {
@@ -83,25 +123,34 @@ pub fn how_long(secs: u64) -> String {
 
 /// The warning `secs` before the stop.
 pub fn warning(secs: u64, message: &str) -> String {
+    warn(secs, message, false)
+}
+
+/// The warning `secs` before the stop or the restart.
+fn warn(secs: u64, message: &str, restart: bool) -> String {
     let when = how_long(secs);
+    let what = if restart { "restart" } else { "shut down" };
     if message.is_empty() {
-        format!("The server will shut down in {when}.")
+        format!("The server will {what} in {when}.")
     } else {
-        format!("The server will shut down in {when}: {message}")
+        format!("The server will {what} in {when}: {message}")
     }
 }
 
 /// The broadcast when a plan is cancelled.
 pub const CANCELLED: &str = "The planned shutdown is cancelled.";
+/// The broadcast when a planned restart is cancelled.
+pub const RESTART_CANCELLED: &str = "The planned restart is cancelled.";
 
-impl ShutdownPlan for PlannedShutdown {
-    fn schedule(&self, after: Duration, message: String) -> Result<Planned, String> {
+impl PlannedShutdown {
+    fn plan(&self, after: Duration, message: String, restart: bool) -> Result<Planned, String> {
         let at = jiff::Timestamp::now()
             .checked_add(jiff::SignedDuration::try_from(after).map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
         let planned = Planned {
             at: at.to_string(),
             in_secs: after.as_secs(),
+            restart,
         };
         let engine = self
             .engine
@@ -113,21 +162,36 @@ impl ShutdownPlan for PlannedShutdown {
         let end = Instant::now() + after;
         let task = self.runtime.spawn(async move {
             if total > 0 {
-                Self::say(&engine, warning(total, &message));
+                Self::say(&engine, warn(total, &message, restart));
             }
             for &secs in WARN_AT.iter().filter(|&&s| s < total) {
                 tokio::time::sleep_until(end - Duration::from_secs(secs)).await;
-                Self::say(&engine, warning(secs, &message));
+                Self::say(&engine, warn(secs, &message, restart));
             }
             tokio::time::sleep_until(end).await;
-            tracing::info!("planned shutdown: the time has come");
+            tracing::info!(restart, "planned shutdown: the time has come");
             due.send_replace(true);
         });
-        tracing::info!(at = %planned.at, in_secs = planned.in_secs, "planned shutdown scheduled");
+        tracing::info!(at = %planned.at, in_secs = planned.in_secs, restart, "planned shutdown scheduled");
         if let Some((_, old)) = self.lock().replace((planned.clone(), task.abort_handle())) {
             old.abort();
         }
         Ok(planned)
+    }
+}
+
+impl ShutdownPlan for PlannedShutdown {
+    fn schedule(&self, after: Duration, message: String) -> Result<Planned, String> {
+        self.plan(after, message, false)
+    }
+
+    fn schedule_restart(&self, after: Duration, message: String) -> Result<Planned, String> {
+        (self.restart_check)()?;
+        self.plan(after, message, true)
+    }
+
+    fn current(&self) -> Option<Planned> {
+        PlannedShutdown::current(self)
     }
 
     fn cancel(&self) -> bool {
@@ -135,14 +199,19 @@ impl ShutdownPlan for PlannedShutdown {
             return false;
         };
         task.abort();
-        tracing::info!(at = %planned.at, "planned shutdown cancelled");
+        tracing::info!(at = %planned.at, restart = planned.restart, "planned shutdown cancelled");
         if !*self.due.borrow() {
             let engine = self
                 .engine
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
                 .clone();
-            Self::say(&engine, CANCELLED.into());
+            let said = if planned.restart {
+                RESTART_CANCELLED
+            } else {
+                CANCELLED
+            };
+            Self::say(&engine, said.into());
         }
         true
     }
@@ -233,6 +302,36 @@ mod tests {
             })
             .collect();
         assert_eq!(said, ["The server will shut down in 1 minute.", CANCELLED]);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_restart_counts_down_as_a_restart_and_is_refused_when_it_would_not_come_back() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let plan = PlannedShutdown::new(tx.clone()).with_restart_check(|| Ok(()));
+        let mut due = plan.due();
+        let planned = plan
+            .schedule_restart(Duration::from_secs(30), "upgrade".into())
+            .unwrap();
+        assert!(planned.restart);
+        assert!(!plan.restart_due(), "not before its time");
+        let said = told(&rx, &mut due).await;
+        assert_eq!(
+            said,
+            [
+                "The server will restart in 30 seconds: upgrade",
+                "The server will restart in 10 seconds: upgrade",
+            ]
+        );
+        assert!(plan.restart_due());
+        // a restart that would not come back is called off and the players are told
+        plan.call_off_restart("the settings would not load");
+        assert!(!*due.borrow() && plan.current().is_none());
+        let refused = PlannedShutdown::new(tx).with_restart_check(|| Err("broken".into()));
+        assert_eq!(
+            refused.schedule_restart(Duration::from_secs(30), String::new()),
+            Err("broken".to_string())
+        );
+        assert!(refused.current().is_none());
     }
 
     #[tokio::test(start_paused = true)]

@@ -80,6 +80,8 @@ struct Conn {
     account: Option<AccountId>,
     /// The caller an rlogin client named; the connection never sees the dialogue.
     rlogin: Option<RloginHello>,
+    /// The address the connection comes from.
+    peer: Option<std::net::IpAddr>,
 }
 
 /// Everything the gate needs besides its channels.
@@ -90,6 +92,8 @@ pub struct GateDeps {
     /// How long the dialogue waits for a line before closing the connection; `None` for
     /// no limit (`net.login_timeout_secs = 0`).
     pub login_timeout: Option<std::time::Duration>,
+    /// The IP bans: a telnet login that finishes after its address was banned is closed.
+    pub ip_filter: Option<Arc<dyn silvermere_net::IpFilter>>,
 }
 
 /// Runs the gate until the transport side closes.
@@ -111,7 +115,7 @@ pub async fn run(
                     return;
                 }
             }
-            Some((cid, login)) = done.recv() => {
+            Some((cid, mut login)) = done.recv() => {
                 let Some(conn) = conns.get_mut(&cid) else {
                     // the connection went away while the character was loading: nobody will
                     // ever log this account off
@@ -119,7 +123,20 @@ pub async fn run(
                     continue;
                 };
                 conn.login = None;
+                // banned while at the login prompt (the ban closes those already in the realm)
+                if conn.rlogin.is_none()
+                    && let (Some(filter), Some(peer)) = (&deps.ip_filter, conn.peer)
+                    && filter.refuses(peer)
+                {
+                    tracing::info!(%peer, "login from a banned address closed");
+                    deps.service.online().release(login.account.id);
+                    if let Some(tx) = &conn.tx {
+                        let _ = tx.try_send(SessionCommand::Close);
+                    }
+                    continue;
+                }
                 conn.account = Some(login.account.id);
+                login.peer = conn.peer;
                 if events_out.send((conn.net, GateEvent::LoggedIn(login))).await.is_err() {
                     return;
                 }
@@ -154,7 +171,7 @@ pub async fn run(
                 }
                 let cid = conn_id(net_id);
                 let conn = conns.entry(cid).or_insert_with(|| Conn {
-                    net: net_id, tx: None, login: None, account: None, rlogin: None,
+                    net: net_id, tx: None, login: None, account: None, rlogin: None, peer: None,
                 });
                 match ev {
                     SessionEvent::Line(bytes) => {
@@ -174,6 +191,9 @@ pub async fn run(
                     }
                     SessionEvent::Rlogin(hello) => {
                         conn.rlogin = Some(hello);
+                    }
+                    SessionEvent::Peer(ip) => {
+                        conn.peer = Some(ip);
                     }
                     SessionEvent::Connected(caps) => {
                         if let Some(tx) = conn.tx.clone() {
@@ -242,6 +262,7 @@ fn register(
         login: None,
         account: None,
         rlogin: None,
+        peer: None,
     });
     conn.tx = Some(tx.clone());
     registry_out.send((net_id, tx)).is_ok()
@@ -400,6 +421,9 @@ async fn rlogin_account(
                         Err(Refusal::Locked { minutes }) => {
                             refuse(tx, AuthMsg::AccountLocked { minutes }).await
                         }
+                        Err(Refusal::RealmClosed(reason)) => {
+                            refuse(tx, AuthMsg::realm_closed(&reason)).await
+                        }
                         Err(_) => refuse(tx, AuthMsg::RloginRefused).await,
                     },
                 };
@@ -412,7 +436,16 @@ async fn rlogin_account(
                 tracing::info!(?cid, user, "rlogin named an account without the door flag");
                 return refuse(tx, AuthMsg::RloginRefused).await;
             }
+            Err(Refusal::RealmClosed(reason)) => {
+                return refuse(tx, AuthMsg::realm_closed(&reason)).await;
+            }
+            // the door's callers are never banned here: the BBS manages its own users
+            Err(Refusal::Banned(_)) => return refuse(tx, AuthMsg::RloginRefused).await,
             Err(Refusal::InvalidCredentials | Refusal::NoPassword) => {}
+        }
+        // a first visit while the realm is closed: no new account
+        if let Some(reason) = deps.service.realm().closed() {
+            return refuse(tx, AuthMsg::realm_closed(&reason)).await;
         }
         if !deps.config.open_signup {
             return refuse(tx, AuthMsg::SignupClosed).await;
@@ -536,12 +569,38 @@ async fn login_for(db: &Db, account: Account) -> anyhow::Result<Login> {
         may_gossip: has_permission(&account, Perm::Gossip),
         may_auction: has_permission(&account, Perm::Auction),
         sysop_keys: sysop_keys(&account),
+        peer: None,
+        sanctions: sanctions(db, account.id).await?,
     })
+}
+
+/// The sysop's mute and jail on `account`: a mute in force, and the jail even when it has
+/// ended, so the next entry to the realm lets the player out.
+async fn sanctions(
+    db: &Db,
+    account: AccountId,
+) -> anyhow::Result<silvermere_engine::moderation::Sanctions> {
+    use silvermere_db::repo::SanctionKind;
+    use silvermere_engine::moderation::{Sanction, Sanctions};
+    let now = jiff::Timestamp::now();
+    let mut out = Sanctions::default();
+    for s in db.moderation().of(account).await? {
+        let held = Sanction {
+            until: s.until.map(|t| t.as_second()),
+            reason: s.reason.clone(),
+        };
+        match s.kind {
+            SanctionKind::Mute if s.active_at(now) => out.mute = Some(held),
+            SanctionKind::Jail => out.jail = Some(held),
+            _ => {}
+        }
+    }
+    Ok(out)
 }
 
 /// The `SYS_*` INI keys and the developer gate the account holds, as the engine names
 /// them (T-055).
-fn sysop_keys(account: &Account) -> silvermere_engine::commands::sysop::Keys {
+pub fn sysop_keys(account: &Account) -> silvermere_engine::commands::sysop::Keys {
     use silvermere_engine::commands::sysop::Key;
     Perm::ALL
         .iter()

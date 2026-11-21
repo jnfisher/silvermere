@@ -1,6 +1,10 @@
 /target
 # a data directory run from the clone (the import writes assets/ and cache/ there; T-120)
 /data/
+# a test server run from a crate's folder writes its data directory there
+bin/silvermere/data/
+# the web pages' session key (data_dir/web-session.key): a secret
+web-session.key
 *.db
 *.db-wal
 *.db-shm
@@ -19,3 +23,7 @@ soak-compare.log
 
 # runtime locks of the vendored soak bots (progress.py creates progress.lock, and progress-<class>.lock per class session, when it runs)
 tools/soak/vendor/play/progress*.lock
+
+# the demo recorder's Playwright (tools/demo/run.sh installs it)
+tools/demo/node_modules/
+demo-run/

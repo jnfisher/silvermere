@@ -149,6 +149,8 @@ async fn an_offline_edit_racing_a_hang_up_keeps_the_hang_up() {
             may_gossip: true,
             may_auction: true,
             sysop_keys: silvermere_engine::commands::sysop::Keys::empty(),
+            peer: None,
+            sanctions: Default::default(),
         }),
     });
     for line in ["M", "E"] {

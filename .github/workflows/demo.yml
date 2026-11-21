@@ -1,0 +1,63 @@
+name: Demo and stress run
+
+# On demand only (Actions > Demo and stress run > Run workflow): tools/demo/run.sh on a fresh
+# stock world with 64 characters playing. Uploads the console's screenshots, GIF and MP4
+# scenes, and the stress report. Nothing is committed; pick what you want from the artifact.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "media, stress or all"
+        default: all
+        type: choice
+        options: [all, media, stress]
+      minutes:
+        description: "How long the stress run plays"
+        default: "5"
+      count:
+        description: "How many characters"
+        default: "64"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo
+  cancel-in-progress: true
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: ffmpeg and the browser
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          cd tools/demo && npm install --no-audit --no-fund && npx playwright install --with-deps chromium
+      - name: The stock distribution, cached between runs
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/silvermere/stock
+          key: silvermere-stock-1.11p
+      - name: Run
+        env:
+          COUNT: ${{ inputs.count }}
+        run: tools/demo/run.sh "${{ inputs.mode }}" demo-run "${{ inputs.minutes }}"
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: demo-${{ github.run_number }}
+          path: |
+            demo-run/media/*.png
+            demo-run/media/*.gif
+            demo-run/media/*.mp4
+            demo-run/report.json
+            demo-run/serve.log
+            demo-run/bots.log
+          if-no-files-found: ignore

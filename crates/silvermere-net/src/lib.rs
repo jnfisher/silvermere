@@ -10,14 +10,18 @@ pub mod cp437;
 pub mod events;
 pub mod keepalive;
 pub mod line_editor;
+pub mod network;
 pub mod rlogin;
+pub mod screens;
 pub mod session_task;
 pub mod telnet;
 pub mod transport;
 
 pub use events::{Capabilities, Reason, SessionCommand, SessionEvent, SessionId};
 pub use line_editor::{EchoMode, EditorEvent, LineEditor};
+pub use network::{BadNetwork, IpFilter, Network};
 pub use rlogin::{RloginConfig, RloginHello};
+pub use screens::Screens;
 pub use session_task::{
     ServerConfig, SessionConfig, bind, serve, serve_with_rlogin, spawn_session, spawn_session_with,
 };

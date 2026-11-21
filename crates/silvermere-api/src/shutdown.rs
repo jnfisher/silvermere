@@ -1,6 +1,9 @@
 //! `POST /v1/shutdown` and `DELETE /v1/shutdown`: a planned shutdown. The players in the
 //! game are warned as the time comes closer, then the server stops as it does on SIGTERM
 //! (every character saved). Scheduling again replaces the plan; `DELETE` cancels it.
+//! `POST /v1/restart` plans a restart the same way: the server stops, then starts again in
+//! the same process. `GET /v1/shutdown` says what is planned. One plan at a time: a restart
+//! replaces a planned shutdown and the other way round.
 
 use std::time::Duration;
 
@@ -28,6 +31,8 @@ pub struct Planned {
     pub at: String,
     /// Seconds from now.
     pub in_secs: u64,
+    /// A restart rather than a stop.
+    pub restart: bool,
 }
 
 /// What the shutdown routes ask of the rest of the process; `bin` runs the countdown and
@@ -38,6 +43,16 @@ pub trait ShutdownPlan: Send + Sync {
     fn schedule(&self, after: Duration, message: String) -> Result<Planned, String>;
     /// Cancels the plan; whether there was one.
     fn cancel(&self) -> bool;
+    /// Restarts the server `after` from now, as [`ShutdownPlan::schedule`] stops it. `Err`
+    /// when this server cannot, or a restart would not come back (the reason).
+    fn schedule_restart(&self, after: Duration, message: String) -> Result<Planned, String> {
+        let _ = (after, message);
+        Err("this server cannot restart itself".into())
+    }
+    /// The plan in force, `in_secs` counted from now.
+    fn current(&self) -> Option<Planned> {
+        None
+    }
 }
 
 /// A server that cannot stop itself (the tests' in-process servers).
@@ -62,11 +77,40 @@ pub struct Body {
     pub message: String,
 }
 
+/// `GET /v1/shutdown`: `{"planned": null}` or `{"planned": {"at", "in_secs", "restart"}}`,
+/// `in_secs` counted from now.
+pub async fn status(
+    State(state): State<ApiState>,
+    Extension(caller): Extension<Caller>,
+) -> Response {
+    if !caller.allows(Scope::Read) {
+        return ApiError(StatusCode::FORBIDDEN, "forbidden").into_response();
+    }
+    let planned = state
+        .shutdown
+        .current()
+        .map(|p| json!({ "at": p.at, "in_secs": p.in_secs, "restart": p.restart }));
+    Json(json!({ "planned": planned })).into_response()
+}
+
 pub async fn schedule(
     State(state): State<ApiState>,
     Extension(caller): Extension<Caller>,
     raw: axum::body::Bytes,
 ) -> Response {
+    plan(state, caller, raw, false).await
+}
+
+/// `POST /v1/restart`.
+pub async fn schedule_restart(
+    State(state): State<ApiState>,
+    Extension(caller): Extension<Caller>,
+    raw: axum::body::Bytes,
+) -> Response {
+    plan(state, caller, raw, true).await
+}
+
+async fn plan(state: ApiState, caller: Caller, raw: axum::body::Bytes, restart: bool) -> Response {
     if !caller.allows(Scope::Admin) {
         return ApiError(StatusCode::FORBIDDEN, "forbidden").into_response();
     }
@@ -88,19 +132,35 @@ pub async fn schedule(
     if message.chars().count() > MAX_MESSAGE || message.chars().any(char::is_control) {
         return ApiError(StatusCode::BAD_REQUEST, "bad_text").into_response();
     }
-    match state
-        .shutdown
-        .schedule(Duration::from_secs(in_secs), message.clone())
-    {
+    let after = Duration::from_secs(in_secs);
+    let planned = if restart {
+        state.shutdown.schedule_restart(after, message.clone())
+    } else {
+        state.shutdown.schedule(after, message.clone())
+    };
+    match planned {
         Ok(planned) => {
-            let mut resp =
-                Json(json!({ "at": planned.at, "in_secs": planned.in_secs })).into_response();
+            let mut resp = Json(json!({
+                "at": planned.at,
+                "in_secs": planned.in_secs,
+                "restart": planned.restart,
+            }))
+            .into_response();
             resp.extensions_mut().insert(AuditDetail(json!({
                 "in_secs": planned.in_secs,
                 "at": planned.at,
                 "text": message,
+                "restart": restart,
             })));
             resp
+        }
+        Err(e) if restart => {
+            tracing::warn!(%e, "planned restart refused");
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({ "error": "restart_refused", "message": e })),
+            )
+                .into_response()
         }
         Err(e) => {
             tracing::warn!(%e, "planned shutdown refused");

@@ -65,7 +65,7 @@ silvermere` for the service).
 # silvermere.toml: only the keys you change.
 [server]
 telnet_bind = "0.0.0.0:2323"
-admin_bind  = "127.0.0.1:8080"    # keep on loopback; a non-loopback bind needs a token
+admin_bind  = "127.0.0.1:8080"    # keep on loopback; elsewhere needs admin.allow_remote and a token
 rlogin_bind = "127.0.0.1:2327"    # a BBS door on this computer: no second login
 
 [database]
@@ -105,16 +105,18 @@ options that were dropped are in [config-defaults.md](config-defaults.md).
 | Key | Environment variable | Default | Meaning | Original name |
 |---|---|---|---|---|
 | `server.telnet_bind` | `SILVERMERE_SERVER__TELNET_BIND` | `"0.0.0.0:2323"` | Telnet listen address, host:port. | — |
-| `server.admin_bind` | `SILVERMERE_SERVER__ADMIN_BIND` | `"127.0.0.1:8080"` | Admin API listen address. Keep it on loopback unless you set a token. | — |
+| `server.admin_bind` | `SILVERMERE_SERVER__ADMIN_BIND` | `"127.0.0.1:8080"` | Admin API listen address. Keep it on loopback: any other address needs `admin.allow_remote = true` and a token. See [admin-api.md](admin-api.md#remote). | — |
 | `server.max_sessions` | `SILVERMERE_SERVER__MAX_SESSIONS` | `256` | Most simultaneous connections, 1..=100000. | — |
 | `server.rlogin_bind` | `SILVERMERE_SERVER__RLOGIN_BIND` | `""` | rlogin door login listen address, host:port; empty is off. A BBS that sends its callers here logs them in without a second login. See [auth.md](auth.md#rlogin-a-bbs-door). | — |
 | `server.rlogin_trusted` | `SILVERMERE_SERVER__RLOGIN_TRUSTED` | `[]` | The IP addresses allowed to use `server.rlogin_bind`; empty is loopback only (a BBS on the same computer). Anyone else is closed unanswered. | — |
 | `server.web_bind` | `SILVERMERE_SERVER__WEB_BIND` | `"127.0.0.1:8088"` | Web pages listen address, host:port: the documentation, the FAQ and the settings editor a sysop signs in to; empty is off. Plain HTTP, so keep it on loopback or behind a TLS proxy. See [web.md](web.md). | — |
+| `server.web_hosts` | `SILVERMERE_SERVER__WEB_HOSTS` | `[]` | More host names the web pages answer to (a reverse proxy's public name, the computer's name on a private network), besides `localhost`, `127.0.0.1`, `::1` and the `server.web_bind` address. Any other `Host` is refused, so a web page elsewhere cannot reach the pages through a name it controls. See [web.md](web.md#reaching-it-from-another-computer). | — |
 
 ### [admin]
 
 | Key | Environment variable | Default | Meaning | Original name |
 |---|---|---|---|---|
+| `admin.allow_remote` | `SILVERMERE_ADMIN__ALLOW_REMOTE` | `false` | Let the admin API listen on an address other computers reach (`server.admin_bind` not loopback). Off, such a bind refuses to start, token or not; on, it still needs a token, and every start logs a warning. The API is plain HTTP: keep it behind an SSH tunnel, a private network or a TLS proxy. The Docker image sets it, and compose publishes the port on the host's loopback only. See [admin-api.md](admin-api.md#remote). | — |
 | `admin.tokens` | `SILVERMERE_ADMIN_TOKENS` | `[]` | Admin API bearer tokens: `[[admin.tokens]]` with `name`, `sha256` (what `silvermere admin token new` prints) or a plain `token`, and `scopes` (`read`, `write`, `admin`; `broadcast` and `sysop` are accepted aliases). The older `SILVERMERE_ADMIN_TOKEN` also works. See [admin-api.md](admin-api.md). `--print-config` shows tokens as `<redacted>`. | — |
 
 ### [database]
