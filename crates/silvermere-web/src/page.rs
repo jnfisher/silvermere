@@ -116,62 +116,67 @@ pub fn console(c: &Chrome<'_>, csrf: &str, notices: &[String]) -> String {
   <form class="inline" id="w-line"><input id="w-text" maxlength="254" autocomplete="off" spellcheck="false" placeholder="type as this player; empty is Enter"> <button type="submit">Send</button> <button type="button" id="w-stop" class="link">Stop watching</button></form>
 </section>
 <div class="console-grid">
-  <section class="panel" id="players-panel">
-    <h2>Players in the realm <span class="count" id="count"></span></h2>
-    <div class="table"><table id="players"><thead><tr><th>Name</th><th>Room</th><th>Level</th><th>Class</th><th>Race</th><th>Gang</th><th>Idle</th><th>Address</th><th></th></tr></thead><tbody></tbody></table></div>
-    <p class="hint" id="nobody" hidden>Nobody is in the realm.</p>
-    <form class="inline" id="find"><label>Any player, online or not <input id="find-name" placeholder="name" autocomplete="off" required></label> <button type="submit">Open</button></form>
-  </section>
-  <section class="panel" id="detail" hidden>
-    <h2 id="d-name"></h2>
-    <p class="meta" id="d-meta"></p>
-    <p class="meta" id="d-flags"></p>
-    <form class="inline" id="d-tell"><input id="d-tell-text" placeholder="a line to this player" maxlength="200" required> <button type="submit">Tell</button></form>
-    <div class="sanction">
-      <label>For <select id="d-for">
-        <option value="15m">15 minutes</option><option value="1h" selected>1 hour</option><option value="1d">1 day</option><option value="7d">7 days</option><option value="30d">30 days</option><option value="">until lifted</option>
-      </select></label>
-      <label>Reason <input id="d-reason" maxlength="200" placeholder="told to the player"></label>
-    </div>
-    <div class="buttons">
-      <button type="button" data-act="watch" id="d-watch">Watch</button>
-      <button type="button" data-act="kick">Kick</button>
-      <button type="button" data-act="jail">Jail</button>
-      <button type="button" data-act="release">Release</button>
-      <button type="button" data-act="mute">Mute</button>
-      <button type="button" data-act="unmute">Unmute</button>
-      <button type="button" data-act="ban" class="danger">Ban account</button>
-      <button type="button" data-act="unban">Unban</button>
-      <button type="button" data-act="ban-ip" class="danger" id="d-ban-ip">Ban address</button>
-      <button type="button" data-act="close" class="link">Close</button>
-    </div>
-  </section>
-  <section class="panel" id="moderation-panel">
-    <h2>In force</h2>
-    <ul class="list" id="sanctions"></ul>
-    <p class="hint" id="no-sanctions">No bans, jails or mutes.</p>
-    <form class="inline" id="ban-ip"><input id="ban-ip-net" placeholder="203.0.113.0/24" required> <button type="submit" class="danger">Ban address or block</button></form>
-  </section>
-  <section class="panel" id="activity-panel">
-    <h2>Activity</h2>
-    <div class="filters" id="filters">
-      <label><input type="checkbox" value="login" checked> logins</label>
-      <label><input type="checkbox" value="death" checked> deaths</label>
-      <label><input type="checkbox" value="level" checked> levels</label>
-      <label><input type="checkbox" value="auth" checked> sign-ins</label>
-      <label><input type="checkbox" value="admin" checked> staff</label>
-      <label><input type="checkbox" value="connected"> connections</label>
-    </div>
-    <ul class="feed" id="feed"></ul>
-  </section>
-  <section class="panel" id="backups-panel">
-    <h2>Backups</h2>
-    <p class="meta" id="backup-sched"></p>
-    <ul class="list" id="backups"></ul>
-  </section>
+  <div class="col main">
+    <section class="panel" id="players-panel">
+      <h2>Players in the realm <span class="count" id="count"></span></h2>
+      <div class="table"><table id="players"><thead><tr><th>Name</th><th>Room</th><th>Level</th><th>Class</th><th>Race</th><th>Gang</th><th>Idle</th><th>Address</th><th></th></tr></thead><tbody></tbody></table></div>
+      <p class="hint" id="nobody" hidden>Nobody is in the realm.</p>
+      <form class="inline" id="find"><label>Any player, online or not <input id="find-name" placeholder="name" autocomplete="off" required></label> <button type="submit">Open</button></form>
+    </section>
+    <section class="panel" id="activity-panel">
+      <h2>Activity</h2>
+      <div class="filters" id="filters">
+        <label><input type="checkbox" value="login" checked> logins</label>
+        <label><input type="checkbox" value="death" checked> deaths</label>
+        <label><input type="checkbox" value="level" checked> levels</label>
+        <label><input type="checkbox" value="auth" checked> sign-ins</label>
+        <label><input type="checkbox" value="admin" checked> staff</label>
+        <label><input type="checkbox" value="connected"> connections</label>
+      </div>
+      <ul class="feed" id="feed"></ul>
+    </section>
+  </div>
+  <div class="col side">
+    <section class="panel" id="detail" hidden>
+      <h2 id="d-name"></h2>
+      <p class="meta" id="d-meta"></p>
+      <p class="meta" id="d-flags"></p>
+      <form class="inline" id="d-tell"><input id="d-tell-text" placeholder="a line to this player" maxlength="200" required> <button type="submit">Tell</button></form>
+      <div class="sanction">
+        <label>For <select id="d-for">
+          <option value="15m">15 minutes</option><option value="1h" selected>1 hour</option><option value="1d">1 day</option><option value="7d">7 days</option><option value="30d">30 days</option><option value="">until lifted</option>
+        </select></label>
+        <label>Reason <input id="d-reason" maxlength="200" placeholder="told to the player"></label>
+      </div>
+      <div class="buttons">
+        <button type="button" data-act="watch" id="d-watch">Watch</button>
+        <button type="button" data-act="kick">Kick</button>
+        <button type="button" data-act="jail">Jail</button>
+        <button type="button" data-act="release">Release</button>
+        <button type="button" data-act="mute">Mute</button>
+        <button type="button" data-act="unmute">Unmute</button>
+        <button type="button" data-act="ban" class="danger">Ban account</button>
+        <button type="button" data-act="unban">Unban</button>
+        <button type="button" data-act="ban-ip" class="danger" id="d-ban-ip">Ban address</button>
+        <button type="button" data-act="close" class="link">Close</button>
+      </div>
+    </section>
+    <section class="panel" id="moderation-panel">
+      <h2>In force</h2>
+      <ul class="list" id="sanctions"></ul>
+      <p class="hint" id="no-sanctions">No bans, jails or mutes.</p>
+      <form class="inline" id="ban-ip"><input id="ban-ip-net" placeholder="203.0.113.0/24" required> <button type="submit" class="danger">Ban address or block</button></form>
+    </section>
+    <section class="panel" id="backups-panel">
+      <h2>Backups</h2>
+      <p class="meta" id="backup-sched"></p>
+      <ul class="list" id="backups"></ul>
+    </section>
+  </div>
 </div>
 <section class="drawer" id="drawer">
-  <button type="button" class="drawer-head" id="drawer-toggle" aria-expanded="true">Command line</button>
+  <div class="drawer-grip" id="drawer-grip" role="separator" aria-orientation="horizontal" aria-label="Resize the command line" tabindex="0" title="Drag to resize"></div>
+  <div class="drawer-head"><button type="button" class="drawer-title" id="drawer-toggle" aria-expanded="true">Command line</button><button type="button" class="link" id="drawer-max" aria-pressed="false">Maximize</button></div>
   <pre id="out" aria-live="polite"></pre>
   <form id="line"><span class="prompt">sysop&gt;</span><input id="cmd" autocomplete="off" spellcheck="false" placeholder="kick Lars &quot;please take a break&quot;"></form>
 </section>

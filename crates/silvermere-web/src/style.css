@@ -140,7 +140,7 @@ button[type="submit"]:not(.link) {
 }
 
 /* ---- the console ------------------------------------------------------------------- */
-.console { max-width: 96rem; margin: 0 auto; padding: 0.75rem 1rem 17rem; }
+.console { max-width: 96rem; margin: 0 auto; padding: 0.75rem 1rem 26rem; }
 .console button[type="button"], .console button[type="submit"] {
   padding: 0.35rem 0.75rem; border: 1px solid var(--line); border-radius: 6px;
   background: var(--panel); color: var(--text); cursor: pointer; font: inherit; font-weight: 500;
@@ -163,11 +163,12 @@ button[type="submit"]:not(.link) {
 .stat b.warn { color: var(--warn); }
 .statusbar .buttons { margin-left: auto; }
 .buttons { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+/* two columns, each a stack of its own: a panel opening on one side never moves the other */
 .console-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(20rem, 1fr); gap: 0.9rem; align-items: start; }
+.console-grid .col { display: flex; flex-direction: column; gap: 0.9rem; min-width: 0; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 0.4rem 0.9rem 0.9rem; min-width: 0; }
 .panel h2 { font-size: 1.05rem; margin: 0.5rem 0 0.6rem; padding: 0; border: 0; }
 .panel .count { color: var(--muted); font-weight: 400; }
-#players-panel { grid-row: span 2; }
 #players table { width: 100%; }
 #players tbody tr { cursor: pointer; }
 #players tbody tr:hover, #players tbody tr.here { background: var(--code); }
@@ -207,28 +208,39 @@ form.inline label { display: grid; gap: 0.2rem; font-size: 0.85rem; color: var(-
   background: var(--panel); border-top: 1px solid var(--line);
   box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12);
 }
-.drawer .drawer-head {
-  display: block; width: 100%; text-align: left; border: 0; border-radius: 0;
-  padding: 0.45rem 1rem; background: var(--code); font-weight: 600;
+.drawer .drawer-head { display: flex; align-items: center; background: var(--code); padding-right: 1rem; }
+.drawer .drawer-head .drawer-title {
+  flex: 1; text-align: left; border: 0; border-radius: 0; background: transparent;
+  padding: 0.45rem 1rem; font-weight: 600;
 }
+/* the top edge: drag it to make the command line taller or shorter */
+.drawer-grip { position: absolute; left: 0; right: 0; top: -4px; height: 8px; cursor: ns-resize; z-index: 1; }
+.drawer-grip:hover, .drawer-grip:focus-visible, .drawer.resizing .drawer-grip { background: var(--accent); opacity: 0.5; outline: none; }
+.drawer.resizing { user-select: none; }
 .drawer pre {
-  margin: 0; height: 9rem; overflow-y: auto; border-radius: 0; padding: 0.5rem 1rem;
+  margin: 0; height: var(--drawer-h, 20rem); overflow-y: auto; border-radius: 0; padding: 0.5rem 1rem;
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
+/* maximized: the command line takes the window, the site header still showing */
+.drawer.max pre { height: calc(100vh - 11rem); }
+.drawer.max .drawer-grip { display: none; }
 .drawer pre .cmd { color: var(--accent); }
 .drawer pre .err { color: var(--error); }
 .drawer pre .hint { color: var(--muted); }
 .drawer form { display: flex; align-items: center; gap: 0.5rem; padding: 0.45rem 1rem 0.7rem; }
 .drawer .prompt { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--muted); }
 .drawer input { flex: 1; font-family: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace; }
-.drawer.closed pre, .drawer.closed form { display: none; }
+.drawer.closed pre, .drawer.closed form, .drawer.closed #drawer-max, .drawer.closed .drawer-grip { display: none; }
 dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text); max-width: 26rem; }
 dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
 dialog label { display: grid; gap: 0.25rem; margin: 0.6rem 0; }
 @media (max-width: 60rem) {
-  .console-grid { grid-template-columns: minmax(0, 1fr); }
-  #players-panel { grid-row: auto; }
+  /* one column: the player panel and what is in force right under the players */
+  .console-grid { display: flex; flex-direction: column; }
+  .console-grid .col { display: contents; }
+  #players-panel { order: 1; } #detail { order: 2; } #moderation-panel { order: 3; }
+  #activity-panel { order: 4; } #backups-panel { order: 5; }
   .statusbar .buttons { margin-left: 0; }
-  .drawer pre { height: 9rem; }
+  .drawer pre { height: var(--drawer-h, 12rem); }
   .drawer .drawer-head .hint { display: none; }
 }

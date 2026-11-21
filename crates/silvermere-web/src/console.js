@@ -157,6 +157,64 @@
     $("drawer-toggle").setAttribute("aria-expanded", String(!open));
   });
 
+  // the drawer's size: drag its top edge (or use the arrow keys on it), or maximize it.
+  // The height is remembered in this browser; the page leaves room under its panels for it.
+  var drawer = $("drawer");
+  function store(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { /* none */ } }
+  function stored(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function clampHeight(px) { return Math.max(80, Math.min(px, window.innerHeight - 180)); }
+  function setHeight(px) {
+    px = clampHeight(px);
+    drawer.style.setProperty("--drawer-h", px + "px");
+    return px;
+  }
+  var saved = parseInt(stored("console.drawer-h") || "", 10);
+  if (saved > 0) setHeight(saved);
+  function makeRoom() {
+    root.style.paddingBottom = (drawer.getBoundingClientRect().height + 24) + "px";
+  }
+  if (window.ResizeObserver) new ResizeObserver(makeRoom).observe(drawer);
+  window.addEventListener("resize", makeRoom);
+  makeRoom();
+
+  var grip = $("drawer-grip");
+  grip.addEventListener("pointerdown", function (e) {
+    e.preventDefault();
+    grip.setPointerCapture(e.pointerId);
+    drawer.classList.add("resizing");
+    var startY = e.clientY, startH = out.getBoundingClientRect().height, h = startH;
+    function move(ev) { h = setHeight(startH + (startY - ev.clientY)); out.scrollTop = out.scrollHeight; }
+    function up() {
+      drawer.classList.remove("resizing");
+      grip.removeEventListener("pointermove", move);
+      grip.removeEventListener("pointerup", up);
+      grip.removeEventListener("pointercancel", up);
+      store("console.drawer-h", String(Math.round(h)));
+    }
+    grip.addEventListener("pointermove", move);
+    grip.addEventListener("pointerup", up);
+    grip.addEventListener("pointercancel", up);
+  });
+  grip.addEventListener("keydown", function (e) {
+    var step = e.key === "ArrowUp" ? 40 : e.key === "ArrowDown" ? -40 : 0;
+    if (!step) return;
+    e.preventDefault();
+    store("console.drawer-h", String(setHeight(out.getBoundingClientRect().height + step)));
+  });
+  grip.addEventListener("dblclick", function () { maximize(true); });
+
+  function maximize(on) {
+    drawer.classList.toggle("max", on);
+    $("drawer-max").textContent = on ? "Restore" : "Maximize";
+    $("drawer-max").setAttribute("aria-pressed", String(on));
+    if (on) $("cmd").focus();
+    out.scrollTop = out.scrollHeight;
+  }
+  $("drawer-max").addEventListener("click", function () { maximize(!drawer.classList.contains("max")); });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && drawer.classList.contains("max") && !$("password").open) maximize(false);
+  });
+
   // ---- helpers for the panels ------------------------------------------------------------
 
   function el(tag, text, cls) {
