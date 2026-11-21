@@ -112,7 +112,6 @@ pub fn console(c: &Chrome<'_>, csrf: &str, notices: &[String]) -> String {
 </section>
 <section class="panel" id="watch" hidden>
   <h2>Watching <span id="w-name"></span> <span class="count" id="w-state"></span></h2>
-  <p class="meta">What they see, as they see it. They are not told. A line typed here goes to the game as theirs and is not shown on their screen.</p>
   <pre class="term" id="term" tabindex="0" aria-label="The player's screen"></pre>
   <form class="inline" id="w-line"><input id="w-text" maxlength="254" autocomplete="off" spellcheck="false" placeholder="type as this player; empty is Enter"> <button type="submit">Send</button> <button type="button" id="w-stop" class="link">Stop watching</button></form>
 </section>
