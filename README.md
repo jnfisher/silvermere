@@ -4,34 +4,44 @@
 
 <h3 align="center">📖 <a href="https://jnfisher.github.io/silvermere/">Documentation, FAQ and settings reference: jnfisher.github.io/silvermere</a></h3>
 
-silvermere is a faithful recreation of the MajorMUD 1.11p engine, written in Rust.
+**silvermere is MajorMUD 1.11p, rebuilt in Rust as a single program you download and run.**
+It plays like the original, and MegaMud and any telnet client connect to it unchanged. It needs
+none of the old stack: no MajorBBS or Worldgroup, no DOS emulator, no Btrieve.
 
-It is one binary. The stock 1.11p game data is downloaded from MBBSEmu
-([WCCMMUD_1.11p_DOS_MBBSEmu_v2.zip](https://download.mbbsemu.com/modules/WCCMMUD/WCCMMUD_1.11p_DOS_MBBSEmu_v2.zip)) and imported into the
-server's own database. There are no legacy dependencies: no Worldgroup or MajorBBS, no Btrieve,
-no DOS emulator, no `WCCMMUD.DLL`.
+Start it and it sets itself up. The first start fetches the stock 1.11p world, builds its
+database, asks you to pick a sysop name and password, and opens the realm on port 2323. A
+couple of minutes later you are playing.
 
-**What's not included.** This repository and its release downloads contain none of MajorMUD's
-game files (rooms, items, monsters, spells, text databases) and none of its original code. On
-first start, silvermere downloads the 1.11p package from MBBSEmu, or imports your own BBS's files,
-and builds its database on your machine. The test suite includes short recordings of the
-original's output, used to check that silvermere behaves the same.
+- **Plays like 1.11p.** Checked line by line against the original game running side by side,
+  down to the text and the prompts. MegaMud's scripts run as they always did.
+- **Runs anywhere.** Windows, Linux (including a 64-bit Raspberry Pi), macOS and Docker, from a
+  laptop to a small VPS. Its data lives in one SQLite file, or in PostgreSQL if you prefer.
+- **Easy to host.** One command installs it as a service. It backs itself up every day, and
+  upgrades keep your players and your world.
+- **A sysop console in the browser.** See who is on and where, watch a player's screen, kick,
+  jail, mute or ban, close the realm, restart or upgrade, all from one page.
+- **Your world, your way.** Bring your own BBS's MajorMUD files, keep editing the world with the
+  classic editors, or run it as a door behind your BBS.
 
-MajorMUD is a trademark of its owner. silvermere is an independent project and is not affiliated
-with or endorsed by its owner.
+## Quick start
 
-It keeps its data in a local SQLite file out of the box, or in PostgreSQL: your own server or a
-hosted service such as Neon.
+| On | Do this |
+|---|---|
+| **Windows** | Download the `windows` zip from the [latest release](https://github.com/jnfisher/silvermere/releases/latest), unzip it to a folder such as `C:\Silvermere`, and double-click `silvermere.exe`. |
+| **Linux** | `curl -fsSL https://raw.githubusercontent.com/jnfisher/silvermere/main/packaging/install.sh \| sh` |
+| **macOS** | Download the `apple-darwin` archive from the [latest release](https://github.com/jnfisher/silvermere/releases/latest), unpack it, and run `./silvermere` in Terminal. |
+| **Docker** | Three commands with the compose file in `docker/`: [docs/install.md](docs/install.md#docker-compose). |
 
-MegaMud and ordinary telnet clients connect on port 2323 and play unmodified. A BBS can also
-run it as a door over rlogin, so its callers go straight in without a second login
-([docs/auth.md](docs/auth.md#rlogin-a-bbs-door)).
+Then connect MegaMud or a telnet client to `localhost`, port `2323`, and log in with your sysop
+name. The sections below cover each platform in a little more detail, then hosting for other
+players.
 
 ## Play it locally
 
 ### Windows
 
-1. Download `silvermere-VERSION-x86_64-pc-windows-msvc.zip` from the release page.
+1. Download `silvermere-VERSION-x86_64-pc-windows-msvc.zip` from the
+   [release page](https://github.com/jnfisher/silvermere/releases/latest).
 2. Unzip it to a folder you can write to, such as `C:\Silvermere`. Not `C:\Program Files`.
 3. Double-click `silvermere.exe`.
 
@@ -46,7 +56,15 @@ backups, hosting and running as a service.
 
 ### Linux
 
-From the release archive:
+The installer downloads the latest release for your machine (x86_64 or aarch64), checks it,
+puts it in `~/silvermere` and runs it as your own user's service. It says what it will do and
+asks first ([packaging/install.sh](packaging/install.sh)):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/jnfisher/silvermere/main/packaging/install.sh | sh
+```
+
+Or unpack a release archive yourself and run it in the foreground:
 
 ```sh
 sha256sum -c SHA256SUMS --ignore-missing
@@ -55,48 +73,36 @@ cd silvermere-VERSION-x86_64-unknown-linux-musl
 ./silvermere
 ```
 
-Or with cargo, from a clone ([rustup](https://rustup.rs) and a C linker, `build-essential` on
-Debian and Ubuntu):
-
-```sh
-git clone https://github.com/jnfisher/silvermere.git
-cd silvermere
-cargo build --release              # rustup fetches the toolchain pinned in rust-toolchain.toml
-./target/release/silvermere
-```
-
-With no subcommand, the first start downloads the stock game data from MBBSEmu, builds the
-world into `./data/silvermere.db`, asks
-for a sysop name and password, and serves. Later starts go straight to serving. Then
-`telnet localhost 2323`.
-
-**First steps as the sysop.** Log in with the sysop account. At the `[MAJORMUD]:` menu type
-`sysop` (the word is hidden) for the maintenance menu; in the game, `SYSOP` alone lists the
-sysop commands. `silvermere account ...` manages roles and passwords, and the admin API is for
-scripts, not a web console. [docs/sysop.md](docs/sysop.md) has the details and
-[docs/cli.md](docs/cli.md) lists every command-line tool.
+The first start builds the world into `./data/silvermere.db`, asks for a sysop name and
+password, and serves; later starts go straight to serving. Then `telnet localhost 2323`.
 
 ### macOS
 
-With [Homebrew](https://brew.sh):
+Download `silvermere-VERSION-universal-apple-darwin.tar.gz` from the
+[release page](https://github.com/jnfisher/silvermere/releases/latest) (it runs on Apple
+silicon and Intel), then in Terminal:
 
 ```sh
-xcode-select --install             # the linker, if the command line tools are not installed
-brew install rustup
-export PATH="$(brew --prefix rustup)/bin:$PATH"   # Homebrew keeps rustup off the PATH; add this to ~/.zshrc
-git clone https://github.com/jnfisher/silvermere.git
-cd silvermere
-cargo build --release              # rustup fetches the toolchain pinned in rust-toolchain.toml
-./target/release/silvermere
+tar xzf silvermere-VERSION-universal-apple-darwin.tar.gz
+cd silvermere-VERSION-universal-apple-darwin
+xattr -d com.apple.quarantine silvermere 2>/dev/null   # a browser download is quarantined; this lets it run
+./silvermere
 ```
 
 The first start is the same as on Linux. Then `telnet localhost 2323`, or point MegaMud on
-another machine at the Mac's address.
+another machine at the Mac's address. To build it yourself instead, see
+[Building from source](#building-from-source).
 
 ### Logging in
 
 Log in with the sysop name. At `Make your selection (X to exit):` press `M`, then `E` to enter
-the realm. Type `NEW` at `Username:` to create more accounts.
+the realm. Players type `NEW` at `Username:` to make their own accounts.
+
+**First steps as the sysop.** The [sysop console](#running-the-realm) is at
+`http://127.0.0.1:8088/console`: sign in with the same name and password. In the game,
+`SYSOP` alone lists the original's sysop commands, and typing `sysop` at the `[MAJORMUD]:` menu
+(the word is hidden) opens the maintenance menu. [docs/sysop.md](docs/sysop.md) has the details
+and [docs/cli.md](docs/cli.md) lists every command-line tool.
 
 ## Hosting for other players
 
@@ -260,7 +266,7 @@ the server runs from:
 
 The easiest way to see and change settings is in a browser: the server has web pages of its
 own on `http://127.0.0.1:8088` (this documentation, a FAQ, a settings editor and the
-[sysop console](#running-the-realm), which a sysop signs in to with his game account;
+[sysop console](#running-the-realm), which a sysop signs in to with their game account;
 [docs/web.md](docs/web.md)).
 
 `silvermere config` reads and writes the same file with the same checks as startup, run from that folder:
@@ -319,7 +325,7 @@ silvermere sysop jail Lars --for 1h "fighting in town" # release Lars to let him
 silvermere sysop mute Lars --for 1d "spamming gossip"
 silvermere sysop ban Lars --for 7d "cheating"          # refuses their logins; unban to lift
 silvermere sysop ban-ip 203.0.113.0/24 "bots"          # disconnects them too; the BBS door is never checked
-silvermere sysop spectate Lars --type                  # his screen, live; your lines go in as his
+silvermere sysop spectate Lars --type                  # their screen, live; your lines go in as theirs
 silvermere sysop game god Lars info                    # the game's own SYSOP commands
 silvermere sysop realm close "upgrading"               # only sysops log in; realm open to end it
 silvermere sysop restart --in 5m "upgrading to 1.0"    # --cancel calls it off
@@ -337,19 +343,74 @@ re-entry for what cannot be undone and the host names it answers to keep it safe
 command: [docs/cli.md](docs/cli.md#silvermere-sysop). In the game, `SYSOP` still has the
 original's own commands ([docs/sysop.md](docs/sysop.md)).
 
-## Building from source
+## Editing the world
 
-The toolchain is pinned in `rust-toolchain.toml`; rustup installs it on the first `cargo`
-command. Use rustup, not a distribution's `cargo` package, which is usually older.
+silvermere has no world editor of its own. Edit the world with an editor that writes the
+MajorMUD 1.11p Btrieve files, then import the result. The import replaces the content (rooms,
+items, monsters, spells, shops, text) and leaves play alone: characters, room state, shop stock,
+gangs and bank books are not touched.
 
 ```sh
+silvermere backup                                        # a copy of the database first
+sudo systemctl stop silvermere                           # an import needs the server stopped
+silvermere import --from DIR --live --content-only --dry-run   # read and check; writes nothing
+silvermere import --from DIR --live --content-only
+sudo systemctl start silvermere
+```
+
+`DIR` holds the edited files. `--live` reads the `.DAT` set, which is what the game and its
+editors work on; leave it out to read `.VIR` files instead. `--content-only` is what keeps the
+players and the state as they are, and running it twice gives the same result. The update file
+`WCCUPDAT.DAT` in `DIR` is applied over the content, as the original applied it at every start;
+`--no-patches` skips it. [docs/import.md](docs/import.md#content-and-state) has the details.
+
+## How we know it's faithful
+
+We ran the original `WCCMMUD.DLL` under [MBBSEmu](https://github.com/mbbsemu/MBBSEmu) and used
+it as the reference: to work out how the game behaves, and to check that silvermere behaves the
+same way. Where the two disagree, the original is right.
+
+- **Side by side.** A differential harness runs the original and silvermere next to each
+  other, plays the same scripted sessions against both and compares the output line by line:
+  49 scenarios and 31 scripts under [tools/differential](tools/differential/README.md).
+  Deterministic steps must match byte for byte. Steps that roll dice are compared
+  statistically, and the known gaps are listed in `known_gaps.json`.
+- **Dice and combat.** Hit rates, damage and other random outcomes pass statistical tests
+  against the original across 11 sessions (22 gated measurements, Holm-corrected at 0.01).
+- **Tests.** Nearly 2,000 tests across the workspace, with snapshot files and recorded output
+  of the original. `cargo test --workspace` runs them.
+- **Real clients.** We played with MegaMud on Windows against a silvermere server over the
+  internet, three characters at once with scripting: deaths and resurrection, shops, `top`,
+  `who`, `st`, `quiet`, parties and reconnects. MegaMud reads colour codes, prompts and room
+  text byte by byte, so this is a strict check of the text.
+- **Review.** Changes to game behaviour are reviewed independently and checked with a live
+  side-by-side run before they merge.
+
+Details: [docs/testing.md](docs/testing.md) and [docs/differences.md](docs/differences.md).
+
+## Building from source
+
+You need [rustup](https://rustup.rs) and a C linker: `build-essential` on Debian and Ubuntu,
+`xcode-select --install` on macOS (with Homebrew, `brew install rustup`, then put
+`$(brew --prefix rustup)/bin` on your `PATH`). The toolchain is pinned in
+`rust-toolchain.toml`; rustup installs it on the first `cargo` command. Use rustup, not a
+distribution's `cargo` package, which is usually older.
+
+```sh
+git clone https://github.com/jnfisher/silvermere.git && cd silvermere
 cargo build --release
+./target/release/silvermere                                 # the first start, as with a release download
+```
+
+Or the same steps one at a time:
+
+```sh
 ./target/release/silvermere import                          # the stock 1.11p data, downloaded from MBBSEmu
 ./target/release/silvermere account create NAME --sysop     # prints Password: and reads one line
 ./target/release/silvermere serve                           # then: telnet localhost 2323
 ```
 
-These are the steps the first start runs, one at a time. `import --from DIR` imports your own
+`import --from DIR` imports your own
 1.11p files, or a running BBS's live `.DAT` files with `--live`
 ([docs/import.md](docs/import.md)).
 
@@ -395,36 +456,6 @@ commands, restart and shutdown). Keep it on loopback: listening
 anywhere else needs `admin.allow_remote = true` and logs a warning at every start. Routes, scopes and events:
 [docs/admin-api.md](docs/admin-api.md); metrics: [docs/metrics.md](docs/metrics.md).
 
-## How we know it's faithful
-
-We ran the original `WCCMMUD.DLL` under MBBSEmu and used it as the reference: to work out how
-the game behaves, and to check that silvermere behaves the same way. Where the two disagree,
-the original is right.
-
-- **Tests.** We wrote nearly 2,000 `#[test]` functions across the workspace (about 250 files), with
-  over 100 snapshot files in the engine and text crates and fixture directories of expected output in
-  five crates (engine, text, import, types, rules). `cargo test --workspace` runs them.
-- **Differential harness (m1-m4).** We ran the original `WCCMMUD.DLL` under MBBSEmu next to
-  silvermere, replayed the same scripted sessions against both, and compared the output line by
-  line. Steps marked random we compared statistically; masks hide values only. There are 49
-  scenarios and 31 scripts under [tools/differential](tools/differential/README.md). In the m4
-  tier, deterministic steps are byte-exact and random steps are checked structurally or
-  statistically. We list the known gaps in `known_gaps.json`.
-- **Statistical gates (m2).** For fights and other dice rolls (T-040, #72), the full run passed
-  22 gated rows over 11 sessions, with Holm correction at family alpha 0.01. Player hit-rate rows
-  use a 2-point bound plus the test, monster rows the test only. We treat one row (monster swings
-  per round) as advisory because of an MBBSEmu artifact: its cache floor, since fixed upstream by
-  the `farcoreleft` change credited below, and not yet re-measured.
-- **Real clients.** We played with MegaMud on Windows against a silvermere VPS over
-  the internet, three characters at once, scripting with no problems: deaths and resurrection,
-  shops, `top`, `who`, `st`, `quiet`, parties and reconnects. MegaMud parses colour codes, prompts
-  and room text byte by byte, so this is a strict check of text fidelity.
-- **Review.**
-  Behaviour PRs are independently reviewed and, since the m4 tier (T-057), checked with a live m4
-  run before merge.
-
-Details: [docs/testing.md](docs/testing.md) and [docs/differences.md](docs/differences.md).
-
 ## Documentation
 
 | Read | For |
@@ -432,10 +463,10 @@ Details: [docs/testing.md](docs/testing.md) and [docs/differences.md](docs/diffe
 | [docs/install.md](docs/install.md) | Docker, release binary, VPS and cloud, firewall, backup, upgrade |
 | [docs/windows.md](docs/windows.md) | Windows: first start, connecting, hosting, running as a service |
 | [docs/deploy-checklist.md](docs/deploy-checklist.md) | a checked VPS deployment, SQLite then hosted PostgreSQL |
-| [docs/cli.md](docs/cli.md) | every `silvermere` command and flag |
 | [docs/sysop.md](docs/sysop.md) | first steps for a new sysop, and the sysop commands |
+| [docs/web.md](docs/web.md) | the server's own web pages: documentation, FAQ, settings editor and sysop console |
+| [docs/cli.md](docs/cli.md) | every `silvermere` command and flag |
 | [docs/config.md](docs/config.md) | every setting, environment variable and default |
-| [docs/web.md](docs/web.md) | the server's own web pages: documentation, FAQ, settings editor |
 | [docs/faq.md](docs/faq.md) | short answers to what sysops ask first |
 | [docs/differences.md](docs/differences.md) | how this differs from the original |
 | [docs/import.md](docs/import.md) | importing the legacy world files |
@@ -444,27 +475,6 @@ Details: [docs/testing.md](docs/testing.md) and [docs/differences.md](docs/diffe
 | [docs/metrics.md](docs/metrics.md) | metrics, shutdown and backups |
 | [docs/schema.md](docs/schema.md) | database schema (generated; CI fails if it is stale) |
 | [docs/README.md](docs/README.md) | the full index |
-
-## Editing the world
-
-silvermere has no world editor of its own. Edit the world with an editor that writes the
-MajorMUD 1.11p Btrieve files, then import the result. The import replaces the content (rooms,
-items, monsters, spells, shops, text) and leaves play alone: characters, room state, shop stock,
-gangs and bank books are not touched.
-
-```sh
-silvermere backup                                        # a copy of the database first
-sudo systemctl stop silvermere                           # an import needs the server stopped
-silvermere import --from DIR --live --content-only --dry-run   # read and check; writes nothing
-silvermere import --from DIR --live --content-only
-sudo systemctl start silvermere
-```
-
-`DIR` holds the edited files. `--live` reads the `.DAT` set, which is what the game and its
-editors work on; leave it out to read `.VIR` files instead. `--content-only` is what keeps the
-players and the state as they are, and running it twice gives the same result. The update file
-`WCCUPDAT.DAT` in `DIR` is applied over the content, as the original applied it at every start;
-`--no-patches` skips it. [docs/import.md](docs/import.md#content-and-state) has the details.
 
 ## Contributing
 
@@ -487,14 +497,23 @@ The practical steps (building, tests, the faithfulness checks) are in
   runs under in silvermere's differential tests, and the source of the stock game data silvermere downloads.
   Working with it led to a fix upstream: `farcoreleft` now returns a positive free-memory figure.
 
-## License
-
-MIT. See [LICENSE](LICENSE).
-
 ## Game files
 
-No game data is in this repository: the import and the tests download the stock MajorMUD
-1.11p distribution (the MBBSEmu package) on first use and check its sha256
-([docs/install.md](docs/install.md#game-data)). Recordings of the original's output
-under MBBSEmu (`tests/captures/`) are here. The differential harness (`tools/differential/`)
-runs the original under MBBSEmu next to silvermere, so it needs an installed copy.
+silvermere contains none of MajorMUD's game files (rooms, items, monsters, spells, text) and
+none of its original code, and neither do its release downloads. The first start downloads the
+stock 1.11p package published by MBBSEmu
+([WCCMMUD_1.11p_DOS_MBBSEmu_v2.zip](https://download.mbbsemu.com/modules/WCCMMUD/WCCMMUD_1.11p_DOS_MBBSEmu_v2.zip)),
+checks its sha256, and builds the world on your machine; `silvermere import --from DIR` imports
+your own BBS's files instead ([docs/install.md](docs/install.md#game-data),
+[docs/import.md](docs/import.md)). The test suite holds short recordings of the original's
+output under MBBSEmu (`tests/captures/`), used to check that silvermere behaves the same. The
+differential harness (`tools/differential/`) runs the original next to silvermere, so it needs
+an installed copy.
+
+## License and trademark
+
+silvermere is released under the MIT license. See [LICENSE](LICENSE).
+
+MajorMUD® is a registered trademark. In November 2026 the MajorMUD trademark, software and
+copyrights were acquired by Richard A. "Rick" Hadsall Jr. silvermere is an independent project,
+not affiliated with or endorsed by the owner of MajorMUD.
