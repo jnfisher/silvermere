@@ -163,11 +163,12 @@ button[type="submit"]:not(.link) {
 .stat b.warn { color: var(--warn); }
 .statusbar .buttons { margin-left: auto; }
 .buttons { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+/* two columns, each a stack of its own: a panel opening on one side never moves the other */
 .console-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(20rem, 1fr); gap: 0.9rem; align-items: start; }
+.console-grid .col { display: flex; flex-direction: column; gap: 0.9rem; min-width: 0; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 0.4rem 0.9rem 0.9rem; min-width: 0; }
 .panel h2 { font-size: 1.05rem; margin: 0.5rem 0 0.6rem; padding: 0; border: 0; }
 .panel .count { color: var(--muted); font-weight: 400; }
-#players-panel { grid-row: span 2; }
 #players table { width: 100%; }
 #players tbody tr { cursor: pointer; }
 #players tbody tr:hover, #players tbody tr.here { background: var(--code); }
@@ -226,8 +227,11 @@ dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--p
 dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
 dialog label { display: grid; gap: 0.25rem; margin: 0.6rem 0; }
 @media (max-width: 60rem) {
-  .console-grid { grid-template-columns: minmax(0, 1fr); }
-  #players-panel { grid-row: auto; }
+  /* one column: the player panel and what is in force right under the players */
+  .console-grid { display: flex; flex-direction: column; }
+  .console-grid .col { display: contents; }
+  #players-panel { order: 1; } #detail { order: 2; } #moderation-panel { order: 3; }
+  #activity-panel { order: 4; } #backups-panel { order: 5; }
   .statusbar .buttons { margin-left: 0; }
   .drawer pre { height: 9rem; }
   .drawer .drawer-head .hint { display: none; }
