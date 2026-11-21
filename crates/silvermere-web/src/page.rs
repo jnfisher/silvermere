@@ -175,7 +175,8 @@ pub fn console(c: &Chrome<'_>, csrf: &str, notices: &[String]) -> String {
   </div>
 </div>
 <section class="drawer" id="drawer">
-  <button type="button" class="drawer-head" id="drawer-toggle" aria-expanded="true">Command line</button>
+  <div class="drawer-grip" id="drawer-grip" role="separator" aria-orientation="horizontal" aria-label="Resize the command line" tabindex="0" title="Drag to resize"></div>
+  <div class="drawer-head"><button type="button" class="drawer-title" id="drawer-toggle" aria-expanded="true">Command line</button><button type="button" class="link" id="drawer-max" aria-pressed="false">Maximize</button></div>
   <pre id="out" aria-live="polite"></pre>
   <form id="line"><span class="prompt">sysop&gt;</span><input id="cmd" autocomplete="off" spellcheck="false" placeholder="kick Lars &quot;please take a break&quot;"></form>
 </section>

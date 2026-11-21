@@ -84,6 +84,8 @@ with the sysop's name.
   ([cli.md](cli.md#silvermere-sysop)), typed as they are there (`jail Lars --for 1h "fighting
   in town"`; `help` lists them, `help jail` explains one). Every button runs one of these
   commands, shown here with its answer, so what a button does is what the command does.
+  Drag its top edge to make it taller or shorter (this browser remembers the height), or
+  **Maximize** it to fill the window (**Restore** or Esc puts it back).
   `game` runs the game's own `SYSOP` commands from here (`game list users`, `game god Lars
   info`; [sysop.md](sysop.md#sub-commands)), without your character in the realm.
 
