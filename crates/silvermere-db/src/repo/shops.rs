@@ -299,30 +299,7 @@ impl<'a> Shops<'a> {
     /// table writer.
     pub async fn put_many(&self, shops: &[Shop], state: StateWrite) -> Result<()> {
         let mut tx = self.db.pool().begin().await?;
-        let mut existing = std::collections::HashSet::new();
-        if state == StateWrite::CreateMissing {
-            let rows = Args::new()
-                .query("SELECT number FROM shops".to_string())
-                .fetch_all(&mut *tx)
-                .await?;
-            for row in &rows {
-                existing.insert(Get::new(row, "shops").i64("number")?);
-            }
-        }
-        // T-113: in multi-row statements, as the other content tables (T-108)
-        let mut b = Batch::default();
-        let mut stocks = Vec::new();
-        for s in last_per_key(shops, |s| s.number.0) {
-            let n = i64::from(s.number.0);
-            b.upsert("shops", COLS, &["number"], n, args(s));
-            b.delete_children("shop_items", "shop", n);
-            b.insert("shop_items", ITEM_COLS, item_rows(s));
-            if state.writes(existing.contains(&n)) {
-                stocks.push(ShopStock::of(s));
-            }
-        }
-        b.flush(&mut tx).await?;
-        put_stocks(&mut tx, &stocks.iter().collect::<Vec<_>>()).await?;
+        put_many_in(&mut tx, shops, state).await?;
         tx.commit().await?;
         Ok(())
     }
@@ -385,4 +362,33 @@ impl<'a> ShopStocks<'a> {
         tx.commit().await?;
         Ok(())
     }
+}
+
+/// [`Shops::put_many`] on an open transaction (an import writes every table in one, issue 34).
+pub(crate) async fn put_many_in(conn: &mut Conn, shops: &[Shop], state: StateWrite) -> Result<()> {
+    let mut existing = std::collections::HashSet::new();
+    if state == StateWrite::CreateMissing {
+        let rows = Args::new()
+            .query("SELECT number FROM shops".to_string())
+            .fetch_all(&mut *conn)
+            .await?;
+        for row in &rows {
+            existing.insert(Get::new(row, "shops").i64("number")?);
+        }
+    }
+    // T-113: in multi-row statements, as the other content tables (T-108)
+    let mut b = Batch::default();
+    let mut stocks = Vec::new();
+    for s in last_per_key(shops, |s| s.number.0) {
+        let n = i64::from(s.number.0);
+        b.upsert("shops", COLS, &["number"], n, args(s));
+        b.delete_children("shop_items", "shop", n);
+        b.insert("shop_items", ITEM_COLS, item_rows(s));
+        if state.writes(existing.contains(&n)) {
+            stocks.push(ShopStock::of(s));
+        }
+    }
+    b.flush(&mut *conn).await?;
+    put_stocks(&mut *conn, &stocks.iter().collect::<Vec<_>>()).await?;
+    Ok(())
 }

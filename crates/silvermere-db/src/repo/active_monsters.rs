@@ -444,26 +444,8 @@ impl<'a> ActiveMonsters<'a> {
     /// each is upserted, with [`StateWrite::CreateMissing`] only new numbers are inserted,
     /// with [`StateWrite::Untouched`] nothing is written. The importer's table writer.
     pub async fn put_many(&self, monsters: &[ActiveMonster], state: StateWrite) -> Result<()> {
-        if state == StateWrite::Untouched {
-            return Ok(());
-        }
         let mut tx = self.db.pool().begin().await?;
-        for m in monsters {
-            if state == StateWrite::Reset {
-                update(&mut tx, m).await?;
-                continue;
-            }
-            let mut a = Args::new();
-            a.add(m.number.0);
-            let exists = a
-                .query("SELECT number FROM active_monsters WHERE number = $1".to_string())
-                .fetch_optional(&mut *tx)
-                .await?
-                .is_some();
-            if !exists {
-                insert(&mut tx, m).await?;
-            }
-        }
+        put_many_in(&mut tx, monsters, state).await?;
         tx.commit().await?;
         Ok(())
     }
@@ -473,4 +455,50 @@ impl<'a> ActiveMonsters<'a> {
         let mut conn = self.db.pool().acquire().await?;
         delete(&mut conn, n).await
     }
+}
+
+/// [`ActiveMonsters::put_many`] on an open transaction (an import writes every table in one, issue 34).
+pub(crate) async fn put_many_in(
+    conn: &mut Conn,
+    monsters: &[ActiveMonster],
+    state: StateWrite,
+) -> Result<()> {
+    if state == StateWrite::Untouched {
+        return Ok(());
+    }
+    if state == StateWrite::Reset {
+        // The state is the import's alone: a monster it does not hold (one of the world
+        // imported before, issue 34) goes, and with it any room's slot naming it.
+        let keep: std::collections::HashSet<i64> =
+            monsters.iter().map(|m| i64::from(m.number.0)).collect();
+        let rows = Args::new()
+            .query("SELECT number FROM active_monsters".to_string())
+            .fetch_all(&mut *conn)
+            .await?;
+        let mut gone = Vec::new();
+        for row in &rows {
+            let n = Get::new(row, "active_monsters").i64("number")?;
+            if !keep.contains(&n) {
+                gone.push(n);
+            }
+        }
+        delete_children_in(conn, "active_monsters", "number", &gone).await?;
+    }
+    for m in monsters {
+        if state == StateWrite::Reset {
+            update(&mut *conn, m).await?;
+            continue;
+        }
+        let mut a = Args::new();
+        a.add(m.number.0);
+        let exists = a
+            .query("SELECT number FROM active_monsters WHERE number = $1".to_string())
+            .fetch_optional(&mut *conn)
+            .await?
+            .is_some();
+        if !exists {
+            insert(&mut *conn, m).await?;
+        }
+    }
+    Ok(())
 }

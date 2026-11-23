@@ -169,17 +169,7 @@ impl<'a> TextBlocks<'a> {
     /// importer's table writer. Content only, so there is no state mode.
     pub async fn put_many(&self, rows: &[TextBlock]) -> Result<()> {
         let mut tx = self.db.pool().begin().await?;
-        let mut b = Batch::default();
-        for r in rows {
-            b.upsert(
-                "text_blocks",
-                TEXT_COLS,
-                &["part", "number"],
-                (r.part, r.number.0),
-                text_args(r),
-            );
-        }
-        b.flush(&mut tx).await?;
+        put_texts_in(&mut tx, rows).await?;
         tx.commit().await?;
         Ok(())
     }
@@ -198,7 +188,7 @@ const ACTION_COLS: &[&str] = &["name", "targets"];
 /// name in one read, the existing actions upserted by id and the new ones inserted, then
 /// every action's texts replaced. A repeated name (in any case) keeps its last row, as
 /// one [`put_action`] per row would.
-async fn put_actions(conn: &mut Conn, actions: &[Action]) -> Result<()> {
+pub(crate) async fn put_actions(conn: &mut Conn, actions: &[Action]) -> Result<()> {
     // the backend's case folding: PostgreSQL's `lower()` (the `actions_name` index),
     // SQLite's NOCASE (ASCII only)
     let pg = is_postgres(conn);
@@ -455,4 +445,20 @@ impl<'a> Actions<'a> {
         tx.commit().await?;
         Ok(())
     }
+}
+
+/// [`TextBlocks::put_many`] on an open transaction (an import writes every table in one,
+/// issue 34).
+pub(crate) async fn put_texts_in(conn: &mut Conn, rows: &[TextBlock]) -> Result<()> {
+    let mut b = Batch::default();
+    for r in rows {
+        b.upsert(
+            "text_blocks",
+            TEXT_COLS,
+            &["part", "number"],
+            (r.part, r.number.0),
+            text_args(r),
+        );
+    }
+    b.flush(conn).await
 }

@@ -41,6 +41,22 @@ pub async fn finish(db: &Db) -> Result<()> {
     Ok(())
 }
 
+/// Records on `conn` (an import's transaction) an import that began at `started` and wrote
+/// every table: committed with the tables, so no start ever sees a half-written world
+/// (issue 34).
+pub(crate) async fn finished_in(conn: &mut sqlx::AnyConnection, started: &str) -> Result<()> {
+    sqlx::query(
+        "INSERT INTO world_import (id, started_at, finished_at) VALUES (1, $1, $2) \
+         ON CONFLICT (id) DO UPDATE SET started_at = excluded.started_at, \
+         finished_at = excluded.finished_at",
+    )
+    .bind(started.to_owned())
+    .bind(now())
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
 /// The last import's progress.
 pub async fn state(db: &Db) -> Result<WorldImport> {
     let row: Option<(Option<String>,)> =

@@ -511,22 +511,7 @@ impl<'a> Monsters<'a> {
     /// table writer.
     pub async fn put_many(&self, monsters: &[KnownMonster], state: StateWrite) -> Result<()> {
         let mut tx = self.db.pool().begin().await?;
-        let mut has_state = std::collections::HashSet::new();
-        if state == StateWrite::CreateMissing {
-            let rows = Args::new()
-                .query("SELECT monster_id FROM monster_state".to_string())
-                .fetch_all(&mut *tx)
-                .await?;
-            for row in &rows {
-                has_state.insert(Get::new(row, "monster_state").i64("monster_id")?);
-            }
-        }
-        let mut b = Batch::default();
-        for m in last_per_key(monsters, |m| m.number.0) {
-            let n = i64::from(m.number.0);
-            put_rows(&mut b, m, state.writes(has_state.contains(&n)));
-        }
-        b.flush(&mut tx).await?;
+        put_many_in(&mut tx, monsters, state).await?;
         tx.commit().await?;
         Ok(())
     }
@@ -589,4 +574,29 @@ impl<'a> MonsterStates<'a> {
         let mut conn = self.db.pool().acquire().await?;
         put_state(&mut conn, state).await
     }
+}
+
+/// [`Monsters::put_many`] on an open transaction (an import writes every table in one, issue 34).
+pub(crate) async fn put_many_in(
+    conn: &mut Conn,
+    monsters: &[KnownMonster],
+    state: StateWrite,
+) -> Result<()> {
+    let mut has_state = std::collections::HashSet::new();
+    if state == StateWrite::CreateMissing {
+        let rows = Args::new()
+            .query("SELECT monster_id FROM monster_state".to_string())
+            .fetch_all(&mut *conn)
+            .await?;
+        for row in &rows {
+            has_state.insert(Get::new(row, "monster_state").i64("monster_id")?);
+        }
+    }
+    let mut b = Batch::default();
+    for m in last_per_key(monsters, |m| m.number.0) {
+        let n = i64::from(m.number.0);
+        put_rows(&mut b, m, state.writes(has_state.contains(&n)));
+    }
+    b.flush(&mut *conn).await?;
+    Ok(())
 }

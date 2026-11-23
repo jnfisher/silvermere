@@ -334,29 +334,7 @@ impl<'a> Items<'a> {
     /// [`StateWrite::Reset`]. The importer's table writer.
     pub async fn put_many(&self, items: &[Item], state: StateWrite) -> Result<()> {
         let mut tx = self.db.pool().begin().await?;
-        let mut active: HashMap<i32, u16> = HashMap::new();
-        if state != StateWrite::Reset {
-            let rows = Args::new()
-                .query("SELECT number, active FROM items".to_string())
-                .fetch_all(&mut *tx)
-                .await?;
-            for row in &rows {
-                let g = Get::new(row, "items");
-                active.insert(g.int("number")?, g.int("active")?);
-            }
-        }
-        let mut b = Batch::default();
-        for item in last_per_key(items, |i| i.number.0) {
-            match active.get(&item.number.0) {
-                Some(&live) if live != item.active => {
-                    let mut kept = item.clone();
-                    kept.active = live;
-                    put_rows(&mut b, &kept);
-                }
-                _ => put_rows(&mut b, item),
-            }
-        }
-        b.flush(&mut tx).await?;
+        put_many_in(&mut tx, items, state).await?;
         tx.commit().await?;
         Ok(())
     }
@@ -423,5 +401,33 @@ pub(crate) async fn set_active(conn: &mut Conn, n: ItemNo, active: u16) -> Resul
     a.query("UPDATE items SET active = $1 WHERE number = $2".to_string())
         .execute(&mut *conn)
         .await?;
+    Ok(())
+}
+
+/// [`Items::put_many`] on an open transaction (an import writes every table in one, issue 34).
+pub(crate) async fn put_many_in(conn: &mut Conn, items: &[Item], state: StateWrite) -> Result<()> {
+    let mut active: HashMap<i32, u16> = HashMap::new();
+    if state != StateWrite::Reset {
+        let rows = Args::new()
+            .query("SELECT number, active FROM items".to_string())
+            .fetch_all(&mut *conn)
+            .await?;
+        for row in &rows {
+            let g = Get::new(row, "items");
+            active.insert(g.int("number")?, g.int("active")?);
+        }
+    }
+    let mut b = Batch::default();
+    for item in last_per_key(items, |i| i.number.0) {
+        match active.get(&item.number.0) {
+            Some(&live) if live != item.active => {
+                let mut kept = item.clone();
+                kept.active = live;
+                put_rows(&mut b, &kept);
+            }
+            _ => put_rows(&mut b, item),
+        }
+    }
+    b.flush(&mut *conn).await?;
     Ok(())
 }

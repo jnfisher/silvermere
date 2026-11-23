@@ -453,3 +453,155 @@ async fn malformed_dat_refused() {
         "{err}"
     );
 }
+
+/// Issue 34: a live import into a database that already holds a world (the stock world the
+/// first start builds) would keep that world's game state beside the realm's content, so it
+/// is refused, before anything is written; `--reset-state` replaces the state with the
+/// realm's.
+#[tokio::test]
+async fn live_over_a_world_needs_reset_state() {
+    let d = realm("over-world");
+    let tdb = TestDb::from_env().await.unwrap();
+    let db: &Db = &tdb;
+    let stock_world = ImportOptions {
+        no_patches: true,
+        ..ImportOptions::new(stock())
+    };
+    Importer::new(stock_world, Some(db)).run().await.unwrap();
+    let rooms = db.rooms().count().await.unwrap();
+    assert_eq!(rooms, 26_720);
+
+    let err = Importer::new(live(&d), Some(db)).run().await.unwrap_err();
+    assert!(
+        matches!(err, ImportError::WorldExists { rooms: 26_720 }),
+        "{err}"
+    );
+    let msg = err.to_string();
+    assert!(msg.contains("--reset-state"), "{msg}");
+    assert!(msg.contains("nothing was written"), "{msg}");
+    assert!(db.accounts().by_username("Mira").await.unwrap().is_none());
+
+    let reset = ImportOptions {
+        reset_state: true,
+        ..live(&d)
+    };
+    Importer::new(reset, Some(db)).run().await.unwrap();
+    let first = RoomRecord::decode(&stock_rooms(1)[0]).unwrap();
+    let state = db
+        .room_state()
+        .get(RoomKey::new(first.mapnum, first.roomnum))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!((state.coins.gold, state.owner.as_str()), (99, "Mira"));
+    assert!(db.accounts().by_username("Mira").await.unwrap().is_some());
+}
+
+/// Issue 34: a character the import would write with the first name of another account's
+/// character is named, with that account, before anything is written (it used to fail on
+/// the database's unique key after every other table was written).
+#[tokio::test]
+async fn a_first_name_clash_is_named_before_writing() {
+    let d = realm("clash");
+    let tdb = TestDb::from_env().await.unwrap();
+    let db: &Db = &tdb;
+    Importer::new(live(&d), Some(db)).run().await.unwrap();
+    // Mira's account renamed: the next import makes a new account for the userid Mira,
+    // whose character would take the first name Mira the old one still has
+    let mut row = db.accounts().by_username("Mira").await.unwrap().unwrap();
+    row.account.username = "OldMira".into();
+    db.accounts().update(row.id, &row.account).await.unwrap();
+
+    let reset = ImportOptions {
+        reset_state: true,
+        ..live(&d)
+    };
+    let err = Importer::new(reset, Some(db)).run().await.unwrap_err();
+    assert!(matches!(err, ImportError::CharacterClash(_)), "{err}");
+    let msg = err.to_string();
+    assert!(
+        msg.contains(
+            "first name Mira would belong to both the character of account OldMira and \
+             [WCCUSERS.DAT] record 1 (userid Mira)"
+        ),
+        "{msg}"
+    );
+    assert!(msg.contains("nothing was written"), "{msg}");
+    assert!(db.accounts().by_username("Mira").await.unwrap().is_none());
+}
+
+/// Two players of the realm with one first name: found by a dry run too.
+#[tokio::test]
+async fn a_first_name_twice_in_the_realm_is_named() {
+    let d = realm("clash-twice");
+    let mut twin = player();
+    twin.userid = Text("Mirabel".into());
+    std::fs::write(
+        d.join("WCCUSERS.DAT"),
+        write_v5(
+            &template("WCCUSERS.VIR"),
+            &[player().encode(), twin.encode()],
+        ),
+    )
+    .unwrap();
+    let err = dry_run_error(&d).await;
+    assert!(
+        err.to_string().contains(
+            "first name Mira would belong to both [WCCUSERS.DAT] record 1 (userid Mira) and \
+             [WCCUSERS.DAT] record 2 (userid Mirabel)"
+        ),
+        "{err}"
+    );
+}
+
+/// Issue 34: the tables are written in one transaction, so an import that fails part way
+/// (here on its characters) leaves the database as it was, and a start is not refused for
+/// a half-written world.
+#[tokio::test]
+async fn a_failed_import_writes_nothing() {
+    let d = realm("atomic");
+    let tdb = TestDb::from_env().await.unwrap();
+    let db: &Db = &tdb;
+    let refuse: &[&str] = match db.dialect() {
+        silvermere_db::Dialect::Sqlite => &["CREATE TRIGGER refuse BEFORE INSERT ON characters \
+              BEGIN SELECT RAISE(ABORT, 'refused'); END"],
+        silvermere_db::Dialect::Postgres => &[
+            "CREATE FUNCTION refuse() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'refused'; \
+             END $$ LANGUAGE plpgsql",
+            "CREATE TRIGGER refuse BEFORE INSERT ON characters FOR EACH ROW EXECUTE FUNCTION \
+             refuse()",
+        ],
+    };
+    for sql in refuse {
+        sqlx::raw_sql(sqlx::AssertSqlSafe(*sql))
+            .execute(&db.pool())
+            .await
+            .unwrap();
+    }
+    let err = Importer::new(live(&d), Some(db)).run().await.unwrap_err();
+    assert!(err.to_string().contains("refused"), "{err}");
+    assert_eq!(db.rooms().count().await.unwrap(), 0);
+    assert!(db.gangs().all().await.unwrap().is_empty());
+    assert!(db.accounts().by_username("Mira").await.unwrap().is_none());
+    assert_eq!(
+        silvermere_db::world_import::state(db).await.unwrap(),
+        silvermere_db::WorldImport::Never
+    );
+
+    let drop: &[&str] = match db.dialect() {
+        silvermere_db::Dialect::Sqlite => &["DROP TRIGGER refuse"],
+        silvermere_db::Dialect::Postgres => &["DROP TRIGGER refuse ON characters"],
+    };
+    for sql in drop {
+        sqlx::raw_sql(sqlx::AssertSqlSafe(*sql))
+            .execute(&db.pool())
+            .await
+            .unwrap();
+    }
+    Importer::new(live(&d), Some(db)).run().await.unwrap();
+    assert_eq!(db.rooms().count().await.unwrap(), 3);
+    assert_eq!(
+        silvermere_db::world_import::state(db).await.unwrap(),
+        silvermere_db::WorldImport::Finished
+    );
+}

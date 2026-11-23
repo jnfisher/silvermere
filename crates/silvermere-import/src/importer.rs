@@ -18,9 +18,9 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use jiff::tz::TimeZone;
-use silvermere_db::Db;
 use silvermere_db::repo::accounts::FLAG_DOOR;
 use silvermere_db::repo::{Account, StateWrite};
+use silvermere_db::{Db, ImportTx};
 use silvermere_types::records::{BankBook, Character, LayoutSet};
 
 use crate::assets::AssetCount;
@@ -329,6 +329,29 @@ pub enum ImportError {
     /// `--content-only` and `--reset-state` together.
     #[error("--content-only and --reset-state exclude each other")]
     Flags,
+    /// `--live` into a database that already holds a world, without `--reset-state` or
+    /// `--content-only` (issue 34): by default the game state already there is kept, so the
+    /// realm's rooms and shops would get the old world's monsters and shop stock.
+    #[error(
+        "the database already holds a world ({rooms} rooms: the stock world that `silvermere \
+         setup` or the first start builds, or an earlier import). A live import keeps the game \
+         state already there unless told otherwise, which would give the realm's rooms and \
+         shops the old world's monsters, floor items and shop stock. Run it again with \
+         --reset-state to replace the game state with the realm's (this database's \
+         characters of the realm's players are rewritten too); nothing was written"
+    )]
+    WorldExists {
+        /// The rooms already there.
+        rooms: u64,
+    },
+    /// Characters that would share a first name or a user-id, which must be unique in any
+    /// case (issue 34); found before anything is written.
+    #[error(
+        "characters: {}; nothing was written. Rename or delete one of each pair (`silvermere \
+         account delete NAME` deletes an account and its character), then import again",
+        .0.join("; ")
+    )]
+    CharacterClash(Vec<String>),
     /// A database write failed.
     #[error("{table}: {source}")]
     Db {
@@ -978,7 +1001,12 @@ impl<'a> Importer<'a> {
         let clock = LegacyClock::new(self.opts.legacy_tz.clone(), jiff::Timestamp::now());
         plan.check_dates(&clock)?;
         // a dry run has no database: it checks the books against this import's characters
-        plan.check_bank_book_accounts(self.db.filter(|_| !self.opts.dry_run), self.opts.live)
+        let db = self.db.filter(|_| !self.opts.dry_run);
+        plan.check_bank_book_accounts(db, self.opts.live).await?;
+        if let Some(db) = db {
+            check_world_free(db, &self.opts).await?;
+        }
+        plan.check_character_names(db, self.opts.state_write())
             .await?;
         let read_time = read_started.elapsed();
         let errors: u32 = plan
@@ -998,19 +1026,18 @@ impl<'a> Importer<'a> {
         let mut door_accounts = None;
         if !self.opts.dry_run {
             let db = self.db.expect("a database unless --dry-run");
-            // T-109: marked before the first table and after the last, so a start can tell
-            // a world this import left half written
-            let marker = |source| ImportError::Db {
+            // Issue 34: every table and the `world_import` marker in one transaction, so an
+            // import that fails part way leaves the database as it was (a start never sees
+            // a half-written world).
+            let mut tx = db.begin_import().await.map_err(|source| ImportError::Db {
                 table: "world_import",
                 source,
-            };
-            silvermere_db::world_import::begin(db)
-                .await
-                .map_err(marker)?;
-            let kept = plan.write(db, &self.opts, &clock).await?;
-            silvermere_db::world_import::finish(db)
-                .await
-                .map_err(marker)?;
+            })?;
+            let kept = plan.write(&mut tx, &self.opts, &clock).await?;
+            tx.commit().await.map_err(|source| ImportError::Db {
+                table: "world_import",
+                source,
+            })?;
             plan.notes.extend(kept);
             if self.opts.with_users {
                 let all = db
@@ -1296,10 +1323,110 @@ impl<'a> Plan<'a> {
         Ok(())
     }
 
-    /// Writes every table, one transaction each.
+    /// Issue 34: first names and user-ids are unique (in any case) among characters, so a
+    /// character this import writes may not take one another account's character already
+    /// has, or one another character of the import has. Every clash is named, before
+    /// anything is written. `db` is `None` in a dry run: the import's own characters only.
+    /// Which characters are written follows [`write_characters`]: a player whose account
+    /// already has a character is kept unless `--reset-state`.
+    async fn check_character_names(
+        &self,
+        db: Option<&Db>,
+        state: StateWrite,
+    ) -> Result<(), ImportError> {
+        if self.users.is_empty() {
+            return Ok(());
+        }
+        let db_err = |table| move |source| ImportError::Db { table, source };
+        #[derive(PartialEq, Eq)]
+        enum Owner {
+            Account(i64),
+            New(String),
+        }
+        /// A character there will be after the write.
+        struct After {
+            owner: Owner,
+            label: String,
+            firstname: String,
+            userid: String,
+        }
+        // the characters in the database, then this import's over them
+        let mut after: Vec<After> = Vec::new();
+        if let Some(db) = db {
+            for row in db.characters().all().await.map_err(db_err("characters"))? {
+                let name = match db
+                    .accounts()
+                    .get(row.account)
+                    .await
+                    .map_err(db_err("accounts"))?
+                {
+                    Some(a) => a.account.username,
+                    None => format!("#{}", row.account.0),
+                };
+                after.push(After {
+                    owner: Owner::Account(row.account.0),
+                    label: format!("the character of account {name}"),
+                    firstname: row.character.firstname,
+                    userid: row.character.userid,
+                });
+            }
+        }
+        for d in &self.users {
+            let userid = d.record.userid.trimmed();
+            let account = match db {
+                Some(db) => db
+                    .accounts()
+                    .by_username(&userid)
+                    .await
+                    .map_err(db_err("accounts"))?
+                    .map(|a| a.id.0),
+                None => None,
+            };
+            let c = After {
+                owner: account.map_or_else(|| Owner::New(userid.to_lowercase()), Owner::Account),
+                label: format!("[{}] record {} (userid {userid})", d.file, d.ordinal),
+                firstname: d.record.firstname.trimmed(),
+                userid,
+            };
+            match after.iter().position(|a| a.owner == c.owner) {
+                // the account's character is kept (see `write_characters`)
+                Some(_) if state != StateWrite::Reset => {}
+                Some(i) => after[i] = c,
+                None => after.push(c),
+            }
+        }
+        let mut clashes = Vec::new();
+        for what in ["first name", "user-id"] {
+            let mut seen: std::collections::HashMap<String, usize> =
+                std::collections::HashMap::new();
+            for (i, c) in after.iter().enumerate() {
+                let value = if what == "user-id" {
+                    &c.userid
+                } else {
+                    &c.firstname
+                };
+                match seen.get(&value.to_lowercase()) {
+                    Some(&j) => clashes.push(format!(
+                        "{what} {value} would belong to both {} and {}",
+                        after[j].label, c.label
+                    )),
+                    None => {
+                        seen.insert(value.to_lowercase(), i);
+                    }
+                }
+            }
+        }
+        if clashes.is_empty() {
+            Ok(())
+        } else {
+            Err(ImportError::CharacterClash(clashes))
+        }
+    }
+
+    /// Writes every table, all in the import's one transaction (`tx`, issue 34).
     async fn write(
         &self,
-        db: &Db,
+        tx: &mut ImportTx<'_>,
         opts: &ImportOptions,
         clock: &LegacyClock,
     ) -> Result<Vec<Note>, ImportError> {
@@ -1309,63 +1436,48 @@ impl<'a> Plan<'a> {
         }
 
         let rooms = conv(&self.rooms, |r| decode::split_room(r).0);
-        timed("rooms", rooms.len(), db.rooms().put_many(&rooms, state)).await?;
+        timed("rooms", rooms.len(), tx.rooms(&rooms, state)).await?;
         let items = conv(&self.items, decode::to_item);
-        timed("items", items.len(), db.items().put_many(&items, state)).await?;
+        timed("items", items.len(), tx.items(&items, state)).await?;
         let monsters: Vec<_> = try_conv(&self.monsters, |r| decode::split_monster(r, clock))?
             .into_iter()
             .map(|(m, _)| m)
             .collect();
-        timed(
-            "monsters",
-            monsters.len(),
-            db.monsters().put_many(&monsters, state),
-        )
-        .await?;
+        timed("monsters", monsters.len(), tx.monsters(&monsters, state)).await?;
         let spells = conv(&self.spells, decode::to_spell);
-        timed("spells", spells.len(), db.spells().put_many(&spells)).await?;
+        timed("spells", spells.len(), tx.spells(&spells)).await?;
         let classes = conv(&self.classes, decode::to_class);
-        timed("classes", classes.len(), db.classes().put_many(&classes)).await?;
+        timed("classes", classes.len(), tx.classes(&classes)).await?;
         let races = conv(&self.races, decode::to_race);
-        timed("races", races.len(), db.races().put_many(&races)).await?;
+        timed("races", races.len(), tx.races(&races)).await?;
         let shops = conv(&self.shops, |r| decode::split_shop(r).0);
-        timed("shops", shops.len(), db.shops().put_many(&shops, state)).await?;
+        timed("shops", shops.len(), tx.shops(&shops, state)).await?;
         let messages = conv(&self.messages, decode::to_message);
-        timed(
-            "messages",
-            messages.len(),
-            db.messages().put_many(&messages),
-        )
-        .await?;
+        timed("messages", messages.len(), tx.messages(&messages)).await?;
         let texts = conv(&self.text_blocks, decode::to_text_block);
-        timed(
-            "text_blocks",
-            texts.len(),
-            db.text_blocks().put_many(&texts),
-        )
-        .await?;
+        timed("text_blocks", texts.len(), tx.text_blocks(&texts)).await?;
         let actions = conv(&self.actions, decode::to_action);
-        timed("actions", actions.len(), db.actions().put_many(&actions)).await?;
+        timed("actions", actions.len(), tx.actions(&actions)).await?;
         let active = try_conv(&self.active_monsters, |r| {
             decode::to_active_monster(r, clock)
         })?;
         timed(
             "active_monsters",
             active.len(),
-            db.active_monsters().put_many(&active, state),
+            tx.active_monsters(&active, state),
         )
         .await?;
         let gangs = try_conv(&self.gangs, |r| decode::to_gang(r, clock))?;
-        timed("gangs", gangs.len(), db.gangs().put_many(&gangs, state)).await?;
+        timed("gangs", gangs.len(), tx.gangs(&gangs, state)).await?;
         let owns = conv(&self.item_ownership, decode::to_item_ownership);
         timed(
             "item_ownership",
             owns.len(),
-            db.item_ownership().put_many(&owns, state),
+            tx.item_ownership(&owns, state),
         )
         .await?;
         let characters = try_conv(&self.users, |r| decode::to_character(r, clock))?;
-        let kept = write_characters(db, &characters, state, opts.door_users).await?;
+        let kept = write_characters(tx, &characters, state, opts.door_users).await?;
         let notes = kept
             .into_iter()
             .map(|i| {
@@ -1383,9 +1495,26 @@ impl<'a> Plan<'a> {
         let books = conv(&self.bank_books, decode::to_bank_book);
         // Books without an account were counted (and refused unless --allow-duplicates)
         // by `check_bank_book_accounts`; they are skipped here.
-        write_bank_books(db, &books, state).await?;
+        write_bank_books(tx, &books, state).await?;
         Ok(notes)
     }
+}
+
+/// Issue 34: a live import into a database that already holds a world must say what
+/// becomes of the game state there: `--reset-state` replaces it with the realm's,
+/// `--content-only` keeps it. By default it is refused, before anything is written.
+async fn check_world_free(db: &Db, opts: &ImportOptions) -> Result<(), ImportError> {
+    if !opts.live || opts.state_write() != StateWrite::CreateMissing {
+        return Ok(());
+    }
+    let rooms = db.rooms().count().await.map_err(|source| ImportError::Db {
+        table: "rooms",
+        source,
+    })?;
+    if rooms > 0 {
+        return Err(ImportError::WorldExists { rooms });
+    }
+    Ok(())
 }
 
 /// Converts every record with a fallible conversion (the ones holding DOS dates).
@@ -1419,20 +1548,19 @@ async fn timed(
 /// (`--door-users`) the account carries the rlogin door flag, an existing one included:
 /// the sysop has said the BBS's users are these players.
 async fn account_for(
-    db: &Db,
+    tx: &mut ImportTx<'_>,
     userid: &str,
     create: bool,
     door: bool,
 ) -> Result<Option<silvermere_types::ids::AccountId>, ImportError> {
-    let accounts = db.accounts();
     let e = |source| ImportError::Db {
         table: "accounts",
         source,
     };
-    if let Some(mut row) = accounts.by_username(userid).await.map_err(e)? {
+    if let Some(mut row) = tx.account_by_username(userid).await.map_err(e)? {
         if door && row.account.flags & FLAG_DOOR == 0 {
             row.account.flags |= FLAG_DOOR;
-            accounts.update(row.id, &row.account).await.map_err(e)?;
+            tx.update_account(row.id, &row.account).await.map_err(e)?;
         }
         return Ok(Some(row.id));
     }
@@ -1443,14 +1571,14 @@ async fn account_for(
     if door {
         account.flags |= FLAG_DOOR;
     }
-    Ok(Some(accounts.insert(&account).await.map_err(e)?))
+    Ok(Some(tx.insert_account(&account).await.map_err(e)?))
 }
 
 /// `--with-users`: each character under the account of its userid. A character is
 /// inserted when its account has none, rewritten with `--reset-state`. Returns the indexes
 /// of the characters not written because their account already has one.
 async fn write_characters(
-    db: &Db,
+    tx: &mut ImportTx<'_>,
     characters: &[Character],
     state: StateWrite,
     door: bool,
@@ -1461,16 +1589,16 @@ async fn write_characters(
     };
     let mut kept = Vec::new();
     for (i, c) in characters.iter().enumerate() {
-        let Some(account) = account_for(db, &c.userid, true, door).await? else {
+        let Some(account) = account_for(tx, &c.userid, true, door).await? else {
             continue;
         };
-        match db.characters().by_account(account).await.map_err(e)? {
+        match tx.character_by_account(account).await.map_err(e)? {
             Some(row) if state == StateWrite::Reset => {
-                db.characters().update(row.id, c).await.map_err(e)?;
+                tx.update_character(row.id, c).await.map_err(e)?;
             }
             Some(_) => kept.push(i),
             None => {
-                db.characters().insert(account, c).await.map_err(e)?;
+                tx.insert_character(account, c).await.map_err(e)?;
             }
         }
     }
@@ -1479,7 +1607,7 @@ async fn write_characters(
 
 /// Bank books under the account of their userid; the number with no such account.
 async fn write_bank_books(
-    db: &Db,
+    tx: &mut ImportTx<'_>,
     books: &[BankBook],
     state: StateWrite,
 ) -> Result<u32, ImportError> {
@@ -1489,18 +1617,13 @@ async fn write_bank_books(
     };
     let mut missing = 0;
     for book in books {
-        let Some(account) = account_for(db, &book.userid, false, false).await? else {
+        let Some(account) = account_for(tx, &book.userid, false, false).await? else {
             missing += 1;
             continue;
         };
-        let exists = db
-            .bank_books()
-            .get(account, book.bank)
-            .await
-            .map_err(e)?
-            .is_some();
+        let exists = tx.bank_book(account, book.bank).await.map_err(e)?.is_some();
         if state.writes(exists) {
-            db.bank_books().put(account, book).await.map_err(e)?;
+            tx.put_bank_book(account, book).await.map_err(e)?;
         }
     }
     Ok(missing)

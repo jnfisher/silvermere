@@ -153,29 +153,8 @@ impl<'a> Gangs<'a> {
     /// is not there yet are inserted, with [`StateWrite::Untouched`] nothing is written.
     /// The importer's table writer.
     pub async fn put_many(&self, gangs: &[Gang], state: StateWrite) -> Result<()> {
-        if state == StateWrite::Untouched {
-            return Ok(());
-        }
         let mut tx = self.db.pool().begin().await?;
-        for gang in gangs {
-            if state == StateWrite::Reset {
-                update(&mut tx, self.db, gang).await?;
-                continue;
-            }
-            let mut a = Args::new();
-            a.add(&gang.key);
-            let exists = a
-                .query(format!(
-                    "SELECT key FROM gangs WHERE {}",
-                    self.db.dialect().ci_eq("key", "$1")
-                ))
-                .fetch_optional(&mut *tx)
-                .await?
-                .is_some();
-            if !exists {
-                insert(&mut tx, gang).await?;
-            }
-        }
+        put_many_in(&mut tx, self.db, gangs, state).await?;
         tx.commit().await?;
         Ok(())
     }
@@ -197,4 +176,36 @@ impl<'a> Gangs<'a> {
         let mut conn = self.db.pool().acquire().await?;
         delete(&mut conn, self.db, key).await
     }
+}
+
+/// [`Gangs::put_many`] on an open transaction (an import writes every table in one, issue 34).
+pub(crate) async fn put_many_in(
+    conn: &mut Conn,
+    db: &Db,
+    gangs: &[Gang],
+    state: StateWrite,
+) -> Result<()> {
+    if state == StateWrite::Untouched {
+        return Ok(());
+    }
+    for gang in gangs {
+        if state == StateWrite::Reset {
+            update(&mut *conn, db, gang).await?;
+            continue;
+        }
+        let mut a = Args::new();
+        a.add(&gang.key);
+        let exists = a
+            .query(format!(
+                "SELECT key FROM gangs WHERE {}",
+                db.dialect().ci_eq("key", "$1")
+            ))
+            .fetch_optional(&mut *conn)
+            .await?
+            .is_some();
+        if !exists {
+            insert(&mut *conn, gang).await?;
+        }
+    }
+    Ok(())
 }

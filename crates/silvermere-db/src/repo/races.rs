@@ -182,15 +182,7 @@ impl<'a> Races<'a> {
     /// importer's table writer. Content only, so there is no state mode.
     pub async fn put_many(&self, rows: &[Race]) -> Result<()> {
         let mut tx = self.db.pool().begin().await?;
-        // T-113: in multi-row statements, as the other content tables (T-108)
-        let mut b = Batch::default();
-        for r in last_per_key(rows, |r| r.number.0) {
-            let n = i64::from(r.number.0);
-            b.upsert("races", COLS, &["number"], n, args(r));
-            b.delete_children("race_abilities", "race", n);
-            b.abilities("race_abilities", "race", n, &r.abilities);
-        }
-        b.flush(&mut tx).await?;
+        put_many_in(&mut tx, rows).await?;
         tx.commit().await?;
         Ok(())
     }
@@ -202,4 +194,18 @@ impl<'a> Races<'a> {
         tx.commit().await?;
         Ok(())
     }
+}
+
+/// [`Races::put_many`] on an open transaction (an import writes every table in one, issue 34).
+pub(crate) async fn put_many_in(conn: &mut Conn, rows: &[Race]) -> Result<()> {
+    // T-113: in multi-row statements, as the other content tables (T-108)
+    let mut b = Batch::default();
+    for r in last_per_key(rows, |r| r.number.0) {
+        let n = i64::from(r.number.0);
+        b.upsert("races", COLS, &["number"], n, args(r));
+        b.delete_children("race_abilities", "race", n);
+        b.abilities("race_abilities", "race", n, &r.abilities);
+    }
+    b.flush(&mut *conn).await?;
+    Ok(())
 }
