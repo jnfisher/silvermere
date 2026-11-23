@@ -157,16 +157,8 @@ impl<'a> ItemOwnerships<'a> {
     /// inserted, with [`StateWrite::Untouched`] nothing is written. The importer's table
     /// writer.
     pub async fn put_many(&self, rows: &[ItemOwnership], state: StateWrite) -> Result<()> {
-        if state == StateWrite::Untouched {
-            return Ok(());
-        }
         let mut tx = self.db.pool().begin().await?;
-        for own in rows {
-            let existed = delete_if(&mut tx, own.id, state == StateWrite::Reset).await?;
-            if state == StateWrite::Reset || !existed {
-                insert(&mut tx, own).await?;
-            }
-        }
+        put_many_in(&mut tx, rows, state).await?;
         tx.commit().await?;
         Ok(())
     }
@@ -176,4 +168,22 @@ impl<'a> ItemOwnerships<'a> {
         let mut conn = self.db.pool().acquire().await?;
         delete(&mut conn, id).await
     }
+}
+
+/// [`ItemOwnerships::put_many`] on an open transaction (an import writes every table in one, issue 34).
+pub(crate) async fn put_many_in(
+    conn: &mut Conn,
+    rows: &[ItemOwnership],
+    state: StateWrite,
+) -> Result<()> {
+    if state == StateWrite::Untouched {
+        return Ok(());
+    }
+    for own in rows {
+        let existed = delete_if(&mut *conn, own.id, state == StateWrite::Reset).await?;
+        if state == StateWrite::Reset || !existed {
+            insert(&mut *conn, own).await?;
+        }
+    }
+    Ok(())
 }

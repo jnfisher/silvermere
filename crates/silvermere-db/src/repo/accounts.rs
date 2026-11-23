@@ -3,6 +3,7 @@
 use jiff::Timestamp;
 use silvermere_types::ids::AccountId;
 
+use crate::dialect::Dialect;
 use crate::pool::Db;
 use crate::repo::{Args, Conn, Get, delete_children, insert_many, insert_sql, select_sql};
 use crate::{DbError, Result};
@@ -159,10 +160,7 @@ impl<'a> Accounts<'a> {
     /// The account named `username`, case-insensitive.
     pub async fn by_username(&self, username: &str) -> Result<Option<AccountRow>> {
         let mut conn = self.db.pool().acquire().await?;
-        let mut a = Args::new();
-        a.add(username);
-        let where_ = format!("WHERE {}", self.db.dialect().ci_eq("username", "$1"));
-        load(&mut conn, &where_, a).await
+        by_username(&mut conn, self.db.dialect(), username).await
     }
 
     /// The account with `id`.
@@ -211,40 +209,17 @@ impl<'a> Accounts<'a> {
     /// Inserts `account`; `DbError::Duplicate` when the username exists in any case.
     pub async fn insert(&self, account: &Account) -> Result<AccountId> {
         let mut tx = self.db.pool().begin().await?;
-        let row = args(account)
-            .query(format!("{} RETURNING id", insert_sql("accounts", COLS)))
-            .fetch_one(&mut *tx)
-            .await?;
-        let id = Get::new(&row, "accounts").i64("id")?;
-        write_roles(&mut tx, id, &account.roles).await?;
+        let id = insert(&mut tx, account).await?;
         tx.commit().await?;
-        Ok(AccountId(id))
+        Ok(id)
     }
 
     /// Rewrites the account `id`; `false` when there is no such account.
     pub async fn update(&self, id: AccountId, account: &Account) -> Result<bool> {
         let mut tx = self.db.pool().begin().await?;
-        let sets: Vec<String> = COLS
-            .iter()
-            .enumerate()
-            .map(|(i, c)| format!("{c} = ${}", i + 1))
-            .collect();
-        let mut a = args(account);
-        a.add(id.0);
-        let done = a
-            .query(format!(
-                "UPDATE accounts SET {} WHERE id = ${}",
-                sets.join(", "),
-                COLS.len() + 1
-            ))
-            .execute(&mut *tx)
-            .await?;
-        if done.rows_affected() == 0 {
-            return Ok(false);
-        }
-        write_roles(&mut tx, id.0, &account.roles).await?;
+        let done = update(&mut tx, id, account).await?;
         tx.commit().await?;
-        Ok(true)
+        Ok(done)
     }
 
     /// Deletes account `id` and everything keyed to it (its character, profile, evil
@@ -258,4 +233,51 @@ impl<'a> Accounts<'a> {
             .await?;
         Ok(done.rows_affected() > 0)
     }
+}
+
+/// The account named `username`, case-insensitive, on `conn`.
+pub(crate) async fn by_username(
+    conn: &mut Conn,
+    dialect: Dialect,
+    username: &str,
+) -> Result<Option<AccountRow>> {
+    let mut a = Args::new();
+    a.add(username);
+    let where_ = format!("WHERE {}", dialect.ci_eq("username", "$1"));
+    load(conn, &where_, a).await
+}
+
+/// Inserts `account` on `conn`; `DbError::Duplicate` when the username exists in any case.
+pub(crate) async fn insert(conn: &mut Conn, account: &Account) -> Result<AccountId> {
+    let row = args(account)
+        .query(format!("{} RETURNING id", insert_sql("accounts", COLS)))
+        .fetch_one(&mut *conn)
+        .await?;
+    let id = Get::new(&row, "accounts").i64("id")?;
+    write_roles(conn, id, &account.roles).await?;
+    Ok(AccountId(id))
+}
+
+/// Rewrites the account `id` on `conn`; `false` when there is no such account.
+pub(crate) async fn update(conn: &mut Conn, id: AccountId, account: &Account) -> Result<bool> {
+    let sets: Vec<String> = COLS
+        .iter()
+        .enumerate()
+        .map(|(i, c)| format!("{c} = ${}", i + 1))
+        .collect();
+    let mut a = args(account);
+    a.add(id.0);
+    let done = a
+        .query(format!(
+            "UPDATE accounts SET {} WHERE id = ${}",
+            sets.join(", "),
+            COLS.len() + 1
+        ))
+        .execute(&mut *conn)
+        .await?;
+    if done.rows_affected() == 0 {
+        return Ok(false);
+    }
+    write_roles(conn, id.0, &account.roles).await?;
+    Ok(true)
 }

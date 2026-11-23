@@ -228,11 +228,7 @@ impl<'a> Spells<'a> {
     /// importer's table writer. Content only, so there is no state mode.
     pub async fn put_many(&self, rows: &[Spell]) -> Result<()> {
         let mut tx = self.db.pool().begin().await?;
-        let mut b = Batch::default();
-        for r in last_per_key(rows, |s| s.number.0) {
-            put_rows(&mut b, r);
-        }
-        b.flush(&mut tx).await?;
+        put_many_in(&mut tx, rows).await?;
         tx.commit().await?;
         Ok(())
     }
@@ -244,4 +240,14 @@ impl<'a> Spells<'a> {
         tx.commit().await?;
         Ok(())
     }
+}
+
+/// [`Spells::put_many`] on an open transaction (an import writes every table in one, issue 34).
+pub(crate) async fn put_many_in(conn: &mut Conn, rows: &[Spell]) -> Result<()> {
+    let mut b = Batch::default();
+    for r in last_per_key(rows, |s| s.number.0) {
+        put_rows(&mut b, r);
+    }
+    b.flush(&mut *conn).await?;
+    Ok(())
 }

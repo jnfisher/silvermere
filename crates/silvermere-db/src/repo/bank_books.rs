@@ -113,17 +113,8 @@ impl<'a> BankBooks<'a> {
 
     /// The book of `account` at `bank`.
     pub async fn get(&self, account: AccountId, bank: ShopNo) -> Result<Option<BankBook>> {
-        let mut a = Args::new();
-        a.add(account.0).add(bank.0);
-        let row = a
-            .query(select_sql(
-                "bank_books",
-                COLS,
-                "WHERE account_id = $1 AND bank = $2",
-            ))
-            .fetch_optional(&self.db.pool())
-            .await?;
-        row.as_ref().map(read).transpose()
+        let mut conn = self.db.pool().acquire().await?;
+        get(&mut conn, account, bank).await
     }
 
     /// Writes `book` for `account` (insert or update).
@@ -137,4 +128,23 @@ impl<'a> BankBooks<'a> {
         let mut conn = self.db.pool().acquire().await?;
         delete(&mut conn, account, bank).await
     }
+}
+
+/// The book of `account` at `bank`, on `conn`.
+pub(crate) async fn get(
+    conn: &mut Conn,
+    account: AccountId,
+    bank: ShopNo,
+) -> Result<Option<BankBook>> {
+    let mut a = Args::new();
+    a.add(account.0).add(bank.0);
+    let row = a
+        .query(select_sql(
+            "bank_books",
+            COLS,
+            "WHERE account_id = $1 AND bank = $2",
+        ))
+        .fetch_optional(&mut *conn)
+        .await?;
+    row.as_ref().map(read).transpose()
 }

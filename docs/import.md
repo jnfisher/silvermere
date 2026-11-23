@@ -198,6 +198,18 @@ included. Stop the BBS first (or copy the files from a clean shutdown).
   state (floor items, coins, owners, ...), shop stock, monster state and `items.active` come
   from the realm's records through the same state path as the stock import: created where
   missing by default, rewritten with `--reset-state`, untouched with `--content-only`.
+- **Over a world.** Into a database that already holds rooms (the stock world `silvermere
+  setup` or the first start builds, or an earlier import), a live import without
+  `--reset-state` or `--content-only` is refused before anything is written (issue 34). The
+  default keeps the state already there, which would leave the realm's rooms and shops with
+  the old world's monsters, floor items and shop stock: a custom shop slot sold out, a room
+  naming active monsters that are other monsters in the realm. `--reset-state` replaces the
+  state with the realm's; active monsters the realm does not hold are deleted.
+- **Character names.** First names and userids are unique among characters, in any case.
+  A character the import would write with the first name or userid of another account's
+  character, or of another of its own players, is an error found before anything is written,
+  naming both (issue 34): rename or delete one (`silvermere account delete NAME`) and import
+  again.
 - **Patches.** `WCCUPDAT.DAT` is applied as for the stock set: the original applies it at
   every start, so a realm's next start would have applied it too.
 - **Per record.** A record read and not written that is not a duplicate key or a skip by
@@ -469,8 +481,10 @@ Monster spell slots are the exception: the spell pick reads every slot's
 chance and the picked slot's level whether or not it names a spell, so `monster_spells` keeps a slot whose spell, chance or level is set (4 stock slots have a
 level with no spell).
 
-Writers: one transaction per table through the repositories' `put_many`
-(`silvermere-db`), rooms in multi-row statements of 500.
+Writers: the repositories' `put_many` (`silvermere-db`), rooms in multi-row statements of 500,
+all in one transaction with the `world_import` marker (`ImportTx`, issue 34). An import that
+fails or is cut off part way leaves the database as it was, so a start never finds a
+half-written world from it.
 
 ## Patches (`WCCUPDAT.DAT`)
 

@@ -966,6 +966,20 @@ fn limit(n: usize) -> Result<i64> {
     })
 }
 
+/// The character of `account` on `conn` (one per account).
+pub(crate) async fn by_account(
+    conn: &mut Conn,
+    account: AccountId,
+) -> Result<Option<CharacterRow>> {
+    let mut a = Args::new();
+    a.add(account.0);
+    let scope = Scope::In(
+        "SELECT id FROM characters WHERE account_id = $1".to_string(),
+        a,
+    );
+    Ok(load(conn, &scope, "ORDER BY id").await?.pop())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

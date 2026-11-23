@@ -805,6 +805,15 @@ impl<'a> Rooms<'a> {
         Self { db }
     }
 
+    /// How many rooms there are: 0 before any world is imported.
+    pub async fn count(&self) -> Result<u64> {
+        let row = Args::new()
+            .query("SELECT COUNT(*) AS n FROM rooms".to_string())
+            .fetch_one(&self.db.pool())
+            .await?;
+        Get::new(&row, "rooms").int("n")
+    }
+
     /// The room at `key` (key 0).
     pub async fn get(&self, key: RoomKey) -> Result<Option<Room>> {
         let mut conn = self.db.pool().acquire().await?;
