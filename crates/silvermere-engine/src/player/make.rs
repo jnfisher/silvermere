@@ -90,6 +90,8 @@ pub enum MakeError {
     Limited(String),
     #[error("{item} could not be put in the pack: {why}")]
     Pack { item: String, why: String },
+    #[error("{gold} gold crowns weigh more than the pack has left: at most {most}")]
+    Gold { gold: u32, most: u32 },
     #[error("every session is in use")]
     Full,
 }
@@ -214,7 +216,6 @@ pub fn make_character(
     // The hit points of every level rolled at their highest (a byte, as stored).
     c.randomhp = (u32::from(class.hplevel.max(0) as u16) * u32::from(spec.level)).min(255) as u8;
     c.title = class_title(world, c.class, c.level, c.sex);
-    c.coins.gold = spec.gold;
     c.settings.insert(PlayerSettings::VALIDATED);
     recalculate(world, &mut c, CalcMode::Refill);
 
@@ -247,6 +248,18 @@ pub fn make_character(
         result?;
         c
     };
+    // The gold last: coins weigh (three to a unit), and the pack takes the gear first.
+    let left = crate::items::inventory::max_weight(world, &c)
+        - i32::from(c.wgt)
+        - silvermere_rules::economy::coin_weight(c.coins);
+    let most = u32::try_from(left.max(0) * 3).unwrap_or(0);
+    if spec.gold > most {
+        return Err(MakeError::Gold {
+            gold: spec.gold,
+            most,
+        });
+    }
+    c.coins.gold = spec.gold;
     recalculate(world, &mut c, CalcMode::Refill);
     Ok(Made {
         character: c,

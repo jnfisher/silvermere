@@ -175,7 +175,7 @@ silvermere character create <ACCOUNT> --name <NAME> --race <RACE> --class <CLASS
 | `--level <LEVEL>` | the level, 1 to 255 (default 1); the experience is exactly what reaches it |
 | `--stat <STAT=N>` | a stat, such as `strength=90` (`strength`, `intellect`, `willpower`, `agility`, `health`, `charm`, or their first three letters); repeat it; a stat not given is the race's maximum, and each must be within the race's range |
 | `--item <ITEM>` | an item by exact name, the start of one, or number: put in the pack, then worn or wielded through the game's own WEAR and WIELD, so the class, race and slot rules hold; repeat it. Limited items are refused (give those in the game with `SYSOP SUMMON`) |
-| `--gold <GOLD>` | gold crowns in hand (default 0) |
+| `--gold <GOLD>` | gold crowns in hand (default 0); coins weigh (three to a unit of weight), and gold the pack cannot take after the gear is refused |
 | `--replace` | replace the account's character if it has one |
 
 The character is made as the game makes one (the race's starting values, the class title),
@@ -187,8 +187,8 @@ Roles are the account's: for a sysop test character with the developer commands,
 echo secret | silvermere account create tester --sysop --password-stdin
 silvermere account grant tester DEBUG
 silvermere character create tester --name Tester --race Human --class Warrior --level 70 \
-    --item "dragonscale armour" --item "platinum greathelm" --item "demon-carved halberd" \
-    --gold 10000
+    --item stormhammer --item "aegis shield" --item "mithril chainmail hauberk" \
+    --item "starsteel greathelm" --item "starsteel plate boots" --gold 500
 ```
 
 ## `silvermere import`

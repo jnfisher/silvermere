@@ -251,6 +251,11 @@ fn refusals() {
         bad(&|s| s.items = vec![ItemNo(RELIC)]),
         MakeError::Limited("relic".into())
     );
+    // coins weigh: more than the pack has left is refused
+    assert!(matches!(
+        bad(&|s| s.gold = u32::MAX),
+        MakeError::Gold { gold: u32::MAX, .. }
+    ));
     // a refusal changes nothing
     let _ = make(&mut w, &spec(10, &[RELIC]));
     assert!(w.sessions.is_empty());
