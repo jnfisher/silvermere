@@ -1202,7 +1202,7 @@ fn character_create() {
             "--level",
             "20",
             "--gold",
-            "500",
+            "100",
         ];
         args.extend_from_slice(extra);
         run(&d, &env, &args)
@@ -1251,7 +1251,7 @@ fn character_create() {
         let c = &rows[0].character;
         assert_eq!(
             (c.firstname.as_str(), c.level, c.coins.gold),
-            ("Tester", 20, 500)
+            ("Tester", 20, 100)
         );
         // a server holds the store: refused
         let guard = match silvermere_db::WriterGuard::try_acquire(&url).await.unwrap() {
