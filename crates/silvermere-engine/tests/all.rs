@@ -56,6 +56,7 @@ mod inventory;
 mod lifecycle;
 mod login_flow;
 mod m2_fight;
+mod make_character;
 mod monster_casting;
 mod monster_combat;
 mod movement;

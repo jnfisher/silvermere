@@ -1171,3 +1171,97 @@ fn config_unset_refuses_secret_keys() {
         err(&o)
     );
 }
+
+/// `character create`: a finished character for an existing account, refused without the
+/// account, over an existing character without `--replace`, and while a server holds the
+/// store. (The fixture's blank race can carry nothing: the gear is the engine tests'.)
+#[test]
+fn character_create() {
+    let d = tmp("character");
+    let url = format!("sqlite://{}", d.join("world.db").display());
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let db = silvermere_db::Db::connect_and_migrate(&url).await.unwrap();
+        common::seed(&db, &[]).await;
+        db.close().await;
+    });
+    let env = [("SILVERMERE_DATABASE__URL", url.as_str())];
+    let create = |extra: &[&str]| {
+        let mut args = vec![
+            "character",
+            "create",
+            "tester",
+            "--name",
+            "Tester",
+            "--last",
+            "Operator",
+            "--race",
+            "1",
+            "--class",
+            "1",
+            "--level",
+            "20",
+            "--gold",
+            "500",
+        ];
+        args.extend_from_slice(extra);
+        run(&d, &env, &args)
+    };
+    let o = create(&[]);
+    assert_eq!(o.status.code(), Some(1));
+    assert!(
+        err(&o).contains("silvermere account create tester"),
+        "{}",
+        err(&o)
+    );
+
+    let mut c = Command::new(env!("CARGO_BIN_EXE_silvermere"));
+    c.current_dir(&d)
+        .args(["account", "create", "tester", "--sysop", "--password-stdin"])
+        .stdin(std::process::Stdio::piped());
+    for (k, _) in std::env::vars().filter(|(k, _)| k.starts_with("SILVERMERE_")) {
+        c.env_remove(k);
+    }
+    c.env("SILVERMERE_DATABASE__URL", &url);
+    let mut child = c.spawn().unwrap();
+    use std::io::Write as _;
+    child.stdin.take().unwrap().write_all(b"pw\n").unwrap();
+    assert!(child.wait().unwrap().success());
+
+    let o = create(&[]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert!(
+        out(&o).contains("made Tester Operator for tester: level 20"),
+        "{}",
+        out(&o)
+    );
+    let o = create(&[]);
+    assert_eq!(o.status.code(), Some(1));
+    assert!(err(&o).contains("--replace"), "{}", err(&o));
+    let o = create(&["--replace", "--stat", "str=1"]);
+    assert!(o.status.success(), "{}", err(&o));
+    let o = create(&["--replace", "--stat", "luck=5"]);
+    assert_eq!(o.status.code(), Some(1));
+    assert!(err(&o).contains("no stat luck"), "{}", err(&o));
+
+    rt.block_on(async {
+        let db = silvermere_db::Db::connect(&url).await.unwrap();
+        let rows = db.characters().all().await.unwrap();
+        assert_eq!(rows.len(), 1);
+        let c = &rows[0].character;
+        assert_eq!(
+            (c.firstname.as_str(), c.level, c.coins.gold),
+            ("Tester", 20, 500)
+        );
+        // a server holds the store: refused
+        let guard = match silvermere_db::WriterGuard::try_acquire(&url).await.unwrap() {
+            silvermere_db::TryAcquire::Taken(g) => g,
+            silvermere_db::TryAcquire::Held(_) => panic!("nothing else holds it"),
+        };
+        let o = create(&["--replace"]);
+        assert_eq!(o.status.code(), Some(1));
+        assert!(err(&o).contains("stop it first"), "{}", err(&o));
+        guard.release().await;
+        db.close().await;
+    });
+}

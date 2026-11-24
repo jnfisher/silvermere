@@ -56,6 +56,11 @@ pub enum Command {
         #[command(subcommand)]
         action: AccountCmd,
     },
+    /// Make characters outside the game (stop the server first).
+    Character {
+        #[command(subcommand)]
+        action: crate::commands::character::CharacterCmd,
+    },
     /// Write a consistent copy of the database (safe while the server runs).
     Backup(BackupArgs),
     /// Put a backup back (stop the server first).
