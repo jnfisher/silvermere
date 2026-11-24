@@ -14,6 +14,7 @@ database, asks for a sysop account if there is none, then serves.
 | [`service`](#silvermere-service) | install or remove the systemd service | n/a |
 | [`config`](#silvermere-config) | show and change `silvermere.toml` | yes (a running server reads it at start) |
 | [`account`](#silvermere-account) | create accounts, change passwords, grant roles | yes |
+| [`character`](#silvermere-character) | make a finished character for an account | no, it refuses |
 | [`import`](#silvermere-import) | import legacy world files | no, it refuses |
 | [`backup`](#silvermere-backup) | write a consistent copy of the database | yes |
 | [`restore`](#silvermere-restore) | put a backup back | no, it refuses |
@@ -153,6 +154,42 @@ silvermere account delete <NAME> [--yes]
 | `account revoke <NAME> <ROLE>` | revoke a role, permission or flag |
 | `account list` | list accounts |
 | `account delete <NAME>` | delete an account; `--yes` skips the question. With a server running it goes through the admin API, which needs an `admin` token in the config |
+
+## `silvermere character`
+
+Make a finished character for an existing account without playing through creation: a test
+or staff character at any level, with its stats and gear. Stop the server first: it refuses
+while one runs on the store, since a running server would save its own copy over it.
+
+```
+silvermere character create <ACCOUNT> --name <NAME> --race <RACE> --class <CLASS> [OPTIONS]
+```
+
+| Flag | Meaning |
+|---|---|
+| `<ACCOUNT>` | the account, made first with `silvermere account create` |
+| `--name <NAME>` | the first name: letters only, at most 10, not a game command or a monster's name |
+| `--last <LAST>` | the last name: letters only, at most 18 (default none) |
+| `--race <RACE>` | the race, by name (or the start of one) or number |
+| `--class <CLASS>` | the class, by name (or the start of one) or number |
+| `--level <LEVEL>` | the level, 1 to 255 (default 1); the experience is exactly what reaches it |
+| `--stat <STAT=N>` | a stat, such as `strength=90` (`strength`, `intellect`, `willpower`, `agility`, `health`, `charm`, or their first three letters); repeat it; a stat not given is the race's maximum, and each must be within the race's range |
+| `--item <ITEM>` | an item by exact name, the start of one, or number: put in the pack, then worn or wielded through the game's own WEAR and WIELD, so the class, race and slot rules hold; repeat it. Limited items are refused (give those in the game with `SYSOP SUMMON`) |
+| `--gold <GOLD>` | gold crowns in hand (default 0); coins weigh (three to a unit of weight), and gold the pack cannot take after the gear is refused |
+| `--replace` | replace the account's character if it has one |
+
+The character is made as the game makes one (the race's starting values, the class title),
+then given the level, the stats (every character point spent), the hit points of each level
+rolled at their highest, and the gear. It prints the result and what became of each item.
+Roles are the account's: for a sysop test character with the developer commands,
+
+```bash
+echo secret | silvermere account create tester --sysop --password-stdin
+silvermere account grant tester DEBUG
+silvermere character create tester --name Tester --race Human --class Warrior --level 70 \
+    --item stormhammer --item "aegis shield" --item "mithril chainmail hauberk" \
+    --item "starsteel greathelm" --item "starsteel plate boots" --gold 500
+```
 
 ## `silvermere import`
 

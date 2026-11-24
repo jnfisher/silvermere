@@ -3,6 +3,7 @@
 //! The design is `docs/engine/player-record.md`; the card is T-023. The pieces:
 //!
 //! - [`create`]: `create_player`, `roll_stats`, `class_title`.
+//! - [`make`]: a finished character made outside the game, for the command line.
 //! - [`load`]: `load_player`'s repairs, notices and derived values for a stored row.
 //! - [`save`]: `save_player` and its 30 save points, `delete_player`, the 60 s sweep.
 //! - [`secondary`]: the secondary stats, pure and as the engine wrapper.
@@ -18,6 +19,7 @@
 
 pub mod create;
 pub mod load;
+pub mod make;
 pub mod profile;
 pub mod save;
 pub mod secondary;
@@ -25,6 +27,7 @@ pub mod suicide;
 
 pub use create::{class_title, create_player, roll_stats};
 pub use load::{LoadError, load_player};
+pub use make::{CharacterSpec, Made, MakeError, make_character};
 pub use profile::Retire;
 pub use save::{
     QueuedCharacter, SavePoint, delete_player, on_characters_written, queue_character,

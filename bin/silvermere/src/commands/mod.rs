@@ -4,6 +4,7 @@ pub mod account;
 pub mod admin;
 pub mod api_client;
 pub mod backup;
+pub mod character;
 pub mod config;
 pub mod first_start;
 pub mod healthcheck;

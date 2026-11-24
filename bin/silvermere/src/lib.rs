@@ -827,6 +827,7 @@ pub fn run(args: impl IntoIterator<Item = std::ffi::OsString>) -> anyhow::Result
         Backup(a) => commands::backup::run(&cfg, a),
         Restore(a) => commands::restore::run(&cfg, a),
         Account { action } => commands::account::run(&cfg, action),
+        Character { action } => commands::character::run(&cfg, action),
         Admin { action } => commands::admin::run(&cfg, action),
         Sysop { action, json } => Ok(commands::sysop::run(&cfg, action, *json)),
         Setup(a) => commands::first_start::setup(
