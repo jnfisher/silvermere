@@ -14,7 +14,7 @@ use tokio::net::TcpStream;
 
 use crate::events::Capabilities;
 use crate::transport::Transport;
-use options::{GMCP, GMCP_OFFER, NAWS, OFFERS, Options};
+use options::{CHARSET, CHARSET_OFFER, GMCP, GMCP_OFFER, NAWS, OFFERS, Options};
 use parser::{Action, IAC, Parser, SB, SE, Verb};
 
 /// Appends `bytes` to `out` with every 0xFF doubled (`IAC IAC`).
@@ -45,6 +45,25 @@ pub enum TelnetEvent {
     Gmcp(bool),
     /// A GMCP message from the client, `Package.Name` and optional JSON, as sent.
     GmcpMessage(Vec<u8>),
+    /// The client answered the CHARSET offer: `true` for `DO` (the request for the text's
+    /// character set is in the reply), `false` for `DONT`/`WONT`.
+    CharsetAnswered(bool),
+    /// The client accepted a requested character set (`SB CHARSET ACCEPTED name`), or
+    /// rejected every one offered (`None`).
+    CharsetAccepted(Option<Vec<u8>>),
+}
+
+/// CHARSET subnegotiation codes (RFC 2066).
+const CHARSET_REQUEST: u8 = 1;
+const CHARSET_ACCEPTED: u8 = 2;
+const CHARSET_REJECTED: u8 = 3;
+
+/// Appends `IAC SB CHARSET REQUEST ";" name IAC SE` to `out`: asks the client to read the
+/// text as `name` (`IBM437`, `UTF-8`).
+pub fn frame_charset_request(name: &[u8], out: &mut impl Extend<u8>) {
+    out.extend([IAC, SB, CHARSET, CHARSET_REQUEST, b';']);
+    escape_into(name, out);
+    out.extend([IAC, SE]);
 }
 
 /// Telnet state for one connection, with no I/O.
@@ -57,6 +76,11 @@ pub struct TelnetCodec {
     gmcp_offered: bool,
     /// The client agreed to GMCP and has not turned it off.
     gmcp: bool,
+    /// CHARSET is offered on this connection, and the character set requested when the
+    /// client agrees.
+    charset_offered: Option<Vec<u8>>,
+    /// The client agreed to CHARSET: later requests may be sent.
+    charset: bool,
 }
 
 impl TelnetCodec {
@@ -66,9 +90,24 @@ impl TelnetCodec {
 
     /// A codec that offers GMCP ([`Self::offers_with`] `true` must be what goes out).
     pub fn with_gmcp() -> Self {
+        Self::with_offers(true, None)
+    }
+
+    /// A codec that offers GMCP when `gmcp`, and CHARSET when `charset` names the character
+    /// set to request once the client agrees. What goes out on accept must be
+    /// [`Self::offers_with`] with the same choices.
+    pub fn with_offers(gmcp: bool, charset: Option<&[u8]>) -> Self {
+        let mut options = Options::new();
+        if gmcp {
+            options.offer_gmcp();
+        }
+        if charset.is_some() {
+            options.offer_charset();
+        }
         Self {
-            options: Options::with_gmcp(),
-            gmcp_offered: true,
+            options,
+            gmcp_offered: gmcp,
+            charset_offered: charset.map(<[u8]>::to_vec),
             ..Self::default()
         }
     }
@@ -78,13 +117,22 @@ impl TelnetCodec {
         &OFFERS
     }
 
-    /// The bytes to send on accept, with `IAC WILL GMCP` last when `gmcp`.
-    pub fn offers_with(gmcp: bool) -> Vec<u8> {
+    /// The bytes to send on accept, then `IAC WILL GMCP` when `gmcp` and `IAC WILL CHARSET`
+    /// when `charset`.
+    pub fn offers_with(gmcp: bool, charset: bool) -> Vec<u8> {
         let mut out = OFFERS.to_vec();
         if gmcp {
             out.extend_from_slice(&GMCP_OFFER);
         }
+        if charset {
+            out.extend_from_slice(&CHARSET_OFFER);
+        }
         out
+    }
+
+    /// The client agreed to CHARSET: [`frame_charset_request`] may be sent.
+    pub fn charset_active(&self) -> bool {
+        self.charset
     }
 
     /// The client agreed to GMCP: messages may be sent to it.
@@ -140,6 +188,22 @@ impl TelnetCodec {
                             events.push(TelnetEvent::Gmcp(on));
                         }
                     }
+                    if option == CHARSET
+                        && let Some(name) = &self.charset_offered
+                    {
+                        match verb {
+                            Verb::Do if !self.charset => {
+                                self.charset = true;
+                                frame_charset_request(name, reply);
+                                events.push(TelnetEvent::CharsetAnswered(true));
+                            }
+                            Verb::Dont | Verb::Wont => {
+                                self.charset = false;
+                                events.push(TelnetEvent::CharsetAnswered(false));
+                            }
+                            _ => {}
+                        }
+                    }
                 }
                 Some(Action::Subnegotiation(option, payload)) => {
                     if option == NAWS
@@ -149,6 +213,17 @@ impl TelnetCodec {
                         events.push(TelnetEvent::Naws(caps));
                     } else if option == GMCP && self.gmcp {
                         events.push(TelnetEvent::GmcpMessage(payload));
+                    } else if option == CHARSET && self.charset {
+                        match payload.split_first() {
+                            Some((&CHARSET_ACCEPTED, name)) => {
+                                events.push(TelnetEvent::CharsetAccepted(Some(name.to_vec())));
+                            }
+                            Some((&CHARSET_REJECTED, _)) => {
+                                events.push(TelnetEvent::CharsetAccepted(None));
+                            }
+                            // TTABLE messages: no translation tables are ever offered
+                            _ => {}
+                        }
                     }
                 }
             }
@@ -233,6 +308,7 @@ impl Transport for TelnetTransport {
 
 #[cfg(test)]
 mod tests {
+    use super::options::CHARSET;
     use super::parser::{DO, DONT, WILL, WONT};
     use super::*;
 
@@ -322,8 +398,54 @@ mod tests {
 
     #[test]
     fn offers_end_with_gmcp_when_on() {
-        assert_eq!(TelnetCodec::offers_with(false), OFFERS.to_vec());
-        assert!(TelnetCodec::offers_with(true).ends_with(&[IAC, WILL, GMCP]));
+        assert_eq!(TelnetCodec::offers_with(false, false), OFFERS.to_vec());
+        assert!(TelnetCodec::offers_with(true, false).ends_with(&[IAC, WILL, GMCP]));
+        assert!(
+            TelnetCodec::offers_with(true, true).ends_with(&[IAC, WILL, GMCP, IAC, WILL, CHARSET])
+        );
+    }
+
+    #[test]
+    fn charset_request_follows_do_and_acceptance_is_reported() {
+        let mut c = TelnetCodec::with_offers(false, Some(b"IBM437"));
+        let (mut data, mut reply, mut events) = (Vec::new(), Vec::new(), Vec::new());
+        c.decode_events(&[IAC, DO, CHARSET], &mut data, &mut reply, &mut events);
+        let mut want = vec![IAC, SB, CHARSET, 1, b';'];
+        want.extend_from_slice(b"IBM437");
+        want.extend([IAC, SE]);
+        assert_eq!(reply, want, "no WILL again, just the request");
+        assert_eq!(events, vec![TelnetEvent::CharsetAnswered(true)]);
+        assert!(c.charset_active());
+        events.clear();
+        let mut accepted = vec![IAC, SB, CHARSET, 2];
+        accepted.extend_from_slice(b"IBM437");
+        accepted.extend([IAC, SE]);
+        c.decode_events(&accepted, &mut data, &mut reply, &mut events);
+        assert_eq!(
+            events,
+            vec![TelnetEvent::CharsetAccepted(Some(b"IBM437".to_vec()))]
+        );
+        assert!(data.is_empty());
+    }
+
+    #[test]
+    fn charset_refusal_is_reported_and_nothing_is_requested() {
+        // a terminal that refuses what it does not know (BSD telnet, the testkit client)
+        let mut c = TelnetCodec::with_offers(false, Some(b"IBM437"));
+        let (mut data, mut reply, mut events) = (Vec::new(), Vec::new(), Vec::new());
+        c.decode_events(&[IAC, DONT, CHARSET], &mut data, &mut reply, &mut events);
+        assert!(reply.is_empty());
+        assert_eq!(events, vec![TelnetEvent::CharsetAnswered(false)]);
+        assert!(!c.charset_active());
+    }
+
+    #[test]
+    fn charset_is_refused_when_not_offered() {
+        let mut c = TelnetCodec::new();
+        let (mut data, mut reply, mut events) = (Vec::new(), Vec::new(), Vec::new());
+        c.decode_events(&[IAC, DO, CHARSET], &mut data, &mut reply, &mut events);
+        assert_eq!(reply, vec![IAC, WONT, CHARSET]);
+        assert!(events.is_empty());
     }
 
     #[test]

@@ -1,9 +1,9 @@
 //! The option table: what the server offers on accept and how it answers the client.
 //!
-//! The server offers `WILL ECHO`,
-//! `WILL SGA`, `WILL BINARY` and `DO NAWS`, and `WILL GMCP` when GMCP is on; it agrees to `DO`
-//! only for those options and to `WILL` only for NAWS, and refuses every other option. Refusals from the client (`WONT`,
-//! `DONT`) are accepted silently and never retried.
+//! The server offers `WILL ECHO`, `WILL SGA`, `WILL BINARY` and `DO NAWS`, and `WILL GMCP`
+//! and `WILL CHARSET` when they are on; it agrees to `DO` only for those options and to `WILL`
+//! only for NAWS, and refuses every other option. Refusals from the client (`WONT`, `DONT`)
+//! are accepted silently and never retried.
 
 use super::parser::{DO, DONT, IAC, Verb, WILL, WONT};
 
@@ -13,6 +13,8 @@ pub const SGA: u8 = 3;
 pub const TTYPE: u8 = 24;
 pub const NAWS: u8 = 31;
 pub const LINEMODE: u8 = 34;
+/// Character set negotiation (RFC 2066): tells the client which encoding the text is in.
+pub const CHARSET: u8 = 42;
 /// Generic MUD Communication Protocol (<https://tintin.mudhalla.net/protocols/gmcp/>).
 pub const GMCP: u8 = 201;
 
@@ -25,11 +27,8 @@ pub const OFFERS: [u8; 12] = [
 
 /// Sent after [`OFFERS`] when GMCP is on.
 pub const GMCP_OFFER: [u8; 3] = [IAC, WILL, GMCP];
-
-/// Whether the server performs `option` itself when the client asks (`DO option`).
-fn server_supports(option: u8, gmcp: bool) -> bool {
-    matches!(option, ECHO | SGA | BINARY) || (gmcp && option == GMCP)
-}
+/// Sent after [`OFFERS`] (and [`GMCP_OFFER`]) when CHARSET is on.
+pub const CHARSET_OFFER: [u8; 3] = [IAC, WILL, CHARSET];
 
 /// Whether the server lets the client perform `option` (`WILL option`).
 fn client_may(option: u8) -> bool {
@@ -45,8 +44,10 @@ fn client_may(option: u8) -> bool {
 #[derive(Debug, Clone)]
 pub struct Options {
     last_reply: [Option<u8>; 256],
-    /// GMCP is offered and agreed to.
+    /// GMCP is offered.
     gmcp: bool,
+    /// CHARSET is offered.
+    charset: bool,
 }
 
 impl Default for Options {
@@ -60,6 +61,7 @@ impl Options {
         Self {
             last_reply: [None; 256],
             gmcp: false,
+            charset: false,
         }
     }
 
@@ -67,17 +69,35 @@ impl Options {
     /// `DO GMCP` is its acknowledgement and is not answered again).
     pub fn with_gmcp() -> Self {
         let mut o = Self::new();
-        o.gmcp = true;
-        o.last_reply[usize::from(GMCP)] = Some(WILL);
+        o.offer_gmcp();
         o
+    }
+
+    /// Offers GMCP ([`Self::with_gmcp`]).
+    pub fn offer_gmcp(&mut self) {
+        self.gmcp = true;
+        self.last_reply[usize::from(GMCP)] = Some(WILL);
+    }
+
+    /// Offers CHARSET, as [`Self::offer_gmcp`] offers GMCP.
+    pub fn offer_charset(&mut self) {
+        self.charset = true;
+        self.last_reply[usize::from(CHARSET)] = Some(WILL);
+    }
+
+    /// Whether the server performs `option` itself when the client asks (`DO option`).
+    fn server_supports(&self, option: u8) -> bool {
+        matches!(option, ECHO | SGA | BINARY)
+            || (self.gmcp && option == GMCP)
+            || (self.charset && option == CHARSET)
     }
 
     /// The reply to the client's `IAC <verb> <option>`, if one is due.
     pub fn respond(&mut self, verb: Verb, option: u8) -> Option<[u8; 3]> {
-        let gmcp = self.gmcp;
+        let supported = self.server_supports(option);
         let slot = &mut self.last_reply[usize::from(option)];
         let reply = match verb {
-            Verb::Do if server_supports(option, gmcp) => WILL,
+            Verb::Do if supported => WILL,
             Verb::Do => WONT,
             Verb::Will if client_may(option) => DO,
             Verb::Will => DONT,

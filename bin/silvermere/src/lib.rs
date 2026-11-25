@@ -387,6 +387,11 @@ pub async fn serve_world_with_db(
             hold_line_echo: true,
             screens: Some(screens.clone()),
             gmcp: cfg.net.gmcp,
+            // the login dialogue is CP437; the engine asks again for UTF-8 game text
+            charset: cfg
+                .net
+                .charset_negotiation
+                .then(|| silvermere_engine::charset::CP437.as_bytes().to_vec()),
             ..Default::default()
         },
         keepalive: (cfg.net.keepalive_secs > 0)

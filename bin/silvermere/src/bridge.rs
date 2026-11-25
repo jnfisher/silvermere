@@ -195,6 +195,10 @@ fn translate(id: silvermere_engine::SessionId, ev: GateEvent) -> Option<EngineIn
             id,
             text: String::from_utf8_lossy(&bytes).into_owned(),
         },
+        SessionEvent::Charset(accepted) => EngineInput::Charset {
+            id,
+            accepted: accepted.map(|n| String::from_utf8_lossy(&n).into_owned()),
+        },
         SessionEvent::Disconnect(_) => EngineInput::Disconnect { id },
     })
 }
@@ -318,6 +322,7 @@ pub async fn forward_outputs(
                     }
                     EngineOutput::SetCharMode { id, on } => send(&by_conn, &by_id, id, SessionCommand::SetCharMode(on)),
                     EngineOutput::Gmcp { id, message } => send(&by_conn, &by_id, id, SessionCommand::Gmcp(message.into_bytes())),
+                    EngineOutput::Charset { id, name } => send(&by_conn, &by_id, id, SessionCommand::Charset(name.into_bytes())),
                     EngineOutput::LineStarted { id } => send(&by_conn, &by_id, id, SessionCommand::LineStarted),
                     EngineOutput::LineDone { id } => send(&by_conn, &by_id, id, SessionCommand::LineDone),
                     EngineOutput::Close { id } => {

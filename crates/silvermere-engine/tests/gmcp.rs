@@ -269,3 +269,52 @@ fn gmcp_clients_get_plain_direction_names() {
     assert!(text(mapper).contains("west"), "{}", text(mapper));
     assert!(!text(mapper).contains('\u{8}'), "{}", text(mapper));
 }
+
+/// Telnet CHARSET: the engine's half ([`silvermere_engine::charset`]).
+mod charset {
+    use super::*;
+
+    fn requests(h: &mut Harness, input: EngineInput) -> Vec<(SessionId, String)> {
+        h.engine.handle(input);
+        let mut out = Vec::new();
+        while let Ok(o) = h.rx.try_recv() {
+            if let EngineOutput::Charset { id, name } = o {
+                out.push((id, name));
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn set_utf8_asks_a_client_that_agreed_and_no_other() {
+        let mut h = Harness::new();
+        let mudlet = h.player("Mudlet", WEST);
+        let telnet = h.player("Telnet", WEST);
+        // Mudlet accepted IBM437 at connect; plain telnet refused CHARSET
+        h.engine.handle(EngineInput::Charset {
+            id: mudlet,
+            accepted: Some("IBM437".into()),
+        });
+        let line = |id| EngineInput::Line {
+            id,
+            text: "set utf8 on".into(),
+        };
+        assert_eq!(
+            requests(&mut h, line(mudlet)),
+            vec![(mudlet, "UTF-8".to_owned())]
+        );
+        assert!(requests(&mut h, line(telnet)).is_empty());
+        // already UTF-8: nothing more; back to CP437: asked again
+        assert!(requests(&mut h, line(mudlet)).is_empty());
+        assert_eq!(
+            requests(
+                &mut h,
+                EngineInput::Line {
+                    id: mudlet,
+                    text: "set utf8 off".into(),
+                }
+            ),
+            vec![(mudlet, "IBM437".to_owned())]
+        );
+    }
+}

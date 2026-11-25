@@ -30,6 +30,7 @@ login_timeout_secs = 300   # 0 = off; idle seconds allowed in the login dialogue
 keepalive_secs = 60   # 0 = off; quiet seconds before TCP keepalive checks a connection is still there
 login_takeover = true   # bool; a second login with the right password may disconnect the first
 gmcp = true   # bool; offer GMCP (room data for Mudlet's mapper, health/mana gauges) to telnet clients
+charset_negotiation = true   # bool; tell telnet clients the text is CP437 (telnet CHARSET), so Mudlet switches by itself
 
 [compat]
 bbs_menu = true   # bool

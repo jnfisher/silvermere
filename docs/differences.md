@@ -47,6 +47,9 @@ Stated here so they are not read as differences from a stock install.
   without their hidden anti-script letter, which it would otherwise show, since such clients
   apply no backspaces. MegaMud and plain telnet decline GMCP and see the original text. See
   [net.md](net.md#gmcp) and [mudlet.md](mudlet.md).
+- **Character set negotiation.** Telnet clients are told the text is CP437 (telnet CHARSET,
+  `net.charset_negotiation`), so Mudlet switches its encoding by itself. Clients that
+  refuse or ignore the offer get the same bytes as before. See [net.md](net.md#charset).
 - **Accounts.** Passwords are stored with argon2id, failed logins lock an account for a while, and
   passwords are 1-128 bytes with no 5-9 character limit. See [auth.md](auth.md),
   [lockout code](../crates/silvermere-auth/src/lockout.rs).

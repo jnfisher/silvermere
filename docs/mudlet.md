@@ -12,8 +12,11 @@ sysop changed `server.telnet_bind`). Mudlet agrees to GMCP by itself.
 ## Text
 
 The server sends the game's text in CP437, the DOS character set its maps and logos are
-drawn in. Set Mudlet's **Preferences**, **General**, **Server data encoding** to CP437, or
-the box characters show as `�`.
+drawn in, and tells Mudlet so (telnet CHARSET), so Mudlet switches its encoding by itself
+and keeps it in the profile. Only the very first login screen of a new profile comes
+before the switch and may show `�`. If the sysop turned `net.charset_negotiation` off, set
+**Preferences**, **General**, **Server data encoding** to CP437 yourself. `set utf8 on`
+switches the game to UTF-8, and Mudlet with it.
 
 The original game hides a random letter and a backspace in each direction name (`nX`,
 backspace, `orth`) so that client scripts can't match "north". Mudlet doesn't apply

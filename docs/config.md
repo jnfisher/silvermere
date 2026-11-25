@@ -133,6 +133,7 @@ options that were dropped are in [config-defaults.md](config-defaults.md).
 | `net.keepalive_secs` | `SILVERMERE_NET__KEEPALIVE_SECS` | `60` | Seconds a connection may go with no traffic before TCP keepalive probes check that the other end is still there; one that does not answer is dropped about a minute later, so a player whose connection died can log in again. A live client answers the probes by itself: an idle player is not disconnected. 0 = off, else 10..=7200. See [net.md](net.md#dead-connections). | — |
 | `net.login_takeover` | `SILVERMERE_NET__LOGIN_TAKEOVER` | `true` | When an account that is already logged on logs in again with the right password, ask `Disconnect the other connection? (Y/N)` instead of refusing. See [auth.md](auth.md#the-dialogue). | — |
 | `net.gmcp` | `SILVERMERE_NET__GMCP` | `true` | Offer GMCP (telnet option 201) to telnet clients: `Room.Info` for Mudlet's mapper, `Char.Vitals` and `Char.Status` for its gauges. A client that does not know GMCP declines the offer. rlogin connections never get it. See [net.md](net.md#gmcp). | — |
+| `net.charset_negotiation` | `SILVERMERE_NET__CHARSET_NEGOTIATION` | `true` | Tell telnet clients which character set the text is in (telnet CHARSET, RFC 2066): CP437, or UTF-8 in the game after `set utf8 on` or with `compat.charset = "utf8"`. Mudlet switches its encoding by itself. A client that refuses it (plain telnet, MegaMud) gets the same bytes as before; one that ignores the offer sees its first screen half a second later. See [net.md](net.md#charset). | — |
 
 ### [compat]
 

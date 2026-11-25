@@ -22,7 +22,7 @@ use crate::events::{Reason, SessionCommand, SessionEvent, SessionId};
 use crate::line_editor::{EditorEvent, LineEditor};
 use crate::rlogin::{self, RloginConfig, RloginHello};
 use crate::telnet::parser::{IAC, NOP};
-use crate::telnet::{TelnetCodec, TelnetEvent, escape_into, frame_gmcp};
+use crate::telnet::{TelnetCodec, TelnetEvent, escape_into, frame_charset_request, frame_gmcp};
 
 /// Commands the engine may have in flight to one session before `try_send` reports full.
 const COMMAND_CAPACITY: usize = 256;
@@ -57,6 +57,10 @@ pub struct SessionConfig {
     pub screens: Option<Arc<crate::Screens>>,
     /// Offer GMCP (`IAC WILL GMCP`) on telnet connections (`net.gmcp`).
     pub gmcp: bool,
+    /// Offer CHARSET (`IAC WILL CHARSET`) on telnet connections and, when the client agrees,
+    /// ask it to read the text as this character set (`IBM437`); `None` for no offer
+    /// (`net.charset_negotiation`).
+    pub charset: Option<Vec<u8>>,
 }
 
 impl Default for SessionConfig {
@@ -67,6 +71,7 @@ impl Default for SessionConfig {
             hold_line_echo: false,
             screens: None,
             gmcp: false,
+            charset: None,
         }
     }
 }
@@ -364,18 +369,15 @@ impl Session {
             .peer_addr()
             .ok()
             .map(|a| crate::network::canonical(a.ip()));
+        let out = TelnetCodec::offers_with(config.gmcp, config.charset.is_some());
         Self {
             peer,
             stream: Some(stream),
-            codec: if config.gmcp {
-                TelnetCodec::with_gmcp()
-            } else {
-                TelnetCodec::new()
-            },
+            codec: TelnetCodec::with_offers(config.gmcp, config.charset.as_deref()),
             editor: LineEditor::new(),
             inbox: VecDeque::new(),
             outbox: VecDeque::new(),
-            out: TelnetCodec::offers_with(config.gmcp),
+            out,
             config,
             last_output: Instant::now(),
             hold_until: None,
@@ -404,6 +406,11 @@ impl Session {
             Some(SessionCommand::Gmcp(message)) => {
                 if !self.raw && self.codec.gmcp_active() {
                     frame_gmcp(&message, &mut self.out);
+                }
+            }
+            Some(SessionCommand::Charset(name)) => {
+                if !self.raw && self.codec.charset_active() {
+                    frame_charset_request(&name, &mut self.out);
                 }
             }
             Some(SessionCommand::SetEcho(mode)) => self.editor.set_echo(mode),
@@ -539,12 +546,16 @@ impl Session {
                         let mut reply = Vec::new();
                         let mut events = Vec::new();
                         self.codec.decode_events(&raw[..n], &mut self.inbox, &mut reply, &mut events);
-                        self.outbox.extend(events.into_iter().map(|e| match e {
-                            TelnetEvent::Naws(caps) => SessionEvent::Naws(caps.columns, caps.rows),
-                            TelnetEvent::Gmcp(on) => SessionEvent::Gmcp(on),
-                            TelnetEvent::GmcpMessage(m) => SessionEvent::GmcpMessage(m),
-                        }));
                         self.out.extend_from_slice(&reply);
+                        for e in events {
+                            match e {
+                                TelnetEvent::Naws(caps) => self.outbox.push_back(SessionEvent::Naws(caps.columns, caps.rows)),
+                                TelnetEvent::Gmcp(on) => self.outbox.push_back(SessionEvent::Gmcp(on)),
+                                TelnetEvent::GmcpMessage(m) => self.outbox.push_back(SessionEvent::GmcpMessage(m)),
+                                TelnetEvent::CharsetAnswered(_) => {}
+                                TelnetEvent::CharsetAccepted(name) => self.outbox.push_back(SessionEvent::Charset(name)),
+                            }
+                        }
                     }
                     Err(e) if is_drop(&e) => eof = true,
                     Err(e) => return Reason::Io(e.kind()),

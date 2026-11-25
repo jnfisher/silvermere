@@ -20,7 +20,7 @@ does and where it differs from the original host (Worldgroup GSBL) or from MBBSE
 ## Negotiation
 
 On accept the server sends exactly `IAC WILL ECHO`, `IAC WILL SGA`, `IAC WILL BINARY`,
-`IAC DO NAWS`, in that order, and emits `SessionEvent::Connected(80x24)` at once: the login
+`IAC DO NAWS`, in that order (then `IAC WILL GMCP` and `IAC WILL CHARSET` when those are on), and emits `SessionEvent::Connected(80x24)` at once: the login
 prompt never waits for answers.
 
 | Client sends | Server answers |
@@ -33,6 +33,8 @@ prompt never waits for answers.
 | `SB NAWS w h SE` | `SessionEvent::Naws(w, h)`; a zero dimension keeps the default |
 | `DO GMCP` / `DONT GMCP` | nothing (it answers our offer); `SessionEvent::Gmcp(true/false)`. Without `net.gmcp`, `DO GMCP` gets `WONT` |
 | `SB GMCP <message> SE` | `SessionEvent::GmcpMessage(bytes)`, once GMCP is agreed |
+| `DO CHARSET` | `SB CHARSET REQUEST ;IBM437 SE` (see [CHARSET](#charset)). Without `net.charset_negotiation`, `WONT` |
+| `SB CHARSET ACCEPTED name SE` / `REJECTED` | `SessionEvent::Charset(Some(name))` / `Charset(None)` |
 
 Differences from MBBSEmu: it also sends `DO BINARY`, `DONT ECHO`, `DO SGA` and `WONT NAWS`
 on accept. Those are dropped; MegaMud ignores them, and a client that answers
@@ -72,6 +74,21 @@ sends `Core.Supports.Set`, every package goes out; after it, only the modules it
 gets its text with backspaced letters taken out (`gmcp::apply_backspaces`): the direction
 names' anti-script letter, which GMCP clients would otherwise show, since they apply no
 backspaces.
+
+## CHARSET
+
+With `SessionConfig::charset` (`net.charset_negotiation`, on by default) the offers end with
+`IAC WILL CHARSET` (RFC 2066). A client that answers `DO CHARSET` (Mudlet) is sent
+`IAC SB CHARSET REQUEST ";IBM437" IAC SE`, switches to CP437 and keeps that in its profile.
+The engine asks again (`SessionCommand::Charset`, `silvermere-engine`'s `charset` module)
+whenever the text changes encoding: `UTF-8` on entering the game with
+`compat.charset = "utf8"` and on `SET UTF8 ON`, `IBM437` on `SET UTF8 OFF` and on going back
+to the login. Before agreement, after `DONT`, and on rlogin the command is dropped.
+
+Nothing waits for the answer: the first screen goes out at once, so a client that ignores the
+offer (the testkit and `bridge.py` ignore every `WILL`, as MegaMud may) gets exactly the
+bytes it got before, three offer bytes aside. The cost is that a brand-new Mudlet profile
+shows its very first login screen before the switch; from then on the profile remembers.
 
 ## Line discipline
 

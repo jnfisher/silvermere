@@ -166,6 +166,11 @@ pub enum EngineInput {
     Gmcp { id: SessionId, on: bool },
     /// A GMCP message from the client: `Package.Name`, then optional JSON.
     GmcpMessage { id: SessionId, text: String },
+    /// The client accepted a requested character set (telnet CHARSET), or refused (`None`).
+    Charset {
+        id: SessionId,
+        accepted: Option<String>,
+    },
     /// The connection is gone.
     Disconnect { id: SessionId },
     /// The fast tick (one per second in production).
@@ -225,6 +230,11 @@ impl fmt::Debug for EngineInput {
                 .field("id", id)
                 .field("text", text)
                 .finish(),
+            Self::Charset { id, accepted } => f
+                .debug_struct("Charset")
+                .field("id", id)
+                .field("accepted", accepted)
+                .finish(),
             Self::Disconnect { id } => f.debug_struct("Disconnect").field("id", id).finish(),
             Self::Tick => f.write_str("Tick"),
             Self::Admin(req) => f.debug_tuple("Admin").field(req).finish(),
@@ -250,6 +260,7 @@ impl EngineInput {
             Self::Naws { .. } => "Naws",
             Self::Gmcp { .. } => "Gmcp",
             Self::GmcpMessage { .. } => "GmcpMessage",
+            Self::Charset { .. } => "Charset",
             Self::Disconnect { .. } => "Disconnect",
             Self::Tick => "Tick",
             Self::Admin(_) => "Admin",
@@ -269,6 +280,7 @@ impl EngineInput {
             | Self::Naws { id, .. }
             | Self::Gmcp { id, .. }
             | Self::GmcpMessage { id, .. }
+            | Self::Charset { id, .. }
             | Self::Disconnect { id } => Some(*id),
             Self::Custom { session, .. } => *session,
             _ => None,
@@ -483,6 +495,12 @@ pub enum EngineOutput {
     Gmcp {
         id: SessionId,
         message: String,
+    },
+    /// Ask the client to read the session's text as `name` (`IBM437`, `UTF-8`) from now on
+    /// (telnet CHARSET, [`crate::charset`]); goes out ahead of the event's writes.
+    Charset {
+        id: SessionId,
+        name: String,
     },
     /// The session's `Line` is being run now: its output follows. The transport holds back the
     /// line's CR echo until then, so a tick that runs before the line cannot land between
@@ -704,6 +722,9 @@ impl<C: Clock, R: Rng> Engine<C, R> {
                     s.idle_since = now;
                 }
                 crate::state::login::logged_in(world, id, *login);
+                // the game text from here on may be UTF-8 (`compat.charset`)
+                let utf8 = world.sessions.get(&id).is_some_and(|s| s.caps.utf8);
+                crate::charset::sync(world, id, utf8);
             }
             EngineInput::Line { id, text } => {
                 if let Some(s) = world.sessions.get_mut(&id) {
@@ -728,6 +749,9 @@ impl<C: Clock, R: Rng> Engine<C, R> {
             }
             EngineInput::Gmcp { id, on } => crate::gmcp::on_enabled(world, id, on),
             EngineInput::GmcpMessage { id, text } => crate::gmcp::on_message(world, id, &text),
+            EngineInput::Charset { id, accepted } => {
+                crate::charset::on_accepted(world, id, accepted)
+            }
             EngineInput::Disconnect { id } => {
                 session::on_disconnect(world, id);
                 world
@@ -851,7 +875,9 @@ impl<C: Clock, R: Rng> Engine<C, R> {
             .partition(|o| {
                 matches!(
                     o,
-                    EngineOutput::SetEcho { .. } | EngineOutput::SetCharMode { .. }
+                    EngineOutput::SetEcho { .. }
+                        | EngineOutput::SetCharMode { .. }
+                        | EngineOutput::Charset { .. }
                 )
             });
         self.world.outbox = rest;

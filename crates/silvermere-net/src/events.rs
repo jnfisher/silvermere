@@ -71,6 +71,9 @@ pub enum SessionEvent {
     /// A GMCP message from the client: `Package.Name`, then optional JSON after a space
     /// (UTF-8, unchecked).
     GmcpMessage(Vec<u8>),
+    /// The client accepted a requested character set (`IBM437`, `UTF-8`), or rejected the
+    /// request (`None`); only when [`crate::SessionConfig::charset`] offers CHARSET.
+    Charset(Option<Vec<u8>>),
     /// The session is gone; no further events follow for this id.
     Disconnect(Reason),
 }
@@ -97,6 +100,9 @@ pub enum SessionCommand {
     /// A GMCP message for the client (`Package.Name json`, UTF-8), framed as `IAC SB GMCP ...
     /// IAC SE`. Dropped unless the client agreed to GMCP.
     Gmcp(Vec<u8>),
+    /// Ask the client to read the text as this character set from now on (`UTF-8` after
+    /// `SET UTF8 ON`). Dropped unless the client agreed to CHARSET.
+    Charset(Vec<u8>),
     /// Flush queued output, then close.
     Close,
 }

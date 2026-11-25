@@ -28,6 +28,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod charset;
 pub mod cleanup;
 pub mod combat;
 pub mod commands;

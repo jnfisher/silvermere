@@ -131,6 +131,9 @@ pub struct PlayerSession {
     pub sanctions: crate::moderation::Sanctions,
     /// GMCP, once the client agreed to it ([`crate::gmcp`]).
     pub gmcp: Option<crate::gmcp::Gmcp>,
+    /// The character set the client agreed to read (telnet CHARSET, [`crate::charset`]);
+    /// `None` when it never agreed.
+    pub charset: Option<String>,
 }
 
 impl PlayerSession {
@@ -180,6 +183,7 @@ impl PlayerSession {
             peer: None,
             sanctions: crate::moderation::Sanctions::default(),
             gmcp: None,
+            charset: None,
         }
     }
 
