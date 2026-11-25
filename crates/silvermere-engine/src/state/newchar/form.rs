@@ -74,9 +74,12 @@ const EURMSK: u16 = 0x7F;
 /// `ANSILN`: the host's screen rows.
 const ANSILN: u16 = 25;
 
-/// Full screen on an ANSI terminal of at least 23 rows and 80 columns.
-pub fn fits(caps: &Caps) -> bool {
-    caps.ansi && caps.rows >= 23 && caps.columns >= 80
+/// Full screen on an ANSI terminal of at least 23 rows and 80 columns. A MUD client
+/// (`mud_client`: it agreed to GMCP, as Mudlet does) gets the line-mode editor: it shows the
+/// text as a scrolling log with its own input line, so it neither moves a cursor around the
+/// screen nor sends single keys.
+pub fn fits(caps: &Caps, mud_client: bool) -> bool {
+    caps.ansi && caps.rows >= 23 && caps.columns >= 80 && !mud_client
 }
 
 /// The form while it is open, kept in [`StatEditor::form`].
@@ -464,9 +467,11 @@ mod tests {
             ansi,
             ..Caps::default()
         };
-        assert!(fits(&caps(80, 23, true)));
-        assert!(!fits(&caps(79, 25, true)));
-        assert!(!fits(&caps(80, 22, true)));
-        assert!(!fits(&caps(80, 25, false)));
+        assert!(fits(&caps(80, 23, true), false));
+        assert!(!fits(&caps(79, 25, true), false));
+        assert!(!fits(&caps(80, 22, true), false));
+        assert!(!fits(&caps(80, 25, false), false));
+        // Mudlet and the like: the line-mode editor whatever the window
+        assert!(!fits(&caps(200, 60, true), true));
     }
 }

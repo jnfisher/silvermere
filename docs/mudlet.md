@@ -23,6 +23,10 @@ backspace, `orth`) so that client scripts can't match "north". Mudlet doesn't ap
 backspaces, so once a client has agreed to GMCP the server leaves the letters out; it has
 the exits as data anyway. Clients without GMCP (MegaMud, plain telnet) get them as before.
 
+Character creation and `TRAIN STATS` use the line-mode editor in Mudlet (one question per
+line) instead of the original's full-screen form, which needs a terminal that moves its
+cursor around the screen.
+
 ## The map
 
 Mudlet only draws maps from GMCP on its own for a few games it knows. For Silvermere,

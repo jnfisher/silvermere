@@ -387,7 +387,7 @@ pub fn edit_character_stats(world: &mut World, id: SessionId, newchar: bool) {
     } else {
         StatEditor::open_existing(plr, rac, blanklast)
     };
-    let mut sf = StatForm::prepare(plr, rac, cls, form::fits(&s.caps));
+    let mut sf = StatForm::prepare(plr, rac, cls, form::fits(&s.caps, s.gmcp.is_some()));
     if sf.is_full_screen() {
         s.output.push_raw(sf.background());
         sf.lock_keyboard();
