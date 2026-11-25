@@ -9,7 +9,9 @@ behaviour.
 
 Character creation and `TRAIN STATS` open the original's full-screen form (`EDITCHA1`)
 when the terminal is ANSI with at least 80 columns and 23 rows.
-Smaller terminals and ANSI-off sessions get the line-mode editor (T-022, T-047). A client
+Smaller terminals, ANSI-off sessions and MUD clients that agreed to GMCP (Mudlet shows a
+scrolling log with its own input line, so it can neither place a cursor nor send single
+keys) get the line-mode editor (T-022, T-047). A client
 that never answers NAWS is taken to be 80x24, which is what MBBSEmu assumed, so it gets the
 form. Both editors run the same checks and the same finish routine,
 so they always produce the same character from the same answers.

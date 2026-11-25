@@ -2,11 +2,11 @@
 
 use std::time::Duration;
 
-use silvermere_net::telnet::options::{BINARY, ECHO, LINEMODE, NAWS, SGA, TTYPE};
+use silvermere_net::telnet::options::{BINARY, CHARSET, ECHO, GMCP, LINEMODE, NAWS, SGA, TTYPE};
 use silvermere_net::telnet::parser::{DO, DONT, IAC, SB, SE, WILL, WONT};
 use silvermere_net::{
-    Capabilities, SessionCommand, SessionEvent, SessionId, TelnetTransport, Transport,
-    spawn_session,
+    Capabilities, SessionCommand, SessionConfig, SessionEvent, SessionId, TelnetTransport,
+    Transport, spawn_session, spawn_session_with,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -171,4 +171,155 @@ async fn telnet_transport_negotiates_and_strips() {
     client.read_exact(&mut out).await.unwrap();
     assert_eq!(out, [0xFF, 0xFF]);
     t.close().await;
+}
+
+/// A session with `net.gmcp` on: the offers end with `WILL GMCP`.
+async fn start_gmcp() -> Harness {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let client = TcpStream::connect(listener.local_addr().unwrap())
+        .await
+        .unwrap();
+    let (server, _) = listener.accept().await.unwrap();
+    let (tx, events) = mpsc::channel(16);
+    let config = SessionConfig {
+        gmcp: true,
+        ..SessionConfig::default()
+    };
+    let commands = spawn_session_with(SessionId(1), server, tx, config);
+    let mut h = Harness {
+        client,
+        events,
+        commands,
+    };
+    assert!(matches!(h.event().await, SessionEvent::Peer(_)));
+    assert!(matches!(h.event().await, SessionEvent::Connected(_)));
+    h.expect(&[
+        IAC, WILL, ECHO, IAC, WILL, SGA, IAC, WILL, BINARY, IAC, DO, NAWS, IAC, WILL, GMCP,
+    ])
+    .await;
+    h
+}
+
+#[tokio::test]
+async fn gmcp_is_sent_only_after_the_client_agrees() {
+    let mut h = start_gmcp().await;
+    // before DO GMCP: dropped
+    h.commands
+        .send(SessionCommand::Gmcp(b"Room.Info {}".to_vec()))
+        .await
+        .unwrap();
+    h.expect_silence().await;
+
+    h.send(&[IAC, DO, GMCP]).await;
+    assert_eq!(h.event().await, SessionEvent::Gmcp(true));
+    let mut hello = vec![IAC, SB, GMCP];
+    hello.extend_from_slice(br#"Core.Hello {"client":"Mudlet","version":"4.19"}"#);
+    hello.extend([IAC, SE]);
+    h.send(&hello).await;
+    assert_eq!(
+        h.event().await,
+        SessionEvent::GmcpMessage(br#"Core.Hello {"client":"Mudlet","version":"4.19"}"#.to_vec())
+    );
+
+    h.commands
+        .send(SessionCommand::Gmcp(b"Char.Vitals {\"hp\":5}".to_vec()))
+        .await
+        .unwrap();
+    let mut want = vec![IAC, SB, GMCP];
+    want.extend_from_slice(b"Char.Vitals {\"hp\":5}");
+    want.extend([IAC, SE]);
+    h.expect(&want).await;
+    // the DO acknowledged our offer: no WILL repeated
+    h.expect_silence().await;
+}
+
+#[tokio::test]
+async fn gmcp_is_refused_when_off() {
+    let mut h = start().await;
+    h.send(&[IAC, DO, GMCP]).await;
+    h.expect(&[IAC, WONT, GMCP]).await;
+    h.commands
+        .send(SessionCommand::Gmcp(b"Room.Info {}".to_vec()))
+        .await
+        .unwrap();
+    h.expect_silence().await;
+}
+
+/// A session that offers CHARSET (IBM437); the engine has queued its banner at once.
+async fn start_charset() -> Harness {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let client = TcpStream::connect(listener.local_addr().unwrap())
+        .await
+        .unwrap();
+    let (server, _) = listener.accept().await.unwrap();
+    let (tx, events) = mpsc::channel(16);
+    let config = SessionConfig {
+        charset: Some(b"IBM437".to_vec()),
+        ..SessionConfig::default()
+    };
+    let commands = spawn_session_with(SessionId(1), server, tx, config);
+    let mut h = Harness {
+        client,
+        events,
+        commands,
+    };
+    assert!(matches!(h.event().await, SessionEvent::Peer(_)));
+    assert!(matches!(h.event().await, SessionEvent::Connected(_)));
+    h.commands
+        .send(SessionCommand::Write(b"\xB0\xB1 banner".to_vec()))
+        .await
+        .unwrap();
+    h.expect(&[
+        IAC, WILL, ECHO, IAC, WILL, SGA, IAC, WILL, BINARY, IAC, DO, NAWS, IAC, WILL, CHARSET,
+    ])
+    .await;
+    h
+}
+
+fn request(name: &[u8]) -> Vec<u8> {
+    let mut v = vec![IAC, SB, CHARSET, 1, b';'];
+    v.extend_from_slice(name);
+    v.extend([IAC, SE]);
+    v
+}
+
+#[tokio::test]
+async fn charset_is_requested_once_the_client_agrees() {
+    // Mudlet: DO CHARSET, then ACCEPTED. The first screen is not held for the answer: a
+    // client that ignores the offer (bridge.py, perhaps MegaMud) must not wait for it.
+    let mut h = start_charset().await;
+    h.expect(b"\xB0\xB1 banner").await;
+    h.send(&[IAC, DO, CHARSET]).await;
+    h.expect(&request(b"IBM437")).await;
+    let mut accepted = vec![IAC, SB, CHARSET, 2];
+    accepted.extend_from_slice(b"IBM437");
+    accepted.extend([IAC, SE]);
+    h.send(&accepted).await;
+    assert_eq!(
+        h.event().await,
+        SessionEvent::Charset(Some(b"IBM437".to_vec()))
+    );
+    // a later request (SET UTF8 ON)
+    h.commands
+        .send(SessionCommand::Charset(b"UTF-8".to_vec()))
+        .await
+        .unwrap();
+    h.expect(&request(b"UTF-8")).await;
+}
+
+#[tokio::test]
+async fn a_refused_or_ignored_charset_changes_nothing() {
+    // plain telnet refuses, the bridge ignores: the same bytes as before, nothing requested
+    for refuse in [true, false] {
+        let mut h = start_charset().await;
+        h.expect(b"\xB0\xB1 banner").await;
+        if refuse {
+            h.send(&[IAC, DONT, CHARSET]).await;
+        }
+        h.commands
+            .send(SessionCommand::Charset(b"UTF-8".to_vec()))
+            .await
+            .unwrap();
+        h.expect_silence().await;
+    }
 }

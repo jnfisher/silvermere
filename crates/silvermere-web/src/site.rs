@@ -24,15 +24,9 @@ pub const FAQ: &str = "faq";
 const GROUPS: &[(&str, &[&str])] = &[
     (
         "Set up",
-        &[
-            "install",
-            "windows",
-            "deploy-checklist",
-            "import",
-            "auth",
-            "legacy-clients",
-        ],
+        &["install", "windows", "deploy-checklist", "import", "auth"],
     ),
+    ("Play", &["clients", "legacy-clients"]),
     (
         "Run",
         &["config", "web", "cli", "sysop", "admin-api", "metrics"],

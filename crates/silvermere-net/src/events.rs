@@ -65,6 +65,15 @@ pub enum SessionEvent {
     Key(u8),
     /// The client reported its window size (columns, rows).
     Naws(u16, u16),
+    /// The client agreed to GMCP (`true`) or turned it off (`false`); only when
+    /// [`crate::SessionConfig::gmcp`] offers it.
+    Gmcp(bool),
+    /// A GMCP message from the client: `Package.Name`, then optional JSON after a space
+    /// (UTF-8, unchecked).
+    GmcpMessage(Vec<u8>),
+    /// The client accepted a requested character set (`IBM437`, `UTF-8`), or rejected the
+    /// request (`None`); only when [`crate::SessionConfig::charset`] offers CHARSET.
+    Charset(Option<Vec<u8>>),
     /// The session is gone; no further events follow for this id.
     Disconnect(Reason),
 }
@@ -88,6 +97,12 @@ pub enum SessionCommand {
     /// the engine as if he had typed it, with no echo on his screen. In character mode it goes
     /// as keys, Enter last.
     Inject(Vec<u8>),
+    /// A GMCP message for the client (`Package.Name json`, UTF-8), framed as `IAC SB GMCP ...
+    /// IAC SE`. Dropped unless the client agreed to GMCP.
+    Gmcp(Vec<u8>),
+    /// Ask the client to read the text as this character set from now on (`UTF-8` after
+    /// `SET UTF8 ON`). Dropped unless the client agreed to CHARSET.
+    Charset(Vec<u8>),
     /// Flush queued output, then close.
     Close,
 }

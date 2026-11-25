@@ -129,6 +129,11 @@ pub struct PlayerSession {
     pub peer: Option<std::net::IpAddr>,
     /// The sysop's mute and jail on the account, read at login.
     pub sanctions: crate::moderation::Sanctions,
+    /// GMCP, once the client agreed to it ([`crate::gmcp`]).
+    pub gmcp: Option<crate::gmcp::Gmcp>,
+    /// The character set the client agreed to read (telnet CHARSET, [`crate::charset`]);
+    /// `None` when it never agreed.
+    pub charset: Option<String>,
 }
 
 impl PlayerSession {
@@ -177,6 +182,8 @@ impl PlayerSession {
             sysop_keys: crate::commands::sysop::Keys::empty(),
             peer: None,
             sanctions: crate::moderation::Sanctions::default(),
+            gmcp: None,
+            charset: None,
         }
     }
 

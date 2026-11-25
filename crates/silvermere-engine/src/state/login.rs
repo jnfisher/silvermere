@@ -202,6 +202,8 @@ pub fn log_on_again(world: &mut World, id: SessionId) {
         s.state = SessionState::Start;
         s.bbs_confirm = false;
     }
+    // the login dialogue is CP437
+    crate::charset::sync(world, id, false);
     world
         .outbox
         .push(crate::event_loop::EngineOutput::ReturnToLogin { id });

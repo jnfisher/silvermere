@@ -24,8 +24,8 @@
 //! One option is new: `SET UTF8 ON|OFF` switches the session's output between CP437 and
 //! UTF-8. It is the last two-word option, so it shadows
 //! nothing the original had.
-//! It flips `PlayerSession::caps.utf8`, the transport seam the flush reads; negotiating it
-//! through telnet `CHARSET` is a later enhancement and would set the same flag.
+//! It flips `PlayerSession::caps.utf8`, the transport seam the flush reads, and tells a
+//! client that agreed to telnet `CHARSET` to switch with it ([`crate::charset`]).
 
 use silvermere_rules::economy;
 use silvermere_text::Msg;
@@ -599,6 +599,9 @@ pub fn apply(world: &mut World, id: SessionId, change: Change) -> Handled {
     // the choice is kept, but the sysop's KEEPEXP decides whether it counts
     if change == C::Keep(true) && keep_disabled {
         s.output.push(Msg::SetKeepDisabled);
+    }
+    if let C::Utf8(on) = change {
+        crate::charset::sync(world, id, on);
     }
     Handled::Done
 }

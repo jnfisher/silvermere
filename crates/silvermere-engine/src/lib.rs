@@ -28,6 +28,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod charset;
 pub mod cleanup;
 pub mod combat;
 pub mod commands;
@@ -37,6 +38,7 @@ pub mod display;
 pub mod event_loop;
 pub mod evil;
 pub mod gangs;
+pub mod gmcp;
 pub mod help;
 pub mod ids;
 pub mod items;

@@ -216,6 +216,8 @@ pub fn display_room(world: &mut World, id: SessionId, mode: RoomMode) {
     }
     let exits = exits_msg(&room, &world.display.dirnames, &world.messages);
     push(world, exits);
+    // the mapper's copy of what was just shown (GMCP `Room.Info`)
+    crate::gmcp::room_info(world, id, &room);
     // The light line below 0, with or without `skip_move`.
     if light < 0 {
         push(

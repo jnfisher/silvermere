@@ -162,6 +162,15 @@ pub enum EngineInput {
         columns: u16,
         rows: u16,
     },
+    /// The client agreed to GMCP (`on`) or turned it off ([`crate::gmcp`]).
+    Gmcp { id: SessionId, on: bool },
+    /// A GMCP message from the client: `Package.Name`, then optional JSON.
+    GmcpMessage { id: SessionId, text: String },
+    /// The client accepted a requested character set (telnet CHARSET), or refused (`None`).
+    Charset {
+        id: SessionId,
+        accepted: Option<String>,
+    },
     /// The connection is gone.
     Disconnect { id: SessionId },
     /// The fast tick (one per second in production).
@@ -211,6 +220,21 @@ impl fmt::Debug for EngineInput {
                 .field("columns", columns)
                 .field("rows", rows)
                 .finish(),
+            Self::Gmcp { id, on } => f
+                .debug_struct("Gmcp")
+                .field("id", id)
+                .field("on", on)
+                .finish(),
+            Self::GmcpMessage { id, text } => f
+                .debug_struct("GmcpMessage")
+                .field("id", id)
+                .field("text", text)
+                .finish(),
+            Self::Charset { id, accepted } => f
+                .debug_struct("Charset")
+                .field("id", id)
+                .field("accepted", accepted)
+                .finish(),
             Self::Disconnect { id } => f.debug_struct("Disconnect").field("id", id).finish(),
             Self::Tick => f.write_str("Tick"),
             Self::Admin(req) => f.debug_tuple("Admin").field(req).finish(),
@@ -234,6 +258,9 @@ impl EngineInput {
             Self::Line { .. } => "Line",
             Self::Key { .. } => "Key",
             Self::Naws { .. } => "Naws",
+            Self::Gmcp { .. } => "Gmcp",
+            Self::GmcpMessage { .. } => "GmcpMessage",
+            Self::Charset { .. } => "Charset",
             Self::Disconnect { .. } => "Disconnect",
             Self::Tick => "Tick",
             Self::Admin(_) => "Admin",
@@ -251,6 +278,9 @@ impl EngineInput {
             | Self::LoggedIn { id, .. }
             | Self::Key { id, .. }
             | Self::Naws { id, .. }
+            | Self::Gmcp { id, .. }
+            | Self::GmcpMessage { id, .. }
+            | Self::Charset { id, .. }
             | Self::Disconnect { id } => Some(*id),
             Self::Custom { session, .. } => *session,
             _ => None,
@@ -459,6 +489,18 @@ pub enum EngineOutput {
     SetCharMode {
         id: SessionId,
         on: bool,
+    },
+    /// A GMCP message for the session (`Package.Name json`); the transport drops it unless
+    /// the client agreed to GMCP ([`crate::gmcp`]).
+    Gmcp {
+        id: SessionId,
+        message: String,
+    },
+    /// Ask the client to read the session's text as `name` (`IBM437`, `UTF-8`) from now on
+    /// (telnet CHARSET, [`crate::charset`]); goes out ahead of the event's writes.
+    Charset {
+        id: SessionId,
+        name: String,
     },
     /// The session's `Line` is being run now: its output follows. The transport holds back the
     /// line's CR echo until then, so a tick that runs before the line cannot land between
@@ -680,6 +722,9 @@ impl<C: Clock, R: Rng> Engine<C, R> {
                     s.idle_since = now;
                 }
                 crate::state::login::logged_in(world, id, *login);
+                // the game text from here on may be UTF-8 (`compat.charset`)
+                let utf8 = world.sessions.get(&id).is_some_and(|s| s.caps.utf8);
+                crate::charset::sync(world, id, utf8);
             }
             EngineInput::Line { id, text } => {
                 if let Some(s) = world.sessions.get_mut(&id) {
@@ -701,6 +746,11 @@ impl<C: Clock, R: Rng> Engine<C, R> {
                     s.caps.columns = columns;
                     s.caps.rows = rows;
                 }
+            }
+            EngineInput::Gmcp { id, on } => crate::gmcp::on_enabled(world, id, on),
+            EngineInput::GmcpMessage { id, text } => crate::gmcp::on_message(world, id, &text),
+            EngineInput::Charset { id, accepted } => {
+                crate::charset::on_accepted(world, id, accepted)
             }
             EngineInput::Disconnect { id } => {
                 session::on_disconnect(world, id);
@@ -825,7 +875,9 @@ impl<C: Clock, R: Rng> Engine<C, R> {
             .partition(|o| {
                 matches!(
                     o,
-                    EngineOutput::SetEcho { .. } | EngineOutput::SetCharMode { .. }
+                    EngineOutput::SetEcho { .. }
+                        | EngineOutput::SetCharMode { .. }
+                        | EngineOutput::Charset { .. }
                 )
             });
         self.world.outbox = rest;
@@ -854,6 +906,17 @@ impl<C: Clock, R: Rng> Engine<C, R> {
             if reprompt {
                 bytes.extend_from_slice(&prompt_bytes(&self.world, id));
             }
+            // A GMCP client (Mudlet, TinTin++) applies no backspaces: it gets the direction names
+            // as a terminal shows them, without their anti-script letter (it has the exits as
+            // data anyway). MegaMud never agrees to GMCP and keeps them.
+            if self
+                .world
+                .sessions
+                .get(&id)
+                .is_some_and(|s| s.gmcp.is_some())
+            {
+                crate::gmcp::apply_backspaces(&mut bytes);
+            }
             // `SET UTF8 ON` (T-028): the CP437 bytes as UTF-8 text.
             if self.world.sessions.get(&id).is_some_and(|s| s.caps.utf8) {
                 bytes = silvermere_text::cp437::decode(&bytes).into_bytes();
@@ -861,6 +924,10 @@ impl<C: Clock, R: Rng> Engine<C, R> {
             if !bytes.is_empty() {
                 let _ = self.outputs.send(EngineOutput::Write { id, bytes });
             }
+        }
+        // GMCP character data that changed during the event, after the text that shows it.
+        for out in crate::gmcp::refresh(&mut self.world) {
+            let _ = self.outputs.send(out);
         }
         for out in std::mem::take(&mut self.world.outbox) {
             let _ = self.outputs.send(out);

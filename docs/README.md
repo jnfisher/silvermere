@@ -10,6 +10,7 @@
 | [sysop.md](sysop.md) | first steps for a new sysop, and the sysop commands |
 | [web.md](web.md) | the server's own web pages: documentation, FAQ, the settings editor and the sysop console |
 | [faq.md](faq.md) | short answers to what sysops ask first |
+| [clients.md](clients.md) | connecting: plain telnet, MegaMud, Mudlet (the mapper package, health and mana) and other MUD clients; what the server negotiates |
 | [config.md](config.md) | every `silvermere.toml` key, its environment variable, default and original name |
 | [config-defaults.md](config-defaults.md) | every option of the original and what became of it (generated) |
 | [differences.md](differences.md) | what is different from the original |
