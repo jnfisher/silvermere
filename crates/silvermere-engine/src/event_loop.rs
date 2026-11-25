@@ -880,6 +880,17 @@ impl<C: Clock, R: Rng> Engine<C, R> {
             if reprompt {
                 bytes.extend_from_slice(&prompt_bytes(&self.world, id));
             }
+            // A GMCP client (Mudlet, TinTin++) applies no backspaces: it gets the direction names
+            // as a terminal shows them, without their anti-script letter (it has the exits as
+            // data anyway). MegaMud never agrees to GMCP and keeps them.
+            if self
+                .world
+                .sessions
+                .get(&id)
+                .is_some_and(|s| s.gmcp.is_some())
+            {
+                crate::gmcp::apply_backspaces(&mut bytes);
+            }
             // `SET UTF8 ON` (T-028): the CP437 bytes as UTF-8 text.
             if self.world.sessions.get(&id).is_some_and(|s| s.caps.utf8) {
                 bytes = silvermere_text::cp437::decode(&bytes).into_bytes();

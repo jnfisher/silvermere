@@ -277,9 +277,40 @@ pub fn refresh(world: &mut World) -> Vec<EngineOutput> {
     out
 }
 
+/// Drops each printable ASCII byte that a backspace takes back before another printable
+/// byte overwrites it (`n` `X` BS `orth` becomes `north`), as a terminal would show it. The
+/// direction names' anti-script letters ([`crate::display::exits::DirNames`]) are what this is
+/// for: a client that applies no backspaces shows the letter and a stray character.
+pub fn apply_backspaces(bytes: &mut Vec<u8>) {
+    const BS: u8 = 0x08;
+    if !bytes.contains(&BS) {
+        return;
+    }
+    let printable = |b: Option<&u8>| b.is_some_and(|b| (0x20..0x7F).contains(b));
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if printable(bytes.get(i)) && bytes.get(i + 1) == Some(&BS) && printable(bytes.get(i + 2)) {
+            i += 2;
+            continue;
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    *bytes = out;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn backspaced_letters_are_dropped() {
+        let mut b = b"Obvious exits: nA\x08orth, sU\x08outh, wW\x08est\x08".to_vec();
+        apply_backspaces(&mut b);
+        // a backspace with nothing printable after it stays
+        assert_eq!(b, b"Obvious exits: north, south, west\x08".to_vec());
+    }
 
     #[test]
     fn supports_filter_by_module() {

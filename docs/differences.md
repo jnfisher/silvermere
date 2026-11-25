@@ -42,6 +42,11 @@ Stated here so they are not read as differences from a stock install.
 
 ## Changed on purpose
 
+- **GMCP.** Telnet clients are offered GMCP (`net.gmcp`): room data for Mudlet's mapper and
+  health, mana and status for its gauges. A client that agrees also gets the direction names
+  without their hidden anti-script letter, which it would otherwise show, since such clients
+  apply no backspaces. MegaMud and plain telnet decline GMCP and see the original text. See
+  [net.md](net.md#gmcp) and [mudlet.md](mudlet.md).
 - **Accounts.** Passwords are stored with argon2id, failed logins lock an account for a while, and
   passwords are 1-128 bytes with no 5-9 character limit. See [auth.md](auth.md),
   [lockout code](../crates/silvermere-auth/src/lockout.rs).

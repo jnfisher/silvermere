@@ -239,3 +239,33 @@ fn no_gmcp_without_agreement() {
     let msgs = h.line(mapper, "e");
     assert!(msgs.is_empty(), "{msgs:?}");
 }
+
+#[test]
+fn gmcp_clients_get_plain_direction_names() {
+    let mut h = Harness::new();
+    let plain = h.player("Plain", MIDDLE);
+    let mapper = h.player("Mapper", MIDDLE);
+    h.agree(mapper);
+    h.engine.world.display.dirnames.set_letter(3, 'Q');
+    let mut texts = std::collections::BTreeMap::new();
+    h.engine.handle(EngineInput::Line {
+        id: plain,
+        text: "look".into(),
+    });
+    h.engine.handle(EngineInput::Line {
+        id: mapper,
+        text: "look".into(),
+    });
+    while let Ok(o) = h.rx.try_recv() {
+        if let EngineOutput::Write { id, bytes } = o {
+            texts
+                .entry(id)
+                .or_insert_with(Vec::new)
+                .extend_from_slice(&bytes);
+        }
+    }
+    let text = |id| String::from_utf8_lossy(&texts[&id]).into_owned();
+    assert!(text(plain).contains("wQ\u{8}est"), "{}", text(plain));
+    assert!(text(mapper).contains("west"), "{}", text(mapper));
+    assert!(!text(mapper).contains('\u{8}'), "{}", text(mapper));
+}

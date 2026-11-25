@@ -9,6 +9,17 @@ sends it room and character data over GMCP (`net.gmcp`, on by default; see
 Make a new profile in Mudlet with the server's address and telnet port (2323 unless the
 sysop changed `server.telnet_bind`). Mudlet agrees to GMCP by itself.
 
+## Text
+
+The server sends the game's text in CP437, the DOS character set its maps and logos are
+drawn in. Set Mudlet's **Preferences**, **General**, **Server data encoding** to CP437, or
+the box characters show as `�`.
+
+The original game hides a random letter and a backspace in each direction name (`nX`,
+backspace, `orth`) so that client scripts can't match "north". Mudlet doesn't apply
+backspaces, so once a client has agreed to GMCP the server leaves the letters out; it has
+the exits as data anyway. Clients without GMCP (MegaMud, plain telnet) get them as before.
+
 ## The map
 
 Mudlet only draws maps from GMCP on its own for a few games it knows. For Silvermere,

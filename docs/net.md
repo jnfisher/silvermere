@@ -68,7 +68,10 @@ exits are the `Obvious exits:` ones (hidden exits once found, open timed exits):
 learns nothing the text does not show. Exits use Mudlet's short names (`n`, `ne`, `u`,
 `d`, ...); a map-change exit gives the room number on the other map. Until the client
 sends `Core.Supports.Set`, every package goes out; after it, only the modules it lists
-(`Core` always). `Core.Hello` is logged at debug level.
+(`Core` always). `Core.Hello` is logged at debug level. A session that agreed to GMCP also
+gets its text with backspaced letters taken out (`gmcp::apply_backspaces`): the direction
+names' anti-script letter, which GMCP clients would otherwise show, since they apply no
+backspaces.
 
 ## Line discipline
 
