@@ -804,7 +804,7 @@ in this order:
 2. `Make your selection (X to exit):`. `M` enters MajorMUD, `X` logs off (`compat.bbs_menu = true`).
 3. The `[MAJORMUD]:` menu. `[E] . Enter the Realm`.
 
-More on old clients: `docs/legacy-clients.md` (TODO(T-062)).
+Mudlet, other MUD clients and what each gets: [clients.md](clients.md).
 
 ## Backup and restore
 

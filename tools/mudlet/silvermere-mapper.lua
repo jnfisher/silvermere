@@ -17,6 +17,11 @@
 silvermere = silvermere or {}
 local M = silvermere
 
+-- The package's version and date, which build.py copies into the package's details: bump
+-- both with every change, so the Package Manager shows which one a player has.
+M.version = "1.0.0"
+M.released = "2026-11-25"
+
 -- Mudlet's exit numbers and the step on the grid for each GMCP direction.
 M.dirs = {
   n  = { id = 1,  dx = 0,  dy = 1,  dz = 0 },

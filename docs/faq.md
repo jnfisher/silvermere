@@ -152,7 +152,7 @@ Yes, over rlogin: the BBS's callers go straight into the game with no second log
 ### Can players use a client with a map?
 
 Yes: [Mudlet](https://www.mudlet.org/) with the mapper package in `tools/mudlet`. The server
-sends room data over GMCP; see [mudlet.md](mudlet.md).
+sends room data over GMCP; see [Clients](clients.md#mudlet).
 
 ### Can people play in a browser?
 

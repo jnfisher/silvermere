@@ -47,7 +47,7 @@ Stated here so they are not read as differences from a stock install.
   without their hidden anti-script letter, which it would otherwise show, since such clients
   apply no backspaces, and the line-mode stat editor instead of the full-screen form, which
   such clients cannot draw. MegaMud and plain telnet decline GMCP and see the original text. See
-  [net.md](net.md#gmcp) and [mudlet.md](mudlet.md).
+  [net.md](net.md#gmcp) and [clients.md](clients.md#mudlet).
 - **Character set negotiation.** Telnet clients are told the text is CP437 (telnet CHARSET,
   `net.charset_negotiation`), so Mudlet switches its encoding by itself. Clients that
   refuse or ignore the offer get the same bytes as before. See [net.md](net.md#charset).
