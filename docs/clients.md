@@ -71,8 +71,8 @@ full-screen form.
 Mudlet draws maps from GMCP on its own only for a few games it knows. For Silvermere,
 install the mapper package once per profile:
 
-1. Download [`silvermere-mapper.mpackage`](https://raw.githubusercontent.com/jnfisher/silvermere/main/tools/mudlet/silvermere-mapper.mpackage)
-   (it is also in the source, `tools/mudlet/`).
+1. Download [`silvermere-mapper.mpackage`](https://github.com/jnfisher/silvermere/releases/latest/download/silvermere-mapper.mpackage)
+   from the latest release (it is also in the source, `tools/mudlet/`).
 2. In Mudlet: **Package Manager**, **Install new package**, pick the file. The Package
    Manager then lists it as `silvermere-mapper` with its version and a description.
 3. Open the map (**Map** on the toolbar, or the map panel of the Mudlet UI) and walk.

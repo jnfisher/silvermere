@@ -195,13 +195,23 @@ jobs:
           path: archives
           pattern: archive-*
           merge-multiple: true
+      # the Mudlet mapper package, a download of its own for players (docs/clients.md)
+      - uses: actions/checkout@v4
+        with:
+          path: src
+          sparse-checkout: tools/mudlet
+      - name: Mudlet package
+        run: |
+          python3 src/tools/mudlet/build.py --check
+          cp src/tools/mudlet/silvermere-mapper.mpackage archives/
       - name: SHA256SUMS
         working-directory: archives
         run: |
           if command -v sha256sum > /dev/null; then sha256sum silvermere-* > SHA256SUMS; else shasum -a 256 silvermere-* > SHA256SUMS; fi
           cat SHA256SUMS
-          # 4 archives (5 targets, 2 darwin merged into one universal); 3 on the basement, no macOS
-          want=4; [ "$BASEMENT" = true ] && want=3
+          # 4 archives (5 targets, 2 darwin merged into one universal; 3 on the basement, no
+          # macOS) and the Mudlet package
+          want=5; [ "$BASEMENT" = true ] && want=4
           test "$(wc -l < SHA256SUMS)" -eq "$want" || echo "::warning::expected $want archives"
           sha256sum -c SHA256SUMS
       - uses: actions/upload-artifact@v4
