@@ -149,6 +149,11 @@ See [Firewall](install.md#firewall).
 Yes, over rlogin: the BBS's callers go straight into the game with no second login. See
 [rlogin (a BBS door)](auth.md#rlogin-a-bbs-door).
 
+### Can players use a client with a map?
+
+Yes: [Mudlet](https://www.mudlet.org/) with the mapper package in `tools/mudlet`. The server
+sends room data over GMCP; see [mudlet.md](mudlet.md).
+
 ### Can people play in a browser?
 
 Not yet. Players connect with a telnet client.

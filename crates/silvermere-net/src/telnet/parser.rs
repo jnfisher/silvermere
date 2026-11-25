@@ -13,9 +13,10 @@ pub const NOP: u8 = 241;
 /// Subnegotiation end.
 pub const SE: u8 = 240;
 
-/// Longest subnegotiation payload kept. NAWS needs four bytes; anything longer is an option we
-/// refused anyway, so the excess is discarded rather than buffered without bound.
-const SB_MAX: usize = 64;
+/// Longest subnegotiation payload kept. NAWS needs four bytes; a GMCP message (`Core.Hello`,
+/// `Core.Supports.Set`) a few hundred. A longer one is dropped whole rather than buffered
+/// without bound or passed on cut short.
+pub const SB_MAX: usize = 8 * 1024;
 
 /// The four negotiation verbs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -77,6 +78,8 @@ pub struct Parser {
     state: State,
     sb_option: u8,
     sb_payload: Vec<u8>,
+    /// The subnegotiation being read passed [`SB_MAX`]: it is dropped at its `SE`.
+    sb_overflow: bool,
 }
 
 impl Default for Parser {
@@ -91,6 +94,7 @@ impl Parser {
             state: State::Data,
             sb_option: 0,
             sb_payload: Vec::new(),
+            sb_overflow: false,
         }
     }
 
@@ -126,6 +130,7 @@ impl Parser {
             State::SbOption => {
                 self.sb_option = byte;
                 self.sb_payload.clear();
+                self.sb_overflow = false;
                 self.state = State::SbData;
                 None
             }
@@ -140,10 +145,11 @@ impl Parser {
             State::SbIac => match byte {
                 SE => {
                     self.state = State::Data;
-                    Some(Action::Subnegotiation(
-                        self.sb_option,
-                        std::mem::take(&mut self.sb_payload),
-                    ))
+                    let payload = std::mem::take(&mut self.sb_payload);
+                    if self.sb_overflow {
+                        return None;
+                    }
+                    Some(Action::Subnegotiation(self.sb_option, payload))
                 }
                 IAC => {
                     self.push_sb(IAC);
@@ -163,6 +169,8 @@ impl Parser {
     fn push_sb(&mut self, byte: u8) {
         if self.sb_payload.len() < SB_MAX {
             self.sb_payload.push(byte);
+        } else {
+            self.sb_overflow = true;
         }
     }
 }
@@ -199,6 +207,19 @@ mod tests {
                 Action::Subnegotiation(31, vec![0, 0xFF, 0, 24]),
                 Action::Data(b'x')
             ]
+        );
+    }
+
+    #[test]
+    fn oversized_subnegotiation_is_dropped_whole() {
+        let mut bytes = vec![IAC, SB, 201];
+        bytes.extend(std::iter::repeat_n(b'x', SB_MAX + 1));
+        bytes.extend([IAC, SE, b'y']);
+        assert_eq!(run(&bytes), vec![Action::Data(b'y')]);
+        // the next one is read normally
+        assert_eq!(
+            run(&[IAC, SB, 201, b'a', IAC, SE]),
+            vec![Action::Subnegotiation(201, b"a".to_vec())]
         );
     }
 

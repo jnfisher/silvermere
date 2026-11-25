@@ -25,5 +25,5 @@ pub use screens::Screens;
 pub use session_task::{
     ServerConfig, SessionConfig, bind, serve, serve_with_rlogin, spawn_session, spawn_session_with,
 };
-pub use telnet::{TelnetCodec, TelnetTransport};
+pub use telnet::{TelnetCodec, TelnetEvent, TelnetTransport};
 pub use transport::Transport;

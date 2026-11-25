@@ -19,6 +19,7 @@ silvermere-text.workspace = true
 silvermere-types.workspace = true
 jiff.workspace = true
 metrics.workspace = true
+serde_json.workspace = true
 slotmap.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
@@ -30,7 +31,6 @@ miniz_oxide.workspace = true
 proptest.workspace = true
 regex.workspace = true
 serde.workspace = true
-serde_json.workspace = true
 sha2.workspace = true
 ureq.workspace = true
 

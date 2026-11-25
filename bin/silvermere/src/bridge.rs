@@ -189,6 +189,12 @@ fn translate(id: silvermere_engine::SessionId, ev: GateEvent) -> Option<EngineIn
         SessionEvent::LineTooLong => return None,
         SessionEvent::Key(byte) => EngineInput::Key { id, byte },
         SessionEvent::Naws(columns, rows) => EngineInput::Naws { id, columns, rows },
+        SessionEvent::Gmcp(on) => EngineInput::Gmcp { id, on },
+        // GMCP is UTF-8 (not CP437)
+        SessionEvent::GmcpMessage(bytes) => EngineInput::GmcpMessage {
+            id,
+            text: String::from_utf8_lossy(&bytes).into_owned(),
+        },
         SessionEvent::Disconnect(_) => EngineInput::Disconnect { id },
     })
 }
@@ -311,6 +317,7 @@ pub async fn forward_outputs(
                         send(&by_conn, &by_id, id, SessionCommand::SetEcho(mode));
                     }
                     EngineOutput::SetCharMode { id, on } => send(&by_conn, &by_id, id, SessionCommand::SetCharMode(on)),
+                    EngineOutput::Gmcp { id, message } => send(&by_conn, &by_id, id, SessionCommand::Gmcp(message.into_bytes())),
                     EngineOutput::LineStarted { id } => send(&by_conn, &by_id, id, SessionCommand::LineStarted),
                     EngineOutput::LineDone { id } => send(&by_conn, &by_id, id, SessionCommand::LineDone),
                     EngineOutput::Close { id } => {

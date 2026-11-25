@@ -50,6 +50,7 @@ mod evil;
 mod exit_types;
 mod fullscreen_editor;
 mod gangs;
+mod gmcp;
 mod groups;
 mod info_commands;
 mod inventory;

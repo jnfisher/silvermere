@@ -14,8 +14,8 @@ use tokio::net::TcpStream;
 
 use crate::events::Capabilities;
 use crate::transport::Transport;
-use options::{NAWS, OFFERS, Options};
-use parser::{Action, IAC, Parser};
+use options::{GMCP, GMCP_OFFER, NAWS, OFFERS, Options};
+use parser::{Action, IAC, Parser, SB, SE, Verb};
 
 /// Appends `bytes` to `out` with every 0xFF doubled (`IAC IAC`).
 pub fn escape_into(bytes: &[u8], out: &mut impl Extend<u8>) {
@@ -28,12 +28,35 @@ pub fn escape_into(bytes: &[u8], out: &mut impl Extend<u8>) {
     }
 }
 
+/// Appends one GMCP message (`Package.Name json`, UTF-8) to `out` as `IAC SB GMCP <message>
+/// IAC SE`, with every 0xFF in it doubled.
+pub fn frame_gmcp(message: &[u8], out: &mut impl Extend<u8>) {
+    out.extend([IAC, SB, GMCP]);
+    escape_into(message, out);
+    out.extend([IAC, SE]);
+}
+
+/// What a received chunk told the session besides data and replies.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TelnetEvent {
+    /// The client reported its window size; the codec's capabilities are updated.
+    Naws(Capabilities),
+    /// The client agreed to GMCP (`DO GMCP`, `true`) or turned it off (`DONT GMCP`).
+    Gmcp(bool),
+    /// A GMCP message from the client, `Package.Name` and optional JSON, as sent.
+    GmcpMessage(Vec<u8>),
+}
+
 /// Telnet state for one connection, with no I/O.
 #[derive(Debug, Clone, Default)]
 pub struct TelnetCodec {
     parser: Parser,
     options: Options,
     caps: Capabilities,
+    /// GMCP is offered on this connection.
+    gmcp_offered: bool,
+    /// The client agreed to GMCP and has not turned it off.
+    gmcp: bool,
 }
 
 impl TelnetCodec {
@@ -41,9 +64,32 @@ impl TelnetCodec {
         Self::default()
     }
 
+    /// A codec that offers GMCP ([`Self::offers_with`] `true` must be what goes out).
+    pub fn with_gmcp() -> Self {
+        Self {
+            options: Options::with_gmcp(),
+            gmcp_offered: true,
+            ..Self::default()
+        }
+    }
+
     /// The bytes to send on accept.
     pub fn offers() -> &'static [u8] {
         &OFFERS
+    }
+
+    /// The bytes to send on accept, with `IAC WILL GMCP` last when `gmcp`.
+    pub fn offers_with(gmcp: bool) -> Vec<u8> {
+        let mut out = OFFERS.to_vec();
+        if gmcp {
+            out.extend_from_slice(&GMCP_OFFER);
+        }
+        out
+    }
+
+    /// The client agreed to GMCP: messages may be sent to it.
+    pub fn gmcp_active(&self) -> bool {
+        self.gmcp
     }
 
     pub fn capabilities(&self) -> Capabilities {
@@ -58,7 +104,23 @@ impl TelnetCodec {
         data: &mut impl Extend<u8>,
         reply: &mut impl Extend<u8>,
     ) -> Option<Capabilities> {
-        let mut changed = None;
+        let mut events = Vec::new();
+        self.decode_events(input, data, reply, &mut events);
+        events.into_iter().rev().find_map(|e| match e {
+            TelnetEvent::Naws(caps) => Some(caps),
+            _ => None,
+        })
+    }
+
+    /// [`Self::decode`], with everything else the client said (window size, GMCP) in
+    /// `events`, in the order it arrived.
+    pub fn decode_events(
+        &mut self,
+        input: &[u8],
+        data: &mut impl Extend<u8>,
+        reply: &mut impl Extend<u8>,
+        events: &mut Vec<TelnetEvent>,
+    ) {
         for &byte in input {
             match self.parser.feed(byte) {
                 None | Some(Action::Command(_)) => {}
@@ -67,18 +129,30 @@ impl TelnetCodec {
                     if let Some(answer) = self.options.respond(verb, option) {
                         reply.extend(answer);
                     }
+                    if option == GMCP && self.gmcp_offered {
+                        let on = match verb {
+                            Verb::Do => true,
+                            Verb::Dont => false,
+                            Verb::Will | Verb::Wont => self.gmcp,
+                        };
+                        if on != self.gmcp {
+                            self.gmcp = on;
+                            events.push(TelnetEvent::Gmcp(on));
+                        }
+                    }
                 }
                 Some(Action::Subnegotiation(option, payload)) => {
                     if option == NAWS
                         && let Some(caps) = parse_naws(&payload)
                     {
                         self.caps = caps;
-                        changed = Some(caps);
+                        events.push(TelnetEvent::Naws(caps));
+                    } else if option == GMCP && self.gmcp {
+                        events.push(TelnetEvent::GmcpMessage(payload));
                     }
                 }
             }
         }
-        changed
     }
 }
 
@@ -159,7 +233,7 @@ impl Transport for TelnetTransport {
 
 #[cfg(test)]
 mod tests {
-    use super::parser::{DO, SB, SE, WILL, WONT};
+    use super::parser::{DO, DONT, WILL, WONT};
     use super::*;
 
     #[test]
@@ -198,6 +272,58 @@ mod tests {
                 rows: 50
             })
         );
+    }
+
+    #[test]
+    fn gmcp_is_agreed_and_messages_come_through() {
+        let mut c = TelnetCodec::with_gmcp();
+        let (mut data, mut reply, mut events) = (Vec::new(), Vec::new(), Vec::new());
+        let mut input = vec![IAC, DO, GMCP, IAC, SB, GMCP];
+        input.extend_from_slice(b"Core.Hello {\"client\":\"Mudlet\"}");
+        input.extend([IAC, SE, b'x']);
+        c.decode_events(&input, &mut data, &mut reply, &mut events);
+        assert!(reply.is_empty(), "the DO acknowledges our offer");
+        assert_eq!(data, b"x");
+        assert!(c.gmcp_active());
+        assert_eq!(
+            events,
+            vec![
+                TelnetEvent::Gmcp(true),
+                TelnetEvent::GmcpMessage(b"Core.Hello {\"client\":\"Mudlet\"}".to_vec()),
+            ]
+        );
+        events.clear();
+        c.decode_events(&[IAC, DONT, GMCP], &mut data, &mut reply, &mut events);
+        assert_eq!(events, vec![TelnetEvent::Gmcp(false)]);
+        assert!(!c.gmcp_active());
+    }
+
+    #[test]
+    fn gmcp_is_refused_when_not_offered() {
+        let mut c = TelnetCodec::new();
+        let (mut data, mut reply, mut events) = (Vec::new(), Vec::new(), Vec::new());
+        c.decode_events(
+            &[IAC, DO, GMCP, IAC, SB, GMCP, b'a', IAC, SE],
+            &mut data,
+            &mut reply,
+            &mut events,
+        );
+        assert_eq!(reply, vec![IAC, WONT, GMCP]);
+        assert!(events.is_empty());
+        assert!(!c.gmcp_active());
+    }
+
+    #[test]
+    fn gmcp_frame_doubles_iac() {
+        let mut out = Vec::new();
+        frame_gmcp(b"A \xff", &mut out);
+        assert_eq!(out, vec![IAC, SB, GMCP, b'A', b' ', 0xFF, 0xFF, IAC, SE]);
+    }
+
+    #[test]
+    fn offers_end_with_gmcp_when_on() {
+        assert_eq!(TelnetCodec::offers_with(false), OFFERS.to_vec());
+        assert!(TelnetCodec::offers_with(true).ends_with(&[IAC, WILL, GMCP]));
     }
 
     #[test]

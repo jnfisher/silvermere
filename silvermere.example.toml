@@ -29,6 +29,7 @@ url = ""   # sqlite://... or postgres://...; empty (the default) = sqlite://<dat
 login_timeout_secs = 300   # 0 = off; idle seconds allowed in the login dialogue before the connection is closed
 keepalive_secs = 60   # 0 = off; quiet seconds before TCP keepalive checks a connection is still there
 login_takeover = true   # bool; a second login with the right password may disconnect the first
+gmcp = true   # bool; offer GMCP (room data for Mudlet's mapper, health/mana gauges) to telnet clients
 
 [compat]
 bbs_menu = true   # bool

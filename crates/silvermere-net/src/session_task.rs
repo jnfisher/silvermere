@@ -22,13 +22,15 @@ use crate::events::{Reason, SessionCommand, SessionEvent, SessionId};
 use crate::line_editor::{EditorEvent, LineEditor};
 use crate::rlogin::{self, RloginConfig, RloginHello};
 use crate::telnet::parser::{IAC, NOP};
-use crate::telnet::{TelnetCodec, escape_into};
+use crate::telnet::{TelnetCodec, TelnetEvent, escape_into, frame_gmcp};
 
 /// Commands the engine may have in flight to one session before `try_send` reports full.
 const COMMAND_CAPACITY: usize = 256;
 /// How long a `Close` waits for queued output to drain.
 const CLOSE_GRACE: Duration = Duration::from_secs(5);
 const READ_CHUNK: usize = 4096;
+/// Non-line events (NAWS, GMCP) queued for the engine before reading pauses.
+const OUTBOX_LIMIT: usize = 64;
 /// How long the bytes after a completed line wait for the engine to say it has run the line
 /// (`SessionCommand::LineDone`). The host the original ran on handled one line before it
 /// echoed the next, so a line that switches the echo off (`add_delay`) is not followed by the
@@ -53,6 +55,8 @@ pub struct SessionConfig {
     pub hold_line_echo: bool,
     /// Where each player's screen is recorded for the sysop watching it; `None` for none.
     pub screens: Option<Arc<crate::Screens>>,
+    /// Offer GMCP (`IAC WILL GMCP`) on telnet connections (`net.gmcp`).
+    pub gmcp: bool,
 }
 
 impl Default for SessionConfig {
@@ -62,6 +66,7 @@ impl Default for SessionConfig {
             heartbeat: None,
             hold_line_echo: false,
             screens: None,
+            gmcp: false,
         }
     }
 }
@@ -336,7 +341,7 @@ struct Session {
     editor: LineEditor,
     /// Decoded input not yet fed to the editor (held while the editor's queue is full).
     inbox: VecDeque<u8>,
-    /// Engine-bound events that are not editor output (NAWS).
+    /// Engine-bound events that are not editor output (NAWS, GMCP).
     outbox: VecDeque<SessionEvent>,
     /// Escaped bytes waiting for the socket.
     out: Vec<u8>,
@@ -362,12 +367,16 @@ impl Session {
         Self {
             peer,
             stream: Some(stream),
-            config,
-            codec: TelnetCodec::new(),
+            codec: if config.gmcp {
+                TelnetCodec::with_gmcp()
+            } else {
+                TelnetCodec::new()
+            },
             editor: LineEditor::new(),
             inbox: VecDeque::new(),
             outbox: VecDeque::new(),
-            out: TelnetCodec::offers().to_vec(),
+            out: TelnetCodec::offers_with(config.gmcp),
+            config,
             last_output: Instant::now(),
             hold_until: None,
             held_echo: Vec::new(),
@@ -392,6 +401,11 @@ impl Session {
     fn apply(&mut self, command: Option<SessionCommand>, close_by: &mut Option<Instant>) {
         match command {
             Some(SessionCommand::Write(bytes)) => self.put(&bytes),
+            Some(SessionCommand::Gmcp(message)) => {
+                if !self.raw && self.codec.gmcp_active() {
+                    frame_gmcp(&message, &mut self.out);
+                }
+            }
             Some(SessionCommand::SetEcho(mode)) => self.editor.set_echo(mode),
             Some(SessionCommand::SetCharMode(on)) => self.editor.set_char_mode(on),
             Some(SessionCommand::LineStarted) => self.release_echo(),
@@ -506,7 +520,11 @@ impl Session {
                 let _ = wr.shutdown().await;
                 return Reason::Closed;
             }
-            let can_read = !eof && close_by.is_none() && self.inbox.is_empty();
+            // the outbox bound keeps a client that floods GMCP from queueing without limit
+            let can_read = !eof
+                && close_by.is_none()
+                && self.inbox.is_empty()
+                && self.outbox.len() < OUTBOX_LIMIT;
             let heartbeat_at = self
                 .config
                 .heartbeat
@@ -519,9 +537,13 @@ impl Session {
                     Ok(n) if self.raw => self.inbox.extend(&raw[..n]),
                     Ok(n) => {
                         let mut reply = Vec::new();
-                        if let Some(caps) = self.codec.decode(&raw[..n], &mut self.inbox, &mut reply) {
-                            self.outbox.push_back(SessionEvent::Naws(caps.columns, caps.rows));
-                        }
+                        let mut events = Vec::new();
+                        self.codec.decode_events(&raw[..n], &mut self.inbox, &mut reply, &mut events);
+                        self.outbox.extend(events.into_iter().map(|e| match e {
+                            TelnetEvent::Naws(caps) => SessionEvent::Naws(caps.columns, caps.rows),
+                            TelnetEvent::Gmcp(on) => SessionEvent::Gmcp(on),
+                            TelnetEvent::GmcpMessage(m) => SessionEvent::GmcpMessage(m),
+                        }));
                         self.out.extend_from_slice(&reply);
                     }
                     Err(e) if is_drop(&e) => eof = true,

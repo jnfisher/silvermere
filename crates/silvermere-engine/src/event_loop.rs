@@ -162,6 +162,10 @@ pub enum EngineInput {
         columns: u16,
         rows: u16,
     },
+    /// The client agreed to GMCP (`on`) or turned it off ([`crate::gmcp`]).
+    Gmcp { id: SessionId, on: bool },
+    /// A GMCP message from the client: `Package.Name`, then optional JSON.
+    GmcpMessage { id: SessionId, text: String },
     /// The connection is gone.
     Disconnect { id: SessionId },
     /// The fast tick (one per second in production).
@@ -211,6 +215,16 @@ impl fmt::Debug for EngineInput {
                 .field("columns", columns)
                 .field("rows", rows)
                 .finish(),
+            Self::Gmcp { id, on } => f
+                .debug_struct("Gmcp")
+                .field("id", id)
+                .field("on", on)
+                .finish(),
+            Self::GmcpMessage { id, text } => f
+                .debug_struct("GmcpMessage")
+                .field("id", id)
+                .field("text", text)
+                .finish(),
             Self::Disconnect { id } => f.debug_struct("Disconnect").field("id", id).finish(),
             Self::Tick => f.write_str("Tick"),
             Self::Admin(req) => f.debug_tuple("Admin").field(req).finish(),
@@ -234,6 +248,8 @@ impl EngineInput {
             Self::Line { .. } => "Line",
             Self::Key { .. } => "Key",
             Self::Naws { .. } => "Naws",
+            Self::Gmcp { .. } => "Gmcp",
+            Self::GmcpMessage { .. } => "GmcpMessage",
             Self::Disconnect { .. } => "Disconnect",
             Self::Tick => "Tick",
             Self::Admin(_) => "Admin",
@@ -251,6 +267,8 @@ impl EngineInput {
             | Self::LoggedIn { id, .. }
             | Self::Key { id, .. }
             | Self::Naws { id, .. }
+            | Self::Gmcp { id, .. }
+            | Self::GmcpMessage { id, .. }
             | Self::Disconnect { id } => Some(*id),
             Self::Custom { session, .. } => *session,
             _ => None,
@@ -459,6 +477,12 @@ pub enum EngineOutput {
     SetCharMode {
         id: SessionId,
         on: bool,
+    },
+    /// A GMCP message for the session (`Package.Name json`); the transport drops it unless
+    /// the client agreed to GMCP ([`crate::gmcp`]).
+    Gmcp {
+        id: SessionId,
+        message: String,
     },
     /// The session's `Line` is being run now: its output follows. The transport holds back the
     /// line's CR echo until then, so a tick that runs before the line cannot land between
@@ -702,6 +726,8 @@ impl<C: Clock, R: Rng> Engine<C, R> {
                     s.caps.rows = rows;
                 }
             }
+            EngineInput::Gmcp { id, on } => crate::gmcp::on_enabled(world, id, on),
+            EngineInput::GmcpMessage { id, text } => crate::gmcp::on_message(world, id, &text),
             EngineInput::Disconnect { id } => {
                 session::on_disconnect(world, id);
                 world
@@ -861,6 +887,10 @@ impl<C: Clock, R: Rng> Engine<C, R> {
             if !bytes.is_empty() {
                 let _ = self.outputs.send(EngineOutput::Write { id, bytes });
             }
+        }
+        // GMCP character data that changed during the event, after the text that shows it.
+        for out in crate::gmcp::refresh(&mut self.world) {
+            let _ = self.outputs.send(out);
         }
         for out in std::mem::take(&mut self.world.outbox) {
             let _ = self.outputs.send(out);

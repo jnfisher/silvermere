@@ -37,6 +37,7 @@ pub mod display;
 pub mod event_loop;
 pub mod evil;
 pub mod gangs;
+pub mod gmcp;
 pub mod help;
 pub mod ids;
 pub mod items;

@@ -31,6 +31,8 @@ prompt never waits for answers.
 | `WILL` anything else (`LINEMODE`, ...) | `DONT` |
 | `WONT` / `DONT` anything | nothing; the refusal is accepted and never retried |
 | `SB NAWS w h SE` | `SessionEvent::Naws(w, h)`; a zero dimension keeps the default |
+| `DO GMCP` / `DONT GMCP` | nothing (it answers our offer); `SessionEvent::Gmcp(true/false)`. Without `net.gmcp`, `DO GMCP` gets `WONT` |
+| `SB GMCP <message> SE` | `SessionEvent::GmcpMessage(bytes)`, once GMCP is agreed |
 
 Differences from MBBSEmu: it also sends `DO BINARY`, `DONT ECHO`, `DO SGA` and `WONT NAWS`
 on accept. Those are dropped; MegaMud ignores them, and a client that answers
@@ -40,6 +42,33 @@ No keepalive by default; `SessionConfig::heartbeat`
 sends `IAC NOP` after that long without output (MBBSEmu's `Telnet.Heartbeat`, off in our
 config). MBBSEmu's 5-minute receive timeout is not kept: idle hang-up is the engine's rule
 (`INACTIVE`, T-037), which sees the time of each `Line`/`Key` event.
+
+## GMCP
+
+With `SessionConfig::gmcp` (`net.gmcp`, on by default) the offers end with `IAC WILL GMCP`
+(option 201, <https://tintin.mudhalla.net/protocols/gmcp/>). Once the client answers
+`DO GMCP`, `SessionCommand::Gmcp(message)` goes out as `IAC SB GMCP <message> IAC SE` with
+0xFF doubled; before that, or after `DONT GMCP`, or on rlogin, the command is dropped. GMCP
+is neither recorded for the sysop watching a player nor CP437: the message is UTF-8
+`Package.Name json`. Subnegotiations longer than 8 KiB are dropped whole. While 64 NAWS/GMCP
+events wait for the engine the session stops reading, as for lines.
+
+What the engine sends is in `silvermere-engine`'s `gmcp` module:
+
+| Package | When | Data |
+|---|---|---|
+| `Room.Info` | each room display (moving, `LOOK`) | `num` (`map * 1000000 + room`), `name`, `area` (`Map <n>`), `environment` (room type), `map`, `room`, `exits` (`{"n": num, ...}`) |
+| `Char.Name` | entering the realm | `name`, `fullname` |
+| `Char.Status` | entering the realm, and on change | `name`, `fullname`, `level`, `class`, `race`, `exp` |
+| `Char.Vitals` | entering the realm, and on change | `hp`, `maxhp`, `mp`, `maxmp` |
+| `Core.Ping` | answering the client's `Core.Ping` | none |
+
+`Room.Info` comes with the room display, so a player who cannot see gets none, and its
+exits are the `Obvious exits:` ones (hidden exits once found, open timed exits): the mapper
+learns nothing the text does not show. Exits use Mudlet's short names (`n`, `ne`, `u`,
+`d`, ...); a map-change exit gives the room number on the other map. Until the client
+sends `Core.Supports.Set`, every package goes out; after it, only the modules it lists
+(`Core` always). `Core.Hello` is logged at debug level.
 
 ## Line discipline
 

@@ -386,6 +386,7 @@ pub async fn serve_world_with_db(
         session: silvermere_net::SessionConfig {
             hold_line_echo: true,
             screens: Some(screens.clone()),
+            gmcp: cfg.net.gmcp,
             ..Default::default()
         },
         keepalive: (cfg.net.keepalive_secs > 0)

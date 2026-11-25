@@ -153,3 +153,6 @@ jobs:
       - name: docs/schema.md matches the migrations
         if: ${{ !cancelled() }}
         run: cargo run --manifest-path tools/schema-doc/Cargo.toml --locked -- --check
+      - name: the Mudlet package matches its Lua
+        if: ${{ !cancelled() }}
+        run: python3 tools/mudlet/build.py --check

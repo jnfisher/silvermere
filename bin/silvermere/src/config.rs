@@ -163,6 +163,9 @@ pub struct NetCfg {
     /// When an account that is already logged on logs in again with the right password,
     /// offer to disconnect the other connection instead of refusing.
     pub login_takeover: bool,
+    /// Offer GMCP to telnet clients (room data for Mudlet's mapper, health and mana for its
+    /// gauges). Clients that do not know it decline it.
+    pub gmcp: bool,
 }
 
 impl Default for NetCfg {
@@ -171,6 +174,7 @@ impl Default for NetCfg {
             login_timeout_secs: 300,
             keepalive_secs: 60,
             login_takeover: true,
+            gmcp: true,
         }
     }
 }
