@@ -279,7 +279,10 @@ stock record becomes a new record (its other bytes zero). Stock records the data
 row for are kept, as NMR keeps them. Text blocks go by number: a number the database has
 replaces every stored part of it. The patch pass runs on the stock world before the rows, never
 after, so it cannot undo the realm's edits. The assets (help, screens, gang house texts) are the
-stock package's.
+stock package's, and then the realm's own files in the database's folder replace them, taken as
+[Assets](#assets) takes the loose files of a source and written over what is there: MudRev's
+zip carries its `WCCMMHLP.MSG`, with the help for its races and classes. To go back to the stock
+help after a realm, import the stock world with `--overwrite-assets`.
 
 **Where each column goes.** NMR's records are the Worldgroup 3.x layouts. Each column's offset
 is generated from NMR's source by `tools/nmr/gen_columns.py` (the record types of

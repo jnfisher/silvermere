@@ -968,6 +968,28 @@ impl<'a> Importer<'a> {
                 self.opts.dry_run,
                 self.opts.stock_package,
             )?;
+            // A Nightmare Redux realm ships its own text beside the database (MudRev's
+            // WCCMMHLP.MSG has the help for its races and classes): it replaces the stock
+            // package's, as the realm's records replace the stock ones.
+            if let Some(mdb) = &self.opts.nmr {
+                let dir = match mdb.parent() {
+                    Some(d) if !d.as_os_str().is_empty() => d,
+                    _ => Path::new("."),
+                };
+                let mut realm = crate::assets::unpack_assets_checked(
+                    dir,
+                    dest,
+                    true,
+                    self.opts.dry_run,
+                    false,
+                )?;
+                for c in &mut realm {
+                    c.source = format!("{} (beside the database)", c.source);
+                }
+                report
+                    .assets
+                    .extend(realm.into_iter().filter(|c| c.files > 0));
+            }
         }
         Ok(report)
     }
