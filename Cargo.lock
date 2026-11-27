@@ -2282,7 +2282,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "anyhow",
  "axum",
@@ -2319,7 +2319,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-api"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "axum",
  "metrics",
@@ -2340,7 +2340,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-auth"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "argon2",
  "jiff",
@@ -2358,7 +2358,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-db"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "jiff",
  "metrics",
@@ -2374,7 +2374,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-engine"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "fancy-regex",
  "insta",
@@ -2398,14 +2398,14 @@ dependencies = [
 
 [[package]]
 name = "silvermere-fsd"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "proptest",
 ]
 
 [[package]]
 name = "silvermere-import"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "jetdb",
  "jiff",
@@ -2424,7 +2424,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-net"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "proptest",
  "socket2",
@@ -2435,7 +2435,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-rules"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "jiff",
  "proptest",
@@ -2447,7 +2447,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-testkit"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "fancy-regex",
  "insta",
@@ -2477,7 +2477,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-text"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "insta",
  "miniz_oxide",
@@ -2496,7 +2496,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-types"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "bitflags 2.13.2",
  "jiff",
@@ -2508,7 +2508,7 @@ dependencies = [
 
 [[package]]
 name = "silvermere-web"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "axum",
  "pulldown-cmark",
