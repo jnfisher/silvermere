@@ -50,6 +50,7 @@ clap = { version = "4.6.7", features = ["derive", "env"] }
 fancy-regex = "0.20.0"
 figment = { version = "0.10.19", features = ["toml", "env"] }
 insta = "1.49.0"
+jetdb = "0.4.0"
 jiff = "0.2.38"
 metrics = "0.24.6"
 metrics-exporter-prometheus = { version = "0.18.3", default-features = false, features = ["http-listener"] }

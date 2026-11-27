@@ -7,7 +7,7 @@ normalised schema (`docs/schema.md`), then unpacks the runtime text files into
 game's record layouts (`crates/silvermere-import`).
 
 ```
-silvermere import [ZIP|DIR | --from DIR|ZIP | --download] [--live] [--map-files WCCMP001.VIR,NEWMP001.VIR] [--dry-run]
+silvermere import [ZIP|DIR|FILE.mdb | --from DIR|ZIP|FILE.mdb | --download] [--live] [--map-files WCCMP001.VIR,NEWMP001.VIR] [--dry-run]
                   [--json OUT] [--content-only | --reset-state] [--with-users] [--door-users]
                   [--allow-duplicates] [--legacy-tz ZONE] [--no-patches | --patches PATH]
                   [--overwrite-assets] [--database-url URL]
@@ -37,6 +37,8 @@ silvermere import [ZIP|DIR | --from DIR|ZIP | --download] [--live] [--map-files 
   (not checked: a zip you give is yours).
 - **`--from DIR`**: a directory holding the files (names in any case); works offline.
 - **`--from DIR --live`**: a running realm (see "Live import").
+- **`FILE.mdb`** or **`--from FILE.mdb`**: a Nightmare Redux database, applied over the stock
+  world (see "Nightmare Redux databases").
 
 ## Flags
 
@@ -256,6 +258,57 @@ item, three rooms with floor state, an orphaned bank book, a vacation record) an
 round trip and each refusal. Its `.DAT` files are written at test time by
 `tests/support/btrieve_v5.rs` from the stock `.VIR` files' own pages (FCR, keys, ACS) plus data
 pages holding the records; the index pages are not rebuilt (the reader never reads them).
+
+## Nightmare Redux databases
+
+Edited realms are often passed around as Microsoft Access databases (`.mdb`) exported by
+Nightmare Redux (NMR), the Windows editor for MajorMUD's data files; MudRev and SiliconRev are
+two. `silvermere import FILE.mdb` imports one, with no Windows, NMR or Btrieve:
+
+```
+silvermere import --dry-run MudRevV11p.mdb       # read and check; writes nothing
+silvermere import --reset-state MudRevV11p.mdb   # over a world the first start built
+```
+
+**What it does.** It does what NMR's own import into a fresh set of 1.11p data files would
+do (`crates/silvermere-import/src/nmr/`). The base is the stock world, read and patched as
+`silvermere import` reads it (the cached stock package, downloaded once if needed). Then each
+row of the database is applied to the record with its key: the members NMR has a column for
+take the row's values and every other byte stays as the stock record has it; a key with no
+stock record becomes a new record (its other bytes zero). Stock records the database has no
+row for are kept, as NMR keeps them. Text blocks go by number: a number the database has
+replaces every stored part of it. The patch pass runs on the stock world before the rows, never
+after, so it cannot undo the realm's edits. The assets (help, screens, gang house texts) are the
+stock package's.
+
+**Where each column goes.** NMR's records are the Worldgroup 3.x layouts. Each column's offset
+is generated from NMR's source by `tools/nmr/gen_columns.py` (the record types of
+`modFieldmaps_vO.bas`, packed in order, and the assignments of `frmDatabaseImport.frm`) into
+`nmr/columns.rs`: a base record is encoded in the Worldgroup layout, the row's values written
+at those offsets, and the record decoded again. As in NMR's Visual Basic, a value that does
+not fit its member (300 into a byte) is skipped, and so is an empty cell or a missing column
+(an older NMR's export lacks a few). Text is trimmed of spaces, cut at its first NUL (the
+export copies whole fixed-length members), written in Windows-1252 (the code page the export
+decoded it with, so the bytes are the realm's own CP437 ones) and zero-filled where NMR fills
+with spaces. A text block's text is shifted up by 0x20 as stored; a byte over 223 is dropped,
+as NMR drops it.
+
+**Not as NMR.** A monster's `Active`, `Date Killed` and `Time Killed` are written as 0: they
+are the counts of the server the database came from, and a stale count would keep a limited
+monster from appearing. NMR's rule for an experience award over 2,147,483,646 (it becomes
+65,538 at level 32,767) is kept.
+
+**Refusals.** As a live import, it is refused over a database that already holds a world
+unless `--reset-state` (replace the game state) or `--content-only` (keep it) says what becomes
+of the state there; `--live` with a database is an error. A file with none of NMR's `Items`,
+`Monsters`, `Rooms` or `Spells` tables is not an NMR export.
+
+**Checked** (2026-11-27) with the MudRev (`MudRevV11p.mdb`, NMR 1.6, 2005) and SiliconRev
+(`SiliconRev.mdb`, NMR 1.6.1, 2010) databases from mudinfo.net: both import (72,571 and 72,677
+rooms, 25 classes, 18 races), the dry run's checks are clean (149 unreadable room names of
+unused slots, about 0.08% of exits to no room), and a character of the realm's own race and
+class plays. Records MudRev left as stock decode equal to stock member for member (all 64
+actions, 3,693 of 3,867 messages, 2,969 of 3,467 text blocks; the rest are the realm's edits).
 
 ## Worldgroup 3.x
 
