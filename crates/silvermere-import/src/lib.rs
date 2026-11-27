@@ -15,6 +15,7 @@ pub mod dll_text;
 pub mod dos_time;
 pub mod importer;
 pub mod json;
+pub mod nmr;
 pub mod patch;
 pub mod stock;
 pub mod zip;

@@ -20,8 +20,9 @@ couple of minutes later you are playing.
   upgrades keep your players and your world.
 - **A sysop console in the browser.** See who is on and where, watch a player's screen, kick,
   jail, mute or ban, close the realm, restart or upgrade, all from one page.
-- **Your world, your way.** Bring your own BBS's MajorMUD files, keep editing the world with the
-  classic editors, or run it as a door behind your BBS.
+- **Your world, your way.** Bring your own BBS's MajorMUD files or a Nightmare Redux database
+  of an edited realm such as MudRev, keep editing the world with the classic editors, or run it
+  as a door behind your BBS.
 
 ## Quick start
 

@@ -218,6 +218,9 @@ pub struct ImportOptions {
     /// The source is the stock distribution package: a `WCCMMUD.DLL` whose screens do not
     /// match is an error, not a warning (T-138).
     pub stock_package: bool,
+    /// A Nightmare Redux database (`.mdb`) to apply over the world read from `from` (the
+    /// stock package), after its patches ([`crate::nmr`]).
+    pub nmr: Option<PathBuf>,
 }
 
 impl ImportOptions {
@@ -240,6 +243,7 @@ impl ImportOptions {
             assets: None,
             overwrite_assets: false,
             stock_package: false,
+            nmr: None,
         }
     }
 
@@ -334,9 +338,9 @@ pub enum ImportError {
     /// realm's rooms and shops would get the old world's monsters and shop stock.
     #[error(
         "the database already holds a world ({rooms} rooms: the stock world that `silvermere \
-         setup` or the first start builds, or an earlier import). A live import keeps the game \
-         state already there unless told otherwise, which would give the realm's rooms and \
-         shops the old world's monsters, floor items and shop stock. Run it again with \
+         setup` or the first start builds, or an earlier import). A live or Nightmare Redux \
+         import keeps the game state already there unless told otherwise, which would give the \
+         realm's rooms and shops the old world's monsters, floor items and shop stock. Run it again with \
          --reset-state to replace the game state with the realm's (this database's \
          characters of the realm's players are rewritten too); nothing was written"
     )]
@@ -391,6 +395,9 @@ pub enum ImportError {
         /// What was found.
         reason: String,
     },
+    /// A Nightmare Redux database could not be read or applied.
+    #[error(transparent)]
+    Nmr(#[from] crate::nmr::NmrError),
     /// Unpacking the runtime text files failed.
     #[error("assets: {0}")]
     Assets(#[from] crate::assets::AssetError),
@@ -947,6 +954,10 @@ impl<'a> Importer<'a> {
         let start = Instant::now();
         let mut content = read_content(&self.opts)?;
         let patches = self.patch(&mut content)?;
+        if let Some(path) = &self.opts.nmr {
+            let db = crate::nmr::Database::open(path)?;
+            crate::nmr::apply(&mut content, &db)?;
+        }
         let mut report = self.run_content(&content, start).await?;
         report.patches = patches;
         if let Some(dest) = &self.opts.assets {
@@ -1500,11 +1511,12 @@ impl<'a> Plan<'a> {
     }
 }
 
-/// Issue 34: a live import into a database that already holds a world must say what
+/// Issue 34: a live import (or a Nightmare Redux one, a whole other world as well) into a
+/// database that already holds a world must say what
 /// becomes of the game state there: `--reset-state` replaces it with the realm's,
 /// `--content-only` keeps it. By default it is refused, before anything is written.
 async fn check_world_free(db: &Db, opts: &ImportOptions) -> Result<(), ImportError> {
-    if !opts.live || opts.state_write() != StateWrite::CreateMissing {
+    if !(opts.live || opts.nmr.is_some()) || opts.state_write() != StateWrite::CreateMissing {
         return Ok(());
     }
     let rooms = db.rooms().count().await.map_err(|source| ImportError::Db {

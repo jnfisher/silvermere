@@ -197,12 +197,12 @@ Import legacy world files into the database. With no argument it downloads the s
 distribution once and imports it. Details: [import.md](import.md).
 
 ```
-silvermere import [OPTIONS] [ZIP|DIR]
+silvermere import [OPTIONS] [ZIP|DIR|FILE.mdb]
 ```
 
 | Flag | Meaning |
 |---|---|
-| `[ZIP\|DIR]` | a `.zip` or directory holding the `WCC*.VIR` files and `WCCUPDAT.DAT`, such as the MBBSEmu package; works offline |
+| `[ZIP\|DIR\|FILE.mdb]` | a `.zip` or directory holding the `WCC*.VIR` files and `WCCUPDAT.DAT`, such as the MBBSEmu package; works offline. Or a Nightmare Redux database (`.mdb`, such as MudRev's), applied over the stock world ([import.md](import.md#nightmare-redux-databases)) |
 | `--from <DIR\|ZIP>` | directory or `.zip` holding the same files |
 | `--download` | download the stock distribution again, replacing the cached copy, and import it |
 | `--live` | read a running realm's `WCC*.DAT` files and import its players; needs `--from` |

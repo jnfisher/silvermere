@@ -7,7 +7,8 @@
 //! The source (T-107, T-120): `--from DIR`, `FILE.zip` or `--from FILE.zip` (unpacked into a
 //! temporary directory first), or nothing, which imports the stock 1.11p distribution,
 //! downloaded once into `<data_dir>/cache/` and checked ([`crate::stock`]); `--download`
-//! fetches it again. `--live` reads a running realm's `.DAT` set. The runtime text files go
+//! fetches it again. A Nightmare Redux database (`FILE.mdb`) is applied over the stock world
+//! ([`silvermere_import::nmr`]). `--live` reads a running realm's `.DAT` set. The runtime text files go
 //! into `<data_dir>/assets/`.
 
 use std::path::{Path, PathBuf};
@@ -24,8 +25,9 @@ use crate::config::Config;
 #[derive(Debug, Clone, clap::Args)]
 pub struct ImportCmd {
     /// A .zip (or directory) holding the WCC*.VIR files and WCCUPDAT.DAT, such as the
-    /// MBBSEmu package; works offline. Default: the stock 1.11p distribution, downloaded once
-    /// into <data_dir>/cache/ and checked.
+    /// MBBSEmu package; works offline. Or a Nightmare Redux database (.mdb), applied over the
+    /// stock world. Default: the stock 1.11p distribution, downloaded once into
+    /// <data_dir>/cache/ and checked.
     #[arg(value_name = "ZIP|DIR", conflicts_with = "from")]
     pub source: Option<PathBuf>,
     /// Directory (or .zip) holding the WCC*.VIR files and WCCUPDAT.DAT.
@@ -162,10 +164,19 @@ fn remove_stale_copies(base: &Path) {
     }
 }
 
+/// A Nightmare Redux database (`.mdb`), by its extension.
+fn is_nmr(path: &Path) -> bool {
+    path.extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("mdb"))
+}
+
 /// The directory to import from: a directory as it is, a zip (given, or the stock one from
-/// the cache) unpacked into `<data_dir>/.import-<pid>/` (the guard removes the copy).
+/// the cache) unpacked into `<data_dir>/.import-<pid>/` (the guard removes the copy). A
+/// Nightmare Redux database is applied over the stock world, so its directory is the stock
+/// package's.
 fn source(cmd: &ImportCmd, base: &Path) -> anyhow::Result<(PathBuf, Option<Unpacked>)> {
     match cmd.source.as_ref().or(cmd.from.as_ref()) {
+        Some(file) if is_nmr(file) && file.is_file() => stock_dir(cmd, base),
         Some(dir) if dir.is_dir() => Ok((dir.clone(), None)),
         Some(file) if file.is_file() => {
             let bytes =
@@ -174,15 +185,17 @@ fn source(cmd: &ImportCmd, base: &Path) -> anyhow::Result<(PathBuf, Option<Unpac
             Ok((dir.0.clone(), Some(dir)))
         }
         Some(path) => anyhow::bail!("{}: no such directory or file", path.display()),
-        None => {
-            let zip = crate::stock::fetch(base, cmd.download)?;
-            let bytes =
-                std::fs::read(&zip).with_context(|| format!("reading {}", zip.display()))?;
-            eprintln!("importing the stock {}", crate::stock::NAME);
-            let dir = unpack(base, crate::stock::NAME, &bytes)?;
-            Ok((dir.0.clone(), Some(dir)))
-        }
+        None => stock_dir(cmd, base),
     }
+}
+
+/// The stock package from the cache (downloaded once), unpacked.
+fn stock_dir(cmd: &ImportCmd, base: &Path) -> anyhow::Result<(PathBuf, Option<Unpacked>)> {
+    let zip = crate::stock::fetch(base, cmd.download)?;
+    let bytes = std::fs::read(&zip).with_context(|| format!("reading {}", zip.display()))?;
+    eprintln!("importing the stock {}", crate::stock::NAME);
+    let dir = unpack(base, crate::stock::NAME, &bytes)?;
+    Ok((dir.0.clone(), Some(dir)))
 }
 
 fn parse_zone(name: &str) -> Result<TimeZone, String> {
@@ -217,8 +230,21 @@ pub fn run(cfg: &Config, cmd: &ImportCmd) -> anyhow::Result<ExitCode> {
             }
         };
         let mut opts = cmd.options(&from, cfg.data_dir.join("assets"));
+        let given = cmd.source.as_ref().or(cmd.from.as_ref());
+        opts.nmr = given.filter(|p| is_nmr(p)).cloned();
+        if opts.nmr.is_some() {
+            // the stock world is the base the database is applied over, its patches before
+            if cmd.live {
+                eprintln!("import failed: --live reads a realm's data files, not a database");
+                return Ok(ExitCode::from(1));
+            }
+            eprintln!(
+                "applying the Nightmare Redux database {}",
+                given.map_or_else(String::new, |p| p.display().to_string())
+            );
+        }
         // the stock package's own DLL must give the long screens (T-138)
-        opts.stock_package = cmd.source.is_none() && cmd.from.is_none();
+        opts.stock_package = given.is_none() || opts.nmr.is_some();
         let result = Importer::new(opts, db.as_ref()).run().await;
         if let Some(db) = &db {
             db.close().await;
