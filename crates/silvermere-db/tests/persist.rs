@@ -545,3 +545,50 @@ async fn a_character_deleted_while_its_save_is_written_stays_deleted() {
     worker.await.unwrap();
     test.close().await;
 }
+
+/// A hold commits what was queued before it, keeps what is queued after it out of the
+/// database until it is dropped, and then writes it in order (`POST /v1/world-hold`).
+#[tokio::test]
+async fn a_hold_commits_what_came_before_and_keeps_back_what_comes_after() {
+    let test = db().await;
+    let mut seq = Seq::new(31);
+    seed_rooms(&test, &mut seq).await;
+    let db: Arc<silvermere_db::Db> = Arc::clone(test.db());
+    let (persist, worker) = Persist::spawn(db, PersistConfig::default());
+    let copper = |n| {
+        let test = &test;
+        async move {
+            test.room_state()
+                .get(RoomKey::new(1, n))
+                .await
+                .unwrap()
+                .map(|s| s.coins.copper)
+        }
+    };
+    let before = copper(2).await;
+    persist.send(Write::RoomState(state(1, 10))).await.unwrap();
+    let held = tokio::time::timeout(Duration::from_secs(30), persist.hold())
+        .await
+        .expect("held within the timeout")
+        .unwrap();
+    assert_eq!(
+        copper(1).await,
+        Some(10),
+        "written before the hold answered"
+    );
+    persist.send(Write::RoomState(state(1, 20))).await.unwrap();
+    persist.send(Write::RoomState(state(2, 30))).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(copper(1).await, Some(10), "nothing written while held");
+    assert_eq!(copper(2).await, before);
+    drop(held);
+    tokio::time::timeout(Duration::from_secs(30), persist.flush())
+        .await
+        .expect("flush within the timeout")
+        .unwrap();
+    assert_eq!(copper(1).await, Some(20));
+    assert_eq!(copper(2).await, Some(30));
+    drop(persist);
+    worker.await.unwrap();
+    test.close().await;
+}

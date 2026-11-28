@@ -81,14 +81,16 @@ impl EventLog for DbEventLog {
     }
 }
 
-/// [`WorldLoader`] over the repositories: the same read `World::load` starts from.
+/// [`WorldLoader`] over the repositories: the same read `World::load` starts from. Its
+/// holds are the persistence worker's ([`silvermere_db::Persist::hold`]).
 pub struct DbWorldLoader {
     db: Arc<Db>,
+    persist: Option<silvermere_db::HoldHandle>,
 }
 
 impl DbWorldLoader {
-    pub fn new(db: Arc<Db>) -> Self {
-        Self { db }
+    pub fn new(db: Arc<Db>, persist: Option<silvermere_db::HoldHandle>) -> Self {
+        Self { db, persist }
     }
 }
 
@@ -99,6 +101,19 @@ impl WorldLoader for DbWorldLoader {
                 .await
                 .map_err(|e| LogError::from(e.to_string()))?;
             Ok(Box::new(snapshot))
+        })
+    }
+
+    fn hold(&self) -> BoxFuture<'_, Result<Box<dyn Send + Sync>, LogError>> {
+        Box::pin(async move {
+            let Some(persist) = &self.persist else {
+                return Err(LogError::from("no persistence worker"));
+            };
+            let held = persist
+                .hold()
+                .await
+                .map_err(|e| LogError::from(e.to_string()))?;
+            Ok(Box::new(held) as Box<dyn Send + Sync>)
         })
     }
 }
@@ -203,7 +218,8 @@ pub fn api_state(
         engine,
         events: ApiState::event_bus(),
         log: Arc::new(DbEventLog::new(db.clone())),
-        world: Arc::new(DbWorldLoader::new(db)),
+        world: Arc::new(DbWorldLoader::new(db, None)),
+        world_hold: Default::default(),
         health: vitals,
         metrics: metrics_handle(),
         tokens: Arc::new(cfg.admin.tokens.iter().map(|t| t.to_token()).collect()),

@@ -14,6 +14,7 @@ use silvermere_rules::combat::Move;
 use std::collections::{BTreeMap, VecDeque};
 
 use silvermere_types::config::GameConfig;
+use silvermere_types::enums::ShopType;
 use silvermere_types::flags::RoomFlags;
 use silvermere_types::ids::{
     AccountId, ActiveMonsterId, ClassNo, ItemNo, MessageNo, MonsterNo, RaceNo, RoomId, RoomKey,
@@ -490,11 +491,29 @@ impl World {
             self.rooms = keep;
             return Err(e);
         }
-        // the live stock (`shop_stock`) outlives a content reload
+        // The live parts of the content records outlive a content reload: the engine holds
+        // them, and the database may be behind it (writes still queued, or held while an
+        // editor writes the world, `POST /v1/world-hold`). They are the live stock
+        // (`shop_stock`), a gang shop's slots and markup (its members change them), the copies
+        // of a limited item in play (`item.active`) and a monster's alive count and last
+        // kill (`monster_state`).
         let stock: BTreeMap<ShopNo, [u16; silvermere_types::sizes::NSHOPITEMS]> = self
             .shops
             .iter()
             .map(|(&n, s)| (n, std::array::from_fn(|i| s.stock[i].qty)))
+            .collect();
+        let gang_shops: BTreeMap<ShopNo, Shop> = self
+            .shops
+            .iter()
+            .filter(|(_, s)| s.shop_type == ShopType::GangShop)
+            .map(|(&n, s)| (n, s.clone()))
+            .collect();
+        let active: BTreeMap<ItemNo, u16> =
+            self.items.iter().map(|(&n, i)| (n, i.active)).collect();
+        let alive: BTreeMap<MonsterNo, (u16, i64)> = self
+            .monsters
+            .iter()
+            .map(|(&n, m)| (n, (m.curalive, m.killed_at)))
             .collect();
         self.replace_content(snapshot);
         for (n, qty) in stock {
@@ -502,6 +521,25 @@ impl World {
                 for (slot, q) in s.stock.iter_mut().zip(qty) {
                     slot.qty = q;
                 }
+            }
+        }
+        for (n, live) in gang_shops {
+            if let Some(s) = self.shops.get_mut(&n)
+                && s.shop_type == ShopType::GangShop
+            {
+                s.stock = live.stock;
+                s.markup = live.markup;
+            }
+        }
+        for (n, a) in active {
+            if let Some(i) = self.items.get_mut(&n) {
+                i.active = a;
+            }
+        }
+        for (n, (cur, killed)) in alive {
+            if let Some(m) = self.monsters.get_mut(&n) {
+                m.curalive = cur;
+                m.killed_at = killed;
             }
         }
         // A room new to the content gets a fresh live record; stale ones are kept so a

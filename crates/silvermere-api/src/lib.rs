@@ -27,6 +27,7 @@ pub mod router;
 pub mod shutdown;
 pub mod spectate;
 pub mod who;
+pub mod world_hold;
 
 pub use auth::{Scope, Token};
 pub use backup::{BackupProbe, NoBackups};

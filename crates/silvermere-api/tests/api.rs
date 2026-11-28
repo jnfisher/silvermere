@@ -93,6 +93,7 @@ fn harness() -> Harness {
         health: health.clone(),
         metrics: handle,
         world: Arc::new(common::FakeWorld::default()),
+        world_hold: Default::default(),
         backup: Arc::new(silvermere_api::NoBackups),
         shutdown: Arc::new(silvermere_api::NoShutdown),
         moderation: Arc::new(silvermere_api::NoModeration),

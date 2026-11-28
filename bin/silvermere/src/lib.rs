@@ -70,6 +70,8 @@ pub struct Running {
     flushed: watch::Receiver<u64>,
     /// The worker's progress, for a shutdown deciding whether to keep waiting (T-113).
     progress: silvermere_db::persist::Progress,
+    /// An editor's hold on the worker (`/v1/world-hold`): a shutdown ends it first.
+    world_hold: std::sync::Arc<silvermere_api::world_hold::Holds>,
 }
 
 /// How long shutdown waits for the persistence barrier with no write saved before
@@ -156,6 +158,9 @@ impl Running {
         tracing::info!("shutdown phase 1/4: saving characters");
         // No new connections, no more ticks.
         let _ = self.shutdown.send(true);
+        if self.world_hold.end_all() {
+            tracing::warn!("an editor's world hold was ended by the shutdown");
+        }
         let mut flushed = self.flushed.clone();
         flushed.mark_unchanged();
         let (reply, report_rx) = mpsc::channel();
@@ -252,6 +257,7 @@ impl Running {
     /// finish. Returns the world as it was at shutdown.
     pub async fn stop(mut self) -> anyhow::Result<World> {
         let _ = self.shutdown.send(true);
+        self.world_hold.end_all();
         let _ = self.to_engine.send(EngineInput::Shutdown);
         let handle = self.engine.take().context("engine already joined")?;
         let world = tokio::task::spawn_blocking(move || handle.join())
@@ -471,6 +477,12 @@ pub async fn serve_world_with_db(
             .watching(screens.clone(), links.clone()),
         ),
     );
+    // the world holds go through the persistence worker (`/v1/world-hold`), by a handle
+    // that does not keep it running once the game's are dropped
+    state.world = std::sync::Arc::new(admin::DbWorldLoader::new(
+        events_db.clone(),
+        Some(persist.hold_handle()),
+    ));
     // the web console's token: in memory only, for the console's in-process calls
     let console_secret = console::new_secret();
     state.console = Some(silvermere_api::Token::new(
@@ -479,6 +491,7 @@ pub async fn serve_world_with_db(
         &[silvermere_api::Scope::Admin],
     ));
     let console_app = silvermere_api::router(state.clone());
+    let world_hold = state.world_hold.clone();
     silvermere_engine::metrics::describe_all();
     metrics::gauge!(
         silvermere_engine::metrics::BUILD_INFO,
@@ -652,6 +665,7 @@ pub async fn serve_world_with_db(
         store_task: Some(store_task),
         flushed,
         progress,
+        world_hold,
     })
 }
 

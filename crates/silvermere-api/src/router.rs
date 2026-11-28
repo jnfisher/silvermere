@@ -47,6 +47,9 @@ pub struct ApiState {
     pub tokens: Arc<Vec<Token>>,
     /// Reads the static world tables for `/v1/reload-world`.
     pub world: Arc<dyn WorldLoader>,
+    /// The hold on the game's writes an editor takes to publish into the running game
+    /// (`/v1/world-hold`). `Default` for none.
+    pub world_hold: Arc<crate::world_hold::Holds>,
     /// The scheduled backup's state for `/v1/backup` and `/healthz` (T-150).
     pub backup: Arc<dyn BackupProbe>,
     /// The planned shutdown for `/v1/shutdown`.
@@ -116,6 +119,11 @@ fn message_of(code: &str) -> &'static str {
             "this SYSOP command acts on or from your character in the realm (GOTO, SUMMON, \
              EXPRESS_TRAIN, MAP, RESET, REPORT USERS, LIST GANG): use it in the game"
         }
+        "bad_hold" => "secs must be 1 to 600",
+        "held" => "the game's writes are held already; end that hold first",
+        "hold_unavailable" => "this server has no writes to hold",
+        "hold_timeout" => "the game's queued writes were not written in time; nothing is held",
+        "no_such_hold" => "no hold has that id: it was ended, or ran out",
         "server_full" => "every session slot is taken",
         "not_found" => "no such route",
         "internal" => "internal error",
@@ -170,6 +178,15 @@ pub fn routes() -> Vec<RouteSpec> {
         r("POST", "/v1/backup", Some(Scope::Admin), true),
         r("POST", "/v1/broadcast", Some(Scope::Write), true),
         r("POST", "/v1/reload-world", Some(Scope::Write), true),
+        r("GET", "/v1/world-hold", Some(Scope::Read), true),
+        r("POST", "/v1/world-hold", Some(Scope::Admin), true),
+        r(
+            "POST",
+            "/v1/world-hold/{id}/reload",
+            Some(Scope::Admin),
+            true,
+        ),
+        r("DELETE", "/v1/world-hold/{id}", Some(Scope::Admin), true),
         r("DELETE", "/v1/accounts/{id}", Some(Scope::Admin), true),
         r("GET", "/v1/shutdown", Some(Scope::Read), true),
         r("POST", "/v1/shutdown", Some(Scope::Admin), true),
@@ -247,6 +264,15 @@ pub fn router(state: ApiState) -> Router {
         .route("/v1/events", get(events::stream))
         .route("/v1/backup", get(backup::status).post(backup::run_now))
         .route("/v1/reload-world", post(reload::reload_world))
+        .route(
+            "/v1/world-hold",
+            get(crate::world_hold::status).post(crate::world_hold::take),
+        )
+        .route(
+            "/v1/world-hold/{id}/reload",
+            post(crate::world_hold::reload_and_end),
+        )
+        .route("/v1/world-hold/{id}", delete(crate::world_hold::end))
         .route("/v1/accounts/{id}", delete(accounts::delete))
         .route(
             "/v1/shutdown",
