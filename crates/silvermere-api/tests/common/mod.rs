@@ -13,6 +13,19 @@ use silvermere_engine::WorldSnapshot;
 pub struct FakeWorld {
     pub fail: Mutex<Option<String>>,
     pub loads: AtomicUsize,
+    /// Holds taken and not yet dropped.
+    pub held: std::sync::Arc<AtomicUsize>,
+    /// Refuse holds, as a server with no persistence.
+    pub no_hold: AtomicBool,
+}
+
+/// A hold of [`FakeWorld`]: counted while it lives.
+struct FakeHeld(std::sync::Arc<AtomicUsize>);
+
+impl Drop for FakeHeld {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
+    }
 }
 
 impl WorldLoader for FakeWorld {
@@ -24,6 +37,18 @@ impl WorldLoader for FakeWorld {
                 Some(e) => Err(LogError::from(e)),
                 None => Ok(Box::new(WorldSnapshot::default())),
             }
+        })
+    }
+
+    fn hold(&self) -> BoxFuture<'_, Result<Box<dyn Send + Sync>, LogError>> {
+        let refuse = self.no_hold.load(Ordering::SeqCst);
+        let held = self.held.clone();
+        Box::pin(async move {
+            if refuse {
+                return Err(LogError::from("no persistence"));
+            }
+            held.fetch_add(1, Ordering::SeqCst);
+            Ok(Box::new(FakeHeld(held)) as Box<dyn Send + Sync>)
         })
     }
 }

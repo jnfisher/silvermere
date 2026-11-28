@@ -107,3 +107,76 @@ fn load_puts_the_placed_items_back() {
         .count();
     assert_eq!(there, 1, "an item already lying there is not doubled");
 }
+
+/// What play changes in the content records stays as the engine has it across a reload,
+/// since the database may be behind (`POST /v1/world-hold`): a limited item's copies in
+/// play, a monster's alive count and last kill, and a gang shop's slots and markup. The
+/// rest of each record comes from the database.
+#[test]
+fn reload_content_keeps_what_play_changed_in_the_content_records() {
+    use silvermere_types::enums::ShopType;
+    use silvermere_types::ids::{ItemNo, ShopNo};
+    let mut s = common::tiny_snapshot();
+    s.shops.push(silvermere_types::records::Shop {
+        number: ShopNo(7),
+        name: "Gang shop".into(),
+        desc: Default::default(),
+        shop_type: ShopType::GangShop,
+        minlevel: 0,
+        maxlevel: 0,
+        markup: 0,
+        ownable: 0,
+        expandable: 0,
+        trainclass: silvermere_types::ids::ClassNo(0),
+        stock: std::array::from_fn(|_| silvermere_types::records::ShopSlot {
+            item: ItemNo(0),
+            maxqty: 0,
+            qty: 0,
+            regentime: 0,
+            regennum: 0,
+            regenpct: 0,
+        }),
+    });
+    let mut world = World::load(GameConfig::default(), 4, s.clone()).unwrap();
+    let item = *world.items.keys().next().unwrap();
+    let monster = *world.monsters.keys().next().unwrap();
+    world.items.get_mut(&item).unwrap().active = 3;
+    let m = world.monsters.get_mut(&monster).unwrap();
+    m.curalive = 2;
+    m.killed_at = 1_700_000_000;
+    let g = world.shops.get_mut(&ShopNo(7)).unwrap();
+    g.markup = 150;
+    g.stock[0].item = ItemNo(2);
+    g.stock[0].maxqty = 42;
+
+    let mut edited = s;
+    let i = edited.items.iter_mut().find(|i| i.number == item).unwrap();
+    i.name = "edited item".into();
+    i.active = 0;
+    let m = edited
+        .monsters
+        .iter_mut()
+        .find(|m| m.number == monster)
+        .unwrap();
+    m.name = "edited monster".into();
+    m.curalive = 0;
+    edited.shops.last_mut().unwrap().name = "Edited gang shop".into();
+    world.reload_content(&edited).unwrap();
+
+    assert_eq!(world.items[&item].name, "edited item");
+    assert_eq!(world.items[&item].active, 3);
+    assert_eq!(world.monsters[&monster].name, "edited monster");
+    assert_eq!(
+        (
+            world.monsters[&monster].curalive,
+            world.monsters[&monster].killed_at
+        ),
+        (2, 1_700_000_000)
+    );
+    let g = &world.shops[&ShopNo(7)];
+    assert_eq!(g.name, "Edited gang shop");
+    assert_eq!(
+        (g.markup, g.stock[0].item, g.stock[0].maxqty),
+        (150, ItemNo(2), 42)
+    );
+}

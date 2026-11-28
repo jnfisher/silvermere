@@ -487,6 +487,16 @@ impl Default for PersistConfig {
 enum Msg {
     Write(Box<Write>),
     Flush(oneshot::Sender<()>),
+    /// [`Persist::hold`]: commit what came before, say so on the first sender, then take
+    /// nothing more until the second one is sent on or dropped.
+    Hold(oneshot::Sender<()>, oneshot::Receiver<()>),
+}
+
+/// The worker held by [`Persist::hold`]: every write queued before the hold is committed,
+/// and the writes queued since wait. Dropping it lets the worker go on, in order.
+#[derive(Debug)]
+pub struct Held {
+    _release: oneshot::Sender<()>,
 }
 
 /// The kinds of write, as the unsaved count names them, players' records first (a
@@ -635,6 +645,22 @@ impl Persist {
             .await
             .map_err(|_| DbError::PersistClosed)?;
         rx.await.map_err(|_| DbError::PersistClosed)
+    }
+
+    /// Holds the worker: returns once every write queued before the call is committed,
+    /// and the worker takes no more until the [`Held`] is dropped. Writes queued meanwhile
+    /// wait in the queue (a full queue makes [`Self::send`] wait), so another program can
+    /// change the world tables with nothing of the game's in flight: what an editor's
+    /// publish into the running game needs (`POST /v1/world-hold`).
+    pub async fn hold(&self) -> Result<Held> {
+        let (held_tx, held_rx) = oneshot::channel();
+        let (release, until) = oneshot::channel();
+        self.tx
+            .send(Msg::Hold(held_tx, until))
+            .await
+            .map_err(|_| DbError::PersistClosed)?;
+        held_rx.await.map_err(|_| DbError::PersistClosed)?;
+        Ok(Held { _release: release })
     }
 
     /// The character writes queued and not yet committed, latest per character (T-113).
@@ -888,13 +914,13 @@ impl Worker {
             };
             let mut writes: Vec<Write> = Vec::new();
             let mut flushes: Vec<oneshot::Sender<()>> = Vec::new();
-            self.absorb(first, &mut writes, &mut flushes);
+            let mut hold = self.absorb(first, &mut writes, &mut flushes);
             let deadline = Instant::now() + self.config.batch_window;
-            while writes.len() < self.config.batch_max {
+            while hold.is_none() && writes.len() < self.config.batch_max {
                 tokio::select! {
                     _ = tokio::time::sleep_until(deadline) => break,
                     msg = self.rx.recv() => match msg {
-                        Some(msg) => self.absorb(msg, &mut writes, &mut flushes),
+                        Some(msg) => hold = self.absorb(msg, &mut writes, &mut flushes),
                         None => break,
                     },
                 }
@@ -908,6 +934,14 @@ impl Worker {
             metrics::gauge!(PERSIST_QUEUE_DEPTH).set(depth as f64);
             for f in flushes {
                 let _ = f.send(());
+            }
+            if let Some((held, until)) = hold
+                && held.send(()).is_ok()
+            {
+                tracing::info!("persistence held: the world tables may be written from outside");
+                // sent on or dropped alike: the hold is over
+                let _ = until.await;
+                tracing::info!("persistence hold over");
             }
         }
         watch.abort();
@@ -926,7 +960,13 @@ impl Worker {
         }
     }
 
-    fn absorb(&self, msg: Msg, writes: &mut Vec<Write>, flushes: &mut Vec<oneshot::Sender<()>>) {
+    /// Takes `msg` into the batch; a hold ends the batch, and comes back.
+    fn absorb(
+        &self,
+        msg: Msg,
+        writes: &mut Vec<Write>,
+        flushes: &mut Vec<oneshot::Sender<()>>,
+    ) -> Option<(oneshot::Sender<()>, oneshot::Receiver<()>)> {
         match msg {
             Msg::Write(w) => {
                 if let Some(key) = w.overwrite_key() {
@@ -941,7 +981,9 @@ impl Worker {
                 writes.push(*w);
             }
             Msg::Flush(f) => flushes.push(f),
+            Msg::Hold(held, until) => return Some((held, until)),
         }
+        None
     }
 
     /// Commits `writes` in one transaction, retrying connectivity failures with backoff

@@ -21,13 +21,15 @@ are `unauthorized`, `forbidden`, `bad_text`, `engine_unavailable` (503), `engine
 with the reason as the `message`), `backup_unavailable` (503), `reserved` (501), and for
 the [moderation routes](#moderation) `no_such_player` (404), `not_connected` (409),
 `door_account` (409), `bad_network` (400), `no_such_ban` (404), `not_sanctioned` (404),
-`bad_duration` (400), `store_failed` (500) and `moderation_unavailable` (503).
+`bad_duration` (400), `store_failed` (500) and `moderation_unavailable` (503), and for
+[`/v1/world-hold`](#v1world-hold-publishing-into-the-running-game) `bad_hold` (400), `held`
+(409), `hold_unavailable` (503), `hold_timeout` (504) and `no_such_hold` (404).
 
 | Scope | Allows |
 |---|---|
-| `read` | the `GET` routes: `/v1/who` (hidden sysops omitted), `/v1/events`, `/v1/backup`, `/v1/moderation` |
+| `read` | the `GET` routes: `/v1/who` (hidden sysops omitted), `/v1/events`, `/v1/backup`, `/v1/moderation`, `/v1/world-hold` |
 | `write` | routes that change the running game: `/v1/broadcast`, `/v1/reload-world`, `/v1/players/{name}/tell` |
-| `admin` | everything, including `DELETE /v1/accounts/{id}`, `/v1/shutdown`, the moderation routes (kick, ban, jail, mute, IP bans, closing the realm) and the reserved world routes; `/v1/who` includes hidden sysops |
+| `admin` | everything, including `DELETE /v1/accounts/{id}`, `/v1/shutdown`, the `/v1/world-hold` writes, the moderation routes (kick, ban, jail, mute, IP bans, closing the realm) and the reserved world routes; `/v1/who` includes hidden sysops |
 
 `write` does not include `read`: give an operator tool both. (The T-018 names `broadcast`
 and `sysop` are still accepted in the config and mean `write` and `admin`.)
@@ -79,6 +81,10 @@ file publishes the port on the host's `127.0.0.1` only.
 | `POST` | `/v1/backup` | `admin` | none | `{"at":"...","ok":true,"file":"...","bytes":n,...}` |
 | `POST` | `/v1/broadcast` | `write` | `{"text":"..."}` | `{"delivered":n}` |
 | `POST` | `/v1/reload-world` | `write` | none | `{"reloaded":{...},"ms":t}` |
+| `GET` | `/v1/world-hold` | `read` | none | `{"hold":null}` or `{"hold":{"id":"...","expires_in":s}}` |
+| `POST` | `/v1/world-hold` | `admin` | `{"secs":n}` (optional) | `{"hold":"...","secs":n}` |
+| `POST` | `/v1/world-hold/{id}/reload` | `admin` | none | `{"reloaded":{...},"ms":t}` |
+| `DELETE` | `/v1/world-hold/{id}` | `admin` | none | `{"ended":true}` |
 | `DELETE` | `/v1/accounts/{id}` | `admin` | none | `{"deleted":{"account":id,"character":"..."}}` |
 | `GET` | `/v1/shutdown` | `read` | none | `{"planned":null}` or `{"planned":{"at":"...","in_secs":n,"restart":false}}` |
 | `POST` | `/v1/shutdown` | `admin` | `{"in_secs":n,"message":"..."}` (both optional) | `{"at":"...","in_secs":n,"restart":false}` |
@@ -201,6 +207,33 @@ monsters, gangs, bank books) is not touched. Answers
 (counts are the rows read.) If the database read or the engine's checks fail (a special room
 is missing from the new tables), nothing is replaced and the answer is
 `500 {"error":"reload_failed","message":"..."}`; the cause is in the server log.
+
+The live parts of the content records stay as the running game has them: a limited item's
+copies in play (`items.active`), a known monster's alive count and last kill
+(`monster_state`), a shop's stock and a gang shop's slots and markup. The rest of each
+record comes from the database.
+
+### `/v1/world-hold`: publishing into the running game
+
+An editor that writes the world tables straight into the database (Daydream) does it with
+the game running, and nobody is disconnected:
+
+1. `POST /v1/world-hold` with `{"secs": n}` (1 to 600, default 60). The server writes
+   everything its persistence worker has queued, then holds it: the game plays on, and the
+   writes it makes meanwhile (saves, floors, kills, stock) wait in the queue. The answer
+   `{"hold": "h1-...", "secs": n}` comes once nothing of the game's is in flight. `409 held`
+   while another hold is held; `503 hold_unavailable` with no persistence; `504
+   hold_timeout` when the queue did not drain in 30 s (nothing is held then).
+2. The editor writes the world tables (not the single-writer guard: the hold stands in for
+   it while it lasts).
+3. `POST /v1/world-hold/{id}/reload` reloads the world as `/v1/reload-world` does, then ends
+   the hold; the waiting writes follow, in order. The answer is the reload's. The hold ends
+   even when the reload fails. `DELETE /v1/world-hold/{id}` ends it with no reload
+   (`{"ended": true}`). Either is `404 no_such_hold` once the hold is over.
+
+A hold that is not ended within its `secs` ends by itself, with no reload, and the server
+logs a warning. `GET /v1/world-hold` shows the hold held now. Holds are audited like any
+other call (`hold` and `secs` on the row that took it).
 
 ### Moderation
 

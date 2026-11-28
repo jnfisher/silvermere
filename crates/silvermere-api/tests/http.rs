@@ -203,6 +203,7 @@ async fn server() -> Server {
         }),
         metrics: handle,
         world: world.clone(),
+        world_hold: Default::default(),
         backup: Arc::new(FakeBackups),
         shutdown: shutdown.clone(),
         moderation: moderator.clone(),
@@ -323,7 +324,10 @@ async fn auth_matrix_on_every_route() {
                 for (name, secret, scopes) in TOKENS {
                     let allowed = scopes.contains(&Scope::Admin) || scopes.contains(&needed);
                     let r = call(Some(secret)).await;
-                    if allowed {
+                    if allowed && spec.path.starts_with("/v1/world-hold") {
+                        // one hold at a time and made-up ids: its own test has the answers
+                        assert!(![401, 403].contains(&r.status), "{who} with {name}");
+                    } else if allowed {
                         let ok = if spec.built { 200 } else { 501 };
                         assert_eq!(r.status, ok, "{who} with {name}: {}", r.body);
                     } else {
@@ -1184,5 +1188,82 @@ async fn watching_typing_and_sysop_lines() {
         rows.iter()
             .any(|e| e.kind == "admin.players.Lars.screen" && e.payload["player"] == "Lars"),
         "{rows:?}"
+    );
+}
+
+/// A hold on the game's writes: one at a time, ended by its reload (which reloads first)
+/// or by `DELETE`, and by itself once its time is out.
+#[tokio::test]
+async fn a_world_hold_is_taken_once_and_ended_by_its_reload_or_its_time() {
+    let srv = server().await;
+    let root = Some("root-secret");
+    let held = || srv.world.held.load(std::sync::atomic::Ordering::SeqCst);
+    let call = |m: &'static str, p: String, body: Option<&'static str>| {
+        let addr = srv.addr;
+        async move { request(addr, m, &p, root, body).await }
+    };
+    let bad = call("POST", "/v1/world-hold".into(), Some(r#"{"secs":0}"#)).await;
+    assert_eq!(
+        (bad.status, bad.json()["error"].clone()),
+        (400, json!("bad_hold"))
+    );
+    let r = call("GET", "/v1/world-hold".into(), None).await;
+    assert_eq!(r.json(), json!({ "hold": null }));
+
+    let r = call("POST", "/v1/world-hold".into(), Some(r#"{"secs":30}"#)).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.json()["secs"], 30);
+    let id = r.json()["hold"].as_str().unwrap().to_string();
+    assert_eq!(held(), 1);
+    let again = call("POST", "/v1/world-hold".into(), None).await;
+    assert_eq!(
+        (again.status, again.json()["error"].clone()),
+        (409, json!("held"))
+    );
+    let r = call("GET", "/v1/world-hold".into(), None).await;
+    assert_eq!(r.json()["hold"]["id"], json!(id));
+    let other = call("POST", "/v1/world-hold/h0-0/reload".into(), None).await;
+    assert_eq!(other.status, 404);
+    assert_eq!(held(), 1, "a wrong id ends nothing");
+
+    let loads = srv.world.loads.load(std::sync::atomic::Ordering::SeqCst);
+    let r = call("POST", format!("/v1/world-hold/{id}/reload"), None).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert!(r.json()["reloaded"]["rooms"].is_number());
+    assert_eq!(
+        srv.world.loads.load(std::sync::atomic::Ordering::SeqCst),
+        loads + 1
+    );
+    assert_eq!(held(), 0, "the reload ends the hold");
+    let r = call("POST", format!("/v1/world-hold/{id}/reload"), None).await;
+    assert_eq!(
+        (r.status, r.json()["error"].clone()),
+        (404, json!("no_such_hold"))
+    );
+
+    // ended with no reload
+    let r = call("POST", "/v1/world-hold".into(), None).await;
+    let id = r.json()["hold"].as_str().unwrap().to_string();
+    let r = call("DELETE", format!("/v1/world-hold/{id}"), None).await;
+    assert_eq!(r.json(), json!({ "ended": true }));
+    assert_eq!(held(), 0);
+
+    // ended by its time
+    let r = call("POST", "/v1/world-hold".into(), Some(r#"{"secs":1}"#)).await;
+    assert_eq!(r.status, 200);
+    assert_eq!(held(), 1);
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+    assert_eq!(held(), 0, "ran out");
+    let r = call("GET", "/v1/world-hold".into(), None).await;
+    assert_eq!(r.json(), json!({ "hold": null }));
+
+    // a server with nothing to hold says so
+    srv.world
+        .no_hold
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let r = call("POST", "/v1/world-hold".into(), None).await;
+    assert_eq!(
+        (r.status, r.json()["error"].clone()),
+        (503, json!("hold_unavailable"))
     );
 }
