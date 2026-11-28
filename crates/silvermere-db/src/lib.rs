@@ -43,7 +43,7 @@ pub use dialect::{Dialect, drop_ignored_params, redact_url, split_password};
 pub use events::{Event, Events};
 pub use guard::{GuardLost, TryAcquire, Watchdog, WriterGuard};
 pub use import_tx::ImportTx;
-pub use persist::{Held, Persist, PersistConfig, PersistStatus, Write};
+pub use persist::{Held, HoldHandle, Persist, PersistConfig, PersistStatus, Write};
 pub use pool::{Db, TestDb};
 pub use world_import::WorldImport;
 

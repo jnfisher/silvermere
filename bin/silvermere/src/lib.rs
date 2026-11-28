@@ -477,10 +477,11 @@ pub async fn serve_world_with_db(
             .watching(screens.clone(), links.clone()),
         ),
     );
-    // the world reloads and holds go through the persistence worker (`/v1/world-hold`)
+    // the world holds go through the persistence worker (`/v1/world-hold`), by a handle
+    // that does not keep it running once the game's are dropped
     state.world = std::sync::Arc::new(admin::DbWorldLoader::new(
         events_db.clone(),
-        Some(persist.clone()),
+        Some(persist.hold_handle()),
     ));
     // the web console's token: in memory only, for the console's in-process calls
     let console_secret = console::new_secret();

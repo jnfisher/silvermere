@@ -85,11 +85,11 @@ impl EventLog for DbEventLog {
 /// holds are the persistence worker's ([`silvermere_db::Persist::hold`]).
 pub struct DbWorldLoader {
     db: Arc<Db>,
-    persist: Option<silvermere_db::Persist>,
+    persist: Option<silvermere_db::HoldHandle>,
 }
 
 impl DbWorldLoader {
-    pub fn new(db: Arc<Db>, persist: Option<silvermere_db::Persist>) -> Self {
+    pub fn new(db: Arc<Db>, persist: Option<silvermere_db::HoldHandle>) -> Self {
         Self { db, persist }
     }
 }

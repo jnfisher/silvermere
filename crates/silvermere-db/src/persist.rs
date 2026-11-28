@@ -653,14 +653,15 @@ impl Persist {
     /// change the world tables with nothing of the game's in flight: what an editor's
     /// publish into the running game needs (`POST /v1/world-hold`).
     pub async fn hold(&self) -> Result<Held> {
-        let (held_tx, held_rx) = oneshot::channel();
-        let (release, until) = oneshot::channel();
-        self.tx
-            .send(Msg::Hold(held_tx, until))
-            .await
-            .map_err(|_| DbError::PersistClosed)?;
-        held_rx.await.map_err(|_| DbError::PersistClosed)?;
-        Ok(Held { _release: release })
+        hold_on(&self.tx).await
+    }
+
+    /// A handle that can [`HoldHandle::hold`] the worker but does not keep it running: the
+    /// admin API keeps one, and the worker still ends once the game's handles are dropped.
+    pub fn hold_handle(&self) -> HoldHandle {
+        HoldHandle {
+            tx: self.tx.downgrade(),
+        }
     }
 
     /// The character writes queued and not yet committed, latest per character (T-113).
@@ -694,6 +695,31 @@ impl Persist {
     pub fn dropped(&self) -> u64 {
         self.dropped.load(Ordering::Relaxed)
     }
+}
+
+/// [`Persist::hold`] from a handle that does not keep the worker running
+/// ([`Persist::hold_handle`]).
+#[derive(Debug, Clone)]
+pub struct HoldHandle {
+    tx: mpsc::WeakSender<Msg>,
+}
+
+impl HoldHandle {
+    /// [`Persist::hold`]; [`DbError::PersistClosed`] once the worker is gone.
+    pub async fn hold(&self) -> Result<Held> {
+        let tx = self.tx.upgrade().ok_or(DbError::PersistClosed)?;
+        hold_on(&tx).await
+    }
+}
+
+async fn hold_on(tx: &mpsc::Sender<Msg>) -> Result<Held> {
+    let (held_tx, held_rx) = oneshot::channel();
+    let (release, until) = oneshot::channel();
+    tx.send(Msg::Hold(held_tx, until))
+        .await
+        .map_err(|_| DbError::PersistClosed)?;
+    held_rx.await.map_err(|_| DbError::PersistClosed)?;
+    Ok(Held { _release: release })
 }
 
 /// The lock of [`Pending`]; a panic while it was held leaves a map that is still whole.
